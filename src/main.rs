@@ -1,9 +1,15 @@
 
+use argon2::{Argon2, password_hash::{
+    rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+}};
 use axum::{routing::{get, post},  Json, Router, extract::{State, Path, Query}, http::StatusCode};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, Utc};
 use serde::{Serialize, Deserialize};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+
+use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() {
@@ -24,6 +30,10 @@ async fn main() {
             .route("/api/availability", post(create_rule))
             .route("/api/hosts/{id}/availability", get(get_rules))
             .route("/api/hosts/{id}/slots", get(list_slots))
+            .route("/api/hosts/{id}/bookings", post(create_booking))
+            .route("/api/hosts/{id}/bookings", get(get_bookings))
+            .route("/api/register", post(register))
+            .route("/api/login", post(login))
             .with_state(pool);
 
 
@@ -167,6 +177,151 @@ async fn list_slots(
     Ok(Json(slots))
 }
 
+
+async fn create_booking(
+    State(pool): State<PgPool>,
+    Path(host_id): Path<i64>,
+    Json(body): Json<NewBooking>
+) -> Result<(StatusCode, Json<Booking>), (StatusCode, String)> {
+
+
+    let rules = sqlx::query_as!(
+        Rule,
+        "SELECT weekday, start_time, end_time, slot_minutes FROM availability WHERE host_id = $1",
+        host_id
+    )
+    .fetch_all(&pool).await.map_err(internal)?;
+
+    let date = body.slot_start.date_naive();
+    let wd = date.weekday().num_days_from_monday() as i32;
+
+    let valid = rules
+                            .iter()
+                            .filter(|r| r.weekday == wd)
+                            .flat_map(|r| slots_for_day(date, r))
+                            .any(|slot| slot == body.slot_start);
+
+
+    if !valid {
+        return Err((StatusCode::UNPROCESSABLE_ENTITY, "That slot is not a bookable slot for this host.".into()));
+    }
+
+    
+    let result = sqlx::query_as!(
+        Booking,
+        "INSERT INTO bookings (host_id, slot_start, invitee_name, invitee_email) VALUES ($1, $2, $3, $4) RETURNING id, host_id, slot_start, invitee_name, invitee_email",
+        host_id, body.slot_start, body.invitee_name, body.invitee_email
+    )
+    .fetch_one(&pool).await;
+
+    match result {
+        Ok(booking) => Ok((StatusCode::CREATED, Json(booking))),
+        Err(e) => {
+            if let Some(dbe) = e.as_database_error() {
+                if dbe.is_unique_violation() {
+                    return Err((StatusCode::CONFLICT, "That slot is already booked.".into()));
+                }
+            }
+
+            Err(internal(e))
+        }
+    }
+
+
+}
+
+
+async fn get_bookings(
+    State(pool): State<PgPool>,
+    Path(host_id): Path<i64>
+) -> Result<Json<Vec<Booking>>, (StatusCode, String)> {
+    let bookings = sqlx::query_as!(
+        Booking,
+        "SELECT id, host_id, slot_start, invitee_name, invitee_email FROM bookings WHERE host_id = $1",
+        host_id
+    )
+    .fetch_all(&pool).await.map_err(internal)?;
+
+    Ok(Json(bookings))
+}
+
+async fn register(
+    State(pool): State<PgPool>,
+    Json(body): Json<Register>
+) -> Result<(StatusCode, Json<Host>), (StatusCode, String)> {
+    let salt = SaltString::generate(&mut OsRng);
+    let hash = Argon2::default()
+                            .hash_password(body.password.as_bytes(), &salt)
+                            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
+                            .to_string();
+
+    let result = sqlx::query_as!(
+        Host,
+        "INSERT INTO hosts (name, email, password_hash) VALUES ($1, $2, $3) RETURNING id, name, email",
+        body.name, body.email, hash
+    )
+    .fetch_one(&pool).await;
+
+    match result {
+        Ok(host) => Ok((StatusCode::CREATED, Json(host))),
+        Err(e) => {
+
+            if let Some(dbe) = e.as_database_error() {
+                if dbe.is_unique_violation() {
+                    return Err((StatusCode::CONFLICT, "That email is already registered.".into()));
+                }
+            }
+            Err(internal(e))
+        }
+    }
+    
+}
+
+async fn login(
+    State(pool): State<PgPool>,
+    jar: CookieJar,
+    Json(body): Json<Login>
+) -> Result<(CookieJar, Json<LoginOk>), (StatusCode, String)> {
+
+    let row = sqlx::query!(
+        "SELECT id, password_hash FROM hosts WHERE email = $1",
+        body.email
+    )
+    .fetch_optional(&pool).await.map_err(internal)?;
+
+    let unauthorized = || (StatusCode::UNAUTHORIZED, "Invalid email or password.".to_string());
+
+    let Some(rec) = row else {return Err(unauthorized());};
+    let Some(stored) = rec.password_hash else {return  Err(unauthorized());};
+
+    let parsed = PasswordHash::new(&stored).map_err(|_| unauthorized())?;
+    if Argon2::default().verify_password(body.password.as_bytes(), &parsed).is_err() {
+        return Err(unauthorized());
+    }
+
+    let token = Uuid::new_v4().to_string();
+    sqlx::query!("INSERT INTO sessions (token, host_id) VALUES ($1, $2)", token, rec.id)
+                                    .execute(&pool).await.map_err(internal)?;
+    
+    let cookie =  Cookie::build(("session", token))
+                                                            .http_only(true)
+                                                            .same_site(SameSite::Lax)
+                                                            .path("/")
+                                                            .max_age(time::Duration::days(7))
+                                                            .secure(false)
+                                                            .build();
+
+    Ok((jar.add(cookie), Json(LoginOk { host_id: rec.id })))
+
+}
+
+
+#[derive(Deserialize)]
+struct Login {email: String, password: String}
+
+#[derive(Serialize)]
+struct LoginOk {host_id: i64}
+
 struct Rule {
     weekday: i32,
     start_time: NaiveTime,
@@ -196,6 +351,29 @@ struct RuleOut {
 #[derive(Deserialize)]
 struct SlotQuery {
     days: i64
+}
+
+#[derive(Deserialize)]
+struct NewBooking {
+    slot_start: DateTime<Utc>,
+    invitee_name: String,
+    invitee_email: String,
+}
+
+#[derive(Serialize)]
+struct Booking {
+    id: i64,
+    host_id: i64,
+    slot_start: DateTime<Utc>,
+    invitee_name: String,
+    invitee_email: String,
+}
+
+#[derive(Deserialize)]
+struct Register {
+    name: String,
+    email: String,
+    password: String,
 }
 
 fn slots_for_day(date: NaiveDate, rule: &Rule) -> Vec<DateTime<Utc>> {
