@@ -2,7 +2,7 @@
 use argon2::{Argon2, password_hash::{
     rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
 }};
-use axum::{routing::{get, post},  Json, Router, extract::{State, Path, Query}, http::StatusCode};
+use axum::{routing::{get, post},  Json, Router, extract::{State, Path, Query, FromRef, FromRequestParts}, http::{StatusCode, request::Parts}};
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveTime, Utc};
 use serde::{Serialize, Deserialize};
 use sqlx::postgres::PgPoolOptions;
@@ -27,13 +27,13 @@ async fn main() {
             .route("/health", get(health))
             .route("/api/hosts", get(list_hosts).post(create_host))
             .route("/api/hosts/{id}", get(get_host))
-            .route("/api/availability", post(create_rule))
-            .route("/api/hosts/{id}/availability", get(get_rules))
+            .route("/api/availability", get(get_rules).post(create_rule))
             .route("/api/hosts/{id}/slots", get(list_slots))
             .route("/api/hosts/{id}/bookings", post(create_booking))
-            .route("/api/hosts/{id}/bookings", get(get_bookings))
+            .route("/api/bookings", get(get_bookings))
             .route("/api/register", post(register))
             .route("/api/login", post(login))
+            .route("/api/logout", post(logout))
             .with_state(pool);
 
 
@@ -60,7 +60,41 @@ struct Host {
 struct NewHost {
     name: String,
     email: String
-} 
+}
+
+struct CurrentHost {
+    id: i64
+}
+
+impl<S> FromRequestParts<S> for CurrentHost where S: Send + Sync, PgPool: FromRef<S> {
+    type Rejection = (StatusCode, String);
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection>
+    {
+        let unauthorized = || (StatusCode::UNAUTHORIZED, "Not Logged In.".to_string());
+
+        let jar = CookieJar::from_request_parts(parts, state)
+            .await
+            .expect("CookieJar extraction is infallible");
+
+        let token = jar
+            .get("session")
+            .map(|c| c.value().to_owned())
+            .ok_or_else(unauthorized)?;
+
+        let pool = PgPool::from_ref(state);
+        let row = sqlx::query!(
+            "SELECT host_id FROM sessions WHERE token = $1", token
+        )
+            .fetch_optional(&pool)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+        let rec = row.ok_or_else(unauthorized)?;
+
+        Ok(CurrentHost { id: rec.host_id })
+    }
+}
 
 
 async fn list_hosts(State(pool): State<PgPool>) -> Result<Json<Vec<Host>>, (StatusCode, String)> {
@@ -118,6 +152,7 @@ async fn get_host(
 
 async fn create_rule(
     State(pool): State<PgPool>,
+    host: CurrentHost,
     Json(body): Json<NewRule>
 ) -> Result<(StatusCode, Json<i64>), (StatusCode, String)> {
 
@@ -127,7 +162,7 @@ async fn create_rule(
 
     let rec = sqlx::query!(
         "INSERT INTO availability (host_id, weekday, start_time, end_time, slot_minutes) VALUES ($1, $2, $3, $4, $5) RETURNING id",
-        body.host_id, body.weekday, body.start_time, body.end_time, body.slot_minutes
+        host.id, body.weekday, body.start_time, body.end_time, body.slot_minutes
     )
     .fetch_one(&pool).await.map_err(internal)?;
 
@@ -136,13 +171,13 @@ async fn create_rule(
 
 async fn get_rules(
     State(pool): State<PgPool>,
-    Path(host_id): Path<i64>,
+    host: CurrentHost,
 ) -> Result<Json<Vec<RuleOut>>, (StatusCode, String)> {
     let rules = sqlx::query_as!(
         RuleOut,
         "SELECT id, host_id, weekday, start_time, end_time, slot_minutes \
          FROM availability WHERE host_id = $1 ORDER BY weekday, start_time",
-        host_id
+        host.id
     )
     .fetch_all(&pool).await.map_err(internal)?;
 
@@ -233,12 +268,12 @@ async fn create_booking(
 
 async fn get_bookings(
     State(pool): State<PgPool>,
-    Path(host_id): Path<i64>
+    host: CurrentHost
 ) -> Result<Json<Vec<Booking>>, (StatusCode, String)> {
     let bookings = sqlx::query_as!(
         Booking,
         "SELECT id, host_id, slot_start, invitee_name, invitee_email FROM bookings WHERE host_id = $1",
-        host_id
+        host.id
     )
     .fetch_all(&pool).await.map_err(internal)?;
 
@@ -315,6 +350,18 @@ async fn login(
 
 }
 
+async fn logout(
+    State(pool): State<PgPool>,
+    jar: CookieJar,
+) -> Result<CookieJar, (StatusCode, String)> {
+    if let Some(c) = jar.get("session") {
+        sqlx::query!("DELETE FROM sessions WHERE token = $1", c.value())
+            .execute(&pool).await.map_err(internal)?;
+    }
+
+    Ok(jar.remove(Cookie::build(("session", "")).path("/").build()))
+}
+
 
 #[derive(Deserialize)]
 struct Login {email: String, password: String}
@@ -331,7 +378,6 @@ struct Rule {
 
 #[derive(Deserialize)]
 struct NewRule {
-    host_id: i64,
     weekday: i32,
     start_time: NaiveTime,
     end_time: NaiveTime,
@@ -389,5 +435,5 @@ fn slots_for_day(date: NaiveDate, rule: &Rule) -> Vec<DateTime<Utc>> {
         cursor += step;
     }
 
-    return out;
+    out
 }
