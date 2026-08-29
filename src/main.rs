@@ -231,26 +231,32 @@ async fn create_booking(
     let wd = date.weekday().num_days_from_monday() as i32;
 
     let valid = rules
-                            .iter()
-                            .filter(|r| r.weekday == wd)
-                            .flat_map(|r| slots_for_day(date, r))
-                            .any(|slot| slot == body.slot_start);
+                .iter()
+                .filter(|r| r.weekday == wd)
+                .flat_map(|r| slots_for_day(date, r))
+                .any(|slot| slot == body.slot_start);
 
 
     if !valid {
         return Err((StatusCode::UNPROCESSABLE_ENTITY, "That slot is not a bookable slot for this host.".into()));
     }
 
+    let mut tx = pool.begin().await.map_err(internal)?;
     
     let result = sqlx::query_as!(
         Booking,
-        "INSERT INTO bookings (host_id, slot_start, invitee_name, invitee_email) VALUES ($1, $2, $3, $4) RETURNING id, host_id, slot_start, invitee_name, invitee_email",
-        host_id, body.slot_start, body.invitee_name, body.invitee_email
+        "INSERT INTO bookings (host_id, slot_start, invitee_name, invitee_email) \
+        VALUES ($1, $2, $3, $4) \
+        RETURNING id, host_id, slot_start, invitee_name, invitee_email",
+        host_id,
+        body.slot_start,
+        body.invitee_name,
+        body.invitee_email
     )
-    .fetch_one(&pool).await;
+    .fetch_one(&mut *tx).await;
 
-    match result {
-        Ok(booking) => Ok((StatusCode::CREATED, Json(booking))),
+    let booking = match result {
+        Ok(booking) => booking,
         Err(e) => {
             if let Some(dbe) = e.as_database_error() {
                 if dbe.is_unique_violation() {
@@ -258,11 +264,30 @@ async fn create_booking(
                 }
             }
 
-            Err(internal(e))
+           return Err(internal(e));
         }
-    }
+    };
 
+    let subject = "Your Cadence booking is confirmed";
+    let email_body = format!(
+        "Hi {},\n\nYour booking is confirmed for {}.\n\n- Cadence",
+        booking.invitee_name,
+        booking.slot_start.format("%Y-%m-%d %H:%M UTC")
+    );
 
+    sqlx::query!(
+        "INSERT INTO outbox (booking_id, to_email, subject, body) \
+        VALUES ($1, $2, $3, $4)",
+        booking.id,
+        &booking.invitee_email,
+        subject,
+        &email_body
+    )
+        .execute(&mut *tx).await.map_err(internal)?;
+
+    tx.commit().await.map_err(internal)?;
+
+    Ok((StatusCode::CREATED, Json(booking)))
 }
 
 
@@ -339,12 +364,12 @@ async fn login(
                                     .execute(&pool).await.map_err(internal)?;
     
     let cookie =  Cookie::build(("session", token))
-                                                            .http_only(true)
-                                                            .same_site(SameSite::Lax)
-                                                            .path("/")
-                                                            .max_age(time::Duration::days(7))
-                                                            .secure(false)
-                                                            .build();
+                                            .http_only(true)
+                                            .same_site(SameSite::Lax)
+                                            .path("/")
+                                            .max_age(time::Duration::days(7))
+                                            .secure(false)
+                                            .build();
 
     Ok((jar.add(cookie), Json(LoginOk { host_id: rec.id })))
 
