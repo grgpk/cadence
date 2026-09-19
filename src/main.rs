@@ -10,6 +10,8 @@ use sqlx::PgPool;
 
 use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
 use uuid::Uuid;
+use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor };
+use lettre::message::{Mailbox, header::ContentType};
 
 #[tokio::main]
 async fn main() {
@@ -22,6 +24,13 @@ async fn main() {
         .connect(&url)
         .await
         .expect("could not connect to Postgres");
+
+    let mailer: AsyncSmtpTransport<Tokio1Executor> =
+        AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous("localhost")
+            .port(1025)
+            .build();
+
+    tokio::spawn(run_outbox_worker(pool.clone(), mailer));
 
     let app = Router::new()
             .route("/health", get(health))
@@ -387,6 +396,75 @@ async fn logout(
     Ok(jar.remove(Cookie::build(("session", "")).path("/").build()))
 }
 
+async fn run_outbox_worker(
+    pool: PgPool,
+    mailer: AsyncSmtpTransport<Tokio1Executor>
+) {
+    let mut ticker = tokio::time::interval(std::time::Duration::from_secs(10));
+
+    let from: Mailbox = "Cadence <no-reply@cadence.local>"
+        .parse()
+        .expect("hard-coded From address must be valid");
+
+    loop {
+        ticker.tick().await;
+
+        let rows = match sqlx::query!(
+            "SELECT id, to_email, subject, body FROM outbox \
+             WHERE sent_at IS NULL ORDER BY id LIMIT 20",
+        )
+        .fetch_all(&pool)
+        .await
+        {
+            Ok(rows) => rows,
+            Err(e) => {
+                eprintln!("outbox: SELECT failed: {e}");
+                continue;
+            }
+        };
+
+        for row in rows {
+            let to: Mailbox = match row.to_email.parse() {
+                Ok(to) => to,
+                Err(e) => {
+                    eprintln!("outbox: row {} has a bad address: {e}", row.id);
+                    continue;
+                }
+            };
+
+            let email = match lettre::Message::builder()
+                .from(from.clone())
+                .to(to)
+                .subject(row.subject)
+                .header(ContentType::TEXT_PLAIN)
+                .body(row.body)
+            {
+                Ok(email) => email,
+                Err(e) => {
+                    eprintln!("outbox: row {} could not be built: {e}", row.id);
+                    continue;
+                }
+            };
+
+            if let Err(e) = mailer.send(email).await {
+                eprintln!("outbox: row {} send failed: {e}", row.id);
+                continue;
+            }
+
+            if let Err(e) = sqlx::query!(
+                "UPDATE outbox SET sent_at = now() WHERE id = $1",
+                row.id
+            )
+                .execute(&pool)
+                .await
+            {
+                eprintln!("outbox: row {} SENT but not stamped: {e}", row.id);
+            }
+
+            println!("outbox: row {} SENT", row.id);
+        }
+    }
+}
 
 #[derive(Deserialize)]
 struct Login {email: String, password: String}
