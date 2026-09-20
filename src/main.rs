@@ -277,22 +277,35 @@ async fn create_booking(
         }
     };
 
-    let subject = "Your Cadence booking is confirmed";
-    let email_body = format!(
-        "Hi {},\n\nYour booking is confirmed for {}.\n\n- Cadence",
-        booking.invitee_name,
-        booking.slot_start.format("%Y-%m-%d %H:%M UTC")
-    );
+    let when = booking.slot_start.format("%Y-%m-%d %H:%M UTC");
 
-    sqlx::query!(
-        "INSERT INTO outbox (booking_id, to_email, subject, body) \
-        VALUES ($1, $2, $3, $4)",
-        booking.id,
-        &booking.invitee_email,
-        subject,
-        &email_body
+    queue_email(
+        &mut *tx, 
+        booking.id, 
+        &booking.invitee_email, 
+        "Your Cadence booking is confirmed", 
+        &format!(
+            "Hi {},\n\nYour booking is confirmed for {when}.\n\n- Cadence",
+            booking.invitee_name
+        ), 
+        Utc::now()
     )
-        .execute(&mut *tx).await.map_err(internal)?;
+    .await
+    .map_err(internal)?;
+
+    queue_email(
+        &mut *tx, 
+        booking.id, 
+        &booking.invitee_email, 
+        "Reminder: your Cadence booking is in 1 hour", 
+        &format!(
+            "Hi {},\n\nThis is a reminder that your booking starts at {when}.\n\n- Cadence",
+            booking.invitee_name
+        ), 
+        booking.slot_start - Duration::hours(1)
+    )
+    .await
+    .map_err(internal)?;
 
     tx.commit().await.map_err(internal)?;
 
@@ -396,6 +409,29 @@ async fn logout(
     Ok(jar.remove(Cookie::build(("session", "")).path("/").build()))
 }
 
+async fn queue_email(
+    conn: &mut sqlx::PgConnection,
+    booking_id: i64,
+    to_email: &str,
+    subject: &str,
+    body: &str,
+    send_after: DateTime<Utc>
+) -> Result<(), sqlx::Error> {
+    sqlx::query!(
+        "INSERT INTO outbox (booking_id, to_email, subject, body, send_after) \
+        VALUES ($1, $2, $3, $4, $5)",
+        booking_id,
+        to_email,
+        subject,
+        body,
+        send_after
+    )
+    .execute(&mut *conn)
+    .await?;
+
+    Ok(())
+}
+
 async fn run_outbox_worker(
     pool: PgPool,
     mailer: AsyncSmtpTransport<Tokio1Executor>
@@ -411,7 +447,8 @@ async fn run_outbox_worker(
 
         let rows = match sqlx::query!(
             "SELECT id, to_email, subject, body FROM outbox \
-             WHERE sent_at IS NULL ORDER BY id LIMIT 20",
+            WHERE sent_at IS NULL AND send_after <= now() \
+            ORDER BY send_after LIMIT 20",
         )
         .fetch_all(&pool)
         .await
