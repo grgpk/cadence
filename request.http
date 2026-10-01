@@ -1,0 +1,75 @@
+@baseUrl = http://localhost:3001
+@hostUnid = {{$dotenv VITE_PUBLIC_HOST_UNID}}
+@leadUnid = 00000000-0000-0000-0000-000000000001
+
+### Health
+GET {{baseUrl}}/health
+
+### Register host
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{"email":"host@example.com","password":"password123","full_name":"Cadence Host"}
+
+### Login host
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{"email":"host@example.com","password":"password123"}
+
+### Current session
+GET {{baseUrl}}/api/auth/me
+
+### Availability
+GET {{baseUrl}}/api/availability
+
+### Create availability rule
+POST {{baseUrl}}/api/availability
+Content-Type: application/json
+
+{"weekday":1,"start_time":"09:00:00","end_time":"17:00:00","slot_minutes":30}
+
+### Public slots
+GET {{baseUrl}}/api/hosts/{{hostUnid}}/slots?days=14
+
+### Create/update lead
+POST {{baseUrl}}/api/hosts/{{hostUnid}}/leads/{{leadUnid}}
+Content-Type: application/json
+
+{"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","source_page":"/"}
+
+### Track widget visit
+POST {{baseUrl}}/api/calling-visits
+Content-Type: application/json
+
+{"source_page":"/","utm_source":"request-http","user_agent":"HTTP Client"}
+
+### Book call
+POST {{baseUrl}}/api/hosts/{{hostUnid}}/bookings
+Content-Type: application/json
+
+{"lead_unid":"{{leadUnid}}","slot_start":"2026-10-05T09:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
+
+### My bookings
+GET {{baseUrl}}/api/bookings
+
+### Admin leads
+GET {{baseUrl}}/api/admin/leads
+
+### Admin bookings
+GET {{baseUrl}}/api/admin/bookings
+
+### Admin bug reports
+GET {{baseUrl}}/api/admin/bug-reports
+
+### Public bug report
+POST {{baseUrl}}/api/bug-reports
+Content-Type: application/json
+
+{"bug_type":"Bug","message":"Widget test report","user_login":"request-http","stack_trace":null}
+
+### Admin role accesses
+GET {{baseUrl}}/api/admin/roleaccesses
+
+### Logout
+POST {{baseUrl}}/api/auth/logout

@@ -1,0 +1,20 @@
+{
+  "name": "cadence",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@12.5.1",
+  "scripts": {
+    "dev": "bash scripts/dev-preflight.sh && pnpm run dev:services",
+    "dev:services": "concurrently -n backend,frontend -c magenta,cyan --kill-others-on-fail \"cd backend && cargo watch -w src -w ../migrations -x run\" \"wait-on tcp:3001 && pnpm --dir frontend dev\"",
+    "dev:backend": "cd backend && cargo watch -w src -w ../migrations -x run",
+    "dev:frontend": "pnpm --dir frontend dev",
+    "build": "cargo build --workspace && pnpm --dir frontend build",
+    "typecheck": "cargo check --workspace && pnpm --dir frontend typecheck",
+    "test": "cargo test --workspace && pnpm --dir frontend test",
+    "check:quality": "cargo fmt --all -- --check && cargo clippy --workspace --all-targets --all-features -- -D warnings && pnpm --dir frontend typecheck && pnpm --dir frontend lint && pnpm --dir frontend knip"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4",
+    "wait-on": "^8.0.3"
+  }
+}

@@ -1,62 +1,58 @@
 # Cadence
 
-A small scheduling and booking backend written in Rust. Think of it as a tiny Cal.com. A host sets their weekly availability, visitors book open slots, and nobody gets double-booked. Each booking triggers a confirmation email and a reminder.
-
-> Status: MVP in progress. The JSON API works end to end. There's no frontend or deployment yet.
+Scheduling and call-booking app. Backend Rust/Axum. Frontend TanStack/Vite. No SEO requirement.
 
 ## Stack
 
-- **Axum** + **Tokio**: HTTP server and async runtime
-- **Postgres** via **sqlx**: queries and migrations
-- **argon2**: password hashing. Sessions use cookies.
-- **lettre**: SMTP email, sent by a background **outbox** worker
-- **chrono**: dates, times, slot generation
+- Rust, Axum, Tokio, SQLx, Postgres
+- DDD backend split into `backend/src/domain/*`
+- TanStack Router, TanStack Query, Vite, React, shadcn/ui
+- Cookie auth with JWT session token
+- `ts-rs` bindings in `frontend/src/bindings`
+- Resend SMTP worker backed by `email_queue`
 
-## Running locally
-
-You need Rust, Postgres, `sqlx-cli`, and an SMTP catcher such as [Mailpit](https://mailpit.axllent.org/) listening on `localhost:1025`.
+## Local setup
 
 ```sh
-echo 'DATABASE_URL=postgres://user:pass@localhost/cadence' > .env
-sqlx database create
-sqlx migrate run
-cargo run            # → http://127.0.0.1:3000
+cp .env.example .env
+pnpm install
+./reset_db.sh --yes
+pnpm run dev
 ```
 
-To check it's up, run `curl localhost:3000/health`, which should return `ok`.
+`pnpm run dev` starts backend and frontend in parallel. Frontend waits for backend port `3001`.
 
-## API
+- Frontend: `http://localhost:3000`
+- Backend: `http://localhost:3001`
+- Health: `http://localhost:3001/health`
 
-| Method | Path                       | Auth | What it does                               |
-|--------|----------------------------|------|--------------------------------------------|
-| POST   | `/api/register`            |      | Create a host `{name, email, password}`     |
-| POST   | `/api/login`               |      | Log in and get a `session` cookie          |
-| POST   | `/api/logout`              | ✓    | End the session                            |
-| GET    | `/api/hosts/{id}`          |      | Public host profile                        |
-| GET    | `/api/availability`        | ✓    | List your availability rules               |
-| POST   | `/api/availability`        | ✓    | Add a rule `{weekday, start_time, end_time, slot_minutes}` (weekday 0 = Monday) |
-| GET    | `/api/hosts/{id}/slots?days=N` |  | Free slots for the next N days             |
-| POST   | `/api/hosts/{id}/bookings` |      | Book a slot `{slot_start, invitee_name, invitee_email}` |
-| GET    | `/api/bookings`            | ✓    | Your bookings                              |
+`scripts/dev-preflight.sh` clears stale listeners on ports `3000` and `3001` before startup.
 
-## How email works
+## Resend
 
-Each booking writes its confirmation and reminder emails to an `outbox` table in the same transaction as the booking. A background task checks the table every 10 seconds and sends any message whose `send_after` time has passed. If the booking fails, no email exists. If SMTP is down, the emails stay queued and go out once it recovers.
+Use token-based config. `RESEND_API_KEY` is the Resend token used as SMTP credential, never a plaintext password variable.
 
-## Layout
-
-```
-src/
-  main.rs          wiring: pool, mailer, worker, router
-  auth.rs          register / login / logout, CurrentHost extractor
-  hosts.rs         public host profile
-  availability.rs  weekly rules + slot generation
-  bookings.rs      booking creation (double-book safe) + listing
-  outbox.rs        email queue + background worker
-  error.rs         shared API error type
-migrations/        sqlx migrations
+```dotenv
+EMAIL_FROM=example@email.com
+RESEND_API_KEY=re_xxx
+RESEND_SMTP_HOST=smtp.resend.com
+RESEND_SMTP_PORT=587
+RESEND_SMTP_USERNAME=resend
 ```
 
-## Roadmap
+Backend falls back to local unauthenticated SMTP on `localhost:1025` when Resend host is not configured.
 
-Deploy (live URL) → server-rendered UI (Askama + HTMX) → timezones → multiple event types → Google Calendar sync → Stripe payments → Leptos (Rust/WASM) frontend.
+## Quality
+
+```sh
+cargo fmt --all
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+pnpm run check:quality
+```
+
+## Useful files
+
+- `request.http`: API requests
+- `migrations/`: one SQL table or extension per migration, numbered `0001_XXXX`
+- `ARCHITECTURE_DECISIONS.md`: only deliberate divergences from reference projects
+- `reset_db.sh`: local database reset and migration runner
