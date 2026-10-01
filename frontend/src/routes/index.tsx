@@ -13,7 +13,7 @@ function HomePage() {
       <header className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5">
         <strong className="text-lg">Cadence</strong>
         <Button variant="outline" size="sm" asChild>
-          <Link to="/login">Host login</Link>
+          <Link to="/login">Login</Link>
         </Button>
       </header>
       <section className="mx-auto grid max-w-7xl items-center gap-12 px-6 py-16 lg:grid-cols-[1fr_minmax(320px,420px)]">
