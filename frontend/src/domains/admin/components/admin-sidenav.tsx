@@ -39,10 +39,10 @@ function AdminSidenav({ user }: { user: SessionUser }) {
             <SidebarMenuButton
               size="lg"
               asChild
-              isActive={pathname === "/dashboard/admin"}
+              isActive={pathname === "/admin"}
               tooltip="Admin Overview"
             >
-              <Link to="/dashboard/admin">
+              <Link to="/admin">
                 <LayoutDashboard />
                 <span className="font-medium">Admin Overview</span>
               </Link>

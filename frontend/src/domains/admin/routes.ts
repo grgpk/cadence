@@ -22,11 +22,11 @@ type AdminRouteSegment =
   | "bug-reports";
 
 const ADMIN_ROUTE_PATHS = {
-  leads: "/dashboard/admin/leads",
-  bookings: "/dashboard/admin/bookings",
-  "calling-visits": "/dashboard/admin/calling-visits",
-  roleaccesses: "/dashboard/admin/roleaccesses",
-  "bug-reports": "/dashboard/admin/bug-reports",
+  leads: "/admin/leads",
+  bookings: "/admin/bookings",
+  "calling-visits": "/admin/calling-visits",
+  roleaccesses: "/admin/roleaccesses",
+  "bug-reports": "/admin/bug-reports",
 } as const;
 
 type AdminNavItem = {

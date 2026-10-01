@@ -7,9 +7,9 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "../../../components/ui/card";
+} from "../../components/ui/card";
 
-export const Route = createFileRoute("/dashboard/admin/")({
+export const Route = createFileRoute("/admin/")({
   component: AdminOverviewPage,
 });
 
@@ -17,25 +17,25 @@ const CARDS = [
   {
     title: "Leads",
     description: "Review captured coaching leads.",
-    to: "/dashboard/admin/leads",
+    to: "/admin/leads",
     icon: Users,
   },
   {
     title: "Bookings",
     description: "Review booked calls and statuses.",
-    to: "/dashboard/admin/bookings",
+    to: "/admin/bookings",
     icon: CalendarCheck,
   },
   {
     title: "Calling Visits",
     description: "Inspect call funnel visits.",
-    to: "/dashboard/admin/calling-visits",
+    to: "/admin/calling-visits",
     icon: Video,
   },
   {
     title: "Bug Reports",
     description: "Monitor application errors.",
-    to: "/dashboard/admin/bug-reports",
+    to: "/admin/bug-reports",
     icon: Bug,
   },
 ] as const;
@@ -44,8 +44,7 @@ function AdminOverviewPage() {
   return (
     <section className="flex flex-1 flex-col gap-6 p-6">
       <header>
-        <p className="text-sm font-medium text-muted-foreground">Cadence</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin Overview</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
         <p className="text-muted-foreground">
           Manage leads, calls, access, and application health.
         </p>

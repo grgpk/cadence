@@ -118,32 +118,3 @@
   }
 }
 
-.card {
-  border: 1px solid #e5e5e5;
-  border-radius: 16px;
-  background: white;
-  padding: 24px;
-  box-shadow: 0 8px 30px rgb(0 0 0 / 4%);
-}
-
-.button {
-  border: 0;
-  border-radius: 10px;
-  background: #111;
-  color: white;
-  cursor: pointer;
-  padding: 11px 16px;
-}
-
-.button:disabled {
-  cursor: wait;
-  opacity: 0.5;
-}
-
-.input {
-  width: 100%;
-  border: 1px solid #d4d4d4;
-  border-radius: 9px;
-  padding: 10px 12px;
-}
-

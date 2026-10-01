@@ -1,93 +1,151 @@
-import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { CalendarDays, CircleAlert, Loader2 } from "lucide-react";
+import { useState, type FormEvent } from "react";
+
+import type { CreateBookingRequest } from "../../bindings/CreateBookingRequest";
 import type { TimeSlot } from "../../bindings/TimeSlot";
+import { Alert, AlertDescription } from "../../components/ui/alert";
+import { Button } from "../../components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "../../components/ui/card";
+import { Input } from "../../components/ui/input";
+import { Label } from "../../components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { api } from "../../lib/api";
+import { QUERY_KEYS } from "../../lib/query-keys";
 
 type Props = { hostUnid: string };
 
 export function BookingWidget({ hostUnid }: Props) {
-  const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [slot, setSlot] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-  useEffect(() => {
-    if (hostUnid)
-      api<TimeSlot[]>(`/api/hosts/${hostUnid}/slots?days=14`)
-        .then(setSlots)
-        .catch(() => setSlots([]));
-  }, [hostUnid]);
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setMessage("");
-    try {
-      await api(`/api/hosts/${hostUnid}/bookings`, {
+  const slotsQuery = useQuery({
+    queryKey: QUERY_KEYS.publicSlots(hostUnid),
+    queryFn: () => api<TimeSlot[]>(`/api/hosts/${hostUnid}/slots?days=14`),
+    enabled: Boolean(hostUnid),
+  });
+  const bookingMutation = useMutation({
+    mutationFn: (request: CreateBookingRequest) =>
+      api(`/api/hosts/${hostUnid}/bookings`, {
         method: "POST",
-        body: JSON.stringify({
-          slot_start: slot,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          invitee_name: name,
-          invitee_email: email,
-        }),
-      });
-      setMessage("Call booked. Check your email.");
-      setSlot("");
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Booking failed");
-    }
-  };
-  if (!hostUnid)
+        body: JSON.stringify(request),
+      }),
+    onSuccess: () => setSlot(""),
+  });
+  const slots = slotsQuery.data ?? [];
+  const mutationError =
+    bookingMutation.error instanceof Error ? bookingMutation.error.message : null;
+  const queryError = slotsQuery.error instanceof Error ? slotsQuery.error.message : null;
+  const message = bookingMutation.isSuccess
+    ? "Call booked. Check your email."
+    : (mutationError ?? queryError);
+
+  if (!hostUnid) {
     return (
-      <div className="card">
-        <h2>Booking widget</h2>
-        <p>Set VITE_PUBLIC_HOST_UNID to activate public booking.</p>
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Booking widget</CardTitle>
+          <CardDescription>Public booking is not configured.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Set VITE_PUBLIC_HOST_UNID to activate public booking.
+          </p>
+        </CardContent>
+      </Card>
     );
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    bookingMutation.reset();
+    bookingMutation.mutate({
+      lead_unid: null,
+      calling_visit_unid: null,
+      slot_start: slot,
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      invitee_name: name,
+      invitee_email: email,
+    });
+  }
+
   return (
-    <div className="card">
-      <h2>Book a call</h2>
-      <form onSubmit={submit} style={{ display: "grid", gap: 14 }}>
-        <label>
-          Available slot
-          <select
-            className="input"
-            value={slot}
-            onChange={(e) => setSlot(e.target.value)}
-            required
-          >
-            <option value="">Choose a time</option>
-            {slots
-              .filter((item) => item.available)
-              .map((item) => (
-                <option key={item.start} value={item.start}>
-                  {new Date(item.start).toLocaleString()}
-                </option>
-              ))}
-          </select>
-        </label>
-        <label>
-          Name
-          <input
-            className="input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-          />
-        </label>
-        <label>
-          Email
-          <input
-            className="input"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-          />
-        </label>
-        <button className="button" disabled={!slots.length}>
-          Book call
-        </button>
-        {message && <p>{message}</p>}
-      </form>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <CalendarDays className="size-5 text-muted-foreground" />
+          Book a call
+        </CardTitle>
+        <CardDescription>Choose a time that works for you.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={submit} className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="booking-slot">Available slot</Label>
+            <Select value={slot} onValueChange={setSlot} required>
+              <SelectTrigger id="booking-slot" className="w-full">
+                <SelectValue placeholder="Choose a time" />
+              </SelectTrigger>
+              <SelectContent>
+                {slots
+                  .filter((item) => item.available)
+                  .map((item) => (
+                    <SelectItem key={item.start} value={item.start}>
+                      {new Date(item.start).toLocaleString()}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="booking-name">Name</Label>
+            <Input
+              id="booking-name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="booking-email">Email</Label>
+            <Input
+              id="booking-email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              required
+            />
+          </div>
+          <Button disabled={!slots.length || bookingMutation.isPending}>
+            {bookingMutation.isPending ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Booking...
+              </>
+            ) : (
+              "Book call"
+            )}
+          </Button>
+          {message ? (
+            <Alert variant={mutationError || queryError ? "destructive" : "default"}>
+              {mutationError || queryError ? <CircleAlert className="size-4" /> : null}
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          ) : null}
+        </form>
+      </CardContent>
+    </Card>
   );
 }

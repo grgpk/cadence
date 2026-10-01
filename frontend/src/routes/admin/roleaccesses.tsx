@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { RoleAccess } from "../../../bindings/RoleAccess";
-import { AdminDataPage } from "../../../domains/admin/components/admin-data-page";
+import type { RoleAccess } from "../../bindings/RoleAccess";
+import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 
-export const Route = createFileRoute("/dashboard/admin/roleaccesses")({
+export const Route = createFileRoute("/admin/roleaccesses")({
   component: AdminRoleAccessesPage,
 });
 

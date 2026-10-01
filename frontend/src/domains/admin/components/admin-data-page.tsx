@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 import { Badge } from "../../../components/ui/badge";
 import {
@@ -9,6 +10,7 @@ import {
   CardTitle,
 } from "../../../components/ui/card";
 import { api } from "../../../lib/api";
+import { QUERY_KEYS } from "../../../lib/query-keys";
 
 type AdminDataPageProps<T> = {
   title: string;
@@ -27,32 +29,15 @@ export function AdminDataPage<T>({
   itemKey,
   renderItem,
 }: AdminDataPageProps<T>) {
-  const [items, setItems] = useState<T[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-    void api<T[]>(endpoint)
-      .then((result) => {
-        if (active) {
-          setItems(result);
-          setLoading(false);
-        }
-      })
-      .catch((requestError: unknown) => {
-        if (active) {
-          setError(
-            requestError instanceof Error ? requestError.message : "Request failed",
-          );
-          setLoading(false);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [endpoint]);
+  const {
+    data: items = [],
+    error,
+    isPending,
+  } = useQuery({
+    queryKey: QUERY_KEYS.adminData(endpoint),
+    queryFn: () => api<T[]>(endpoint),
+  });
+  const errorMessage = error instanceof Error ? error.message : null;
 
   return (
     <section className="flex flex-1 flex-col gap-6 p-6">
@@ -62,13 +47,13 @@ export function AdminDataPage<T>({
       </header>
       <Card>
         <CardHeader>
-          <CardTitle>{loading ? "Loading..." : `${items.length} records`}</CardTitle>
-          <CardDescription>{error ?? emptyMessage}</CardDescription>
+          <CardTitle>{isPending ? "Loading..." : `${items.length} records`}</CardTitle>
+          <CardDescription>{errorMessage ?? emptyMessage}</CardDescription>
         </CardHeader>
         <CardContent>
-          {error ? (
-            <Badge variant="outline">{error}</Badge>
-          ) : items.length === 0 && !loading ? (
+          {errorMessage ? (
+            <Badge variant="outline">{errorMessage}</Badge>
+          ) : items.length === 0 && !isPending ? (
             <p className="text-sm text-muted-foreground">{emptyMessage}</p>
           ) : (
             <div className="space-y-3">

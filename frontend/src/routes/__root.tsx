@@ -5,6 +5,8 @@ import {
   Scripts,
   redirect,
 } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useState } from "react";
 import { getSessionUser, PUBLIC_PATHS } from "../lib/auth";
 import { APP_NAME } from "../lib/config";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -30,13 +32,17 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        <TooltipProvider>{children}</TooltipProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider>{children}</TooltipProvider>
+        </QueryClientProvider>
         <Scripts />
       </body>
     </html>

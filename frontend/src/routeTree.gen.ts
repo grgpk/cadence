@@ -10,24 +10,29 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteRouteImport } from './routes/admin/route'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
+import { Route as AdminBugReportsRouteImport } from './routes/admin/bug-reports'
+import { Route as AdminCallingVisitsRouteImport } from './routes/admin/calling-visits'
+import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
+import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccesses'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
-import { Route as DashboardAdminRouteRouteImport } from './routes/dashboard/admin/route'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
 import { Route as DashboardBugsRouteImport } from './routes/dashboard/bugs'
-import { Route as DashboardAdminIndexRouteImport } from './routes/dashboard/admin/index'
-import { Route as DashboardAdminBookingsRouteImport } from './routes/dashboard/admin/bookings'
-import { Route as DashboardAdminBugReportsRouteImport } from './routes/dashboard/admin/bug-reports'
-import { Route as DashboardAdminCallingVisitsRouteImport } from './routes/dashboard/admin/calling-visits'
-import { Route as DashboardAdminLeadsRouteImport } from './routes/dashboard/admin/leads'
-import { Route as DashboardAdminRoleaccessesRouteImport } from './routes/dashboard/admin/roleaccesses'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRouteRoute = AdminRouteRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRouteRoute = DashboardRouteRouteImport.update({
@@ -45,14 +50,39 @@ const RegisterRoute = RegisterRouteImport.update({
   path: '/register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminBookingsRoute = AdminBookingsRouteImport.update({
+  id: '/bookings',
+  path: '/bookings',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminBugReportsRoute = AdminBugReportsRouteImport.update({
+  id: '/bug-reports',
+  path: '/bug-reports',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminCallingVisitsRoute = AdminCallingVisitsRouteImport.update({
+  id: '/calling-visits',
+  path: '/calling-visits',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminLeadsRoute = AdminLeadsRouteImport.update({
+  id: '/leads',
+  path: '/leads',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminRoleaccessesRoute = AdminRoleaccessesRouteImport.update({
+  id: '/roleaccesses',
+  path: '/roleaccesses',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
-const DashboardAdminRouteRoute = DashboardAdminRouteRouteImport.update({
-  id: '/admin',
-  path: '/admin',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardAvailabilityRoute = DashboardAvailabilityRouteImport.update({
@@ -70,144 +100,112 @@ const DashboardBugsRoute = DashboardBugsRouteImport.update({
   path: '/bugs',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
-const DashboardAdminIndexRoute = DashboardAdminIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardAdminRouteRoute,
-} as any)
-const DashboardAdminBookingsRoute = DashboardAdminBookingsRouteImport.update({
-  id: '/bookings',
-  path: '/bookings',
-  getParentRoute: () => DashboardAdminRouteRoute,
-} as any)
-const DashboardAdminBugReportsRoute =
-  DashboardAdminBugReportsRouteImport.update({
-    id: '/bug-reports',
-    path: '/bug-reports',
-    getParentRoute: () => DashboardAdminRouteRoute,
-  } as any)
-const DashboardAdminCallingVisitsRoute =
-  DashboardAdminCallingVisitsRouteImport.update({
-    id: '/calling-visits',
-    path: '/calling-visits',
-    getParentRoute: () => DashboardAdminRouteRoute,
-  } as any)
-const DashboardAdminLeadsRoute = DashboardAdminLeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
-  getParentRoute: () => DashboardAdminRouteRoute,
-} as any)
-const DashboardAdminRoleaccessesRoute =
-  DashboardAdminRoleaccessesRouteImport.update({
-    id: '/roleaccesses',
-    path: '/roleaccesses',
-    getParentRoute: () => DashboardAdminRouteRoute,
-  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/dashboard/admin': typeof DashboardAdminRouteRouteWithChildren
+  '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/bug-reports': typeof AdminBugReportsRoute
+  '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/leads': typeof AdminLeadsRoute
+  '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/bugs': typeof DashboardBugsRoute
+  '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/admin/bookings': typeof DashboardAdminBookingsRoute
-  '/dashboard/admin/bug-reports': typeof DashboardAdminBugReportsRoute
-  '/dashboard/admin/calling-visits': typeof DashboardAdminCallingVisitsRoute
-  '/dashboard/admin/leads': typeof DashboardAdminLeadsRoute
-  '/dashboard/admin/roleaccesses': typeof DashboardAdminRoleaccessesRoute
-  '/dashboard/admin/': typeof DashboardAdminIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/bug-reports': typeof AdminBugReportsRoute
+  '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/leads': typeof AdminLeadsRoute
+  '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/bugs': typeof DashboardBugsRoute
+  '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
-  '/dashboard/admin/bookings': typeof DashboardAdminBookingsRoute
-  '/dashboard/admin/bug-reports': typeof DashboardAdminBugReportsRoute
-  '/dashboard/admin/calling-visits': typeof DashboardAdminCallingVisitsRoute
-  '/dashboard/admin/leads': typeof DashboardAdminLeadsRoute
-  '/dashboard/admin/roleaccesses': typeof DashboardAdminRoleaccessesRoute
-  '/dashboard/admin': typeof DashboardAdminIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteRouteWithChildren
   '/dashboard': typeof DashboardRouteRouteWithChildren
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
-  '/dashboard/admin': typeof DashboardAdminRouteRouteWithChildren
+  '/admin/bookings': typeof AdminBookingsRoute
+  '/admin/bug-reports': typeof AdminBugReportsRoute
+  '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/leads': typeof AdminLeadsRoute
+  '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/bugs': typeof DashboardBugsRoute
+  '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
-  '/dashboard/admin/bookings': typeof DashboardAdminBookingsRoute
-  '/dashboard/admin/bug-reports': typeof DashboardAdminBugReportsRoute
-  '/dashboard/admin/calling-visits': typeof DashboardAdminCallingVisitsRoute
-  '/dashboard/admin/leads': typeof DashboardAdminLeadsRoute
-  '/dashboard/admin/roleaccesses': typeof DashboardAdminRoleaccessesRoute
-  '/dashboard/admin/': typeof DashboardAdminIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/dashboard'
     | '/login'
     | '/register'
-    | '/dashboard/admin'
+    | '/admin/bookings'
+    | '/admin/bug-reports'
+    | '/admin/calling-visits'
+    | '/admin/leads'
+    | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/bugs'
+    | '/admin/'
     | '/dashboard/'
-    | '/dashboard/admin/bookings'
-    | '/dashboard/admin/bug-reports'
-    | '/dashboard/admin/calling-visits'
-    | '/dashboard/admin/leads'
-    | '/dashboard/admin/roleaccesses'
-    | '/dashboard/admin/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/login'
     | '/register'
+    | '/admin/bookings'
+    | '/admin/bug-reports'
+    | '/admin/calling-visits'
+    | '/admin/leads'
+    | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/bugs'
+    | '/admin'
     | '/dashboard'
-    | '/dashboard/admin/bookings'
-    | '/dashboard/admin/bug-reports'
-    | '/dashboard/admin/calling-visits'
-    | '/dashboard/admin/leads'
-    | '/dashboard/admin/roleaccesses'
-    | '/dashboard/admin'
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/dashboard'
     | '/login'
     | '/register'
-    | '/dashboard/admin'
+    | '/admin/bookings'
+    | '/admin/bug-reports'
+    | '/admin/calling-visits'
+    | '/admin/leads'
+    | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/bugs'
+    | '/admin/'
     | '/dashboard/'
-    | '/dashboard/admin/bookings'
-    | '/dashboard/admin/bug-reports'
-    | '/dashboard/admin/calling-visits'
-    | '/dashboard/admin/leads'
-    | '/dashboard/admin/roleaccesses'
-    | '/dashboard/admin/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRouteRoute: typeof AdminRouteRouteWithChildren
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   RegisterRoute: typeof RegisterRoute
@@ -220,6 +218,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -243,18 +248,53 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/bookings': {
+      id: '/admin/bookings'
+      path: '/bookings'
+      fullPath: '/admin/bookings'
+      preLoaderRoute: typeof AdminBookingsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/bug-reports': {
+      id: '/admin/bug-reports'
+      path: '/bug-reports'
+      fullPath: '/admin/bug-reports'
+      preLoaderRoute: typeof AdminBugReportsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/calling-visits': {
+      id: '/admin/calling-visits'
+      path: '/calling-visits'
+      fullPath: '/admin/calling-visits'
+      preLoaderRoute: typeof AdminCallingVisitsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/leads': {
+      id: '/admin/leads'
+      path: '/leads'
+      fullPath: '/admin/leads'
+      preLoaderRoute: typeof AdminLeadsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/roleaccesses': {
+      id: '/admin/roleaccesses'
+      path: '/roleaccesses'
+      fullPath: '/admin/roleaccesses'
+      preLoaderRoute: typeof AdminRoleaccessesRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/dashboard/': {
       id: '/dashboard/'
       path: '/'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
-    '/dashboard/admin': {
-      id: '/dashboard/admin'
-      path: '/admin'
-      fullPath: '/dashboard/admin'
-      preLoaderRoute: typeof DashboardAdminRouteRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/dashboard/availability': {
@@ -278,74 +318,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBugsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
-    '/dashboard/admin/': {
-      id: '/dashboard/admin/'
-      path: '/'
-      fullPath: '/dashboard/admin/'
-      preLoaderRoute: typeof DashboardAdminIndexRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
-    '/dashboard/admin/bookings': {
-      id: '/dashboard/admin/bookings'
-      path: '/bookings'
-      fullPath: '/dashboard/admin/bookings'
-      preLoaderRoute: typeof DashboardAdminBookingsRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
-    '/dashboard/admin/bug-reports': {
-      id: '/dashboard/admin/bug-reports'
-      path: '/bug-reports'
-      fullPath: '/dashboard/admin/bug-reports'
-      preLoaderRoute: typeof DashboardAdminBugReportsRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
-    '/dashboard/admin/calling-visits': {
-      id: '/dashboard/admin/calling-visits'
-      path: '/calling-visits'
-      fullPath: '/dashboard/admin/calling-visits'
-      preLoaderRoute: typeof DashboardAdminCallingVisitsRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
-    '/dashboard/admin/leads': {
-      id: '/dashboard/admin/leads'
-      path: '/leads'
-      fullPath: '/dashboard/admin/leads'
-      preLoaderRoute: typeof DashboardAdminLeadsRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
-    '/dashboard/admin/roleaccesses': {
-      id: '/dashboard/admin/roleaccesses'
-      path: '/roleaccesses'
-      fullPath: '/dashboard/admin/roleaccesses'
-      preLoaderRoute: typeof DashboardAdminRoleaccessesRouteImport
-      parentRoute: typeof DashboardAdminRouteRoute
-    }
   }
 }
 
-interface DashboardAdminRouteRouteChildren {
-  DashboardAdminBookingsRoute: typeof DashboardAdminBookingsRoute
-  DashboardAdminBugReportsRoute: typeof DashboardAdminBugReportsRoute
-  DashboardAdminCallingVisitsRoute: typeof DashboardAdminCallingVisitsRoute
-  DashboardAdminLeadsRoute: typeof DashboardAdminLeadsRoute
-  DashboardAdminRoleaccessesRoute: typeof DashboardAdminRoleaccessesRoute
-  DashboardAdminIndexRoute: typeof DashboardAdminIndexRoute
+interface AdminRouteRouteChildren {
+  AdminBookingsRoute: typeof AdminBookingsRoute
+  AdminBugReportsRoute: typeof AdminBugReportsRoute
+  AdminCallingVisitsRoute: typeof AdminCallingVisitsRoute
+  AdminLeadsRoute: typeof AdminLeadsRoute
+  AdminRoleaccessesRoute: typeof AdminRoleaccessesRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
-const DashboardAdminRouteRouteChildren: DashboardAdminRouteRouteChildren = {
-  DashboardAdminBookingsRoute: DashboardAdminBookingsRoute,
-  DashboardAdminBugReportsRoute: DashboardAdminBugReportsRoute,
-  DashboardAdminCallingVisitsRoute: DashboardAdminCallingVisitsRoute,
-  DashboardAdminLeadsRoute: DashboardAdminLeadsRoute,
-  DashboardAdminRoleaccessesRoute: DashboardAdminRoleaccessesRoute,
-  DashboardAdminIndexRoute: DashboardAdminIndexRoute,
+const AdminRouteRouteChildren: AdminRouteRouteChildren = {
+  AdminBookingsRoute: AdminBookingsRoute,
+  AdminBugReportsRoute: AdminBugReportsRoute,
+  AdminCallingVisitsRoute: AdminCallingVisitsRoute,
+  AdminLeadsRoute: AdminLeadsRoute,
+  AdminRoleaccessesRoute: AdminRoleaccessesRoute,
+  AdminIndexRoute: AdminIndexRoute,
 }
 
-const DashboardAdminRouteRouteWithChildren =
-  DashboardAdminRouteRoute._addFileChildren(DashboardAdminRouteRouteChildren)
+const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
+  AdminRouteRouteChildren,
+)
 
 interface DashboardRouteRouteChildren {
-  DashboardAdminRouteRoute: typeof DashboardAdminRouteRouteWithChildren
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
   DashboardBugsRoute: typeof DashboardBugsRoute
@@ -353,7 +351,6 @@ interface DashboardRouteRouteChildren {
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
-  DashboardAdminRouteRoute: DashboardAdminRouteRouteWithChildren,
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
   DashboardBugsRoute: DashboardBugsRoute,
@@ -366,6 +363,7 @@ const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRouteRoute: AdminRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   RegisterRoute: RegisterRoute,

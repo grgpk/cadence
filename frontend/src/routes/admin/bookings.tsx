@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { Booking } from "../../../bindings/Booking";
+import type { Booking } from "../../bindings/Booking";
 import {
   AdminDataPage,
   formatAdminDate,
-} from "../../../domains/admin/components/admin-data-page";
+} from "../../domains/admin/components/admin-data-page";
 
-export const Route = createFileRoute("/dashboard/admin/bookings")({
+export const Route = createFileRoute("/admin/bookings")({
   component: AdminBookingsPage,
 });
 

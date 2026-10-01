@@ -65,7 +65,7 @@ export function UserDropdownSidenav({ user }: UserDropdownSidenavProps) {
             <Link to="/dashboard">Dashboard</Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <Link to="/dashboard/admin">Admin</Link>
+            <Link to="/admin">Admin</Link>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

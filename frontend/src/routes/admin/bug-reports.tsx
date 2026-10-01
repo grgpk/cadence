@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { AdminBugReport } from "../../../bindings/AdminBugReport";
+import type { AdminBugReport } from "../../bindings/AdminBugReport";
 import {
   AdminDataPage,
   formatAdminDate,
-} from "../../../domains/admin/components/admin-data-page";
+} from "../../domains/admin/components/admin-data-page";
 
-export const Route = createFileRoute("/dashboard/admin/bug-reports")({
+export const Route = createFileRoute("/admin/bug-reports")({
   component: AdminBugReportsPage,
 });
 

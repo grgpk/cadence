@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { Lead } from "../../../bindings/Lead";
+import type { Lead } from "../../bindings/Lead";
 import {
   AdminDataPage,
   formatAdminDate,
-} from "../../../domains/admin/components/admin-data-page";
+} from "../../domains/admin/components/admin-data-page";
 
-export const Route = createFileRoute("/dashboard/admin/leads")({
+export const Route = createFileRoute("/admin/leads")({
   component: AdminLeadsPage,
 });
 
