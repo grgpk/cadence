@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "../../../components/ui/dropdown-menu";
 import { SidebarMenuButton, useSidebar } from "../../../components/ui/sidebar";
-import { logout } from "../../../lib/auth";
+import { hasAdminAccess, logout } from "../../../lib/auth";
 
 type UserDropdownSidenavProps = {
   user: SessionUser;
@@ -24,6 +24,7 @@ export function UserDropdownSidenav({ user }: UserDropdownSidenavProps) {
   const { isMobile } = useSidebar();
   const userName = user.full_name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
+  const canAccessAdmin = hasAdminAccess(user);
 
   return (
     <DropdownMenu>
@@ -64,9 +65,11 @@ export function UserDropdownSidenav({ user }: UserDropdownSidenavProps) {
           <DropdownMenuItem asChild>
             <Link to="/dashboard">Dashboard</Link>
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link to="/admin">Admin</Link>
-          </DropdownMenuItem>
+          {canAccessAdmin ? (
+            <DropdownMenuItem asChild>
+              <Link to="/admin">Admin</Link>
+            </DropdownMenuItem>
+          ) : null}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem

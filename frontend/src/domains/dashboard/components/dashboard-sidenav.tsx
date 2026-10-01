@@ -1,4 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
+import { CalendarCheck, Bug, LayoutDashboard, Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SessionUser } from "../../../bindings/SessionUser";
@@ -17,18 +18,40 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "../../../components/ui/sidebar";
-import {
-  ADMIN_NAV_ITEMS,
-  ADMIN_SECTIONS,
-  ADMIN_OVERVIEW_ICON as LayoutDashboard,
-  adminRoutePath,
-  type AdminSection,
-} from "../routes";
-import { UserDropdownSidenav } from "../../dashboard/components/user-dropdown-sidenav";
+import { UserDropdownSidenav } from "./user-dropdown-sidenav";
 
-const SECTIONS: AdminSection[] = [ADMIN_SECTIONS.MANAGEMENT, ADMIN_SECTIONS.MONITOR];
+const DASHBOARD_SECTIONS = {
+  MANAGEMENT: "Management",
+  MONITOR: "Monitor",
+} as const;
 
-function AdminSidenav({ user }: { user: SessionUser }) {
+const DASHBOARD_NAV_ITEMS = [
+  {
+    title: "Bookings",
+    to: "/dashboard/bookings",
+    icon: CalendarCheck,
+    section: DASHBOARD_SECTIONS.MANAGEMENT,
+  },
+  {
+    title: "Availability",
+    to: "/dashboard/availability",
+    icon: Settings2,
+    section: DASHBOARD_SECTIONS.MANAGEMENT,
+  },
+  {
+    title: "Bugs",
+    to: "/dashboard/bugs",
+    icon: Bug,
+    section: DASHBOARD_SECTIONS.MONITOR,
+  },
+] as const;
+
+const DASHBOARD_SECTION_ORDER = [
+  DASHBOARD_SECTIONS.MANAGEMENT,
+  DASHBOARD_SECTIONS.MONITOR,
+] as const;
+
+function DashboardSidenav({ user }: { user: SessionUser }) {
   const { pathname } = useLocation();
 
   return (
@@ -39,35 +62,34 @@ function AdminSidenav({ user }: { user: SessionUser }) {
             <SidebarMenuButton
               size="lg"
               asChild
-              isActive={pathname === "/admin"}
-              tooltip="Admin Overview"
+              isActive={pathname === "/dashboard"}
+              tooltip="Dashboard Overview"
             >
-              <Link to="/admin">
+              <Link to="/dashboard">
                 <LayoutDashboard />
-                <span className="font-medium">Admin Overview</span>
+                <span className="font-medium">Dashboard Overview</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
-        {SECTIONS.map((section) => (
+        {DASHBOARD_SECTION_ORDER.map((section) => (
           <SidebarGroup key={section}>
             <SidebarGroupLabel>{section}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {ADMIN_NAV_ITEMS.filter((item) => item.section === section).map(
+                {DASHBOARD_NAV_ITEMS.filter((item) => item.section === section).map(
                   (item) => {
-                    const path = adminRoutePath(item.segment);
                     const Icon = item.icon;
                     return (
-                      <SidebarMenuItem key={item.segment}>
+                      <SidebarMenuItem key={item.to}>
                         <SidebarMenuButton
                           asChild
-                          isActive={pathname === path}
+                          isActive={pathname === item.to}
                           tooltip={item.title}
                         >
-                          <Link to={path}>
+                          <Link to={item.to}>
                             <Icon />
                             <span>{item.title}</span>
                           </Link>
@@ -88,7 +110,7 @@ function AdminSidenav({ user }: { user: SessionUser }) {
   );
 }
 
-export function AdminSidenavLayout({
+export function DashboardSidenavLayout({
   user,
   children,
 }: {
@@ -97,7 +119,7 @@ export function AdminSidenavLayout({
 }) {
   return (
     <SidebarProvider>
-      <AdminSidenav user={user} />
+      <DashboardSidenav user={user} />
       <SidebarInset>
         <div className="flex items-center border-b p-2">
           <SidebarTrigger />
