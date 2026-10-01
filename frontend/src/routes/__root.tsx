@@ -1,6 +1,13 @@
-import { createRootRoute, HeadContent, Outlet, Scripts, redirect } from "@tanstack/react-router";
+import {
+  createRootRoute,
+  HeadContent,
+  Outlet,
+  Scripts,
+  redirect,
+} from "@tanstack/react-router";
 import { getSessionUser, PUBLIC_PATHS } from "../lib/auth";
 import { APP_NAME } from "../lib/config";
+import { TooltipProvider } from "../components/ui/tooltip";
 import "../styles/globals.css";
 
 export const Route = createRootRoute({
@@ -11,7 +18,11 @@ export const Route = createRootRoute({
     return { user };
   },
   head: () => ({
-    meta: [{ charSet: "utf-8" }, { name: "viewport", content: "width=device-width, initial-scale=1" }, { title: APP_NAME }],
+    meta: [
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { title: APP_NAME },
+    ],
     links: [{ rel: "icon", href: "/favicon.svg" }],
   }),
   shellComponent: RootDocument,
@@ -19,5 +30,15 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  return <html lang="en"><head><HeadContent /></head><body>{children}<Scripts /></body></html>;
+  return (
+    <html lang="en">
+      <head>
+        <HeadContent />
+      </head>
+      <body>
+        <TooltipProvider>{children}</TooltipProvider>
+        <Scripts />
+      </body>
+    </html>
+  );
 }

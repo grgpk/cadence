@@ -1,6 +1,7 @@
 /target
 .env
 node_modules/
+frontend/.output/
 **/node_modules/
 .pnpm-store
 **/.pnpm-store/
