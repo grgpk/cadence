@@ -1,6 +1,12 @@
-# Cadence
+<p align="center">
+  <img src="./frontend/public/favicon.svg" alt="Cadence logo" width="96">
+</p>
 
-Scheduling and call-booking app. Backend Rust/Axum. Frontend TanStack/Vite. No SEO requirement.
+<h1 align="center">Cadence</h1>
+
+<p align="center">Scheduling and call-booking app.</p>
+
+Backend Rust/Axum. Frontend TanStack/Vite.
 
 ## Stack
 
@@ -27,6 +33,20 @@ pnpm run dev
 - Health: `http://localhost:3001/health`
 
 `scripts/dev-preflight.sh` clears stale listeners on ports `3000` and `3001` before startup.
+
+## Login
+
+After running `./reset_db.sh --yes`, development users are available at `http://localhost:3000/login`.
+
+All seeded users use password `password`:
+
+| Role | Email | Password | Access |
+| --- | --- | --- | --- |
+| Root | `root@example.com` | `password` | Full access |
+| Admin | `admin@example.com` | `password` | Admin dashboard |
+| Host | `host@example.com` | `password` | Host dashboard and bookings |
+
+Use `admin@example.com` / `password` to test admin access. These credentials are for local development only.
 
 ## Resend
 
