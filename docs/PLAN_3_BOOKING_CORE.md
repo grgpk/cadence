@@ -87,7 +87,7 @@ widget
 - B0: schema and generated models, done.
 - B1: availability, leads, visits, bookings API, done.
 - B2: public widget and host dashboard query migration, done.
-- B3: rich deterministic development seed, next.
+- B3: rich deterministic development seed, done.
 - B4: contract tests and complete error states, next.
 
 ## Definition of done

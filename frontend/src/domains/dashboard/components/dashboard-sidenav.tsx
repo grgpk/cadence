@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { CalendarCheck, Bug, LayoutDashboard, Settings2 } from "lucide-react";
+import { CalendarCheck, LayoutDashboard, Settings2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { SessionUser } from "../../../bindings/SessionUser";
@@ -22,7 +22,6 @@ import { UserDropdownSidenav } from "./user-dropdown-sidenav";
 
 const DASHBOARD_SECTIONS = {
   MANAGEMENT: "Management",
-  MONITOR: "Monitor",
 } as const;
 
 const DASHBOARD_NAV_ITEMS = [
@@ -38,18 +37,9 @@ const DASHBOARD_NAV_ITEMS = [
     icon: Settings2,
     section: DASHBOARD_SECTIONS.MANAGEMENT,
   },
-  {
-    title: "Bugs",
-    to: "/dashboard/bugs",
-    icon: Bug,
-    section: DASHBOARD_SECTIONS.MONITOR,
-  },
 ] as const;
 
-const DASHBOARD_SECTION_ORDER = [
-  DASHBOARD_SECTIONS.MANAGEMENT,
-  DASHBOARD_SECTIONS.MONITOR,
-] as const;
+const DASHBOARD_SECTION_ORDER = [DASHBOARD_SECTIONS.MANAGEMENT] as const;
 
 function DashboardSidenav({ user }: { user: SessionUser }) {
   const { pathname } = useLocation();

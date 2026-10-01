@@ -23,7 +23,6 @@ import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccess
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
-import { Route as DashboardBugsRouteImport } from './routes/dashboard/bugs'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -95,11 +94,6 @@ const DashboardBookingsRoute = DashboardBookingsRouteImport.update({
   path: '/bookings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
-const DashboardBugsRoute = DashboardBugsRouteImport.update({
-  id: '/bugs',
-  path: '/bugs',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -114,7 +108,6 @@ export interface FileRoutesByFullPath {
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/bugs': typeof DashboardBugsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -129,7 +122,6 @@ export interface FileRoutesByTo {
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/bugs': typeof DashboardBugsRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
 }
@@ -147,7 +139,6 @@ export interface FileRoutesById {
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/bugs': typeof DashboardBugsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -166,7 +157,6 @@ export interface FileRouteTypes {
     | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/bugs'
     | '/admin/'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
@@ -181,7 +171,6 @@ export interface FileRouteTypes {
     | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/bugs'
     | '/admin'
     | '/dashboard'
   id:
@@ -198,7 +187,6 @@ export interface FileRouteTypes {
     | '/admin/roleaccesses'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/bugs'
     | '/admin/'
     | '/dashboard/'
   fileRoutesById: FileRoutesById
@@ -311,13 +299,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBookingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
-    '/dashboard/bugs': {
-      id: '/dashboard/bugs'
-      path: '/bugs'
-      fullPath: '/dashboard/bugs'
-      preLoaderRoute: typeof DashboardBugsRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
   }
 }
 
@@ -346,14 +327,12 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface DashboardRouteRouteChildren {
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
-  DashboardBugsRoute: typeof DashboardBugsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
-  DashboardBugsRoute: DashboardBugsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
