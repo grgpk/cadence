@@ -5,6 +5,9 @@ export const Route = createFileRoute("/dashboard")({ component: DashboardLayout 
 
 function DashboardLayout() {
   const navigate = useNavigate();
+  const { user } = Route.useRouteContext();
+  const isAdmin = user?.roles.some((role) => role === "Admin" || role === "Root");
+
   return (
     <main style={{ maxWidth: 1180, margin: "0 auto", padding: 24 }}>
       <nav style={{ display: "flex", gap: 18, alignItems: "center", marginBottom: 32 }}>
@@ -13,6 +16,7 @@ function DashboardLayout() {
         <Link to="/dashboard/bookings">Bookings</Link>
         <Link to="/dashboard/availability">Availability</Link>
         <Link to="/dashboard/bugs">Bugs</Link>
+        {isAdmin ? <Link to="/dashboard/admin">Admin</Link> : null}
         <button
           className="button"
           onClick={async () => {
