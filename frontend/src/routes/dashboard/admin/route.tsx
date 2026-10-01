@@ -1,13 +1,11 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { AdminSidenavLayout } from "../../../domains/admin/components/admin-sidenav";
+import { hasAdminAccess } from "../../../lib/auth";
 
 export const Route = createFileRoute("/dashboard/admin")({
   beforeLoad: ({ context }) => {
-    const isAdmin = context.user?.roles.some(
-      (role) => role === "Admin" || role === "Root",
-    );
-    if (!isAdmin) {
+    if (!hasAdminAccess(context.user)) {
       throw redirect({ to: "/dashboard" });
     }
   },

@@ -1,12 +1,12 @@
 import { createFileRoute, Link, Outlet, useNavigate } from "@tanstack/react-router";
-import { logout } from "../../lib/auth";
+import { hasAdminAccess, logout } from "../../lib/auth";
 
 export const Route = createFileRoute("/dashboard")({ component: DashboardLayout });
 
 function DashboardLayout() {
   const navigate = useNavigate();
   const { user } = Route.useRouteContext();
-  const isAdmin = user?.roles.some((role) => role === "Admin" || role === "Root");
+  const isAdmin = hasAdminAccess(user);
 
   return (
     <main style={{ maxWidth: 1180, margin: "0 auto", padding: 24 }}>

@@ -19,13 +19,14 @@ import {
 } from "../../../components/ui/sidebar";
 import {
   ADMIN_NAV_ITEMS,
+  ADMIN_SECTIONS,
   ADMIN_OVERVIEW_ICON as LayoutDashboard,
   adminRoutePath,
   type AdminSection,
 } from "../routes";
 import { UserDropdownSidenav } from "./user-dropdown-sidenav";
 
-const SECTIONS: AdminSection[] = ["Management", "Monitor"];
+const SECTIONS: AdminSection[] = [ADMIN_SECTIONS.MANAGEMENT, ADMIN_SECTIONS.MONITOR];
 
 function AdminSidenav({ user }: { user: SessionUser }) {
   const { pathname } = useLocation();

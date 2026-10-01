@@ -8,7 +8,12 @@ import {
   Video,
 } from "lucide-react";
 
-export type AdminSection = "Management" | "Monitor";
+export const ADMIN_SECTIONS = {
+  MANAGEMENT: "Management",
+  MONITOR: "Monitor",
+} as const;
+
+export type AdminSection = (typeof ADMIN_SECTIONS)[keyof typeof ADMIN_SECTIONS];
 type AdminRouteSegment =
   | "leads"
   | "bookings"
@@ -36,21 +41,36 @@ export function adminRoutePath(segment: AdminRouteSegment) {
 }
 
 export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  { segment: "leads", title: "Leads", icon: Users, section: "Management" },
-  { segment: "bookings", title: "Bookings", icon: CalendarCheck, section: "Management" },
+  {
+    segment: "leads",
+    title: "Leads",
+    icon: Users,
+    section: ADMIN_SECTIONS.MANAGEMENT,
+  },
+  {
+    segment: "bookings",
+    title: "Bookings",
+    icon: CalendarCheck,
+    section: ADMIN_SECTIONS.MANAGEMENT,
+  },
   {
     segment: "calling-visits",
     title: "Calling Visits",
     icon: Video,
-    section: "Management",
+    section: ADMIN_SECTIONS.MANAGEMENT,
   },
   {
     segment: "roleaccesses",
     title: "Role Accesses",
     icon: KeyRound,
-    section: "Management",
+    section: ADMIN_SECTIONS.MANAGEMENT,
   },
-  { segment: "bug-reports", title: "Bug Reports", icon: Bug, section: "Monitor" },
+  {
+    segment: "bug-reports",
+    title: "Bug Reports",
+    icon: Bug,
+    section: ADMIN_SECTIONS.MONITOR,
+  },
 ];
 
 export const ADMIN_OVERVIEW_ICON = LayoutDashboard;
