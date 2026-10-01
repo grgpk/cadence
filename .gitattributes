@@ -1,0 +1,4 @@
+# Exclude generated and vendored code from GitHub language stats
+frontend/src/bindings/** linguist-generated
+frontend/src/routeTree.gen.ts linguist-generated
+frontend/src/components/ui/** linguist-vendored
