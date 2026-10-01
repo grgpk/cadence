@@ -19,6 +19,8 @@ export const Route = createRootRoute({
     if (!user) throw redirect({ to: "/login" });
     return { user };
   },
+  pendingMs: 0,
+  pendingComponent: () => null,
   head: () => ({
     meta: [
       { charSet: "utf-8" },
