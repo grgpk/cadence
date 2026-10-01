@@ -1,0 +1,1 @@
+export interface BugReport { unid: string; bug_type: string; message: string; exception_message: string | null; stack_trace: string | null; user_login: string | null; url: string | null; user_agent: string | null; application: string; metadata: unknown; created_at: string; resolved_at: string | null }
