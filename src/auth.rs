@@ -95,7 +95,7 @@ async fn register(
     let salt = SaltString::generate(&mut OsRng);
     let hash = Argon2::default()
         .hash_password(body.password.as_bytes(), &salt)
-        .map_err(internal)?
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?
         .to_string();
 
     let result = sqlx::query_as!(
@@ -116,7 +116,77 @@ async fn register(
                     ));
                 }
             }
-            Err(crate::internal(e))
+            Err(internal(e))
         }
     }
+}
+
+async fn login(
+    State(pool): State<PgPool>,
+    jar: CookieJar,
+    Json(body): Json<Login>,
+) -> Result<(CookieJar, Json<LoginOk>), (StatusCode, String)> {
+    let row = sqlx::query!(
+        "SELECT id, password_hash FROM hosts WHERE email = $1",
+        body.email
+    )
+    .fetch_optional(&pool)
+    .await
+    .map_err(internal)?;
+
+    let unauthorized = || {
+        (
+            StatusCode::UNAUTHORIZED,
+            "Invalid email or password.".to_string(),
+        )
+    };
+
+    let Some(rec) = row else {
+        return Err(unauthorized());
+    };
+    let Some(stored) = rec.password_hash else {
+        return Err(unauthorized());
+    };
+
+    let parsed = PasswordHash::new(&stored).map_err(|_| unauthorized())?;
+    if Argon2::default()
+        .verify_password(body.password.as_bytes(), &parsed)
+        .is_err()
+    {
+        return Err(unauthorized());
+    }
+
+    let token = Uuid::new_v4().to_string();
+    sqlx::query!(
+        "INSERT INTO sessions (token, host_id) VALUES ($1, $2)",
+        token,
+        rec.id
+    )
+    .execute(&pool)
+    .await
+    .map_err(internal)?;
+
+    let cookie = Cookie::build(("session", token))
+        .http_only(true)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(time::Duration::days(7))
+        .secure(false)
+        .build();
+
+    Ok((jar.add(cookie), Json(LoginOk { host_id: rec.id })))
+}
+
+async fn logout(
+    State(pool): State<PgPool>,
+    jar: CookieJar,
+) -> Result<CookieJar, (StatusCode, String)> {
+    if let Some(c) = jar.get("session") {
+        sqlx::query!("DELETE FROM sessions WHERE token = $1", c.value())
+            .execute(&pool)
+            .await
+            .map_err(internal)?;
+    }
+
+    Ok(jar.remove(Cookie::build(("session", "")).path("/").build()))
 }
