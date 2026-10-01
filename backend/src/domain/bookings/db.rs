@@ -1,0 +1,77 @@
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+use sqlx::{PgConnection, PgPool};
+use uuid::Uuid;
+
+use super::models::Booking;
+
+pub struct BookingsDb;
+
+#[allow(clippy::too_many_arguments)]
+pub async fn create(
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+    lead_unid: Option<Uuid>,
+    calling_visit_unid: Option<Uuid>,
+    slot_start: DateTime<Utc>,
+    timezone: &str,
+    invitee_name: &str,
+    invitee_email: &str,
+) -> Result<Booking, sqlx::Error> {
+    sqlx::query_as::<_, Booking>(
+        "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at",
+    )
+    .bind(host_unid)
+    .bind(lead_unid)
+    .bind(calling_visit_unid)
+    .bind(slot_start)
+    .bind(timezone)
+    .bind(invitee_name)
+    .bind(invitee_email)
+    .fetch_one(connection)
+    .await
+}
+
+pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
+    sqlx::query_as::<_, Booking>(
+        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
+         FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC",
+    )
+    .bind(host_unid)
+    .fetch_all(pool)
+    .await
+}
+
+impl BookingsDb {
+    pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
+        sqlx::query_as::<_, Booking>(
+            "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
+             FROM bookings ORDER BY slot_start DESC",
+        )
+        .fetch_all(pool)
+        .await
+    }
+}
+
+pub async fn queue_email(
+    connection: &mut PgConnection,
+    booking_unid: Uuid,
+    email: &str,
+    template: &str,
+    send_at: DateTime<Utc>,
+    payload: Value,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO email_queue (booking_unid, email, template, send_at, payload) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(booking_unid)
+    .bind(email)
+    .bind(template)
+    .bind(send_at)
+    .bind(payload)
+    .execute(connection)
+    .await
+    .map(|_| ())
+}
