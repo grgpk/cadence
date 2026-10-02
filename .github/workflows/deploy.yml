@@ -60,13 +60,20 @@ jobs:
           SSH=(ssh -i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$SERVER_IP")
           "${SSH[@]}" "set -e
             if [ ! -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
-              test -n '$LETSENCRYPT_EMAIL'
               install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.bootstrap.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
               nginx -t
               systemctl reload nginx
-              certbot certonly --nginx --non-interactive --agree-tos --email '$LETSENCRYPT_EMAIL' --cert-name cadence.rustify.app -d cadence.rustify.app
+              if test -n '$LETSENCRYPT_EMAIL'; then
+                certbot certonly --nginx --non-interactive --agree-tos --email '$LETSENCRYPT_EMAIL' --cert-name cadence.rustify.app -d cadence.rustify.app
+              else
+                echo 'LETSENCRYPT_EMAIL missing; keeping HTTP bootstrap until DNS and email are configured'
+              fi
             fi
-            install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+            if [ -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
+              install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+            else
+              install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.bootstrap.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+            fi
             nginx -t
             systemctl reload nginx
           "
@@ -77,7 +84,11 @@ jobs:
           SSH=(ssh -i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$SERVER_IP")
           for attempt in $(seq 1 30); do
             if "${SSH[@]}" "curl -fsS http://127.0.0.1:5105/health >/dev/null && curl -fsS http://127.0.0.1:5104/ >/dev/null"; then
-              "${SSH[@]}" "curl -fsS --resolve cadence.rustify.app:443:127.0.0.1 https://cadence.rustify.app/health"
+              if "${SSH[@]}" "test -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem"; then
+                "${SSH[@]}" "curl -fsS --resolve cadence.rustify.app:443:127.0.0.1 https://cadence.rustify.app/health"
+              else
+                "${SSH[@]}" "curl -fsS -H 'Host: cadence.rustify.app' http://127.0.0.1/ >/dev/null"
+              fi
               exit 0
             fi
             sleep 2
