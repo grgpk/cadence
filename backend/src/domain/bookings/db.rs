@@ -17,19 +17,24 @@ pub async fn create(
     timezone: &str,
     invitee_name: &str,
     invitee_email: &str,
+    google_event_id: Option<&str>,
+    google_meet_url: Option<&str>,
 ) -> Result<Booking, sqlx::Error> {
-    sqlx::query_as::<_, Booking>(
-        "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)
+    sqlx::query_as!(
+        Booking,
+        "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email, google_event_id, google_meet_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at",
+        host_unid,
+        lead_unid,
+        calling_visit_unid,
+        slot_start,
+        timezone,
+        invitee_name,
+        invitee_email,
+        google_event_id,
+        google_meet_url,
     )
-    .bind(host_unid)
-    .bind(lead_unid)
-    .bind(calling_visit_unid)
-    .bind(slot_start)
-    .bind(timezone)
-    .bind(invitee_name)
-    .bind(invitee_email)
     .fetch_one(connection)
     .await
 }

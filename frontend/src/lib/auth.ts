@@ -5,7 +5,15 @@ import type { SessionUser } from "../bindings/SessionUser";
 import { SERVER_API_URL } from "./api-url";
 import { api } from "./api";
 
-export const PUBLIC_PATHS = ["/", "/login", "/register"];
+export const PUBLIC_PATHS = [
+  "/",
+  "/book-a-call",
+  "/booking-confirmation",
+  "/login",
+  "/privacy-policy",
+  "/register",
+  "/terms",
+];
 const ROLES = {
   ROOT: "Root",
   ADMIN: "Admin",

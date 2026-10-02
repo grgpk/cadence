@@ -1,5 +1,14 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowRight, Bug, CalendarCheck, Users, Video } from "lucide-react";
+import {
+  ArrowRight,
+  Bug,
+  CalendarCheck,
+  CalendarDays,
+  CheckCircle2,
+  Users,
+  Video,
+} from "lucide-react";
 
 import {
   Card,
@@ -8,6 +17,11 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
+import {
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+  getCalendarEvents,
+} from "../../domains/widget/cadence-api";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminOverviewPage,
@@ -41,6 +55,18 @@ const CARDS = [
 ] as const;
 
 function AdminOverviewPage() {
+  const queryClient = useQueryClient();
+  const calendarQuery = useQuery({
+    queryKey: ["google-calendar-events"],
+    queryFn: getCalendarEvents,
+    retry: false,
+  });
+  const disconnect = useMutation({
+    mutationFn: disconnectGoogleCalendar,
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] }),
+  });
+
   return (
     <section className="flex flex-1 flex-col gap-6 p-6">
       <header>
@@ -69,6 +95,47 @@ function AdminOverviewPage() {
           </Link>
         ))}
       </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarDays className="size-5 text-muted-foreground" />
+            Google Calendar
+          </CardTitle>
+          <CardDescription>
+            Required for live availability and Google Meet booking.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap items-center gap-3">
+          {calendarQuery.isPending ? (
+            <span className="text-sm text-muted-foreground">Checking connection...</span>
+          ) : calendarQuery.isError ? (
+            <button
+              type="button"
+              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
+              onClick={() => void connectGoogleCalendar()}
+            >
+              Connect Google Calendar
+            </button>
+          ) : (
+            <>
+              <span className="inline-flex items-center gap-2 rounded-md bg-green-100 px-3 py-2 text-sm font-medium text-green-700">
+                <CheckCircle2 className="size-4" /> Connected
+              </span>
+              <span className="text-sm text-muted-foreground">
+                {calendarQuery.data.length} events next 7 days
+              </span>
+              <button
+                type="button"
+                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
+                onClick={() => disconnect.mutate()}
+                disabled={disconnect.isPending}
+              >
+                {disconnect.isPending ? "Disconnecting..." : "Disconnect"}
+              </button>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </section>
   );
 }

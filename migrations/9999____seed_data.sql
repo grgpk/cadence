@@ -392,7 +392,7 @@ INSERT INTO email_queue (
     (
         '50000000-0000-4000-8000-000000000001',
         '40000000-0000-4000-8000-000000000001',
-        'maya.chen@example.com',
+        'delivered@resend.dev',
         'booking_confirmation',
         now() - interval '3 days',
         now() - interval '3 days',
@@ -408,7 +408,7 @@ INSERT INTO email_queue (
     (
         '50000000-0000-4000-8000-000000000002',
         '40000000-0000-4000-8000-000000000001',
-        'maya.chen@example.com',
+        'delivered@resend.dev',
         'reminder_24h',
         date_trunc('day', now()) + interval '1 day 10 hours',
         NULL,
@@ -424,7 +424,7 @@ INSERT INTO email_queue (
     (
         '50000000-0000-4000-8000-000000000003',
         '40000000-0000-4000-8000-000000000002',
-        'oliver.grant@example.com',
+        'delivered@resend.dev',
         'booking_confirmation',
         now() - interval '2 days',
         NULL,

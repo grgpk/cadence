@@ -1,17 +1,27 @@
-use axum::{Json, extract::State};
+use axum::{Json, extract::State, http::HeaderMap};
 
 use super::service::CallingVisitsService;
 use super::{
     models::{CallingVisitEngagement, CallingVisitRequest},
     service,
 };
-use crate::{app_state::AppState, domain::auth::middleware::AdminUser, error::AppResult};
+use crate::{
+    app_state::AppState,
+    domain::auth::middleware::AdminUser,
+    error::AppResult,
+    tracking::{extract_client_ip, header_value},
+};
 
 pub async fn create(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(request): Json<CallingVisitRequest>,
 ) -> AppResult<Json<super::models::CallingVisit>> {
-    Ok(Json(service::create(&state.pool, request).await?))
+    let ip_address = extract_client_ip(&headers).and_then(|value| value.parse().ok());
+    let country = header_value(&headers, "cf-ipcountry");
+    Ok(Json(
+        service::create(&state.pool, request, ip_address, country).await?,
+    ))
 }
 
 pub async fn update(

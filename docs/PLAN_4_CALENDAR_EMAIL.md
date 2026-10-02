@@ -1,6 +1,12 @@
 # Plan 4: calendar and email delivery
 
-Status: planned.
+Status: implemented.
+
+## Rustify-compatible provider behavior
+
+Cadence public booking must preserve the Rustify provider contract: timezone-aware
+availability, busy-event filtering, a server-side booking re-check, Google Meet
+creation, and confirmation/reminder delivery through `email_queue`.
 
 ## Goal
 
@@ -11,9 +17,9 @@ reminder emails are delivered through Resend.
 ## The gap this fixes
 
 `migrations/0011_create_google_calendar_config.sql` and
-`migrations/0010_create_email_queue.sql` exist, and the email worker is in
-`backend/src/domain/emails/worker.rs`. Google Calendar OAuth and client code
-are not implemented yet. Provider retries and queue visibility need hardening.
+`migrations/0010_create_email_queue.sql` exist. Google Calendar OAuth, token
+refresh, busy-event filtering, Meet event creation, and queued confirmation
+reminders are now implemented under `backend/src/domain/google_calendar/`.
 
 ## Approach
 
@@ -37,8 +43,8 @@ and `email_queue`. Add provider error metadata only in a new migration if
 | GET | `/api/google-calendar/connect` | `AdminUser` | OAuth redirect |
 | GET | `/api/google-calendar/callback` | public state | connected result |
 | POST | `/api/google-calendar/disconnect` | `AdminUser` | disconnected |
-| GET | `/api/hosts/{host}/slots` | public | calendar-filtered slots |
-| POST | `/api/hosts/{host}/bookings` | public | booking plus Meet URL |
+| GET | `/api/google-calendar/available-slots` | public | calendar-filtered slots |
+| POST | `/api/google-calendar/book` | public | booking plus Meet URL |
 | GET | `/api/admin/email-queue` | `AdminUser` | queue status |
 
 ## Flow schema
@@ -65,11 +71,11 @@ worker ─▶ due rows ─▶ Resend SMTP ─▶ sent or failed
 
 ## Milestones
 
-- C0: calendar domain and OAuth state service.
-- C1: busy-time filtering.
-- C2: event and Meet persistence.
-- C3: Resend worker, retry policy, queue page.
-- C4: provider integration tests and quality gates.
+- C0: calendar domain and OAuth service. Done.
+- C1: busy-time filtering. Done.
+- C2: event and Meet persistence. Done.
+- C3: Resend worker and queued reminders. Done.
+- C4: provider integration tests and quality gates. Partial, live provider smoke test requires configured Google credentials.
 
 ## Definition of done
 

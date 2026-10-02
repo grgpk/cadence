@@ -12,6 +12,7 @@ use super::{
 use crate::{
     app_state::AppState,
     domain::auth::middleware::AdminUser,
+    domain::availability::service as availability,
     error::{AppError, AppResult},
 };
 
@@ -44,6 +45,46 @@ pub async fn submit(
     Path((host_unid, lead_unid)): Path<(Uuid, Uuid)>,
     Json(body): Json<SubmitLeadRequest>,
 ) -> AppResult<Json<Lead>> {
+    let lead = service::submit(
+        &state.pool,
+        host_unid,
+        lead_unid,
+        body.source_page.as_deref(),
+    )
+    .await?;
+    if lead.email.is_none() {
+        return Err(AppError::BadRequest(
+            "email is required before submit".to_owned(),
+        ));
+    }
+    Ok(Json(lead))
+}
+
+pub async fn save_public(
+    State(state): State<AppState>,
+    Path(lead_unid): Path<Uuid>,
+    Json(update): Json<LeadUpdate>,
+) -> AppResult<Json<Lead>> {
+    let host_unid = availability::configured_public_host(&state.pool).await?;
+    Ok(Json(
+        service::save(&state.pool, host_unid, lead_unid, update).await?,
+    ))
+}
+
+pub async fn get_public(
+    State(state): State<AppState>,
+    Path(lead_unid): Path<Uuid>,
+) -> AppResult<Json<Option<Lead>>> {
+    let host_unid = availability::configured_public_host(&state.pool).await?;
+    Ok(Json(service::get(&state.pool, host_unid, lead_unid).await?))
+}
+
+pub async fn submit_public(
+    State(state): State<AppState>,
+    Path(lead_unid): Path<Uuid>,
+    Json(body): Json<SubmitLeadRequest>,
+) -> AppResult<Json<Lead>> {
+    let host_unid = availability::configured_public_host(&state.pool).await?;
     let lead = service::submit(
         &state.pool,
         host_unid,

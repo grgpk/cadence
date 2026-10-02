@@ -1,15 +1,18 @@
 use super::models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest};
 use sqlx::PgPool;
+use std::net::IpAddr;
 
 pub struct CallingVisitsDb;
 
 pub async fn create(
     pool: &PgPool,
     request: &CallingVisitRequest,
+    ip_address: Option<IpAddr>,
+    country: Option<&str>,
 ) -> Result<CallingVisit, sqlx::Error> {
     sqlx::query_as::<_, CallingVisit>(
-        "INSERT INTO calling_visits (source_page, referer, utm_source, utm_medium, utm_campaign, user_agent)
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING unid, source_page, created_at",
+        "INSERT INTO calling_visits (source_page, referer, utm_source, utm_medium, utm_campaign, user_agent, ip_address, country)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::inet, $8) RETURNING unid, source_page, created_at",
     )
     .bind(&request.source_page)
     .bind(&request.referer)
@@ -17,6 +20,8 @@ pub async fn create(
     .bind(&request.utm_medium)
     .bind(&request.utm_campaign)
     .bind(&request.user_agent)
+    .bind(ip_address.map(|value| value.to_string()))
+    .bind(country)
     .fetch_one(pool)
     .await
 }

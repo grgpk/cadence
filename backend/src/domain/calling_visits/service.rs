@@ -1,4 +1,5 @@
 use sqlx::PgPool;
+use std::net::IpAddr;
 
 use super::{
     db,
@@ -8,7 +9,12 @@ use crate::error::{AppError, AppResult};
 
 pub struct CallingVisitsService;
 
-pub async fn create(pool: &PgPool, request: CallingVisitRequest) -> AppResult<CallingVisit> {
+pub async fn create(
+    pool: &PgPool,
+    request: CallingVisitRequest,
+    ip_address: Option<IpAddr>,
+    country: Option<&str>,
+) -> AppResult<CallingVisit> {
     if request
         .source_page
         .as_deref()
@@ -16,7 +22,9 @@ pub async fn create(pool: &PgPool, request: CallingVisitRequest) -> AppResult<Ca
     {
         return Err(AppError::BadRequest("source_page is too long".to_owned()));
     }
-    db::create(pool, &request).await.map_err(Into::into)
+    db::create(pool, &request, ip_address, country)
+        .await
+        .map_err(Into::into)
 }
 
 pub async fn update(pool: &PgPool, engagement: CallingVisitEngagement) -> AppResult<()> {

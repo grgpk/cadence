@@ -21,6 +21,13 @@ pub async fn create(
 ) -> AppResult<Booking> {
     validate(&request)?;
     let date = request.slot_start.date_naive();
+    let today = Utc::now().date_naive();
+    let booking_window_end = today + Duration::days(availability::MAX_PUBLIC_BOOKING_DAYS);
+    if date < today || date >= booking_window_end {
+        return Err(AppError::BadRequest(
+            "slot is outside the 7-day booking window".to_owned(),
+        ));
+    }
     let rules = availability::list(pool, host_unid).await?;
     let allowed = availability::slots_for_date(date, &rules)
         .iter()
@@ -39,6 +46,8 @@ pub async fn create(
         &request.timezone,
         &request.invitee_name,
         &request.invitee_email,
+        None,
+        None,
     )
     .await
     {

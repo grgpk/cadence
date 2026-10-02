@@ -53,7 +53,7 @@ Use `admin@example.com` / `password` to test admin access. These credentials are
 Use token-based config. `RESEND_API_KEY` is the Resend token used as SMTP credential, never a plaintext password variable.
 
 ```dotenv
-EMAIL_FROM=example@email.com
+EMAIL_FROM=Cadence <onboarding@resend.dev>
 RESEND_API_KEY=re_xxx
 RESEND_SMTP_HOST=smtp.resend.com
 RESEND_SMTP_PORT=587

@@ -8,8 +8,14 @@ use super::{
 };
 use crate::error::{AppError, AppResult};
 
+pub const MAX_PUBLIC_BOOKING_DAYS: i64 = 7;
+
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<AvailabilityRule>> {
     db::list(pool, host_unid).await.map_err(Into::into)
+}
+
+pub async fn configured_public_host(pool: &PgPool) -> AppResult<Uuid> {
+    db::public_host_unid(pool).await?.ok_or(AppError::NotFound)
 }
 
 pub async fn create(
@@ -24,9 +30,9 @@ pub async fn create(
 }
 
 pub async fn slots(pool: &PgPool, host_unid: Uuid, days: i64) -> AppResult<Vec<TimeSlot>> {
-    if !(1..=31).contains(&days) {
+    if !(1..=MAX_PUBLIC_BOOKING_DAYS).contains(&days) {
         return Err(AppError::BadRequest(
-            "days must be between 1 and 31".to_owned(),
+            "days must be between 1 and 7".to_owned(),
         ));
     }
     if !db::has_host(pool, host_unid).await? {

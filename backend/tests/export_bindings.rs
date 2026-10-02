@@ -4,6 +4,7 @@ use cadence_backend::domain::{
     bookings::models::{Booking, CreateBookingRequest},
     bug_reports::models::{AdminBugReport, AdminBugType},
     calling_visits::models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest},
+    google_calendar::models::{BookingResult, CalendarEvent, EventDateTime, GoogleTimeSlot},
     leads::models::{Lead, LeadUpdate, SubmitLeadRequest},
     roleaccesses::models::RoleAccess,
 };
@@ -18,6 +19,10 @@ fn export_bindings() {
     assert!(AvailabilityRuleInput::export().is_ok());
     assert!(AvailabilityRule::export().is_ok());
     assert!(TimeSlot::export().is_ok());
+    assert!(GoogleTimeSlot::export().is_ok());
+    assert!(CalendarEvent::export().is_ok());
+    assert!(EventDateTime::export().is_ok());
+    assert!(BookingResult::export().is_ok());
     assert!(CreateBookingRequest::export().is_ok());
     assert!(Booking::export().is_ok());
     assert!(AdminBugType::export().is_ok());

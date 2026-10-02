@@ -3,6 +3,7 @@ pub mod domain;
 pub mod error;
 pub mod tracing_bugreport_layer;
 pub mod tracing_setup;
+pub mod tracking;
 
 use axum::{Router, middleware, routing::get};
 
@@ -17,6 +18,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::bug_reports::routes::protected_routes())
         .merge(domain::leads::routes::protected_routes())
         .merge(domain::calling_visits::routes::protected_routes())
+        .merge(domain::google_calendar::routes::protected_routes())
         .merge(domain::roleaccesses::routes::protected_routes())
         .layer(middleware::from_fn(require_auth));
 
@@ -27,7 +29,8 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::calling_visits::routes::public_routes())
         .merge(domain::leads::routes::public_routes())
         .merge(domain::availability::routes::public_routes())
-        .merge(domain::bookings::routes::public_routes());
+        .merge(domain::bookings::routes::public_routes())
+        .merge(domain::google_calendar::routes::public_routes());
 
     Router::new()
         .merge(protected)

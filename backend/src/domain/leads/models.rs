@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, TS)]
+#[derive(Debug, Default, Deserialize, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/LeadUpdate.ts")]
+#[serde(default)]
 pub struct LeadUpdate {
     pub first_name: Option<String>,
     pub last_name: Option<String>,
@@ -13,6 +14,9 @@ pub struct LeadUpdate {
     pub country_code: Option<String>,
     pub investment_comfort: Option<String>,
     pub what_stopping_you: Option<String>,
+    pub how_heard_about_us: Option<String>,
+    pub currently_working_on: Option<String>,
+    pub urgency_level: Option<String>,
     pub source_page: Option<String>,
     pub utm_source: Option<String>,
     pub utm_medium: Option<String>,
@@ -34,6 +38,9 @@ pub struct Lead {
     pub country_code: Option<String>,
     pub investment_comfort: Option<String>,
     pub what_stopping_you: Option<String>,
+    pub how_heard_about_us: Option<String>,
+    pub currently_working_on: Option<String>,
+    pub urgency_level: Option<String>,
     pub source_page: Option<String>,
     pub utm_source: Option<String>,
     pub utm_medium: Option<String>,

@@ -2,6 +2,14 @@
 
 Status: in progress.
 
+## Cadence widget parity
+
+The public widget follows the proven Rustify two-step flow while remaining owned
+by Cadence: lead qualification first, calendar booking second. The visual
+language, field progression, timezone choice, calendar interaction, loading
+states, errors, confirmation redirect, and attribution fields are all part of
+this phase. Brand copy must say Cadence everywhere.
+
 ## Goal
 
 A visitor sees recurring host slots, submits a lead, books a slot, and the host
@@ -18,8 +26,8 @@ development data, complete booking UX, and end-to-end contract tests.
 ## Approach
 
 - Availability rules generate slots server side.
-- The widget uses TanStack Query for slots and mutations for booking. Local
-  state is limited to form fields.
+- The widget uses the existing public API and TanStack-compatible request flow.
+  Local state owns form fields, step state, calendar selection, and errors.
 - A booking links optional lead and visit IDs and queues mail.
 - Admin reads remain owned by the relevant domain.
 
@@ -35,10 +43,10 @@ applied migration in a shared environment. Add a new seed migration instead.
 | Method | Path | Guard | Result |
 | --- | --- | --- | --- |
 | POST | `/api/calling-visits` | public | visit identifier |
-| POST | `/api/hosts/{host}/leads/{lead}` | public | lead |
-| POST | `/api/hosts/{host}/leads/{lead}/submit` | public | submitted lead |
-| GET | `/api/hosts/{host}/slots` | public | available slots |
-| POST | `/api/hosts/{host}/bookings` | public | created booking |
+| POST | `/api/leads/{lead}` | public | lead |
+| POST | `/api/leads/{lead}/submit` | public | submitted lead |
+| GET | `/api/google-calendar/available-slots` | public | available slots |
+| POST | `/api/google-calendar/book` | public | created booking |
 | GET | `/api/availability` | logged in | host rules |
 | GET | `/api/bookings` | logged in | host bookings |
 | GET | `/api/admin/leads` | `AdminUser` | all leads |
@@ -65,12 +73,15 @@ widget
 - `bookings/service.rs`: validation, transaction, queue writes.
 - `frontend/src/lib/query-keys.ts`: stable query keys.
 - `BookingWidget.tsx`: shadcn form, loading, error, and success states.
+- `CadenceBookingWidget.tsx`: two-step Cadence-branded qualification and booking
+  widget, matching the Rustify reference behavior.
 
 ## Out of scope
 
 - Google busy-time filtering and Meet links, phase 4.
 - Rich admin tables and filters, phase 5.
 - Multi-host URL onboarding, phase 7.
+- External embed loader, phase 6.
 
 ## Tests
 
