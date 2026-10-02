@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO google_calendar_config\n                (host_unid, access_token, refresh_token, expires_at, calendar_id, updated_at)\n             VALUES ($1, $2, $3, $4, 'primary', now())\n             ON CONFLICT (host_unid) DO UPDATE SET\n                access_token = EXCLUDED.access_token,\n                refresh_token = EXCLUDED.refresh_token,\n                expires_at = EXCLUDED.expires_at,\n                updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2199ff92157e3186221d2945b56f17faca2497ef91330553e51cc466d31761e2"
+}

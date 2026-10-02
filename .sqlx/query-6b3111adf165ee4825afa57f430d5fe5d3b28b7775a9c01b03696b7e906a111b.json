@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM google_calendar_config WHERE host_unid = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6b3111adf165ee4825afa57f430d5fe5d3b28b7775a9c01b03696b7e906a111b"
+}

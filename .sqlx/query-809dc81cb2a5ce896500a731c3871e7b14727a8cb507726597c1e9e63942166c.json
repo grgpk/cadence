@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT host_unid, access_token, refresh_token, expires_at, calendar_id\n             FROM google_calendar_config WHERE host_unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "google_calendar_config",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "access_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "google_calendar_config",
+            "name": "access_token"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "refresh_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "google_calendar_config",
+            "name": "refresh_token"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "expires_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "google_calendar_config",
+            "name": "expires_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "calendar_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "google_calendar_config",
+            "name": "calendar_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "809dc81cb2a5ce896500a731c3871e7b14727a8cb507726597c1e9e63942166c"
+}

@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE google_calendar_config\n             SET access_token = $1, expires_at = $2, updated_at = now()\n             WHERE host_unid = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "afee6d19d7adfef4953d3df8955ddb33ea226c1fcd8f8beb75d3548b5e3ac5e7"
+}

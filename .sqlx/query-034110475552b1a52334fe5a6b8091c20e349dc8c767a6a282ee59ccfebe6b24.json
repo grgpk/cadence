@@ -1,0 +1,144 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email, google_event_id, google_meet_url)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "lead_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "lead_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "slot_start",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "slot_start"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "timezone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "timezone"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "invitee_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "invitee_name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "invitee_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "invitee_email"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "google_meet_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "google_meet_url"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "034110475552b1a52334fe5a6b8091c20e349dc8c767a6a282ee59ccfebe6b24"
+}

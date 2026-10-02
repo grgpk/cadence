@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+
+FROM rust:1.88-bookworm AS builder
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends pkg-config libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+COPY backend/Cargo.toml backend/Cargo.toml
+COPY .sqlx .sqlx
+COPY backend/src backend/src
+COPY migrations migrations
+
+ENV SQLX_OFFLINE=true
+RUN cargo build --release -p cadence-backend
+
+FROM debian:bookworm-slim AS runtime
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/cadence-backend /usr/local/bin/cadence-backend
+
+ENV RUST_LOG=info
+EXPOSE 3001
+
+CMD ["/usr/local/bin/cadence-backend"]
