@@ -1,37 +1,112 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarCheck, CalendarX, Video } from "lucide-react";
+import { cn } from "cn";
+import { CalendarX, Video } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/PublicLayout";
+import { PHASE_STYLES } from "../domains/widget/SlotStep";
+import { callEnd, clockLabel, dayPhase, zonedTime } from "../domains/widget/zoned-time";
 import { APP_NAME } from "../lib/config";
-import { formatClock } from "../lib/format";
 import { ROUTES } from "../lib/routes";
 
 const MEET_ORIGIN = "https://meet.google.com/";
+const MAX_CALL_MINUTES = 240;
+/** The strip shows the hour before the call and the two after it starts. */
+const STRIP_HOURS = 4;
+const STRIP_MINUTES = STRIP_HOURS * 60;
 
 function text(value: unknown, pattern: RegExp): string | undefined {
   return typeof value === "string" && pattern.test(value) ? value : undefined;
 }
 
+function instant(value: unknown): string | undefined {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value))
+    ? value
+    : undefined;
+}
+
+function callMinutes(value: unknown): number | undefined {
+  const minutes = Number(value);
+  return Number.isInteger(minutes) && minutes > 0 && minutes <= MAX_CALL_MINUTES
+    ? minutes
+    : undefined;
+}
+
+function timezone(value: unknown): string | undefined {
+  const name = text(value, /^[\w+-]+(\/[\w+-]+)*$/);
+  if (!name) return undefined;
+  try {
+    new Intl.DateTimeFormat("en", { timeZone: name });
+    return name;
+  } catch {
+    return undefined;
+  }
+}
+
 export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
   validateSearch: (search) => ({
-    date: text(search.date, /^\d{4}-\d{2}-\d{2}$/),
-    time: text(search.time, /^\d{1,2}:\d{2}/),
-    tz: text(search.tz, /^[\w+-]+(\/[\w+-]+)*$/),
+    start: instant(search.start),
+    minutes: callMinutes(search.minutes),
+    tz: timezone(search.tz),
     meet:
       typeof search.meet === "string" && search.meet.startsWith(MEET_ORIGIN)
         ? search.meet
         : undefined,
+    slug: text(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
   }),
   head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }] }),
   component: BookingConfirmationPage,
 });
 
-function BookingConfirmationPage() {
-  const { date, time, tz, meet } = Route.useSearch();
+/** The booked call as a block on its stretch of the day. */
+function BookedStrip({
+  start,
+  minutes,
+  timeZone,
+}: {
+  start: Date;
+  minutes: number;
+  timeZone: string;
+}) {
+  const at = zonedTime(start, timeZone);
+  const firstHour = at.hour - 1;
+  const styles = PHASE_STYLES[dayPhase(at.hour)];
+  const left = ((60 + at.minute) / STRIP_MINUTES) * 100;
+  const width = Math.min((minutes / STRIP_MINUTES) * 100, 100 - left);
 
-  if (!date || !time) {
+  return (
+    <div aria-hidden="true" className="rounded-xl border bg-card px-4 pt-3 pb-4">
+      <div className="grid grid-cols-4">
+        {Array.from({ length: STRIP_HOURS }, (_, index) => (
+          <div key={index}>
+            <p className="font-display font-narrow text-sm font-medium text-muted-foreground tabular-nums">
+              {String((firstHour + index + 24) % 24).padStart(2, "0")}:00
+            </p>
+            <div className="relative mt-1 h-2.5 border-t border-foreground/25">
+              <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
+              <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="relative mt-2 h-9">
+        <span
+          style={{ left: `${left}%`, width: `${width}%` }}
+          className={cn(
+            "absolute inset-y-0 min-w-6 rounded-md motion-safe:animate-block-drop",
+            styles.rail,
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BookingConfirmationPage() {
+  const { start, minutes, tz, meet, slug } = Route.useSearch();
+
+  if (!start || !minutes || !tz) {
     return (
       <PublicLayout>
         <section className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-20 text-center">
@@ -44,35 +119,37 @@ function BookingConfirmationPage() {
             are in your confirmation email.
           </p>
           <Button asChild>
-            <Link to={ROUTES.home}>Book a call</Link>
+            <Link to={ROUTES.home}>Go to the home page</Link>
           </Button>
         </section>
       </PublicLayout>
     );
   }
 
+  const startsAt = new Date(start);
   const day = new Intl.DateTimeFormat("en", {
     weekday: "long",
     day: "numeric",
     month: "long",
     year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(`${date}T00:00:00Z`));
+    timeZone: tz,
+  }).format(startsAt);
 
   return (
     <PublicLayout>
       <section className="mx-auto max-w-lg px-4 py-14 sm:py-20">
-        <span className="flex size-11 items-center justify-center rounded-full bg-success/10 text-success">
-          <CalendarCheck className="size-5" />
-        </span>
-        <h1 className="mt-5 font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+        <h1 className="font-display font-wide text-4xl leading-none font-bold tracking-tight sm:text-5xl">
           Your call is booked
         </h1>
-        <p className="mt-3 text-muted-foreground">
-          A confirmation with the video-call details is on its way to your inbox.
+        <p className="mt-4 text-muted-foreground">
+          A confirmation is on its way to your inbox.
         </p>
 
-        <dl className="mt-8 divide-y rounded-xl border bg-card text-sm">
+        <div className="mt-8">
+          <BookedStrip start={startsAt} minutes={minutes} timeZone={tz} />
+        </div>
+
+        <dl className="mt-4 divide-y rounded-xl border bg-card text-sm">
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Date</dt>
             <dd className="text-right font-medium">{day}</dd>
@@ -80,15 +157,14 @@ function BookingConfirmationPage() {
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Time</dt>
             <dd className="text-right font-medium tabular-nums">
-              {formatClock(time, false)}
+              {clockLabel(startsAt, tz, false)} to{" "}
+              {clockLabel(callEnd(start, minutes), tz, false)}
             </dd>
           </div>
-          {tz ? (
-            <div className="flex justify-between gap-4 px-4 py-3">
-              <dt className="text-muted-foreground">Timezone</dt>
-              <dd className="text-right font-medium">{tz.replaceAll("_", " ")}</dd>
-            </div>
-          ) : null}
+          <div className="flex justify-between gap-4 px-4 py-3">
+            <dt className="text-muted-foreground">Timezone</dt>
+            <dd className="text-right font-medium">{tz.replaceAll("_", " ")}</dd>
+          </div>
         </dl>
 
         <div className="mt-8 flex flex-wrap gap-3">
@@ -100,9 +176,13 @@ function BookingConfirmationPage() {
               </a>
             </Button>
           ) : null}
-          <Button variant="outline" asChild>
-            <Link to={ROUTES.home}>Back to {APP_NAME}</Link>
-          </Button>
+          {slug ? (
+            <Button variant="outline" asChild>
+              <Link to={ROUTES.bookingPage} params={{ slug }}>
+                Book another time
+              </Link>
+            </Button>
+          ) : null}
         </div>
       </section>
     </PublicLayout>

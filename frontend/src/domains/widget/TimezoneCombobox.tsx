@@ -18,20 +18,25 @@ import {
 
 export function TimezoneCombobox({
   selected,
+  fallbackLabel = "Choose a timezone",
   onSelect,
 }: {
-  selected: CountryTimezone;
+  /** Missing when the stored timezone is not in the country list, such as UTC. */
+  selected: CountryTimezone | undefined;
+  /** Shown instead when nothing in the list is selected. */
+  fallbackLabel?: string;
   onSelect: (tz: CountryTimezone) => void;
 }) {
+  const label = selected ? timezoneDisplayWithTime(selected) : fallbackLabel;
   return (
     <Popover>
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={`Timezone: ${timezoneDisplayWithTime(selected)}. Change timezone`}
+          aria-label={`Timezone: ${label}. Change timezone`}
           className="flex min-w-0 items-center gap-1 rounded-sm text-left text-sm font-medium outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
         >
-          <span className="min-w-0 truncate">{timezoneDisplayWithTime(selected)}</span>
+          <span className="min-w-0 truncate">{label}</span>
           <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
         </button>
       </PopoverTrigger>
@@ -50,7 +55,7 @@ export function TimezoneCombobox({
                 >
                   <span className="text-base">{timezoneFlag(tz)}</span>
                   {timezoneDisplayWithTime(tz)}
-                  {selected.iana === tz.iana && <Check className="ml-auto size-4" />}
+                  {selected?.iana === tz.iana && <Check className="ml-auto size-4" />}
                 </CommandItem>
               ))}
             </CommandGroup>

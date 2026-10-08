@@ -20,16 +20,17 @@ import { EmptyState } from "../../domains/shared/EmptyState";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
+import { getHostSettings } from "../../domains/widget/cadence-api";
 import { api } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { ROUTES } from "../../lib/routes";
+import { bookingPath, ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/")({ component: DashboardHome });
 
 const NEXT_UP_LIMIT = 5;
 
-function copyBookingLink() {
-  const link = `${window.location.origin}${ROUTES.bookACall}`;
+function copyBookingLink(slug: string) {
+  const link = `${window.location.origin}${bookingPath(slug)}`;
   navigator.clipboard.writeText(link).then(
     () => toast.success("Link copied"),
     () => toast.error("The link could not be copied. Copy it from the address bar."),
@@ -47,6 +48,13 @@ function DashboardHome() {
     queryFn: () => api<AvailabilityRule[]>("/api/availability"),
   });
 
+  const settings = useQuery({
+    queryKey: QUERY_KEYS.hostSettings,
+    queryFn: getHostSettings,
+  });
+  // The link exists once the settings have loaded.
+  const slug = settings.data?.public_slug;
+
   const now = Date.now();
   const nextUp = (bookings.data ?? [])
     .filter((booking) => isUpcoming(booking, now))
@@ -62,13 +70,15 @@ function DashboardHome() {
         description="Your next calls and the page people book them from."
         actions={
           <>
-            <Button variant="outline" asChild>
-              <Link to={ROUTES.bookACall} target="_blank">
-                <ExternalLink />
-                Open booking page
-              </Link>
-            </Button>
-            <Button onClick={copyBookingLink}>
+            {slug ? (
+              <Button variant="outline" asChild>
+                <Link to={ROUTES.bookingPage} params={{ slug }} target="_blank">
+                  <ExternalLink />
+                  Open booking page
+                </Link>
+              </Button>
+            ) : null}
+            <Button disabled={!slug} onClick={() => slug && copyBookingLink(slug)}>
               <Copy />
               Copy link
             </Button>
@@ -84,7 +94,7 @@ function DashboardHome() {
               Nobody can book you yet
             </CardTitle>
             <CardDescription>
-              You have no hours set, so your booking page has no times to offer.
+              You have no hours set, so your link has no times to offer.
             </CardDescription>
             <CardAction>
               <Button size="sm" asChild>
@@ -118,7 +128,12 @@ function DashboardHome() {
             title="No upcoming calls"
             description="Share your booking page and new calls will show up here."
             action={
-              <Button variant="outline" size="sm" onClick={copyBookingLink}>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!slug}
+                onClick={() => slug && copyBookingLink(slug)}
+              >
                 <Copy />
                 Copy link
               </Button>

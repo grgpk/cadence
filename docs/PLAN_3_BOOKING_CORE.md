@@ -53,6 +53,9 @@ applied migration in a shared environment. Add a new seed migration instead.
 | GET | `/api/admin/bookings` | `AdminUser` | all bookings |
 | GET | `/api/admin/calling-visits` | `AdminUser` | all visits |
 
+Plan 7 replaced the public lead, slot and booking routes in this table with
+host-scoped ones under `/api/hosts/{slug}/`. Its API table is the current one.
+
 ## Flow schema
 
 ```

@@ -2,7 +2,6 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 
 import { Card } from "../../components/ui/card";
-import { GoogleCalendarCard } from "../../domains/admin/components/GoogleCalendarCard";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
 import { PageHeader } from "../../domains/shared/PageHeader";
 
@@ -35,7 +34,6 @@ function AdminOverviewPage() {
           </Link>
         ))}
       </Card>
-      <GoogleCalendarCard />
     </>
   );
 }

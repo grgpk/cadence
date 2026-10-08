@@ -1,5 +1,5 @@
 @baseUrl = http://localhost:3001
-@hostUnid = {{$dotenv VITE_PUBLIC_HOST_UNID}}
+@slug = cadence-host
 @leadUnid = 00000000-0000-0000-0000-000000000001
 
 ### Health
@@ -32,11 +32,23 @@ Content-Type: application/json
 ### Delete availability rule
 DELETE {{baseUrl}}/api/availability/1
 
-### Public slots
-GET {{baseUrl}}/api/hosts/{{hostUnid}}/slots?days=14
+### My booking page settings (creates the link on first read)
+GET {{baseUrl}}/api/host/settings
+
+### Update my booking page settings
+PUT {{baseUrl}}/api/host/settings
+Content-Type: application/json
+
+{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false}
+
+### Public booking page
+GET {{baseUrl}}/api/hosts/{{slug}}
+
+### Public slots for the next 7 days
+GET {{baseUrl}}/api/hosts/{{slug}}/slots
 
 ### Create/update lead
-POST {{baseUrl}}/api/hosts/{{hostUnid}}/leads/{{leadUnid}}
+POST {{baseUrl}}/api/hosts/{{slug}}/leads/{{leadUnid}}
 Content-Type: application/json
 
 {"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","source_page":"/"}
@@ -48,10 +60,11 @@ Content-Type: application/json
 {"source_page":"/","utm_source":"request-http","user_agent":"HTTP Client"}
 
 ### Book call
-POST {{baseUrl}}/api/hosts/{{hostUnid}}/bookings
+# slot_start must be one of the starts returned by the slots request above.
+POST {{baseUrl}}/api/hosts/{{slug}}/bookings
 Content-Type: application/json
 
-{"lead_unid":"{{leadUnid}}","slot_start":"2026-10-05T09:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
+{"lead_unid":"{{leadUnid}}","calling_visit_unid":null,"slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
 
 ### My bookings
 GET {{baseUrl}}/api/bookings

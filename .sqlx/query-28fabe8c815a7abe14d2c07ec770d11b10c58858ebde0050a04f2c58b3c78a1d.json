@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT slot_start FROM bookings WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "slot_start",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "slot_start"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "28fabe8c815a7abe14d2c07ec770d11b10c58858ebde0050a04f2c58b3c78a1d"
+}

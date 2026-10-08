@@ -1,62 +1,205 @@
-# Plan 7: multi-host onboarding
+# Plan 7: per-host booking links
 
-Status: planned.
+Status: done.
 
 ## Goal
 
-A new host creates an account, configures a widget and calendar, and shares a
-unique booking URL. Hosts never see one another's leads or bookings.
+A host registers, sets the hours they take calls, and gets their own link,
+`/book/{slug}`. Anyone with the link books a call in those hours. The host
+chooses the page title and description, their timezone, and which optional
+questions the form asks. Hosts never see or change one another's data.
 
 ## The gap this fixes
 
-Current tables carry `host_unid` for leads, availability, widget settings, and
-bookings, but the public widget uses configured host IDs and onboarding/settings
-experience is not complete.
+- Every public endpoint resolved "the" host through
+  `availability::service::configured_public_host`, the most recently updated
+  active `widget_settings` row. Only the seed created such a row, so a host
+  who registered had no link, and with two rows requests would go to
+  whichever host saved last.
+- The times shown to visitors ignored `/dashboard/availability`. They were a
+  fixed list (13:00 to 18:30 Paris) minus Google busy times, and failed when
+  Google was not connected.
+- The form always asked five lead-qualification questions, hardcoded in
+  `frontend/src/domains/widget/booking-form.ts`.
+- `POST /api/google-calendar/login` and `GET /api/google-calendar/events`
+  were public and acted on the configured host, not the caller.
+- `leads::db::upsert` updated a lead by id without checking its host.
 
 ## Approach
 
-- Add a unique public host slug with a safe migration and backfill.
-- Scope every host read and write by authenticated host or resolved public host.
-- Keep admin queries unscoped only behind `AdminUser`.
-- Add onboarding as small idempotent steps.
+- `widget_settings` already had one row per host with `public_slug`, `title`,
+  `description` and `timezone`. A new `host_settings` domain reads and writes
+  it. The row is created on the host's first `GET /api/host/settings`, which
+  covers new, existing and seeded users with one code path and no backfill.
+- Public routes carry the slug: `/api/hosts/{slug}/...`. Each handler
+  resolves it with `host_settings::service::public_page`, so unknown,
+  switched-off and banned hosts all return the same 404. The un-scoped routes
+  and `configured_public_host` are deleted.
+- Slots come from the host's availability rules, read as wall-clock times in
+  the host's timezone. Google Calendar is an optional overlay: when connected
+  it removes busy times and adds a Meet link. A broken connection is logged
+  and the page keeps working from the host's hours.
+- Unused columns stay unused: `accent_color`, `duration_minutes`,
+  `buffer_minutes`, `minimum_notice_hours`. Call length is the rule's
+  `slot_minutes`.
 
 ## Data model
 
-Audit host-owned tables before new columns. Backfill the first host, then add
-`NOT NULL`. Add unique indexes for public slug and provider account identity.
+`migrations/0017_add_widget_question_flags.sql`:
+
+```sql
+ALTER TABLE widget_settings
+    ADD COLUMN ask_currently_working_on BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN ask_how_heard_about_us   BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN ask_what_stopping_you    BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN ask_investment_comfort   BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN ask_urgency_level        BOOLEAN NOT NULL DEFAULT false,
+    ADD CONSTRAINT widget_public_slug_format CHECK (
+        public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
+        AND char_length(public_slug) BETWEEN 3 AND 40
+    );
+```
+
+- Flags are named after the `leads` columns they gate. Existing rows get
+  `false`: a page asks for name, email and phone until its host says more.
+- The migration does not depend on the seed, so it runs before it on a fresh
+  database and after it on an existing one.
+- New rows are created with `timezone = 'UTC'`, because hours saved before
+  this plan were entered as UTC. The host picks their real timezone in
+  settings.
+- Slug: slugified full name, else the email's local part, else `host`; on a
+  collision a `-xxxx` suffix. The host can change it; old links then 404.
 
 ## API
 
-| Method | Path | Guard | Result |
-| --- | --- | --- | --- |
-| POST | `/api/hosts` | logged in | host profile |
-| GET | `/api/hosts/{slug}/slots` | public | scoped slots |
-| GET | `/api/host/settings` | Host | own settings |
-| PUT | `/api/host/settings` | Host | updated settings |
-| GET | `/api/host/bookings` | Host | own bookings |
+| Method | Path | Guard | Request | Response | Errors |
+| --- | --- | --- | --- | --- | --- |
+| GET | `/api/hosts/{slug}` | public | | `BookingPage` | 404 |
+| GET | `/api/hosts/{slug}/slots` | public | | `TimeSlot[]` | 404 |
+| POST | `/api/hosts/{slug}/bookings` | public | `CreateBookingRequest` | `Booking` | 400, 404, 409 |
+| POST | `/api/hosts/{slug}/leads/{lead}` | public | `LeadUpdate` | `Lead` | 400, 404 |
+| POST | `/api/hosts/{slug}/leads/{lead}/submit` | public | `SubmitLeadRequest` | `Lead` | 400, 404 |
+| GET | `/api/host/settings` | logged in | | `HostSettings` | 401 |
+| PUT | `/api/host/settings` | logged in | `HostSettings` | `HostSettings` | 400, 401, 409 |
+| GET | `/api/google-calendar/oauth-config` | logged in | | client id, redirect URI | 401 |
+| POST | `/api/google-calendar/login` | logged in | code | ok | 400, 401 |
+| GET | `/api/google-calendar/events` | logged in | | `CalendarEvent[]` | 400, 401 |
+
+`BookingPage` carries the host's name, page text, timezone, the five `ask_*`
+flags and `calendar_connected`. It never carries an id or an email.
+
+Removed: `/api/leads/*`, `/api/hosts/{host_unid}/*`,
+`/api/google-calendar/available-slots`, `available-slots-batch` and `book`.
 
 ## Flow schema
 
 ```
-register ─▶ onboarding ─▶ timezone ─▶ availability ─▶ calendar ─▶ preview
-visitor ─────────────────────────────▶ /book/{slug}
+register ─▶ /dashboard/availability (hours) ─▶ /dashboard/settings (link,
+            timezone, questions, optional Google) ─▶ share /book/{slug}
+
+visitor ─▶ /book/{slug}
+   │  GET /api/hosts/{slug}            page text, question flags
+   │  GET /api/hosts/{slug}/slots      rules in host timezone
+   │                                   - inside 4h notice
+   │                                   - already booked
+   │                                   - Google busy (if connected)
+   ├─ pick a time ─▶ details form (asked questions only)
+   │  POST .../leads/{lead}            answers to unasked questions dropped
+   │  POST .../bookings                slot re-checked, Meet event if
+   │                                   connected, emails queued
+   └─▶ /booking-confirmation
 ```
+
+```
+/dashboard/settings
+┌──────────┬────────────────────────────────────────────┐
+│ Overview │ Settings                                   │
+│ Bookings │ ┌ Your link ─────────────────────────────┐ │
+│ Availab. │ │ host/book/[ giorgi           ] Copy    │ │
+│ Settings │ │ Title, Description, Timezone           │ │
+│          │ └────────────────────────────────────────┘ │
+│          │ ┌ Questions to ask ──────── five switches┐ │
+│          │ └────────────────────────────────────────┘ │
+│          │ [Save changes]                             │
+│          │ ┌ Google Calendar (optional) ────────────┐ │
+│          │ └────────────────────────────────────────┘ │
+└──────────┴────────────────────────────────────────────┘
+```
+
+## Implementation sketch
+
+- `backend/src/domain/host_settings/`: `HostSettings`, `BookingPage`,
+  `get_or_create`, `update`, `public_page`, slug rules.
+- `availability/service.rs`: `slots_between(rules, timezone, from, to)` and
+  `local_to_utc`. Pure, unit tested.
+- `bookings/service.rs`: `public_slots` (rules, notice, booked, busy) and
+  `create`, which re-checks the slot, checks the lead belongs to the host,
+  creates the Meet event when connected, and queues the emails.
+- `google_calendar/service.rs`: `busy_intervals` and `create_meet_event`.
+  The fixed slot list and the old slot and booking code are gone.
+- `leads/service.rs`: `keep_asked_answers`; `leads/db.rs`: upsert only
+  updates a lead of the same host.
+- Frontend: `routes/book/$slug.tsx`, `routes/dashboard/settings.tsx`,
+  `domains/widget/booking-form.ts` (`QUESTIONS`, shared by the form and the
+  settings page), `domains/widget/zoned-time.ts`, one slots query per page
+  grouped by the visitor's local day. `/book-a-call` is removed; `/` is the
+  landing page (Plan 9). The Google card moved from `/admin` to
+  `/dashboard/settings`, so `GOOGLE_REDIRECT_URI` is now
+  `/dashboard/calendar/callback`.
+- New dev-dependency `tower` (`util`): the first HTTP tests drive the router
+  in-process. New shadcn primitive: `switch`.
 
 ## Out of scope
 
-- Teams, round robin, delegated admins, custom domains, paid plans.
+- **OAuth `state`** through the unused `oauth_states` table. Plan 5.
+- **`host_unid` on `calling_visits`** for a per-host funnel. Later plan.
+- **Showing answers** to the host or in emails, and per-host question
+  wording or options. Needs a detail view first.
+- **Redirects from an old slug** after a rename, and a switch for
+  `is_active`.
+- **Buffer and notice settings.** Notice is a 4 hour constant.
+- **Teams, round robin, delegated admins, custom domains, paid plans.**
+
+## Tests
+
+`backend/tests/host_booking_http.rs`:
+
+- The public page has no id or email and asks nothing by default; links are
+  case-insensitive; unknown and switched-off links are 404.
+- Settings need a session; the first read creates a link and later reads
+  keep it; two hosts with one name get different links.
+- A bad slug, empty title or unknown timezone is 400; a taken slug is 409; a
+  save does not touch another host's settings; the old link stops working.
+- Answers to questions that are off are stored as NULL, with no
+  qualification status; turning a question on keeps its answer.
+- A lead cannot be saved or submitted through another host's link.
+- Slots follow the host's hours and timezone with no Google connection; a
+  host with no hours gets an empty list.
+- Only offered times can be booked; the lead must be the host's; a booked
+  time is gone and booking it again is 409.
+- Calendar login, events and config are 401 logged out; the old public
+  routes are 404.
+
+Unit tests: slug rules in `host_settings/service.rs`, timezone and window
+cases in `availability/service.rs`.
 
 ## Milestones
 
-- H0: schema audit and host slug.
-- H1: isolation middleware and query coverage.
-- H2: onboarding/settings UI.
-- H3: per-host calendar and widget.
-- H4: cross-host security tests.
+- H0: migration, `host_settings` domain, bindings.
+- H1: host-scoped public API, isolation and calendar auth fixes, `/book/$slug`.
+- H2: slots and bookings from the host's hours, Google optional.
+- H3: question switches in the form and `/dashboard/settings`.
+- H4: HTTP tests and docs.
 
 ## Definition of done
 
-- Host A cannot read or mutate Host B data.
-- Admin sees all hosts through explicit admin endpoints.
-- A new host publishes a working booking URL without manual SQL.
-- All host queries and migrations have tests.
+- A new host with hours and no Google connection can be booked from their
+  own link.
+- Host A cannot read or change host B's settings, leads or bookings.
+- With every switch off the form asks only for name, email and phone.
+- Checks from `AGENTS.md`, `cargo test`, clean `frontend/src/bindings/` and
+  `.sqlx/`.
+
+## After phase 7
+
+Plan 5 (test hardening) picks up OAuth `state` and the wider auth matrix.

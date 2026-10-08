@@ -4,17 +4,22 @@ import type { Role } from "../bindings/Role";
 import type { SessionUser } from "../bindings/SessionUser";
 import { SERVER_API_URL } from "./api-url";
 import { api } from "./api";
-import { ROUTES } from "./routes";
+import { isBookingPath, ROUTES } from "./routes";
 
-export const PUBLIC_PATHS: readonly string[] = [
+const PUBLIC_PATHS: readonly string[] = [
   ROUTES.home,
-  ROUTES.bookACall,
   ROUTES.bookingConfirmation,
   ROUTES.login,
   ROUTES.privacy,
   ROUTES.register,
   ROUTES.terms,
 ];
+
+/** Pages a visitor can open without an account. */
+export function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.includes(pathname) || isBookingPath(pathname);
+}
+
 const ROLES = {
   ROOT: "Root",
   ADMIN: "Admin",

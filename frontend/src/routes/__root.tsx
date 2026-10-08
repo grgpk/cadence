@@ -7,7 +7,7 @@ import {
 } from "@tanstack/react-router";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
-import { getSessionUser, PUBLIC_PATHS } from "../lib/auth";
+import { getSessionUser, isPublicPath } from "../lib/auth";
 import { APP_NAME } from "../lib/config";
 import { ROUTES } from "../lib/routes";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
@@ -18,7 +18,7 @@ import "../styles/globals.css";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
-    if (PUBLIC_PATHS.includes(location.pathname)) return { user: null };
+    if (isPublicPath(location.pathname)) return { user: null };
     const user = await getSessionUser();
     if (!user) throw redirect({ to: ROUTES.login });
     return { user };
@@ -32,7 +32,7 @@ export const Route = createRootRoute({
       { title: APP_NAME },
       {
         name: "description",
-        content: "Share one link and let people book a call at a time that works.",
+        content: "Set the hours you take calls, share one link, and let people book you.",
       },
     ],
     links: [{ rel: "icon", href: "/favicon.svg" }],

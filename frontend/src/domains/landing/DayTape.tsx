@@ -1,0 +1,135 @@
+import { cn } from "cn";
+import { useEffect, useRef, useState } from "react";
+
+import { dayPhase, type DayPhase } from "../widget/zoned-time";
+
+type Block =
+  | { kind: "open" }
+  | { kind: "booked"; name: string }
+  /** Open at first, then someone books it while you watch. */
+  | { kind: "booking"; name: string; delaySeconds: number };
+
+/** One sample working day. `null` is an hour the host keeps free. */
+const DAY: { hour: number; block: Block | null }[] = [
+  { hour: 8, block: { kind: "open" } },
+  { hour: 9, block: { kind: "booked", name: "Ana" } },
+  { hour: 10, block: { kind: "booking", name: "Leo", delaySeconds: 0 } },
+  { hour: 11, block: { kind: "open" } },
+  { hour: 12, block: null },
+  { hour: 13, block: { kind: "booked", name: "Mia" } },
+  { hour: 14, block: { kind: "booking", name: "Sam", delaySeconds: 5 } },
+  { hour: 15, block: { kind: "open" } },
+  { hour: 16, block: { kind: "booked", name: "Noor" } },
+  { hour: 17, block: { kind: "booking", name: "Ivo", delaySeconds: 10 } },
+  { hour: 18, block: { kind: "open" } },
+  { hour: 19, block: null },
+];
+
+const OPEN_STYLES: Record<DayPhase, string> = {
+  Morning: "border-dawn bg-dawn/35",
+  Afternoon: "border-noon bg-noon/30",
+  Evening: "border-dusk/60 bg-dusk/15",
+};
+
+const PAUSE_ON_HOVER = "group-hover:[animation-play-state:paused]";
+
+function TapeBlock({ hour, block }: { hour: number; block: Block }) {
+  const booked = "absolute inset-0 flex items-center rounded-md bg-primary px-3";
+  return (
+    <div
+      className={cn(
+        "relative h-12 w-[86%] rounded-md border text-sm font-medium",
+        OPEN_STYLES[dayPhase(hour)],
+      )}
+    >
+      <span className="flex h-full items-center px-3 text-foreground/60">open</span>
+      {block.kind === "open" ? null : (
+        <span
+          style={
+            block.kind === "booking"
+              ? { animationDelay: `${block.delaySeconds}s` }
+              : undefined
+          }
+          className={cn(
+            booked,
+            "origin-left text-primary-foreground",
+            // Without motion a "booking" block simply stays open.
+            block.kind === "booking" &&
+              cn(
+                "opacity-0 motion-safe:animate-tape-book",
+                PAUSE_ON_HOVER,
+                "group-data-[paused]:[animation-play-state:paused]",
+              ),
+          )}
+        >
+          {block.name}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The landing page's one moving thing: a host's day sliding past "now", with
+ * open slots getting booked. Purely illustrative, so it is hidden from
+ * assistive tech.
+ */
+export function DayTape() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [visible, setVisible] = useState(true);
+
+  // Off screen, the loop has nobody to watch it.
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    const observer = new IntersectionObserver(([entry]) =>
+      setVisible(entry?.isIntersecting ?? true),
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div
+      ref={ref}
+      aria-hidden="true"
+      data-paused={visible ? undefined : ""}
+      className="group relative overflow-hidden py-2 [mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)]"
+    >
+      <div
+        className={cn(
+          "flex w-max motion-safe:animate-tape-drift",
+          PAUSE_ON_HOVER,
+          "group-data-[paused]:[animation-play-state:paused]",
+        )}
+      >
+        {/* Two copies of the day make the loop seamless. */}
+        {[0, 1].flatMap((copy) =>
+          DAY.map(({ hour, block }) => (
+            <div key={`${copy}-${hour}`} className="w-40 shrink-0 sm:w-48">
+              <p className="font-display font-narrow text-lg font-medium text-muted-foreground tabular-nums">
+                {String(hour).padStart(2, "0")}:00
+              </p>
+              {/* The ruler: a tall tick on the hour, a short one on the half. */}
+              <div className="relative mt-1 h-3 border-t border-foreground/25">
+                <span className="absolute top-0 left-0 h-3 w-px bg-foreground/40" />
+                <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
+              </div>
+              <div className="mt-3 h-12">
+                {block ? <TapeBlock hour={hour} block={block} /> : null}
+              </div>
+            </div>
+          )),
+        )}
+      </div>
+
+      {/* The tape moves; "now" stays put. */}
+      <div className="pointer-events-none absolute inset-y-0 left-[30%] flex flex-col items-center">
+        <span className="rounded-full bg-signal px-2 py-0.5 text-xs font-semibold text-signal-foreground">
+          now
+        </span>
+        <span className="w-0.5 flex-1 bg-signal" />
+      </div>
+    </div>
+  );
+}

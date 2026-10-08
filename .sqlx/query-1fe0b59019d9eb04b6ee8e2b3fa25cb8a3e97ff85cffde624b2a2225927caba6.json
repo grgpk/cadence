@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT bugtype, userlogin, url FROM bug_reports WHERE id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bugtype",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "bugtype"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "userlogin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "userlogin"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "url"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "1fe0b59019d9eb04b6ee8e2b3fa25cb8a3e97ff85cffde624b2a2225927caba6"
+}

@@ -39,6 +39,23 @@ pub async fn create(
     .await
 }
 
+/// Start times of calls that still hold their slot.
+pub async fn booked_starts(
+    pool: &PgPool,
+    host_unid: Uuid,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Result<Vec<DateTime<Utc>>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT slot_start FROM bookings WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3",
+        host_unid,
+        from,
+        to,
+    )
+    .fetch_all(pool)
+    .await
+}
+
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,

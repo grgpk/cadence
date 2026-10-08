@@ -1,8 +1,11 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
+import type { BookingPage } from "../../bindings/BookingPage";
+import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Skeleton } from "../../components/ui/skeleton";
+import { ApiError } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 import {
@@ -21,8 +24,8 @@ import {
   updateCallingVisit,
 } from "./cadence-api";
 import { DetailsStep } from "./DetailsStep";
-import { SlotStep, type CalendarView, type PickedSlot } from "./SlotStep";
-import { currentDateInTz } from "./slot-availability-checker";
+import { SlotStep, type CalendarView } from "./SlotStep";
+import { zonedTime } from "./zoned-time";
 
 const DEFAULT_TIMEZONE = "Europe/Paris";
 const DEFAULT_TZ: CountryTimezone =
@@ -47,7 +50,15 @@ function ignore() {
   // Visit tracking and autosave must never interrupt a booking.
 }
 
-function Booking({ countryVariant }: { countryVariant: string }) {
+function Booking({
+  slug,
+  page,
+  countryVariant,
+}: {
+  slug: string;
+  page: BookingPage;
+  countryVariant: string;
+}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [values, setValues] = useState<FormValues>({ ...EMPTY_FORM, countryVariant });
@@ -58,10 +69,10 @@ function Booking({ countryVariant }: { countryVariant: string }) {
       DEFAULT_TZ,
   );
   const [view, setView] = useState<CalendarView>(() => {
-    const today = currentDateInTz(timezone.iana);
+    const today = zonedTime(new Date(), timezone.iana);
     return { year: today.year, month: today.month, day: null };
   });
-  const [slot, setSlot] = useState<PickedSlot | null>(null);
+  const [slot, setSlot] = useState<TimeSlot | null>(null);
   const [hour12, setHour12] = useState(initialHour12);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -91,25 +102,25 @@ function Booking({ countryVariant }: { countryVariant: string }) {
     }
   }
 
-  async function confirm(picked: PickedSlot) {
+  async function confirm(picked: TimeSlot) {
     setSubmitting(true);
     setSubmitError(null);
     try {
-      await saveLead(leadUnid, leadUpdate(values));
+      await saveLead(slug, leadUnid, leadUpdate(values));
       if (!leadSubmitted.current) {
-        await submitLead(leadUnid, window.location.pathname);
+        await submitLead(slug, leadUnid, window.location.pathname);
         leadSubmitted.current = true;
         if (visitUnid) {
           void updateCallingVisit(visitUnid, { form_submitted: true }).catch(ignore);
         }
       }
-      const result = await createBooking({
-        date: picked.date,
-        time: picked.time,
+      const booking = await createBooking(slug, {
+        lead_unid: leadUnid,
+        calling_visit_unid: visitUnid,
+        slot_start: picked.start,
         timezone: timezone.iana,
-        attendee_email: values.email.trim(),
-        attendee_name: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),
-        lead_id: leadUnid,
+        invitee_name: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),
+        invitee_email: values.email.trim(),
       });
       if (visitUnid) {
         void updateCallingVisit(visitUnid, { booked_call: true }).catch(ignore);
@@ -117,18 +128,19 @@ function Booking({ countryVariant }: { countryVariant: string }) {
       await navigate({
         to: ROUTES.bookingConfirmation,
         search: {
-          date: picked.date,
-          time: picked.time,
+          start: booking.slot_start,
+          minutes: picked.minutes,
           tz: timezone.iana,
-          meet: result.meet_link ?? undefined,
+          meet: booking.google_meet_url ?? undefined,
+          slug,
         },
       });
     } catch (error) {
       // The time may have just been taken, so the cached times can no longer be trusted.
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlotsAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) });
       setSubmitError(
-        error instanceof Error
-          ? error.message
+        error instanceof ApiError && error.isConflict
+          ? "That time was just taken. Go back and pick another one."
           : "The booking did not go through. Try again or pick another time.",
       );
     } finally {
@@ -136,38 +148,54 @@ function Booking({ countryVariant }: { countryVariant: string }) {
     }
   }
 
+  // Each step slides in from the side it lives on: details to the right of times.
   return slot === null ? (
-    <SlotStep
-      timezone={timezone}
-      onTimezoneChange={setTimezone}
-      view={view}
-      onViewChange={setView}
-      hour12={hour12}
-      onHour12Change={changeHour12}
-      onPick={(picked) => {
-        setSubmitError(null);
-        setSlot(picked);
-      }}
-    />
+    <div
+      key="times"
+      style={{ "--step-from": "-1rem" } as CSSProperties}
+      className="motion-safe:animate-step-in"
+    >
+      <SlotStep
+        slug={slug}
+        page={page}
+        timezone={timezone}
+        onTimezoneChange={setTimezone}
+        view={view}
+        onViewChange={setView}
+        hour12={hour12}
+        onHour12Change={changeHour12}
+        onPick={(picked) => {
+          setSubmitError(null);
+          setSlot(picked);
+        }}
+      />
+    </div>
   ) : (
-    <DetailsStep
-      slot={slot}
-      timezone={timezone}
-      hour12={hour12}
-      values={values}
-      onChange={setValues}
-      onSave={(next) => void saveLead(leadUnid, leadUpdate(next)).catch(ignore)}
-      onBack={() => setSlot(null)}
-      onSubmit={() => void confirm(slot)}
-      submitting={submitting}
-      submitError={submitError}
-    />
+    <div key="details" className="motion-safe:animate-step-in">
+      <DetailsStep
+        page={page}
+        slot={slot}
+        timezone={timezone}
+        hour12={hour12}
+        values={values}
+        onChange={setValues}
+        onSave={(next) => void saveLead(slug, leadUnid, leadUpdate(next)).catch(ignore)}
+        onBack={() => setSlot(null)}
+        onSubmit={() => void confirm(slot)}
+        submitting={submitting}
+        submitError={submitError}
+      />
+    </div>
   );
 }
 
 export function BookingCard({
+  slug,
+  page,
   initialCountryAlpha2,
 }: {
+  slug: string;
+  page: BookingPage;
   initialCountryAlpha2?: string | null;
 }) {
   // Timezone, today's date and the clock format only exist in the browser, so the
@@ -179,10 +207,10 @@ export function BookingCard({
     EMPTY_FORM.countryVariant;
 
   return (
-    <div id="booking-card" className="@container w-full scroll-mt-24">
+    <div className="@container w-full">
       <div className="overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-12px_rgb(0_0_0/0.14)]">
         {mounted ? (
-          <Booking countryVariant={countryVariant} />
+          <Booking slug={slug} page={page} countryVariant={countryVariant} />
         ) : (
           <div className="grid gap-4 p-6" role="status" aria-label="Loading booking">
             <Skeleton className="h-6 w-40" />

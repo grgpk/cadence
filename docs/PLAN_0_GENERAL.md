@@ -5,11 +5,12 @@ and reflects the repository as it exists.
 
 ## North star
 
-Simple call booking for a host: public widget, Rust API, email queue, and
-protected dashboards. Admin sees the whole funnel. Host sees own data.
+Simple call booking: a host registers, sets weekly hours, and shares their own
+link. Rust API, email queue, and protected dashboards. Admin sees the whole
+funnel. Host sees own data.
 
 ```
-visitor ──▶ booking widget ──▶ slots ──▶ booking ──▶ email queue
+visitor ──▶ /book/{slug} ──▶ slots ──▶ booking ──▶ email queue
                                       │
 host ─────▶ /dashboard ◀──────────────┘
 admin ────▶ /admin ─────▶ leads, bookings, visits, roles, bugs
@@ -39,7 +40,7 @@ admin ────▶ /admin ─────▶ leads, bookings, visits, roles, 
   routes use `AdminUser`. Frontend admin URL is `/admin`, never
   `/dashboard/admin`.
 - Server data uses TanStack Query. UI uses shadcn components and Lucide icons.
-  Primary color is black. Legacy global `.card`, `.button`, and `.input` CSS
+  Primary color is ink (Plan 9). Legacy global `.card`, `.button`, and `.input` CSS
   do not exist.
 - Booking side effects enqueue mail in `email_queue`; the worker owns SMTP.
 - Store instants as `TIMESTAMPTZ`; timezone values are IANA names.
@@ -60,6 +61,8 @@ cadence/
         bug_reports/           client reports and admin aggregation
         calling_visits/        funnel tracking
         emails/                queue access, templates, worker
+        google_calendar/       optional busy times and Meet links per host
+        host_settings/         a host's link, page text and form questions
         leads/                 lead capture and admin reads
         roleaccesses/          role grants and admin reads
   frontend/
@@ -67,8 +70,9 @@ cadence/
       bindings/               generated ts-rs contracts
       components/ui/           shadcn primitives
       domains/admin/           admin sidebar and data pages
-      domains/dashboard/       dashboard sidebar and user menu
-      domains/widget/          public booking widget
+      domains/dashboard/       dashboard sidebar and calendar card
+      domains/landing/         home page and the day tape
+      domains/widget/          public booking card
       routes/admin/            protected /admin pages
       routes/dashboard/        protected /dashboard pages
   migrations/                  SQLx schema and development seed
@@ -86,8 +90,9 @@ cadence/
 | 4 | `PLAN_4_CALENDAR_EMAIL.md` | Google Calendar busy filtering, Meet links, Resend delivery and retries | 📅 planned |
 | 5 | `PLAN_5_TEST_HARDENING.md` | HTTP contract tests, auth matrix, migration and UI verification | 📅 planned |
 | 6 | `PLAN_6_DEPLOYMENT_EMBED.md` | production build, HTTPS deployment, embeddable widget | 📅 planned |
-| 7 | `PLAN_7_MULTI_HOST.md` | host onboarding, isolation, custom widget branding | 📅 planned |
+| 7 | `PLAN_7_MULTI_HOST.md` | per-host links and settings, isolation, slots from the host's hours | ✅ done |
 | 8 | `PLAN_8_UI_REFRESH.md` | one token-driven look, time-first booking card, availability editor | ✅ done |
+| 9 | `PLAN_9_DAY_TAPE.md` | "day tape" identity: palette, type, landing page, motion | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 
@@ -105,7 +110,8 @@ Status: ✅ done, 🔄 in progress, 📅 planned, living.
 
 Auth comes before host data and admin UI. Booking core comes before external
 calendar integration. Tests lock API and authorization before deployment.
-Multi-host comes last because host scoping changes every booking query and URL.
+Multi-host came after the booking core because host scoping changes every
+booking query and URL. Plan 9 restyles what Plans 7 and 8 built.
 
 ## Out of scope
 

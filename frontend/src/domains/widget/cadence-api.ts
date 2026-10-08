@@ -1,21 +1,42 @@
-import type { BookingResult } from "../../bindings/BookingResult";
+import { createServerFn } from "@tanstack/react-start";
+
+import type { Booking } from "../../bindings/Booking";
+import type { BookingPage } from "../../bindings/BookingPage";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import type { CallingVisitRequest } from "../../bindings/CallingVisitRequest";
 import type { CalendarEvent } from "../../bindings/CalendarEvent";
-import type { GoogleTimeSlot } from "../../bindings/GoogleTimeSlot";
+import type { CreateBookingRequest } from "../../bindings/CreateBookingRequest";
+import type { HostSettings } from "../../bindings/HostSettings";
 import type { Lead } from "../../bindings/Lead";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
+import type { TimeSlot } from "../../bindings/TimeSlot";
 import { api } from "../../lib/api";
+import { SERVER_API_URL } from "../../lib/api-url";
 
-export function saveLead(leadUnid: string, update: LeadUpdate): Promise<Lead> {
-  return api<Lead>(`/api/leads/${leadUnid}`, {
+const NOT_FOUND = 404;
+const HOST_SETTINGS_PATH = "/api/host/settings";
+
+function hostPath(slug: string): string {
+  return `/api/hosts/${encodeURIComponent(slug)}`;
+}
+
+export function saveLead(
+  slug: string,
+  leadUnid: string,
+  update: LeadUpdate,
+): Promise<Lead> {
+  return api<Lead>(`${hostPath(slug)}/leads/${leadUnid}`, {
     method: "POST",
     body: JSON.stringify(update),
   });
 }
 
-export function submitLead(leadUnid: string, sourcePage: string): Promise<Lead> {
-  return api<Lead>(`/api/leads/${leadUnid}/submit`, {
+export function submitLead(
+  slug: string,
+  leadUnid: string,
+  sourcePage: string,
+): Promise<Lead> {
+  return api<Lead>(`${hostPath(slug)}/leads/${leadUnid}/submit`, {
     method: "POST",
     body: JSON.stringify({ source_page: sourcePage }),
   });
@@ -80,28 +101,40 @@ export function disconnectGoogleCalendar(): Promise<void> {
   });
 }
 
-export function getAvailableSlots(
-  date: string,
-  timezone: string,
-): Promise<GoogleTimeSlot[]> {
-  return api<GoogleTimeSlot[]>("/api/google-calendar/available-slots", {
+/** A host's booking page, or `null` when the link is unknown or switched off. */
+export const getBookingPage = createServerFn({ method: "GET" })
+  .inputValidator((slug: string) => slug)
+  .handler(async ({ data: slug }) => {
+    const response = await fetch(
+      `${SERVER_API_URL}/api/hosts/${encodeURIComponent(slug)}`,
+    );
+    if (response.status === NOT_FOUND) return null;
+    if (!response.ok) throw new Error("The booking page did not load.");
+    return response.json() as Promise<BookingPage>;
+  });
+
+/** Every time the host can still be booked in the coming week. */
+export function getSlots(slug: string): Promise<TimeSlot[]> {
+  return api<TimeSlot[]>(`${hostPath(slug)}/slots`);
+}
+
+export function createBooking(
+  slug: string,
+  request: CreateBookingRequest,
+): Promise<Booking> {
+  return api<Booking>(`${hostPath(slug)}/bookings`, {
     method: "POST",
-    body: JSON.stringify({ date, timezone }),
+    body: JSON.stringify(request),
   });
 }
 
-type BookSlotRequest = {
-  date: string;
-  time: string;
-  timezone: string;
-  attendee_email: string;
-  attendee_name: string;
-  lead_id: string;
-};
+export function getHostSettings(): Promise<HostSettings> {
+  return api<HostSettings>(HOST_SETTINGS_PATH);
+}
 
-export function createBooking(request: BookSlotRequest): Promise<BookingResult> {
-  return api<BookingResult>("/api/google-calendar/book", {
-    method: "POST",
-    body: JSON.stringify(request),
+export function saveHostSettings(settings: HostSettings): Promise<HostSettings> {
+  return api<HostSettings>(HOST_SETTINGS_PATH, {
+    method: "PUT",
+    body: JSON.stringify(settings),
   });
 }

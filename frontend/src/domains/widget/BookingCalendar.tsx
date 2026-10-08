@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { Button } from "../../components/ui/button";
 import { calendarWeeks, monthLabel } from "./calendar-grid";
@@ -18,6 +19,7 @@ function dayLabel(year: number, month: number, day: number): string {
 export function BookingCalendar({
   year,
   month,
+  direction,
   availableDays,
   selectedDay,
   todayDay,
@@ -30,6 +32,8 @@ export function BookingCalendar({
   year: number;
   /** 1-indexed, 1 = January. */
   month: number;
+  /** +1 when this month was reached by going forward, -1 by going back. */
+  direction: number;
   availableDays: number[];
   selectedDay: number | null;
   /** Today's day number when the shown month is the current one. */
@@ -85,7 +89,12 @@ export function BookingCalendar({
           </span>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div
+        // Remounting on a month change replays the slide, from the side of travel.
+        key={`${year}-${month}`}
+        style={{ "--step-from": `${direction}rem` } as CSSProperties}
+        className="grid grid-cols-7 gap-1 motion-safe:animate-step-in"
+      >
         {days.map((day, index) => {
           if (day === null) return <span key={`blank-${index}`} />;
           const available = availableDays.includes(day);
@@ -101,20 +110,19 @@ export function BookingCalendar({
               className={cn(
                 "relative flex aspect-square w-full items-center justify-center rounded-md text-sm tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                 available
-                  ? "cursor-pointer bg-muted font-semibold hover:bg-accent hover:ring-1 hover:ring-foreground/20"
+                  ? "bg-muted font-semibold hover:bg-accent hover:ring-1 hover:ring-foreground/20"
                   : "text-muted-foreground/60",
-                selected &&
-                  "bg-signal text-signal-foreground hover:bg-signal hover:ring-0",
+                selected && "bg-dusk text-dusk-foreground hover:bg-dusk hover:ring-0",
                 day === todayDay && !selected && "ring-1 ring-foreground/25",
               )}
             >
               {day}
-              {/* The beat: one dot under every day that can be booked. */}
+              {/* One dot under every day that has open times. */}
               {available ? (
                 <span
                   className={cn(
                     "absolute bottom-1.5 size-1 rounded-full",
-                    selected ? "bg-signal-foreground" : "bg-signal",
+                    selected ? "bg-dusk-foreground" : "bg-noon",
                   )}
                 />
               ) : null}

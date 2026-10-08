@@ -69,17 +69,8 @@ impl GoogleCalendarClient {
         self.fetch_events(&url).await
     }
 
-    /// Fetch events for a specific day
-    pub async fn get_events_for_day(
-        &self,
-        date: &str,
-        timezone: &str,
-    ) -> Result<Vec<CalendarEvent>, GoogleCalendarError> {
-        self.get_events_between(date, date, timezone).await
-    }
-
-    /// Fetch one inclusive date range. Batch availability uses this to avoid one Google request
-    /// per visible day.
+    /// Fetch one inclusive date range, so availability needs one Google request
+    /// for the whole booking window.
     pub async fn get_events_between(
         &self,
         start_date: &str,
@@ -302,16 +293,12 @@ impl GoogleCalendarClient {
 }
 
 fn calculate_end_time(time: &str, duration_minutes: i64, date: &str) -> String {
-    let parts: Vec<&str> = time.split(':').collect();
-    let hour: i32 = parts.first().and_then(|s| s.parse().ok()).unwrap_or(0);
-    let min: i32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(0);
-    let end_min = min + i32::try_from(duration_minutes).unwrap_or(0);
-    let (end_hour, end_min) = if end_min >= 60 {
-        (hour + 1, end_min - 60)
-    } else {
-        (hour, end_min)
-    };
-    format!("{date}T{end_hour:02}:{end_min:02}:00")
+    let start = format!("{date}T{time}:00");
+    chrono::NaiveDateTime::parse_from_str(&start, "%Y-%m-%dT%H:%M:%S").map_or(start, |value| {
+        (value + chrono::Duration::minutes(duration_minutes))
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string()
+    })
 }
 
 #[derive(Deserialize)]

@@ -30,5 +30,5 @@ pub struct AvailabilityRule {
 #[ts(export, export_to = "../../frontend/src/bindings/TimeSlot.ts")]
 pub struct TimeSlot {
     pub start: DateTime<Utc>,
-    pub available: bool,
+    pub minutes: i32,
 }

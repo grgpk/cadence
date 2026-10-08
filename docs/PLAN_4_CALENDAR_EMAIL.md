@@ -47,6 +47,11 @@ and `email_queue`. Add provider error metadata only in a new migration if
 | POST | `/api/google-calendar/book` | public | booking plus Meet URL |
 | GET | `/api/admin/email-queue` | `AdminUser` | queue status |
 
+Plan 7 replaced the public slot and booking routes in this table with
+host-scoped ones under `/api/hosts/{slug}/`. Its API table is the current one.
+Google Calendar is now optional per host: connect, events and disconnect need
+a logged-in host and act on that host's own calendar.
+
 ## Flow schema
 
 ```

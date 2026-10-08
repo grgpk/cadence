@@ -25,6 +25,7 @@ pub async fn upsert(
              utm_source = COALESCE($14, leads.utm_source), utm_medium = COALESCE($15, leads.utm_medium),
              utm_campaign = COALESCE($16, leads.utm_campaign), qualification_status = COALESCE($17, leads.qualification_status),
              updated_at = now()
+         WHERE leads.host_unid = $2
          RETURNING unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,
                    investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,
                    source_page, utm_source, utm_medium, utm_campaign,

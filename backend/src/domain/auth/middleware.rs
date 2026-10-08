@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::{
     db,
-    models::{Role, UserRecord},
+    models::{Role, USER_STATUS_ACTIVE, UserRecord},
     service::verify_token,
 };
 use crate::{app_state::AppState, error::AppError};
@@ -36,7 +36,7 @@ impl FromRequestParts<AppState> for AuthUser {
                 internal()
             })?
             .ok_or_else(|| unauthorized("user not found"))?;
-        if user.status != "Active" {
+        if user.status != USER_STATUS_ACTIVE {
             return Err(unauthorized("user is not active"));
         }
         Ok(Self { user })

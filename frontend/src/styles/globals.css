@@ -1,81 +1,94 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@fontsource-variable/hanken-grotesk";
-@import "@fontsource-variable/funnel-display";
+@import "@fontsource-variable/archivo/wdth.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(0.967 0.003 265);
-  --foreground: oklch(0.218 0 0);
+  /* Paper and ink. */
+  --background: oklch(0.966 0.006 265);
+  --foreground: oklch(0.235 0.065 272);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.218 0 0);
+  --card-foreground: oklch(0.235 0.065 272);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.218 0 0);
-  --primary: oklch(0.218 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.94 0.003 265);
-  --secondary-foreground: oklch(0.218 0 0);
-  --muted: oklch(0.955 0.003 265);
-  --muted-foreground: oklch(0.5 0.02 264);
-  --accent: oklch(0.945 0.003 265);
-  --accent-foreground: oklch(0.218 0 0);
+  --popover-foreground: oklch(0.235 0.065 272);
+  --primary: oklch(0.235 0.065 272);
+  --primary-foreground: oklch(0.985 0.003 265);
+  --secondary: oklch(0.935 0.008 265);
+  --secondary-foreground: oklch(0.235 0.065 272);
+  --muted: oklch(0.953 0.007 265);
+  --muted-foreground: oklch(0.5 0.035 270);
+  --accent: oklch(0.94 0.012 270);
+  --accent-foreground: oklch(0.235 0.065 272);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.915 0.005 265);
-  --input: oklch(0.89 0.005 265);
-  --ring: oklch(0.55 0 0);
+  --border: oklch(0.905 0.012 268);
+  --input: oklch(0.87 0.015 268);
+  --ring: oklch(0.48 0.21 280);
+  /* The "now" playhead and the logo's middle beat. Nothing else. */
   --signal: oklch(0.628 0.245 27);
   --signal-foreground: oklch(1 0 0);
+  /* The day: morning, afternoon, evening. Dusk also marks what is selected. */
+  --dawn: oklch(0.87 0.085 55);
+  --noon: oklch(0.8 0.15 80);
+  --dusk: oklch(0.48 0.21 280);
+  --day-foreground: oklch(0.235 0.065 272);
+  --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.52 0.13 152);
   --warning: oklch(0.58 0.13 70);
-  --sidebar: oklch(0.985 0.002 265);
-  --sidebar-foreground: oklch(0.218 0 0);
-  --sidebar-primary: oklch(0.218 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.945 0.003 265);
-  --sidebar-accent-foreground: oklch(0.218 0 0);
-  --sidebar-border: oklch(0.915 0.005 265);
-  --sidebar-ring: oklch(0.55 0 0);
+  --sidebar: oklch(0.985 0.004 265);
+  --sidebar-foreground: oklch(0.235 0.065 272);
+  --sidebar-primary: oklch(0.235 0.065 272);
+  --sidebar-primary-foreground: oklch(0.985 0.003 265);
+  --sidebar-accent: oklch(0.94 0.012 270);
+  --sidebar-accent-foreground: oklch(0.235 0.065 272);
+  --sidebar-border: oklch(0.905 0.012 268);
+  --sidebar-ring: oklch(0.48 0.21 280);
 }
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.16 0 0);
-  --foreground: oklch(0.97 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.97 0 0);
-  --popover: oklch(0.235 0 0);
-  --popover-foreground: oklch(0.97 0 0);
-  --primary: oklch(0.97 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.27 0 0);
-  --secondary-foreground: oklch(0.97 0 0);
-  --muted: oklch(0.25 0 0);
-  --muted-foreground: oklch(0.72 0 0);
-  --accent: oklch(0.29 0 0);
-  --accent-foreground: oklch(0.97 0 0);
+  --background: oklch(0.185 0.04 272);
+  --foreground: oklch(0.96 0.008 265);
+  --card: oklch(0.225 0.045 272);
+  --card-foreground: oklch(0.96 0.008 265);
+  --popover: oklch(0.25 0.045 272);
+  --popover-foreground: oklch(0.96 0.008 265);
+  --primary: oklch(0.96 0.008 265);
+  --primary-foreground: oklch(0.225 0.045 272);
+  --secondary: oklch(0.29 0.045 272);
+  --secondary-foreground: oklch(0.96 0.008 265);
+  --muted: oklch(0.27 0.04 272);
+  --muted-foreground: oklch(0.74 0.025 268);
+  --accent: oklch(0.31 0.05 272);
+  --accent-foreground: oklch(0.96 0.008 265);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.65 0 0);
+  --ring: oklch(0.7 0.16 282);
   --signal: oklch(0.68 0.22 27);
   --signal-foreground: oklch(1 0 0);
+  --dawn: oklch(0.84 0.09 55);
+  --noon: oklch(0.82 0.15 80);
+  --dusk: oklch(0.6 0.2 282);
+  --day-foreground: oklch(0.225 0.045 272);
+  --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.75 0.15 152);
   --warning: oklch(0.8 0.13 80);
-  --sidebar: oklch(0.185 0 0);
-  --sidebar-foreground: oklch(0.97 0 0);
-  --sidebar-primary: oklch(0.97 0 0);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.27 0 0);
-  --sidebar-accent-foreground: oklch(0.97 0 0);
+  --sidebar: oklch(0.205 0.042 272);
+  --sidebar-foreground: oklch(0.96 0.008 265);
+  --sidebar-primary: oklch(0.96 0.008 265);
+  --sidebar-primary-foreground: oklch(0.225 0.045 272);
+  --sidebar-accent: oklch(0.29 0.045 272);
+  --sidebar-accent-foreground: oklch(0.96 0.008 265);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.65 0 0);
+  --sidebar-ring: oklch(0.7 0.16 282);
 }
 
 @theme inline {
   --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Funnel Display Variable", "Hanken Grotesk Variable", ui-sans-serif, sans-serif;
+  --font-display: "Archivo Variable", "Hanken Grotesk Variable", ui-sans-serif, sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -96,6 +109,11 @@
   --color-ring: var(--ring);
   --color-signal: var(--signal);
   --color-signal-foreground: var(--signal-foreground);
+  --color-dawn: var(--dawn);
+  --color-noon: var(--noon);
+  --color-dusk: var(--dusk);
+  --color-day-foreground: var(--day-foreground);
+  --color-dusk-foreground: var(--dusk-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-sidebar: var(--sidebar);
@@ -111,6 +129,62 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 2px);
   --radius-2xl: calc(var(--radius) + 6px);
+
+  /* Motion. Use with `motion-safe:` so reduced-motion visitors get a still page. */
+  --animate-tape-drift: tape-drift 90s linear infinite;
+  --animate-tape-book: tape-book 16s ease-in-out infinite;
+  --animate-step-in: step-in 0.24s ease-out both;
+  --animate-block-drop: block-drop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.15s both;
+
+  /* The track holds the day twice, so half its width is one seamless loop. */
+  @keyframes tape-drift {
+    to {
+      transform: translateX(-50%);
+    }
+  }
+
+  /* An open slot gets booked, stays booked, then frees up again. */
+  @keyframes tape-book {
+    0%,
+    38% {
+      opacity: 0;
+      transform: scaleX(0);
+    }
+    44%,
+    90% {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+    96%,
+    100% {
+      opacity: 0;
+      transform: scaleX(1);
+    }
+  }
+
+  /* Set `--step-from` to the side the new content arrives from. */
+  @keyframes step-in {
+    from {
+      opacity: 0;
+      transform: translateX(var(--step-from, 1rem));
+    }
+  }
+
+  @keyframes block-drop {
+    from {
+      opacity: 0;
+      transform: translateY(-0.875rem);
+    }
+  }
+}
+
+/* Archivo's width axis: wide for headlines, narrow for clock times. */
+@utility font-wide {
+  font-stretch: 112%;
+}
+
+@utility font-narrow {
+  font-stretch: 82%;
 }
 
 * {
@@ -138,5 +212,21 @@
   h1,
   h2 {
     text-wrap: balance;
+  }
+
+  /* Tailwind leaves buttons on the default cursor; everything clickable gets a pointer. */
+  button:not(:disabled),
+  a[href],
+  summary,
+  select,
+  label[for],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="radio"],
+  [role="menuitem"],
+  [role="option"] {
+    cursor: pointer;
   }
 }

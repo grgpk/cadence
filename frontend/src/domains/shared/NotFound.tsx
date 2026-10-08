@@ -17,7 +17,7 @@ export function NotFound() {
         </p>
       </div>
       <Button asChild>
-        <Link to={ROUTES.home}>Go to the booking page</Link>
+        <Link to={ROUTES.home}>Go to the home page</Link>
       </Button>
     </main>
   );

@@ -1,6 +1,8 @@
 import { ChevronLeft, CircleAlert, Loader2 } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import type { BookingPage } from "../../bindings/BookingPage";
+import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { Checkbox } from "../../components/ui/checkbox";
@@ -8,7 +10,7 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
-import { formatClock } from "../../lib/format";
+import { formatDay } from "../../lib/format";
 import {
   getCountryByAlpha2,
   getCountryByVariant,
@@ -16,25 +18,12 @@ import {
   type CountryTimezone,
 } from "../shared/phone/country";
 import { PhoneInput } from "../shared/phone/PhoneInput";
-import {
-  formErrors,
-  HOW_HEARD_OPTIONS,
-  INVESTMENT_OPTIONS,
-  STOPPING_OPTIONS,
-  toggleValue,
-  URGENCY_OPTIONS,
-  type FormValues,
-} from "./booking-form";
-import { BookingSummary, CALL_MINUTES } from "./BookingSummary";
-import type { PickedSlot } from "./SlotStep";
+import { formErrors, QUESTIONS, toggleValue, type FormValues } from "./booking-form";
+import { BookingSummary } from "./BookingSummary";
+import { PHASE_STYLES } from "./SlotStep";
+import { callEnd, clockLabel, dayPhase, zonedTime } from "./zoned-time";
 
 const ID = "cadence";
-
-function endTime(time: string): string {
-  const [hours, minutes] = time.split(":").map(Number);
-  const end = hours * 60 + minutes + CALL_MINUTES;
-  return `${Math.floor(end / 60) % 24}:${String(end % 60).padStart(2, "0")}`;
-}
 
 function Field({
   id,
@@ -137,6 +126,7 @@ function RadioOptions({
 }
 
 export function DetailsStep({
+  page,
   slot,
   timezone,
   hour12,
@@ -148,7 +138,8 @@ export function DetailsStep({
   submitting,
   submitError,
 }: {
-  slot: PickedSlot;
+  page: BookingPage;
+  slot: TimeSlot;
   timezone: CountryTimezone;
   hour12: boolean;
   values: FormValues;
@@ -162,7 +153,7 @@ export function DetailsStep({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [attempted, setAttempted] = useState(false);
-  const allErrors = formErrors(values);
+  const allErrors = formErrors(values, page);
   const errors = attempted ? allErrors : {};
   const country = getCountryByVariant(values.countryVariant) ?? getCountryByAlpha2("FR");
 
@@ -173,22 +164,34 @@ export function DetailsStep({
     onSave(next);
   };
 
-  const day = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  }).format(new Date(`${slot.date}T00:00:00Z`));
+  const start = new Date(slot.start);
+  const phase = dayPhase(zonedTime(start, timezone.iana).hour);
+  const textQuestions = QUESTIONS.filter(
+    (question) => question.kind === "text" && page[question.flag],
+  );
+  const choiceQuestions = QUESTIONS.filter(
+    (question) => question.kind !== "text" && page[question.flag],
+  );
 
   return (
     <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)] @[760px]:divide-x @[760px]:divide-y-0">
       <div className="p-5 @[760px]:p-6">
-        <BookingSummary timezone={timezoneDisplayWithTime(timezone)}>
-          <div className="rounded-lg border bg-muted p-3">
-            <p className="text-sm font-semibold">{day}</p>
-            <p className="text-sm tabular-nums">
-              {formatClock(slot.time, hour12)} to{" "}
-              {formatClock(endTime(slot.time), hour12)}
+        <BookingSummary
+          page={page}
+          minutes={slot.minutes}
+          timezone={timezoneDisplayWithTime(timezone)}
+        >
+          <div className="relative overflow-hidden rounded-lg border bg-muted py-3 pr-3 pl-4">
+            <span
+              aria-hidden="true"
+              className={`absolute inset-y-0 left-0 w-[3px] ${PHASE_STYLES[phase].rail}`}
+            />
+            <p className="text-sm font-semibold">
+              {formatDay(slot.start, timezone.iana)}
+            </p>
+            <p className="font-display font-narrow text-base tabular-nums">
+              {clockLabel(start, timezone.iana, hour12)} to{" "}
+              {clockLabel(callEnd(slot.start, slot.minutes), timezone.iana, hour12)}
             </p>
             <Button
               type="button"
@@ -224,9 +227,9 @@ export function DetailsStep({
           if (!submitting) onSubmit();
         }}
       >
-        <h3 className="font-display text-lg font-semibold tracking-tight">
+        <h2 className="font-display text-lg font-semibold tracking-tight">
           Your details
-        </h3>
+        </h2>
 
         <div className="grid gap-4 @md/form:grid-cols-2">
           <Field id={`${ID}-first-name`} label="First name" error={errors.firstName}>
@@ -280,65 +283,59 @@ export function DetailsStep({
           </Field>
         </div>
 
-        <Field
-          id={`${ID}-working-on`}
-          label="What are you currently working on?"
-          required={false}
-        >
-          <Textarea
-            id={`${ID}-working-on`}
-            rows={3}
-            placeholder="A product, a job search, a career change"
-            value={values.currentlyWorkingOn}
-            onChange={(event) => update({ currentlyWorkingOn: event.target.value })}
-            onBlur={() => onSave(values)}
-          />
-        </Field>
+        {textQuestions.map((question) =>
+          question.kind === "text" ? (
+            <Field
+              key={question.field}
+              id={`${ID}-${question.field}`}
+              label={question.label}
+              required={false}
+            >
+              <Textarea
+                id={`${ID}-${question.field}`}
+                rows={3}
+                placeholder={question.placeholder}
+                value={values[question.field]}
+                onChange={(event) => update({ [question.field]: event.target.value })}
+                onBlur={() => onSave(values)}
+              />
+            </Field>
+          ) : null,
+        )}
 
-        <div className="grid gap-x-4 gap-y-5 @md/form:grid-cols-2">
-          <OptionGroup legend="How did you hear about us?" error={errors.howHeard}>
-            <CheckboxOptions
-              name="heard"
-              options={HOW_HEARD_OPTIONS}
-              values={values.howHeard}
-              invalid={Boolean(errors.howHeard)}
-              onToggle={(option) =>
-                updateAndSave({ howHeard: toggleValue(values.howHeard, option) })
-              }
-            />
-          </OptionGroup>
-          <OptionGroup legend="What is stopping you?" error={errors.whatStoppingYou}>
-            <CheckboxOptions
-              name="stopping"
-              options={STOPPING_OPTIONS}
-              values={values.whatStoppingYou}
-              invalid={Boolean(errors.whatStoppingYou)}
-              onToggle={(option) =>
-                updateAndSave({
-                  whatStoppingYou: toggleValue(values.whatStoppingYou, option),
-                })
-              }
-            />
-          </OptionGroup>
-          <OptionGroup legend="Investment comfort" error={errors.investmentComfort}>
-            <RadioOptions
-              name="investment"
-              options={INVESTMENT_OPTIONS}
-              value={values.investmentComfort}
-              invalid={Boolean(errors.investmentComfort)}
-              onChange={(option) => updateAndSave({ investmentComfort: option })}
-            />
-          </OptionGroup>
-          <OptionGroup legend="How urgent is this?" error={errors.urgencyLevel}>
-            <RadioOptions
-              name="urgency"
-              options={URGENCY_OPTIONS}
-              value={values.urgencyLevel}
-              invalid={Boolean(errors.urgencyLevel)}
-              onChange={(option) => updateAndSave({ urgencyLevel: option })}
-            />
-          </OptionGroup>
-        </div>
+        {choiceQuestions.length > 0 ? (
+          <div className="grid gap-x-4 gap-y-5 @md/form:grid-cols-2">
+            {choiceQuestions.map((question) => {
+              if (question.kind === "text") return null;
+              const error = errors[question.field];
+              return (
+                <OptionGroup key={question.field} legend={question.label} error={error}>
+                  {question.kind === "many" ? (
+                    <CheckboxOptions
+                      name={question.field}
+                      options={question.options}
+                      values={values[question.field]}
+                      invalid={Boolean(error)}
+                      onToggle={(option) =>
+                        updateAndSave({
+                          [question.field]: toggleValue(values[question.field], option),
+                        })
+                      }
+                    />
+                  ) : (
+                    <RadioOptions
+                      name={question.field}
+                      options={question.options}
+                      value={values[question.field]}
+                      invalid={Boolean(error)}
+                      onChange={(option) => updateAndSave({ [question.field]: option })}
+                    />
+                  )}
+                </OptionGroup>
+              );
+            })}
+          </div>
+        ) : null}
 
         {submitError ? (
           <Alert variant="destructive">

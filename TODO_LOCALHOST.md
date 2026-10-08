@@ -31,7 +31,7 @@ VITE_API_URL=http://localhost:3001
 # Google Calendar OAuth
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
-GOOGLE_REDIRECT_URI=http://localhost:3000/admin/google-oauth-callback
+GOOGLE_REDIRECT_URI=http://localhost:3000/dashboard/calendar/callback
 
 # Email sender and Resend SMTP
 EMAIL_FROM=Cadence <your-verified-sender@example.com>
@@ -71,20 +71,20 @@ In Google Cloud Console:
 6. Add this exact local authorized redirect URI:
 
    ```text
-   http://localhost:3000/admin/google-oauth-callback
+   http://localhost:3000/dashboard/calendar/callback
    ```
 
 7. Copy the client ID and client secret into `.env`.
 
 The app requests the `https://www.googleapis.com/auth/calendar.events` scope.
-After starting Cadence, log in as the admin user, open `/admin`, and click
+After starting Cadence, log in as a host, open `/dashboard/settings`, and click
 **Connect Google Calendar**. Google must redirect back to the exact URI above.
 
 For production, add this second redirect URI to the same OAuth client or use a
 separate production client:
 
 ```text
-https://cadence.rustify.app/admin/google-oauth-callback
+https://cadence.rustify.app/dashboard/calendar/callback
 ```
 
 Common failure: `redirect_uri_mismatch`. Fix by comparing the URI character by

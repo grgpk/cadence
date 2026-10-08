@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteRouteImport } from './routes/admin/route'
-import { Route as BookACallRouteImport } from './routes/book-a-call'
 import { Route as BookingConfirmationRouteImport } from './routes/booking-confirmation'
 import { Route as DashboardRouteRouteImport } from './routes/dashboard/route'
 import { Route as LoginRouteImport } from './routes/login'
@@ -22,12 +21,13 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
 import { Route as AdminBugReportsRouteImport } from './routes/admin/bug-reports'
 import { Route as AdminCallingVisitsRouteImport } from './routes/admin/calling-visits'
-import { Route as AdminGoogleOauthCallbackRouteImport } from './routes/admin/google-oauth-callback'
 import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
 import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccesses'
+import { Route as BookSlugRouteImport } from './routes/book/$slug'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
+import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardCalendarCallbackRouteImport } from './routes/dashboard/calendar/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -38,11 +38,6 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRouteRoute = AdminRouteRouteImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookACallRoute = BookACallRouteImport.update({
-  id: '/book-a-call',
-  path: '/book-a-call',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookingConfirmationRoute = BookingConfirmationRouteImport.update({
@@ -95,12 +90,6 @@ const AdminCallingVisitsRoute = AdminCallingVisitsRouteImport.update({
   path: '/calling-visits',
   getParentRoute: () => AdminRouteRoute,
 } as any)
-const AdminGoogleOauthCallbackRoute =
-  AdminGoogleOauthCallbackRouteImport.update({
-    id: '/google-oauth-callback',
-    path: '/google-oauth-callback',
-    getParentRoute: () => AdminRouteRoute,
-  } as any)
 const AdminLeadsRoute = AdminLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -110,6 +99,11 @@ const AdminRoleaccessesRoute = AdminRoleaccessesRouteImport.update({
   id: '/roleaccesses',
   path: '/roleaccesses',
   getParentRoute: () => AdminRouteRoute,
+} as any)
+const BookSlugRoute = BookSlugRouteImport.update({
+  id: '/book/$slug',
+  path: '/book/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
@@ -126,6 +120,11 @@ const DashboardBookingsRoute = DashboardBookingsRouteImport.update({
   path: '/bookings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardCalendarCallbackRoute =
   DashboardCalendarCallbackRouteImport.update({
     id: '/calendar/callback',
@@ -137,7 +136,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/book-a-call': typeof BookACallRoute
   '/booking-confirmation': typeof BookingConfirmationRoute
   '/login': typeof LoginRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -146,18 +144,18 @@ export interface FileRoutesByFullPath {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
-  '/admin/google-oauth-callback': typeof AdminGoogleOauthCallbackRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
+  '/book/$slug': typeof BookSlugRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/book-a-call': typeof BookACallRoute
   '/booking-confirmation': typeof BookingConfirmationRoute
   '/login': typeof LoginRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -166,11 +164,12 @@ export interface FileRoutesByTo {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
-  '/admin/google-oauth-callback': typeof AdminGoogleOauthCallbackRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
+  '/book/$slug': typeof BookSlugRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
@@ -180,7 +179,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteRouteWithChildren
   '/dashboard': typeof DashboardRouteRouteWithChildren
-  '/book-a-call': typeof BookACallRoute
   '/booking-confirmation': typeof BookingConfirmationRoute
   '/login': typeof LoginRoute
   '/privacy-policy': typeof PrivacyPolicyRoute
@@ -189,11 +187,12 @@ export interface FileRoutesById {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
-  '/admin/google-oauth-callback': typeof AdminGoogleOauthCallbackRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
+  '/book/$slug': typeof BookSlugRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
@@ -204,7 +203,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/dashboard'
-    | '/book-a-call'
     | '/booking-confirmation'
     | '/login'
     | '/privacy-policy'
@@ -213,18 +211,18 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
-    | '/admin/google-oauth-callback'
     | '/admin/leads'
     | '/admin/roleaccesses'
+    | '/book/$slug'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
     | '/dashboard/calendar/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/book-a-call'
     | '/booking-confirmation'
     | '/login'
     | '/privacy-policy'
@@ -233,11 +231,12 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
-    | '/admin/google-oauth-callback'
     | '/admin/leads'
     | '/admin/roleaccesses'
+    | '/book/$slug'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/settings'
     | '/admin'
     | '/dashboard'
     | '/dashboard/calendar/callback'
@@ -246,7 +245,6 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/dashboard'
-    | '/book-a-call'
     | '/booking-confirmation'
     | '/login'
     | '/privacy-policy'
@@ -255,11 +253,12 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
-    | '/admin/google-oauth-callback'
     | '/admin/leads'
     | '/admin/roleaccesses'
+    | '/book/$slug'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
     | '/dashboard/calendar/callback'
@@ -269,12 +268,12 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRouteRoute: typeof AdminRouteRouteWithChildren
   DashboardRouteRoute: typeof DashboardRouteRouteWithChildren
-  BookACallRoute: typeof BookACallRoute
   BookingConfirmationRoute: typeof BookingConfirmationRoute
   LoginRoute: typeof LoginRoute
   PrivacyPolicyRoute: typeof PrivacyPolicyRoute
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
+  BookSlugRoute: typeof BookSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -291,13 +290,6 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/book-a-call': {
-      id: '/book-a-call'
-      path: '/book-a-call'
-      fullPath: '/book-a-call'
-      preLoaderRoute: typeof BookACallRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/booking-confirmation': {
@@ -370,13 +362,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCallingVisitsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
-    '/admin/google-oauth-callback': {
-      id: '/admin/google-oauth-callback'
-      path: '/google-oauth-callback'
-      fullPath: '/admin/google-oauth-callback'
-      preLoaderRoute: typeof AdminGoogleOauthCallbackRouteImport
-      parentRoute: typeof AdminRouteRoute
-    }
     '/admin/leads': {
       id: '/admin/leads'
       path: '/leads'
@@ -390,6 +375,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/roleaccesses'
       preLoaderRoute: typeof AdminRoleaccessesRouteImport
       parentRoute: typeof AdminRouteRoute
+    }
+    '/book/$slug': {
+      id: '/book/$slug'
+      path: '/book/$slug'
+      fullPath: '/book/$slug'
+      preLoaderRoute: typeof BookSlugRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/dashboard/': {
       id: '/dashboard/'
@@ -412,6 +404,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBookingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/settings': {
+      id: '/dashboard/settings'
+      path: '/settings'
+      fullPath: '/dashboard/settings'
+      preLoaderRoute: typeof DashboardSettingsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/calendar/callback': {
       id: '/dashboard/calendar/callback'
       path: '/calendar/callback'
@@ -426,7 +425,6 @@ interface AdminRouteRouteChildren {
   AdminBookingsRoute: typeof AdminBookingsRoute
   AdminBugReportsRoute: typeof AdminBugReportsRoute
   AdminCallingVisitsRoute: typeof AdminCallingVisitsRoute
-  AdminGoogleOauthCallbackRoute: typeof AdminGoogleOauthCallbackRoute
   AdminLeadsRoute: typeof AdminLeadsRoute
   AdminRoleaccessesRoute: typeof AdminRoleaccessesRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -436,7 +434,6 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminBookingsRoute: AdminBookingsRoute,
   AdminBugReportsRoute: AdminBugReportsRoute,
   AdminCallingVisitsRoute: AdminCallingVisitsRoute,
-  AdminGoogleOauthCallbackRoute: AdminGoogleOauthCallbackRoute,
   AdminLeadsRoute: AdminLeadsRoute,
   AdminRoleaccessesRoute: AdminRoleaccessesRoute,
   AdminIndexRoute: AdminIndexRoute,
@@ -449,6 +446,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface DashboardRouteRouteChildren {
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
+  DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardCalendarCallbackRoute: typeof DashboardCalendarCallbackRoute
 }
@@ -456,6 +454,7 @@ interface DashboardRouteRouteChildren {
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
+  DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardCalendarCallbackRoute: DashboardCalendarCallbackRoute,
 }
@@ -468,12 +467,12 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRouteRoute: AdminRouteRouteWithChildren,
   DashboardRouteRoute: DashboardRouteRouteWithChildren,
-  BookACallRoute: BookACallRoute,
   BookingConfirmationRoute: BookingConfirmationRoute,
   LoginRoute: LoginRoute,
   PrivacyPolicyRoute: PrivacyPolicyRoute,
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,
+  BookSlugRoute: BookSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

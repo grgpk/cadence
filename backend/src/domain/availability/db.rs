@@ -44,23 +44,5 @@ pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> Result<bool, sql
     Ok(deleted.is_some())
 }
 
-pub async fn has_host(pool: &PgPool, host_unid: Uuid) -> Result<bool, sqlx::Error> {
-    sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE unid = $1)")
-        .bind(host_unid)
-        .fetch_one(pool)
-        .await
-}
-
-pub async fn public_host_unid(pool: &PgPool) -> Result<Option<Uuid>, sqlx::Error> {
-    sqlx::query_scalar(
-        "SELECT host_unid FROM widget_settings
-         WHERE is_active = true
-         ORDER BY updated_at DESC
-         LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await
-}
-
 #[allow(dead_code)]
 fn _time_type_is_explicit(_: NaiveTime) {}

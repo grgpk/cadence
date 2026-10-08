@@ -1,10 +1,7 @@
 import { Clock, Globe } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { Logo } from "../shared/Logo";
-
-const CALL_TITLE = "See if Cadence is right for your team";
-export const CALL_MINUTES = 30;
+import type { BookingPage } from "../../bindings/BookingPage";
 
 function GoogleMeetIcon() {
   return (
@@ -44,36 +41,44 @@ function GoogleMeetIcon() {
   );
 }
 
-/** Left column of the booking card: what the call is, and where and when it happens. */
+/** Left column of the booking card: who the call is with, and where and when it happens. */
 export function BookingSummary({
+  page,
+  minutes,
   timezone,
   children,
 }: {
+  page: BookingPage;
+  /** Call length, once it is known. Hosts can offer different lengths on different days. */
+  minutes: number | null;
   /** Timezone picker on the time step, plain label on the details step. */
   timezone: ReactNode;
   children?: ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <Logo />
       <div>
-        <h2 className="font-display text-xl leading-tight font-semibold tracking-tight">
-          {CALL_TITLE}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          We review your current process and tell you honestly whether Cadence fits. No
-          pressure.
-        </p>
+        <p className="text-sm font-medium text-muted-foreground">{page.host_name}</p>
+        <h1 className="mt-1 font-display text-2xl leading-tight font-semibold tracking-tight">
+          {page.title}
+        </h1>
+        {page.description ? (
+          <p className="mt-2 text-sm text-muted-foreground">{page.description}</p>
+        ) : null}
       </div>
       <ul className="flex flex-col gap-2 text-sm font-medium">
-        <li className="flex items-center gap-2">
-          <Clock className="size-4 shrink-0 text-muted-foreground" />
-          {CALL_MINUTES} minutes
-        </li>
-        <li className="flex items-center gap-2">
-          <GoogleMeetIcon />
-          Google Meet
-        </li>
+        {minutes === null ? null : (
+          <li className="flex items-center gap-2">
+            <Clock className="size-4 shrink-0 text-muted-foreground" />
+            {minutes} minutes
+          </li>
+        )}
+        {page.calendar_connected ? (
+          <li className="flex items-center gap-2">
+            <GoogleMeetIcon />
+            Google Meet
+          </li>
+        ) : null}
         <li className="flex items-center gap-2">
           <Globe className="size-4 shrink-0 text-muted-foreground" />
           {timezone}

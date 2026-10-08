@@ -8,33 +8,85 @@ use super::{
     models::{Booking, CreateBookingRequest},
 };
 use crate::{
-    domain::availability::service as availability,
+    domain::{
+        availability::{models::TimeSlot, service as availability},
+        google_calendar::service as google_calendar,
+        host_settings::models::BookingPage,
+        leads::service as leads,
+    },
     error::{AppError, AppResult},
 };
 
+/// Shortest time between now and a call a visitor can book.
+const MIN_NOTICE_HOURS: i64 = 4;
+const SLOT_TAKEN: &str = "this time is no longer available";
+
 pub struct BookingsService;
+
+/// Times a visitor can still book: the host's hours, minus the notice
+/// period, minus calls already booked, minus busy time on a connected calendar.
+pub async fn public_slots(pool: &PgPool, page: &BookingPage) -> AppResult<Vec<TimeSlot>> {
+    let now = Utc::now();
+    let from = now + Duration::hours(MIN_NOTICE_HOURS);
+    let to = now + Duration::days(availability::MAX_PUBLIC_BOOKING_DAYS);
+    let rules = availability::list(pool, page.host_unid).await?;
+    let mut slots = availability::slots_between(&rules, &page.timezone, from, to);
+
+    let booked = db::booked_starts(pool, page.host_unid, from, to).await?;
+    slots.retain(|slot| !booked.contains(&slot.start));
+
+    if page.calendar_connected {
+        // A broken calendar connection must not take the booking page down.
+        match google_calendar::busy_intervals(pool, page.host_unid, &page.timezone, from, to).await
+        {
+            Ok(busy) => slots.retain(|slot| {
+                let end = slot.start + Duration::minutes(i64::from(slot.minutes));
+                !busy
+                    .iter()
+                    .any(|(busy_start, busy_end)| slot.start < *busy_end && end > *busy_start)
+            }),
+            Err(error) => tracing::error!(%error, "calendar busy times were not loaded"),
+        }
+    }
+    Ok(slots)
+}
 
 pub async fn create(
     pool: &PgPool,
-    host_unid: Uuid,
+    page: &BookingPage,
     request: CreateBookingRequest,
 ) -> AppResult<Booking> {
     validate(&request)?;
-    let date = request.slot_start.date_naive();
-    let today = Utc::now().date_naive();
-    let booking_window_end = today + Duration::days(availability::MAX_PUBLIC_BOOKING_DAYS);
-    if date < today || date >= booking_window_end {
-        return Err(AppError::BadRequest(
-            "slot is outside the 7-day booking window".to_owned(),
-        ));
+    let host_unid = page.host_unid;
+    let Some(slot) = public_slots(pool, page)
+        .await?
+        .into_iter()
+        .find(|slot| slot.start == request.slot_start)
+    else {
+        return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
+    };
+    if let Some(lead_unid) = request.lead_unid
+        && leads::get(pool, host_unid, lead_unid).await?.is_none()
+    {
+        return Err(AppError::BadRequest("lead is unknown".to_owned()));
     }
-    let rules = availability::list(pool, host_unid).await?;
-    let allowed = availability::slots_for_date(date, &rules)
-        .iter()
-        .any(|slot| slot.start == request.slot_start);
-    if !allowed {
-        return Err(AppError::BadRequest("slot is not available".to_owned()));
-    }
+
+    let event = if page.calendar_connected {
+        google_calendar::create_meet_event(
+            pool,
+            host_unid,
+            slot.start,
+            slot.minutes,
+            &format!("{} with {}", page.title, request.invitee_name),
+            &request.invitee_name,
+            &request.invitee_email,
+        )
+        .await
+        .inspect_err(|error| tracing::error!(%error, "calendar event was not created"))
+        .ok()
+    } else {
+        None
+    };
 
     let mut transaction = pool.begin().await?;
     let booking = match db::create(
@@ -46,14 +98,14 @@ pub async fn create(
         &request.timezone,
         &request.invitee_name,
         &request.invitee_email,
-        None,
-        None,
+        event.as_ref().map(|value| value.event_id.as_str()),
+        event.as_ref().and_then(|value| value.meet_link.as_deref()),
     )
     .await
     {
         Ok(value) => value,
         Err(error) if is_unique_violation(&error) => {
-            return Err(AppError::Conflict("slot already booked".to_owned()));
+            return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
         }
         Err(error) => return Err(AppError::Database(error)),
     };
@@ -62,6 +114,7 @@ pub async fn create(
         "name": booking.invitee_name,
         "slot_start": booking.slot_start,
         "timezone": booking.timezone,
+        "meet_link": booking.google_meet_url,
     });
     db::queue_email(
         &mut transaction,

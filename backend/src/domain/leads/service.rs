@@ -5,20 +5,49 @@ use super::{
     db,
     models::{Lead, LeadUpdate},
 };
-use crate::error::{AppError, AppResult};
+use crate::{
+    domain::host_settings::models::BookingPage,
+    error::{AppError, AppResult},
+};
 
 pub struct LeadsService;
 
 pub async fn save(
     pool: &PgPool,
-    host_unid: Uuid,
+    page: &BookingPage,
     unid: Uuid,
-    update: LeadUpdate,
+    mut update: LeadUpdate,
 ) -> AppResult<Lead> {
     validate(&update)?;
-    db::upsert(pool, host_unid, unid, &update)
+    keep_asked_answers(page, &mut update);
+    db::upsert(pool, page.host_unid, unid, &update)
         .await
-        .map_err(Into::into)
+        .map_err(|error| match error {
+            // The lead id belongs to another host.
+            sqlx::Error::RowNotFound => AppError::NotFound,
+            other => AppError::Database(other),
+        })
+}
+
+/// Drops answers to questions the host does not ask.
+fn keep_asked_answers(page: &BookingPage, update: &mut LeadUpdate) {
+    if !page.ask_currently_working_on {
+        update.currently_working_on = None;
+    }
+    if !page.ask_how_heard_about_us {
+        update.how_heard_about_us = None;
+    }
+    if !page.ask_what_stopping_you {
+        update.what_stopping_you = None;
+    }
+    if !page.ask_urgency_level {
+        update.urgency_level = None;
+    }
+    if !page.ask_investment_comfort {
+        update.investment_comfort = None;
+        // Qualification is derived from the investment answer.
+        update.qualification_status = None;
+    }
 }
 
 pub async fn get(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Option<Lead>> {

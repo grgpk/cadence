@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -20,10 +20,12 @@ import {
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
+import { getHostSettings } from "../../domains/widget/cadence-api";
 import { api } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
 import { formatClock, weekdayName } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
+import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/availability")({
   head: () => ({ meta: [{ title: `Availability | ${APP_NAME}` }] }),
@@ -132,6 +134,39 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
   );
 }
 
+const DAY_SECONDS = 24 * 60 * 60;
+
+/** Seconds since midnight for a wall-clock "HH:MM:SS". */
+function secondsOfDay(time: string): number {
+  const [hours = 0, minutes = 0, seconds = 0] = time.split(":").map(Number);
+  return hours * 3600 + minutes * 60 + seconds;
+}
+
+/** The day as a strip from midnight to midnight, with the open hours marked. */
+function DayStrip({ rules }: { rules: AvailabilityRule[] }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative h-1.5 overflow-hidden rounded-full bg-muted"
+    >
+      {rules.map((rule) => {
+        const start = secondsOfDay(rule.start_time);
+        const end = secondsOfDay(rule.end_time);
+        return (
+          <span
+            key={String(rule.id)}
+            className="absolute inset-y-0 rounded-full bg-noon"
+            style={{
+              left: `${(start / DAY_SECONDS) * 100}%`,
+              width: `${((end - start) / DAY_SECONDS) * 100}%`,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[] }) {
   const queryClient = useQueryClient();
   const [adding, setAdding] = useState(false);
@@ -151,8 +186,9 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
     <div className="grid gap-3 px-5 py-4 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-start">
       <h2 className="pt-1.5 text-sm font-semibold">{name}</h2>
       <div className="grid gap-2">
+        <DayStrip rules={rules} />
         {rules.length === 0 && !adding ? (
-          <p className="pt-1.5 text-sm text-muted-foreground">Unavailable</p>
+          <p className="text-sm text-muted-foreground">Unavailable</p>
         ) : null}
         {rules.map((rule) => {
           const range = `${formatClock(rule.start_time, false)} to ${formatClock(rule.end_time, false)}`;
@@ -201,12 +237,24 @@ function AvailabilityPage() {
     queryKey: QUERY_KEYS.availability,
     queryFn: () => api<AvailabilityRule[]>("/api/availability"),
   });
+  const settings = useQuery({
+    queryKey: QUERY_KEYS.hostSettings,
+    queryFn: getHostSettings,
+  });
+  const timezone = settings.data?.timezone.replaceAll("_", " ");
 
   return (
     <>
       <PageHeader
         title="Availability"
-        description="The weekly hours when people can book a call with you. Times are in UTC."
+        description={`The weekly hours when people can book a call with you.${
+          timezone ? ` Times are in ${timezone}.` : ""
+        }`}
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link to={ROUTES.dashboardSettings}>Change timezone</Link>
+          </Button>
+        }
       />
       {query.isError ? (
         <ErrorState

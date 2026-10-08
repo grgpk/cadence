@@ -10,6 +10,9 @@ export const Route = createFileRoute("/dashboard/calendar/callback")({
 
 function GoogleCalendarCallbackPage() {
   return (
-    <GoogleCalendarCallback code={Route.useSearch().code} returnTo={ROUTES.dashboard} />
+    <GoogleCalendarCallback
+      code={Route.useSearch().code}
+      returnTo={ROUTES.dashboardSettings}
+    />
   );
 }

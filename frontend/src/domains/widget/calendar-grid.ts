@@ -25,10 +25,6 @@ export function calendarWeeks(
   );
 }
 
-export function isoDate(year: number, month: number, day: number): string {
-  return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
-}
-
 export function shiftMonth(
   year: number,
   month: number,

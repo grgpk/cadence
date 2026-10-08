@@ -42,6 +42,8 @@ impl FromStr for Role {
     }
 }
 
+pub const USER_STATUS_ACTIVE: &str = "Active";
+
 #[derive(Clone, Debug)]
 pub struct UserRecord {
     pub unid: Uuid,

@@ -2,7 +2,6 @@ use axum::{
     Json,
     extract::{Path, State},
 };
-use uuid::Uuid;
 
 use super::service::BookingsService;
 use super::{
@@ -12,29 +11,28 @@ use super::{
 use crate::{
     app_state::AppState,
     domain::auth::middleware::{AdminUser, AuthUser},
-    domain::availability::service as availability,
+    domain::availability::models::TimeSlot,
+    domain::host_settings::service as host_settings,
     error::AppResult,
 };
 
-pub async fn create(
+pub async fn public_slots(
     State(state): State<AppState>,
-    Path(host_unid): Path<Uuid>,
-    Json(request): Json<CreateBookingRequest>,
-) -> AppResult<(axum::http::StatusCode, Json<Booking>)> {
-    Ok((
-        axum::http::StatusCode::CREATED,
-        Json(service::create(&state.pool, host_unid, request).await?),
-    ))
+    Path(slug): Path<String>,
+) -> AppResult<Json<Vec<TimeSlot>>> {
+    let page = host_settings::public_page(&state.pool, &slug).await?;
+    Ok(Json(service::public_slots(&state.pool, &page).await?))
 }
 
-pub async fn create_public(
+pub async fn create(
     State(state): State<AppState>,
+    Path(slug): Path<String>,
     Json(request): Json<CreateBookingRequest>,
 ) -> AppResult<(axum::http::StatusCode, Json<Booking>)> {
-    let host_unid = availability::configured_public_host(&state.pool).await?;
+    let page = host_settings::public_page(&state.pool, &slug).await?;
     Ok((
         axum::http::StatusCode::CREATED,
-        Json(service::create(&state.pool, host_unid, request).await?),
+        Json(service::create(&state.pool, &page, request).await?),
     ))
 }
 

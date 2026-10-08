@@ -1,0 +1,124 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT public_slug, title, description, timezone, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level\n         FROM widget_settings WHERE host_unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "public_slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "public_slug"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "timezone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "timezone"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "ask_currently_working_on",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_currently_working_on"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "ask_how_heard_about_us",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_how_heard_about_us"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "ask_what_stopping_you",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_what_stopping_you"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "ask_investment_comfort",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_investment_comfort"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "ask_urgency_level",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_urgency_level"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b33a77abd9a86cb54f0d8118b751bf6205bc29c7f6bde3b294028fc802035d82"
+}
