@@ -23,8 +23,10 @@ cp .env.prod.example .env.prod
 ./__setup_prod_server_env.sh
 ```
 
-Runtime secrets stay in `/root/cadence/.env`: Postgres, JWT, Google, and
-Resend. Docker registry credentials stay in GitHub.
+Runtime secrets stay in `/root/cadence/.env`: Postgres credentials, `JWT_SECRET`,
+Google OAuth client (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI),
+and Resend SMTP (`RESEND_API_KEY`, `RESEND_SMTP_*`, `EMAIL_FROM`). Docker
+registry credentials stay in GitHub.
 
 DNS: `A cadence.rustify.app -> 23.88.45.210`.
 
