@@ -99,7 +99,11 @@ pub async fn create(
         &request.invitee_name,
         &request.invitee_email,
         event.as_ref().map(|value| value.event_id.as_str()),
-        event.as_ref().and_then(|value| value.meet_link.as_deref()),
+        // Google's Meet link when there is one, otherwise the host's own link.
+        event
+            .as_ref()
+            .and_then(|value| value.meet_link.as_deref())
+            .or(page.meeting_link.as_deref()),
     )
     .await
     {
@@ -114,7 +118,7 @@ pub async fn create(
         "name": booking.invitee_name,
         "slot_start": booking.slot_start,
         "timezone": booking.timezone,
-        "meet_link": booking.google_meet_url,
+        "meeting_url": booking.meeting_url,
     });
     db::queue_email(
         &mut transaction,

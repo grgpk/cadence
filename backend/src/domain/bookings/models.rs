@@ -28,6 +28,7 @@ pub struct Booking {
     pub invitee_name: String,
     pub invitee_email: String,
     pub status: String,
-    pub google_meet_url: Option<String>,
+    /// Where the call happens: the Google Meet link, or the host's own meeting link.
+    pub meeting_url: Option<String>,
     pub created_at: DateTime<Utc>,
 }

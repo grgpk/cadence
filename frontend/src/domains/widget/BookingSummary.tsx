@@ -1,4 +1,4 @@
-import { Clock, Globe } from "lucide-react";
+import { Clock, Globe, Video } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
@@ -77,6 +77,11 @@ export function BookingSummary({
           <li className="flex items-center gap-2">
             <GoogleMeetIcon />
             Google Meet
+          </li>
+        ) : page.has_meeting_link ? (
+          <li className="flex items-center gap-2">
+            <Video className="size-4 shrink-0 text-muted-foreground" />
+            Video call
           </li>
         ) : null}
         <li className="flex items-center gap-2">

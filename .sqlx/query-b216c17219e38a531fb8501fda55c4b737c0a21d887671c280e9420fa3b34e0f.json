@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level",
+  "query": "UPDATE widget_settings SET public_slug = $2, title = $3, description = $4, timezone = $5,\n                ask_currently_working_on = $6, ask_how_heard_about_us = $7, ask_what_stopping_you = $8,\n                ask_investment_comfort = $9, ask_urgency_level = $10, meeting_link = $11, updated_at = now()\n         WHERE host_unid = $1\n         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level",
   "describe": {
     "columns": [
       {
@@ -49,6 +49,17 @@
       },
       {
         "ordinal": 4,
+        "name": "meeting_link",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "meeting_link"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -59,7 +70,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -107,6 +118,14 @@
       "Left": [
         "Uuid",
         "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
         "Text"
       ]
     },
@@ -115,6 +134,7 @@
       false,
       false,
       false,
+      true,
       false,
       false,
       false,
@@ -122,5 +142,5 @@
       false
     ]
   },
-  "hash": "92e8e0be52cadde6167c2bfdb89fdc82c3f62e06b0c2a20ec63c552f4193f353"
+  "hash": "b216c17219e38a531fb8501fda55c4b737c0a21d887671c280e9420fa3b34e0f"
 }

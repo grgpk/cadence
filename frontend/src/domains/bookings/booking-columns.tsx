@@ -36,9 +36,9 @@ export const BOOKING_COLUMNS: Column<Booking>[] = [
     header: "Call",
     className: "text-right",
     cell: (booking) =>
-      booking.google_meet_url ? (
+      booking.meeting_url ? (
         <Button variant="outline" size="sm" asChild>
-          <a href={booking.google_meet_url} target="_blank" rel="noreferrer">
+          <a href={booking.meeting_url} target="_blank" rel="noreferrer">
             <Video />
             Join
           </a>

@@ -39,7 +39,7 @@ GET {{baseUrl}}/api/host/settings
 PUT {{baseUrl}}/api/host/settings
 Content-Type: application/json
 
-{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false}
+{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false}
 
 ### Public booking page
 GET {{baseUrl}}/api/hosts/{{slug}}

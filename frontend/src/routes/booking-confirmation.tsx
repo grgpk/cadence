@@ -45,6 +45,8 @@ function timezone(value: unknown): string | undefined {
 
 export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
+  // Only a Google Meet address can become a button: a crafted URL must not be able
+  // to put an arbitrary "join" link on this page.
   validateSearch: (search) => ({
     start: instant(search.start),
     minutes: callMinutes(search.minutes),
@@ -53,6 +55,8 @@ export const Route = createFileRoute("/booking-confirmation")({
       typeof search.meet === "string" && search.meet.startsWith(MEET_ORIGIN)
         ? search.meet
         : undefined,
+    // Whether the booking has a place to meet. A host's own link is only sent by email.
+    link: search.link === true,
     slug: text(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
   }),
   head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }] }),
@@ -104,7 +108,7 @@ function BookedStrip({
 }
 
 function BookingConfirmationPage() {
-  const { start, minutes, tz, meet, slug } = Route.useSearch();
+  const { start, minutes, tz, meet, link, slug } = Route.useSearch();
 
   if (!start || !minutes || !tz) {
     return (
@@ -142,7 +146,9 @@ function BookingConfirmationPage() {
           Your call is booked
         </h1>
         <p className="mt-4 text-muted-foreground">
-          A confirmation is on its way to your inbox.
+          {link
+            ? "A confirmation with the link to join is on its way to your inbox."
+            : "A confirmation is on its way to your inbox."}
         </p>
 
         <div className="mt-8">

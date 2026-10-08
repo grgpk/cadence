@@ -1,3 +1,4 @@
+use reqwest::Url;
 use sqlx::PgPool;
 use time_tz::timezones;
 use uuid::Uuid;
@@ -15,6 +16,7 @@ const SLUG_MIN: usize = 3;
 const SLUG_MAX: usize = 40;
 const TITLE_MAX: usize = 80;
 const DESCRIPTION_MAX: usize = 300;
+const MEETING_LINK_MAX: usize = 500;
 const SLUG_ATTEMPTS: usize = 5;
 const FALLBACK_SLUG: &str = "host";
 /// Hours saved before a host picked a timezone were entered as UTC.
@@ -53,6 +55,10 @@ pub async fn update(
     settings.public_slug = settings.public_slug.trim().to_lowercase();
     settings.title = settings.title.trim().to_owned();
     settings.description = settings.description.trim().to_owned();
+    settings.meeting_link = settings
+        .meeting_link
+        .map(|link| link.trim().to_owned())
+        .filter(|link| !link.is_empty());
     validate(&settings)?;
     match db::update(pool, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
@@ -91,7 +97,19 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
     if timezones::get_by_name(&settings.timezone).is_none() {
         return Err(AppError::BadRequest("timezone is invalid".to_owned()));
     }
+    if let Some(link) = &settings.meeting_link
+        && !is_valid_meeting_link(link)
+    {
+        return Err(AppError::BadRequest(
+            "meeting link must be an https URL".to_owned(),
+        ));
+    }
     Ok(())
+}
+
+fn is_valid_meeting_link(link: &str) -> bool {
+    link.len() <= MEETING_LINK_MAX
+        && Url::parse(link).is_ok_and(|url| url.scheme() == "https" && url.has_host())
 }
 
 fn is_valid_slug(slug: &str) -> bool {
@@ -173,6 +191,21 @@ mod tests {
         assert!(is_valid_slug(&slugify(&long)));
         assert!(is_valid_slug(&with_suffix(&slugify(&long))));
         assert!(is_valid_slug(&with_suffix("ada")));
+    }
+
+    #[test]
+    fn meeting_link_must_be_an_https_url() {
+        assert!(is_valid_meeting_link("https://zoom.us/j/123456789"));
+        for bad in [
+            "http://zoom.us/j/1",
+            "zoom.us/j/1",
+            "javascript:alert(1)",
+            "https://",
+        ] {
+            assert!(!is_valid_meeting_link(bad), "{bad}");
+        }
+        let long = format!("https://example.com/{}", "a".repeat(MEETING_LINK_MAX));
+        assert!(!is_valid_meeting_link(&long));
     }
 
     #[test]

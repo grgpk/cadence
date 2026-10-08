@@ -413,7 +413,7 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
 
     let (status, booked) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
     assert_eq!(status, StatusCode::CREATED);
-    assert_eq!(booked["google_meet_url"], Value::Null);
+    assert_eq!(booked["meeting_url"], Value::Null, "no Google, no own link");
 
     let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -422,6 +422,85 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
     let (status, mine) = get(&app, "/api/bookings", Some(&host.cookie)).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(mine.as_array().map(Vec::len), Some(1));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_hosts_own_meeting_link_is_validated_and_kept_private(pool: PgPool) {
+    let app = app(&pool);
+    let host = register(&app, "Ada Lovelace", "ada@example.com").await;
+    let saved = settings(&app, &host).await;
+    assert_eq!(saved["meeting_link"], Value::Null);
+
+    let too_long = format!("https://example.com/{}", "a".repeat(500));
+    for bad in ["http://zoom.us/j/1", "not a url", too_long.as_str()] {
+        let mut changed = saved.clone();
+        changed["meeting_link"] = json!(bad);
+        let (status, _) = save_settings(&app, &host, &changed).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+    }
+
+    let mut changed = saved.clone();
+    changed["meeting_link"] = json!("  https://zoom.us/j/123456789 ");
+    let (status, with_link) = save_settings(&app, &host, &changed).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(with_link["meeting_link"], "https://zoom.us/j/123456789");
+
+    let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    assert_eq!(page["has_meeting_link"], true);
+    assert!(page.get("meeting_link").is_none());
+    assert!(!page.to_string().contains("zoom.us"));
+
+    changed["meeting_link"] = json!("");
+    let (status, cleared) = save_settings(&app, &host, &changed).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cleared["meeting_link"], Value::Null);
+    let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    assert_eq!(page["has_meeting_link"], false);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
+    const LINK: &str = "https://zoom.us/j/123456789";
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let mut host_settings = settings(&app, &host).await;
+    host_settings["meeting_link"] = json!(LINK);
+    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let start = slots(&app, &slug).await[0];
+    let (status, booked) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/bookings"),
+        None,
+        Some(booking(start, None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(booked["meeting_url"], LINK);
+
+    // The link reaches the inbox with the confirmation and with every reminder.
+    let without_link = sqlx::query_scalar!(
+        "SELECT count(*) FROM email_queue
+         WHERE email = $1 AND payload->>'meeting_url' IS DISTINCT FROM $2",
+        "ada@example.com",
+        LINK,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(without_link, Some(0));
+    let confirmations = sqlx::query_scalar!(
+        "SELECT count(*) FROM email_queue
+         WHERE email = $1 AND template = 'booking_confirmation' AND payload->>'meeting_url' = $2",
+        "ada@example.com",
+        LINK,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(confirmations, Some(1));
 }
 
 #[sqlx::test(migrations = "../migrations")]

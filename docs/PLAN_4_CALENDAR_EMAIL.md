@@ -49,6 +49,10 @@ and `email_queue`. Add provider error metadata only in a new migration if
 
 Plan 7 replaced the public slot and booking routes in this table with
 host-scoped ones under `/api/hosts/{slug}/`. Its API table is the current one.
+Emails (`emails/service.rs::render`) show the call time in the invitee's
+timezone and, when the booking has one, a "Join the call" line. The link is
+Google's Meet link, or the host's own meeting link from settings.
+
 Google Calendar is now optional per host: connect, events and disconnect need
 a logged-in host and act on that host's own calendar.
 

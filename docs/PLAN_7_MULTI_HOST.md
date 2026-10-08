@@ -70,6 +70,13 @@ ALTER TABLE widget_settings
 - Slug: slugified full name, else the email's local part, else `host`; on a
   collision a `-xxxx` suffix. The host can change it; old links then 404.
 
+`migrations/0018_add_meeting_link.sql` adds `widget_settings.meeting_link`
+(nullable): the host's own place to meet, such as a Zoom or Meet room. A
+booking's link is Google's Meet link when the calendar is connected and the
+event was created, otherwise this one. It is stored in
+`bookings.google_meet_url`, which keeps its name because the seed inserts
+into it, and is exposed on the wire as `Booking.meeting_url`.
+
 ## API
 
 | Method | Path | Guard | Request | Response | Errors |
@@ -86,7 +93,9 @@ ALTER TABLE widget_settings
 | GET | `/api/google-calendar/events` | logged in | | `CalendarEvent[]` | 400, 401 |
 
 `BookingPage` carries the host's name, page text, timezone, the five `ask_*`
-flags and `calendar_connected`. It never carries an id or an email.
+flags, `calendar_connected` and `has_meeting_link`. It never carries an id,
+an email or the meeting link itself; the link goes only to people who booked.
+`HostSettings.meeting_link` must be an https URL of at most 500 characters.
 
 Removed: `/api/leads/*`, `/api/hosts/{host_unid}/*`,
 `/api/google-calendar/available-slots`, `available-slots-batch` and `book`.
@@ -179,6 +188,10 @@ visitor ─▶ /book/{slug}
   time is gone and booking it again is 409.
 - Calendar login, events and config are 401 logged out; the old public
   routes are 404.
+- A meeting link that is not https, not a URL or too long is 400; an empty
+  one is stored as null; the public page says a link exists without
+  showing it; a booking without Google carries the host's link and so does
+  every queued email.
 
 Unit tests: slug rules in `host_settings/service.rs`, timezone and window
 cases in `availability/service.rs`.

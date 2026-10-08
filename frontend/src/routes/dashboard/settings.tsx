@@ -39,6 +39,7 @@ export const Route = createFileRoute("/dashboard/settings")({
 });
 
 const ID = "settings";
+const SECURE_LINK_PREFIX = "https://";
 
 function SettingsForm({ saved }: { saved: HostSettings }) {
   const queryClient = useQueryClient();
@@ -69,6 +70,9 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
     (timezone) => timezone.iana === values.timezone,
   );
   const unchanged = JSON.stringify(values) === JSON.stringify(saved);
+  const meetingLink = values.meeting_link?.trim() ?? "";
+  const meetingLinkInvalid =
+    meetingLink !== "" && !meetingLink.startsWith(SECURE_LINK_PREFIX);
 
   function copyLink() {
     const link = `${window.location.origin}${bookingPath(saved.public_slug)}`;
@@ -182,6 +186,36 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
               own.
             </p>
           </div>
+
+          <div className="grid gap-1.5">
+            <Label htmlFor={`${ID}-meeting-link`}>
+              Meeting link
+              <span className="font-normal text-muted-foreground">(optional)</span>
+            </Label>
+            <Input
+              id={`${ID}-meeting-link`}
+              type="url"
+              inputMode="url"
+              maxLength={500}
+              placeholder="https://zoom.us/j/123456789"
+              value={values.meeting_link ?? ""}
+              aria-invalid={meetingLinkInvalid}
+              aria-describedby={`${ID}-meeting-link-help`}
+              onChange={(event) => update({ meeting_link: event.target.value || null })}
+            />
+            <p
+              id={`${ID}-meeting-link-help`}
+              className={
+                meetingLinkInvalid
+                  ? "text-sm text-destructive"
+                  : "text-sm text-muted-foreground"
+              }
+            >
+              {meetingLinkInvalid
+                ? "Use a link that starts with https://"
+                : "Where your calls happen, such as a Zoom or Meet room. Sent to people who book you when Google Calendar is not connected."}
+            </p>
+          </div>
         </CardContent>
       </Card>
 
@@ -210,7 +244,10 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
       </Card>
 
       <div className="flex items-center gap-3">
-        <Button type="submit" disabled={save.isPending || unchanged}>
+        <Button
+          type="submit"
+          disabled={save.isPending || unchanged || meetingLinkInvalid}
+        >
           {save.isPending ? "Saving" : "Save changes"}
         </Button>
         {unchanged ? null : (

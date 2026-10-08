@@ -18,13 +18,13 @@ pub async fn create(
     invitee_name: &str,
     invitee_email: &str,
     google_event_id: Option<&str>,
-    google_meet_url: Option<&str>,
+    meeting_url: Option<&str>,
 ) -> Result<Booking, sqlx::Error> {
     sqlx::query_as!(
         Booking,
         "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email, google_event_id, google_meet_url)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, created_at",
         host_unid,
         lead_unid,
         calling_visit_unid,
@@ -33,7 +33,7 @@ pub async fn create(
         invitee_name,
         invitee_email,
         google_event_id,
-        google_meet_url,
+        meeting_url,
     )
     .fetch_one(connection)
     .await
@@ -59,7 +59,7 @@ pub async fn booked_starts(
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, created_at
          FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC",
         host_unid,
     )
@@ -71,7 +71,7 @@ impl BookingsDb {
     pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
         sqlx::query_as!(
             Booking,
-            "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
+            "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, created_at
              FROM bookings ORDER BY slot_start DESC",
         )
         .fetch_all(pool)

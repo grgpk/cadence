@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT public_slug, title, description, timezone, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level\n         FROM widget_settings WHERE host_unid = $1",
+  "query": "SELECT public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level\n         FROM widget_settings WHERE host_unid = $1",
   "describe": {
     "columns": [
       {
@@ -49,6 +49,17 @@
       },
       {
         "ordinal": 4,
+        "name": "meeting_link",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "meeting_link"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -59,7 +70,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -113,6 +124,7 @@
       false,
       false,
       false,
+      true,
       false,
       false,
       false,
@@ -120,5 +132,5 @@
       false
     ]
   },
-  "hash": "b33a77abd9a86cb54f0d8118b751bf6205bc29c7f6bde3b294028fc802035d82"
+  "hash": "1c88f5a69116277a15c769eb4a965eecb1aff71b1f0cb6386c560c4174c90abe"
 }

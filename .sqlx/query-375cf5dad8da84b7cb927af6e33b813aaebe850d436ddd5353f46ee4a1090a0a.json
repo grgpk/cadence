@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email, google_event_id, google_meet_url)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at",
+  "query": "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, created_at\n             FROM bookings ORDER BY slot_start DESC",
   "describe": {
     "columns": [
       {
@@ -93,7 +93,7 @@
       },
       {
         "ordinal": 8,
-        "name": "google_meet_url",
+        "name": "meeting_url",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,17 +115,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Uuid",
-        "Uuid",
-        "Timestamptz",
-        "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -140,5 +130,5 @@
       false
     ]
   },
-  "hash": "034110475552b1a52334fe5a6b8091c20e349dc8c767a6a282ee59ccfebe6b24"
+  "hash": "375cf5dad8da84b7cb927af6e33b813aaebe850d436ddd5353f46ee4a1090a0a"
 }

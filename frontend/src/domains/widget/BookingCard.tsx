@@ -131,7 +131,8 @@ function Booking({
           start: booking.slot_start,
           minutes: picked.minutes,
           tz: timezone.iana,
-          meet: booking.google_meet_url ?? undefined,
+          meet: booking.meeting_url ?? undefined,
+          link: booking.meeting_url !== null,
           slug,
         },
       });

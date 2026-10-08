@@ -12,6 +12,8 @@ pub struct HostSettings {
     pub title: String,
     pub description: String,
     pub timezone: String,
+    /// Where calls happen when Google Calendar does not supply a Meet link.
+    pub meeting_link: Option<String>,
     pub ask_currently_working_on: bool,
     pub ask_how_heard_about_us: bool,
     pub ask_what_stopping_you: bool,
@@ -37,4 +39,9 @@ pub struct BookingPage {
     pub ask_investment_comfort: bool,
     pub ask_urgency_level: bool,
     pub calendar_connected: bool,
+    /// The link itself is only given to someone who has booked.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub meeting_link: Option<String>,
+    pub has_meeting_link: bool,
 }

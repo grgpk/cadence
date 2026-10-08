@@ -1,21 +1,32 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE widget_settings SET public_slug = $2, title = $3, description = $4, timezone = $5,\n                ask_currently_working_on = $6, ask_how_heard_about_us = $7, ask_what_stopping_you = $8,\n                ask_investment_comfort = $9, ask_urgency_level = $10, updated_at = now()\n         WHERE host_unid = $1\n         RETURNING public_slug, title, description, timezone, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level",
+  "query": "SELECT w.host_unid, u.full_name AS host_name, w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\"\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE w.public_slug = $1 AND w.is_active AND u.status = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "public_slug",
-        "type_info": "Text",
+        "name": "host_unid",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
             "table": "widget_settings",
-            "name": "public_slug"
+            "name": "host_unid"
           }
         }
       },
       {
         "ordinal": 1,
+        "name": "host_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "title",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -59,7 +70,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -101,20 +112,35 @@
             "name": "ask_urgency_level"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "calendar_connected!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "meeting_link",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "meeting_link"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "has_meeting_link!",
+        "type_info": "Bool",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Text",
-        "Text",
-        "Text",
-        "Text",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Bool",
-        "Bool"
+        "Text"
       ]
     },
     "nullable": [
@@ -126,8 +152,12 @@
       false,
       false,
       false,
-      false
+      false,
+      false,
+      null,
+      true,
+      null
     ]
   },
-  "hash": "74446ca8be4eeb14315ce20d9e889ab0b35ff851769c248c3ec6bcbacde5680b"
+  "hash": "be5d5605a5e83aa923f81c3cc2344b6e37a358a74c04a12bb831d47ace3c301c"
 }
