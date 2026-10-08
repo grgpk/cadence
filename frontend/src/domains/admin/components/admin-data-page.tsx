@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
+import { Search } from "lucide-react";
+import { useState } from "react";
 
 import { Card } from "../../../components/ui/card";
+import { Input } from "../../../components/ui/input";
 import { api } from "../../../lib/api";
 import { QUERY_KEYS } from "../../../lib/query-keys";
 import { DataTable, type Column } from "../../shared/DataTable";
@@ -19,6 +22,10 @@ type AdminDataPageProps<T> = {
   emptyDescription: string;
   rowKey: (item: T) => string;
   columns: Column<T>[];
+  /** Everything about a row someone might type to find it. Turns the search box on. */
+  searchText?: (item: T) => string;
+  /** What the search box starts with, for links that open the list already narrowed. */
+  initialSearch?: string;
 };
 
 export function AdminDataPage<T>({
@@ -30,11 +37,21 @@ export function AdminDataPage<T>({
   emptyDescription,
   rowKey,
   columns,
+  searchText,
+  initialSearch = "",
 }: AdminDataPageProps<T>) {
+  const [search, setSearch] = useState(initialSearch);
   const query = useQuery({
     queryKey: QUERY_KEYS.adminData(endpoint),
     queryFn: () => api<T[]>(endpoint),
   });
+
+  const all = query.data ?? [];
+  const wanted = search.trim().toLowerCase();
+  const rows =
+    searchText && wanted
+      ? all.filter((row) => searchText(row).toLowerCase().includes(wanted))
+      : all;
 
   return (
     <>
@@ -42,11 +59,27 @@ export function AdminDataPage<T>({
         title={title}
         description={description}
         actions={
-          query.data ? (
-            <p className="text-sm text-muted-foreground tabular-nums">
-              {query.data.length} {query.data.length === 1 ? "record" : "records"}
-            </p>
-          ) : null
+          <>
+            {query.data ? (
+              <p className="text-sm text-muted-foreground tabular-nums">
+                {rows.length === all.length ? "" : `${rows.length} of `}
+                {all.length} {all.length === 1 ? "record" : "records"}
+              </p>
+            ) : null}
+            {searchText ? (
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  aria-label={`Search ${title.toLowerCase()}`}
+                  placeholder="Search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="w-56 bg-card pl-8"
+                />
+              </div>
+            ) : null}
+          </>
         }
       />
       {query.isError ? (
@@ -59,10 +92,16 @@ export function AdminDataPage<T>({
         <Card className="gap-0 overflow-hidden py-0">
           {query.isPending ? (
             <TableSkeleton />
-          ) : query.data.length === 0 ? (
+          ) : all.length === 0 ? (
             <EmptyState icon={icon} title={emptyTitle} description={emptyDescription} />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={Search}
+              title={`Nothing matches "${search.trim()}"`}
+              description="Check the spelling, or clear the search to see everything."
+            />
           ) : (
-            <DataTable columns={columns} rows={query.data} rowKey={rowKey} />
+            <DataTable columns={columns} rows={rows} rowKey={rowKey} />
           )}
         </Card>
       )}

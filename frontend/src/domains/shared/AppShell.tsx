@@ -1,4 +1,5 @@
 import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
+import { cn } from "cn";
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -18,8 +19,11 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "../../components/ui/sidebar";
+import { hasAdminAccess } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
+import { ROUTES } from "../../lib/routes";
 import { LogoMark } from "./Logo";
+import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 
 export type NavItem = {
@@ -32,6 +36,33 @@ export type NavItem = {
 
 export type NavSection = { label?: string; items: NavItem[] };
 
+/** The two parts of the app. Admins move between them from the top bar. */
+const AREAS = [
+  { title: "Dashboard", to: ROUTES.dashboard },
+  { title: "Admin", to: ROUTES.admin },
+] as const;
+
+type Area = (typeof AREAS)[number]["title"];
+
+const CONTENT_ID = "content";
+
+function AreaSwitch({ current }: { current: Area }) {
+  return (
+    <div className="flex shrink-0 rounded-md bg-muted p-0.5">
+      {AREAS.map((area) => (
+        <Link
+          key={area.to}
+          to={area.to}
+          aria-current={area.title === current ? "true" : undefined}
+          className="rounded-sm px-2.5 py-1 font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:bg-card aria-[current]:text-foreground aria-[current]:shadow-xs"
+        >
+          {area.title}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 function isActive(pathname: string, item: NavItem) {
   return item.exact
     ? pathname === item.to
@@ -43,14 +74,17 @@ export function AppShell({
   home,
   area,
   sections,
+  wide = false,
   children,
 }: {
   user: SessionUser;
   /** Where the logo links to. */
   home: NavItem["to"];
-  /** Name of this part of the app, shown in the top bar. */
-  area: string;
+  /** The part of the app this shell wraps, shown in the top bar. */
+  area: Area;
   sections: NavSection[];
+  /** Room for wide tables. */
+  wide?: boolean;
   children: ReactNode;
 }) {
   const { pathname } = useLocation();
@@ -60,6 +94,12 @@ export function AppShell({
 
   return (
     <SidebarProvider>
+      <a
+        href={`#${CONTENT_ID}`}
+        className="sr-only z-50 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:top-2 focus:left-2"
+      >
+        Skip to content
+      </a>
       <Sidebar collapsible="icon">
         <SidebarHeader>
           <SidebarMenu>
@@ -114,17 +154,35 @@ export function AppShell({
       <SidebarInset>
         <div className="flex h-12 items-center gap-2 border-b bg-card px-3 text-sm">
           <SidebarTrigger />
-          <span className="text-muted-foreground">{area}</span>
-          {current ? (
-            <>
-              <span aria-hidden="true" className="text-muted-foreground">
-                /
-              </span>
-              <span className="font-medium">{current.title}</span>
-            </>
-          ) : null}
+          <nav aria-label="Where you are" className="flex min-w-0 items-center gap-2">
+            {hasAdminAccess(user) ? (
+              <AreaSwitch current={area} />
+            ) : (
+              <span className="text-muted-foreground">{area}</span>
+            )}
+            {current ? (
+              <>
+                <span aria-hidden="true" className="text-muted-foreground">
+                  /
+                </span>
+                <span aria-current="page" className="truncate font-medium">
+                  {current.title}
+                </span>
+              </>
+            ) : null}
+          </nav>
+          <div className="ml-auto">
+            <ThemeToggle />
+          </div>
         </div>
-        <div className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 p-4 md:p-8">
+        <div
+          id={CONTENT_ID}
+          tabIndex={-1}
+          className={cn(
+            "mx-auto flex w-full flex-1 flex-col gap-6 p-4 outline-none md:p-8",
+            wide ? "max-w-7xl" : "max-w-5xl",
+          )}
+        >
           {children}
         </div>
       </SidebarInset>

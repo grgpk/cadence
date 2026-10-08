@@ -18,6 +18,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::bug_reports::routes::protected_routes())
         .merge(domain::leads::routes::protected_routes())
         .merge(domain::calling_visits::routes::protected_routes())
+        .merge(domain::emails::routes::protected_routes())
         .merge(domain::google_calendar::routes::protected_routes())
         .merge(domain::host_settings::routes::protected_routes())
         .merge(domain::roleaccesses::routes::protected_routes())

@@ -93,6 +93,7 @@ cadence/
 | 7 | `PLAN_7_MULTI_HOST.md` | per-host links and settings, isolation, slots from the host's hours | ✅ done |
 | 8 | `PLAN_8_UI_REFRESH.md` | one token-driven look, time-first booking card, availability editor | ✅ done |
 | 9 | `PLAN_9_DAY_TAPE.md` | "day tape" identity: palette, type, landing page, motion | ✅ done |
+| 10 | `PLAN_10_ADMIN_CLARITY.md` | admin health overview, booking page status, grouped settings, time picker | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

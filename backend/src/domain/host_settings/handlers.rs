@@ -4,10 +4,14 @@ use axum::{
 };
 
 use super::{
-    models::{BookingPage, HostSettings},
+    models::{AdminHost, BookingPage, HostSettings},
     service,
 };
-use crate::{app_state::AppState, domain::auth::middleware::AuthUser, error::AppResult};
+use crate::{
+    app_state::AppState,
+    domain::auth::middleware::{AdminUser, AuthUser},
+    error::AppResult,
+};
 
 pub async fn public_page(
     State(state): State<AppState>,
@@ -31,4 +35,11 @@ pub async fn update(
     Ok(Json(
         service::update(&state.pool, user.user.unid, settings).await?,
     ))
+}
+
+pub async fn list_hosts(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+) -> AppResult<Json<Vec<AdminHost>>> {
+    Ok(Json(service::list_hosts(&state.pool).await?))
 }

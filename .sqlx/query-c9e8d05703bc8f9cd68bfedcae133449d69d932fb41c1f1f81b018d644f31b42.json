@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_queue (email, template, send_at, sent_at, attempts, payload)\n               VALUES ($1, 'booking_confirmation', now() + make_interval(mins => $2),\n                       CASE WHEN $3::bool THEN now() END, $4,\n                       '{\"meeting_url\":\"https://secret.example.com\"}')\n               RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4",
+        "Bool",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c9e8d05703bc8f9cd68bfedcae133449d69d932fb41c1f1f81b018d644f31b42"
+}

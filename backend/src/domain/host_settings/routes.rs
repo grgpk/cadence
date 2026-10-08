@@ -8,8 +8,10 @@ pub fn public_routes() -> Router<AppState> {
 }
 
 pub fn protected_routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/host/settings",
-        get(handlers::get).put(handlers::update),
-    )
+    Router::new()
+        .route(
+            "/api/host/settings",
+            get(handlers::get).put(handlers::update),
+        )
+        .route("/api/admin/hosts", get(handlers::list_hosts))
 }

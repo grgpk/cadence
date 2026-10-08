@@ -31,7 +31,7 @@ design system.
 - **Shape.** Controls 8px, cards 12px, the booking card 16px. Shadow only on
   the booking card and popovers.
 - **Theme.** Follows the system setting, with a toggle in the public header and
-  the user menu. `lib/theme.ts` sets the class before paint; no dependency.
+  the app's top bar (moved there from the user menu in Plan 10). `lib/theme.ts` sets the class before paint; no dependency.
 - **Signature.** Days that can be booked carry a small red dot, so the month
   reads as a rhythm. The logo is three uneven bars for the same reason.
 
@@ -77,8 +77,9 @@ App shell (dashboard and admin)
 
 ## Not done here
 
-- The Google Calendar connection belongs to the single public host, so its
-  card stays on `/admin`. A per-host card belongs to Plan 7.
+- The Google Calendar connection belonged to the single public host, so its
+  card stayed on `/admin`. Plan 7 made it per host and Plan 10 placed it in
+  `/dashboard/settings`, next to the meeting link.
 - Event types, per-host booking URLs, cancel and reschedule, settings,
   password reset, table sorting and pagination.
 - Availability times are stored and shown in UTC, as the slot service reads

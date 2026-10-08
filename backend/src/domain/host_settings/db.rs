@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{BookingPage, HostSettings};
+use super::models::{AdminHost, BookingPage, HostSettings};
 use crate::domain::auth::models::USER_STATUS_ACTIVE;
 
 pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>, sqlx::Error> {
@@ -83,5 +83,25 @@ pub async fn find_active_by_slug(
         USER_STATUS_ACTIVE,
     )
     .fetch_optional(pool)
+    .await
+}
+
+/// Everyone who signed up as a host or has a booking page. Settings rows are
+/// created on first use, so a new host has none yet.
+pub async fn list_hosts(pool: &PgPool) -> Result<Vec<AdminHost>, sqlx::Error> {
+    sqlx::query_as!(
+        AdminHost,
+        r#"SELECT u.unid, u.full_name, u.email, u.status, u.created_at,
+                  w.public_slug AS "public_slug?",
+                  COALESCE(w.is_active, false) AS "page_active!",
+                  EXISTS(SELECT 1 FROM availability a WHERE a.host_unid = u.unid) AS "has_hours!",
+                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = u.unid) AS "calendar_connected!",
+                  COALESCE(w.meeting_link IS NOT NULL, false) AS "has_meeting_link!"
+           FROM users u LEFT JOIN widget_settings w ON w.host_unid = u.unid
+           WHERE w.host_unid IS NOT NULL
+              OR EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')
+           ORDER BY u.created_at DESC"#,
+    )
+    .fetch_all(pool)
     .await
 }

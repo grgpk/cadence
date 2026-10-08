@@ -1,20 +1,21 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import type { RoleAccess } from "../../bindings/RoleAccess";
+import type { AdminRoleAccess } from "../../bindings/AdminRoleAccess";
 import { Badge } from "../../components/ui/badge";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
-import type { Column } from "../../domains/shared/DataTable";
+import { TwoLine, type Column } from "../../domains/shared/DataTable";
+import { APP_NAME } from "../../lib/config";
 
 export const Route = createFileRoute("/admin/roleaccesses")({
+  head: () => ({ meta: [{ title: `${ADMIN_PAGES.roleAccesses.title} | ${APP_NAME}` }] }),
   component: AdminRoleAccessesPage,
 });
 
-const COLUMNS: Column<RoleAccess>[] = [
+const COLUMNS: Column<AdminRoleAccess>[] = [
   {
-    header: "User ID",
-    className: "tabular-nums",
-    cell: (access) => access.grantedto_unid,
+    header: "Person",
+    cell: (access) => <TwoLine primary={access.full_name} secondary={access.email} />,
   },
   {
     header: "Role",
@@ -25,13 +26,13 @@ const COLUMNS: Column<RoleAccess>[] = [
 
 function AdminRoleAccessesPage() {
   return (
-    <AdminDataPage<RoleAccess>
+    <AdminDataPage<AdminRoleAccess>
       {...ADMIN_PAGES.roleAccesses}
-      endpoint="/api/admin/roleaccesses"
       emptyTitle="No roles granted"
       emptyDescription="Roles given to users are listed here."
       rowKey={(access) => access.unid}
       columns={COLUMNS}
+      searchText={(access) => `${access.full_name} ${access.email} ${access.role}`}
     />
   );
 }

@@ -8,7 +8,7 @@ import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { AvailabilityRuleInput } from "../../bindings/AvailabilityRuleInput";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { Input } from "../../components/ui/input";
+import { Checkbox } from "../../components/ui/checkbox";
 import { Label } from "../../components/ui/label";
 import {
   Select,
@@ -17,9 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { ErrorState } from "../../domains/shared/ErrorState";
+import { Field } from "../../domains/shared/Field";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
+import { prefersHour12, TimePicker } from "../../domains/shared/TimePicker";
 import { getHostSettings } from "../../domains/widget/cadence-api";
 import { api } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
@@ -35,9 +38,26 @@ export const Route = createFileRoute("/dashboard/availability")({
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
 const SLOT_MINUTES = [15, 20, 30, 45, 60];
 const DEFAULT_HOURS = { start: "09:00", end: "17:00", slotMinutes: 30 };
+/** The latest time the picker offers. */
+const LAST_TIME = "23:45";
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Something went wrong.";
+}
+
+function createRule(input: AvailabilityRuleInput) {
+  return api<AvailabilityRule>("/api/availability", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+/** One hour after `time`, kept inside the day. */
+function hourAfter(time: string): string {
+  const [hours = 0, minutes = 0] = time.split(":").map(Number);
+  return hours >= 23
+    ? LAST_TIME
+    : `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
 function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void }) {
@@ -45,21 +65,34 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
   const [start, setStart] = useState(DEFAULT_HOURS.start);
   const [end, setEnd] = useState(DEFAULT_HOURS.end);
   const [slotMinutes, setSlotMinutes] = useState(DEFAULT_HOURS.slotMinutes);
+  const [otherDays, setOtherDays] = useState<number[]>([]);
   const endsAfterStart = start < end;
   const id = `hours-${weekday}`;
 
   const addHours = useMutation({
-    mutationFn: (input: AvailabilityRuleInput) =>
-      api<AvailabilityRule>("/api/availability", {
-        method: "POST",
-        body: JSON.stringify(input),
-      }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
+    mutationFn: (days: number[]) =>
+      Promise.all(
+        days.map((day) =>
+          createRule({
+            weekday: day,
+            start_time: `${start}:00`,
+            end_time: `${end}:00`,
+            slot_minutes: slotMinutes,
+          }),
+        ),
+      ),
+    onSuccess: () => {
       toast.success("Hours added");
       onDone();
     },
-    onError: (error) => toast.error(`Hours were not added. ${errorMessage(error)}`),
+    onError: (error) =>
+      toast.error(
+        otherDays.length === 0
+          ? `Hours were not added. ${errorMessage(error)}`
+          : `Some days were not added. ${errorMessage(error)}`,
+      ),
+    // Some days may have been saved even when one failed.
+    onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability }),
   });
 
   return (
@@ -67,41 +100,30 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
       className="grid gap-3 rounded-lg border bg-muted p-3"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!endsAfterStart) return;
-        addHours.mutate({
-          weekday,
-          start_time: `${start}:00`,
-          end_time: `${end}:00`,
-          slot_minutes: slotMinutes,
-        });
+        if (endsAfterStart) addHours.mutate([weekday, ...otherDays]);
       }}
     >
       <div className="flex flex-wrap items-end gap-3">
-        <div className="grid gap-1.5">
-          <Label htmlFor={`${id}-start`}>From</Label>
-          <Input
+        <Field id={`${id}-start`} label="From">
+          <TimePicker
             id={`${id}-start`}
-            type="time"
-            required
             value={start}
-            onChange={(event) => setStart(event.target.value)}
-            className="w-28 bg-card tabular-nums"
+            onChange={(time) => {
+              setStart(time);
+              if (time >= end) setEnd(hourAfter(time));
+            }}
           />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor={`${id}-end`}>To</Label>
-          <Input
+        </Field>
+        <Field id={`${id}-end`} label="To">
+          <TimePicker
             id={`${id}-end`}
-            type="time"
-            required
             value={end}
-            aria-invalid={!endsAfterStart}
-            onChange={(event) => setEnd(event.target.value)}
-            className="w-28 bg-card tabular-nums"
+            after={start}
+            invalid={!endsAfterStart}
+            onChange={setEnd}
           />
-        </div>
-        <div className="grid gap-1.5">
-          <Label htmlFor={`${id}-length`}>Call length</Label>
+        </Field>
+        <Field id={`${id}-length`} label="Call length">
           <Select
             value={String(slotMinutes)}
             onValueChange={(value) => setSlotMinutes(Number(value))}
@@ -117,19 +139,41 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="ml-auto flex gap-2">
-          <Button type="button" variant="ghost" onClick={onDone}>
-            Cancel
-          </Button>
-          <Button type="submit" disabled={addHours.isPending || !endsAfterStart}>
-            {addHours.isPending ? "Adding" : "Add hours"}
-          </Button>
-        </div>
+        </Field>
       </div>
+      <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <legend className="float-left mr-4 text-sm font-medium">Also add to</legend>
+        {WEEKDAYS.filter((day) => day !== weekday).map((day) => (
+          <Label key={day} className="font-normal">
+            <Checkbox
+              className="bg-card"
+              checked={otherDays.includes(day)}
+              onCheckedChange={(checked) =>
+                setOtherDays(
+                  checked === true
+                    ? [...otherDays, day]
+                    : otherDays.filter((other) => other !== day),
+                )
+              }
+            />
+            <span aria-hidden="true">{weekdayName(day).slice(0, 3)}</span>
+            <span className="sr-only">{weekdayName(day)}</span>
+          </Label>
+        ))}
+      </fieldset>
       {endsAfterStart ? null : (
-        <p className="text-sm text-destructive">The end time must be after the start.</p>
+        <p role="alert" className="text-sm text-destructive">
+          The end time must be after the start.
+        </p>
       )}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" onClick={onDone}>
+          Cancel
+        </Button>
+        <Button type="submit" disabled={addHours.isPending || !endsAfterStart}>
+          {addHours.isPending ? "Adding" : "Add hours"}
+        </Button>
+      </div>
     </form>
   );
 }
@@ -172,15 +216,38 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
   const [adding, setAdding] = useState(false);
   const name = weekdayName(weekday);
 
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
+
+  const restoreHours = useMutation({
+    mutationFn: createRule,
+    onSuccess: async () => {
+      await refresh();
+      toast.success("Hours put back");
+    },
+    onError: (error) => toast.error(`Hours were not put back. ${errorMessage(error)}`),
+  });
   const removeHours = useMutation({
     mutationFn: (rule: AvailabilityRule) =>
       api<void>(`/api/availability/${rule.id}`, { method: "DELETE" }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
-      toast.success("Hours removed");
+    onSuccess: async (_, rule) => {
+      await refresh();
+      toast.success("Hours removed", {
+        action: {
+          label: "Undo",
+          onClick: () =>
+            restoreHours.mutate({
+              weekday: rule.weekday,
+              start_time: rule.start_time,
+              end_time: rule.end_time,
+              slot_minutes: rule.slot_minutes,
+            }),
+        },
+      });
     },
     onError: (error) => toast.error(`Hours were not removed. ${errorMessage(error)}`),
   });
+  const hour12 = prefersHour12();
 
   return (
     <div className="grid gap-3 px-5 py-4 sm:grid-cols-[7rem_minmax(0,1fr)_auto] sm:items-start">
@@ -191,7 +258,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
           <p className="text-sm text-muted-foreground">Unavailable</p>
         ) : null}
         {rules.map((rule) => {
-          const range = `${formatClock(rule.start_time, false)} to ${formatClock(rule.end_time, false)}`;
+          const range = `${formatClock(rule.start_time, hour12)} to ${formatClock(rule.end_time, hour12)}`;
           return (
             <div key={String(rule.id)} className="flex items-center gap-3 text-sm">
               <span className="rounded-md border bg-card px-2.5 py-1 font-medium tabular-nums">
@@ -203,7 +270,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
                 variant="ghost"
                 size="icon-sm"
                 aria-label={`Remove ${name} ${range}`}
-                disabled={removeHours.isPending}
+                disabled={removeHours.isPending && removeHours.variables.id === rule.id}
                 onClick={() => removeHours.mutate(rule)}
               >
                 <X />
@@ -252,7 +319,9 @@ function AvailabilityPage() {
         }`}
         actions={
           <Button variant="outline" size="sm" asChild>
-            <Link to={ROUTES.dashboardSettings}>Change timezone</Link>
+            <Link to={ROUTES.dashboardSettings} hash={SETTINGS_SECTIONS.time}>
+              Change timezone
+            </Link>
           </Button>
         }
       />

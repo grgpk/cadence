@@ -37,3 +37,12 @@ pub struct CallingVisit {
     pub source_page: Option<String>,
     pub created_at: DateTime<Utc>,
 }
+
+/// How far the last week's visitors got. Each count is a subset of the one before.
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/VisitFunnel.ts")]
+pub struct VisitFunnel {
+    pub visits: i32,
+    pub form_submitted: i32,
+    pub booked: i32,
+}

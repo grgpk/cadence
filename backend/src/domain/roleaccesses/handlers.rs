@@ -19,6 +19,6 @@ pub async fn mine(
 pub async fn list(
     State(state): State<AppState>,
     _admin: AdminUser,
-) -> AppResult<Json<Vec<super::models::RoleAccess>>> {
+) -> AppResult<Json<Vec<super::models::AdminRoleAccess>>> {
     Ok(Json(service::list_all(&state.pool).await?))
 }

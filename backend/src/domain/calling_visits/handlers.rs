@@ -38,3 +38,10 @@ pub async fn list_all(
 ) -> AppResult<Json<Vec<super::models::CallingVisit>>> {
     Ok(Json(CallingVisitsService::list_all(&state.pool).await?))
 }
+
+pub async fn funnel(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+) -> AppResult<Json<super::models::VisitFunnel>> {
+    Ok(Json(CallingVisitsService::funnel(&state.pool).await?))
+}

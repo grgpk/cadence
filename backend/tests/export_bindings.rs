@@ -3,11 +3,14 @@ use cadence_backend::domain::{
     availability::models::{AvailabilityRule, AvailabilityRuleInput, TimeSlot},
     bookings::models::{Booking, CreateBookingRequest},
     bug_reports::models::{AdminBugReport, AdminBugType},
-    calling_visits::models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest},
+    calling_visits::models::{
+        CallingVisit, CallingVisitEngagement, CallingVisitRequest, VisitFunnel,
+    },
+    emails::models::{AdminEmail, EmailState},
     google_calendar::models::{CalendarEvent, EventDateTime},
-    host_settings::models::{BookingPage, HostSettings},
+    host_settings::models::{AdminHost, BookingPage, HostSettings},
     leads::models::{Lead, LeadUpdate, SubmitLeadRequest},
-    roleaccesses::models::RoleAccess,
+    roleaccesses::models::{AdminRoleAccess, RoleAccess},
 };
 use ts_rs::TS;
 
@@ -35,4 +38,9 @@ fn export_bindings() {
     assert!(RoleAccess::export().is_ok());
     assert!(HostSettings::export().is_ok());
     assert!(BookingPage::export().is_ok());
+    assert!(AdminHost::export().is_ok());
+    assert!(AdminRoleAccess::export().is_ok());
+    assert!(VisitFunnel::export().is_ok());
+    assert!(EmailState::export().is_ok());
+    assert!(AdminEmail::export().is_ok());
 }

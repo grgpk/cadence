@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::RoleAccess;
+use super::models::{AdminRoleAccess, RoleAccess};
 
 pub async fn list_for_user(pool: &PgPool, user_unid: Uuid) -> Result<Vec<RoleAccess>, sqlx::Error> {
     sqlx::query_as!(
@@ -13,10 +13,12 @@ pub async fn list_for_user(pool: &PgPool, user_unid: Uuid) -> Result<Vec<RoleAcc
     .await
 }
 
-pub async fn list_all(pool: &PgPool) -> Result<Vec<RoleAccess>, sqlx::Error> {
+pub async fn list_all(pool: &PgPool) -> Result<Vec<AdminRoleAccess>, sqlx::Error> {
     sqlx::query_as!(
-        RoleAccess,
-        "SELECT unid, grantedto_unid, role FROM roleaccesses ORDER BY grantedto_unid, role",
+        AdminRoleAccess,
+        "SELECT r.unid, r.grantedto_unid, r.role, u.full_name, u.email
+         FROM roleaccesses r JOIN users u ON u.unid = r.grantedto_unid
+         ORDER BY u.full_name, r.role",
     )
     .fetch_all(pool)
     .await

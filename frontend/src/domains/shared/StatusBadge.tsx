@@ -1,5 +1,6 @@
 import { cn } from "cn";
 
+import type { EmailState } from "../../bindings/EmailState";
 import { Badge } from "../../components/ui/badge";
 
 const TONES = {
@@ -23,6 +24,20 @@ export const LEAD_STATUS: Record<string, Status> = {
   Qualified: { label: "Qualified", tone: "positive" },
   NotSure: { label: "Not sure", tone: "caution" },
   Disqualified: { label: "Disqualified", tone: "negative" },
+};
+
+/** `EmailState`. Nothing fails for good: an email that will not send keeps retrying. */
+export const EMAIL_STATUS: Record<EmailState, Status> = {
+  Sent: { label: "Sent", tone: "positive" },
+  Scheduled: { label: "Scheduled", tone: "neutral" },
+  Retrying: { label: "Retrying", tone: "negative" },
+  Overdue: { label: "Overdue", tone: "caution" },
+};
+
+/** `users_status`. */
+export const USER_STATUS: Record<string, Status> = {
+  Active: { label: "Active", tone: "positive" },
+  Banned: { label: "Banned", tone: "negative" },
 };
 
 export function StatusBadge({

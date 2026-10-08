@@ -1,30 +1,26 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronsUpDownIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
+import { useNavigate } from "@tanstack/react-router";
+import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import type { SessionUser } from "../../bindings/SessionUser";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { SidebarMenuButton, useSidebar } from "../../components/ui/sidebar";
-import { hasAdminAccess, logout } from "../../lib/auth";
+import { logout } from "../../lib/auth";
 import { ROUTES } from "../../lib/routes";
-import { THEMES, useTheme } from "../../lib/theme";
 
 export function UserMenu({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
   const userName = user.full_name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
-  const canAccessAdmin = hasAdminAccess(user);
-  const { theme, toggleTheme } = useTheme();
-  const isDark = theme === THEMES.DARK;
 
   return (
     <DropdownMenu>
@@ -61,29 +57,12 @@ export function UserMenu({ user }: { user: SessionUser }) {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem asChild>
-            <Link to={ROUTES.dashboard}>Dashboard</Link>
-          </DropdownMenuItem>
-          {canAccessAdmin ? (
-            <DropdownMenuItem asChild>
-              <Link to={ROUTES.admin}>Admin</Link>
-            </DropdownMenuItem>
-          ) : null}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onSelect={(event) => {
-            event.preventDefault();
-            toggleTheme();
-          }}
-        >
-          {isDark ? <SunIcon /> : <MoonIcon />}
-          {isDark ? "Light theme" : "Dark theme"}
-        </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => {
-            void logout().then(() => navigate({ to: ROUTES.login }));
+            void logout().then(
+              () => navigate({ to: ROUTES.login }),
+              () => toast.error("You were not logged out. Try again."),
+            );
           }}
         >
           <LogOutIcon />

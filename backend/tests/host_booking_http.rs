@@ -535,3 +535,122 @@ async fn calendar_and_old_public_routes_are_closed(pool: PgPool) {
         assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
     }
 }
+
+const ADMIN_PATHS: [&str; 4] = [
+    "/api/admin/hosts",
+    "/api/admin/emails",
+    "/api/admin/roleaccesses",
+    "/api/admin/calling-visits/funnel",
+];
+
+async fn grant_admin(pool: &PgPool, user: &Host) {
+    sqlx::query_scalar!(
+        "INSERT INTO roleaccesses (grantedto_unid, role) VALUES ($1, 'Admin') RETURNING 1",
+        user.unid,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("role is granted");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn admin_lists_are_closed_to_hosts(pool: PgPool) {
+    let app = app(&pool);
+    let host = register(&app, "Plain Host", "plain@example.com").await;
+
+    for path in ADMIN_PATHS {
+        let (status, _) = get(&app, path, Some(&host.cookie)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path}");
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn admin_sees_hosts_roles_and_the_funnel(pool: PgPool) {
+    let app = app(&pool);
+    let admin = register(&app, "Ada Admin", "ada@example.com").await;
+    grant_admin(&pool, &admin).await;
+    // Never opened their dashboard, so they have no settings row.
+    let fresh = register(&app, "Fresh Host", "fresh@example.com").await;
+
+    let (status, hosts) = get(&app, "/api/admin/hosts", Some(&admin.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    let hosts = hosts.as_array().expect("hosts is a list");
+    let fresh_row = hosts
+        .iter()
+        .find(|host| host["unid"] == json!(fresh.unid))
+        .expect("the new host is listed");
+    assert_eq!(fresh_row["public_slug"], Value::Null);
+    assert_eq!(fresh_row["has_hours"], json!(false));
+    assert_eq!(fresh_row["has_meeting_link"], json!(false));
+    let seeded = hosts
+        .iter()
+        .find(|host| host["public_slug"] == json!(SEED_SLUG))
+        .expect("the seeded host is listed");
+    assert_eq!(seeded["has_hours"], json!(true));
+
+    let (status, roles) = get(&app, "/api/admin/roleaccesses", Some(&admin.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        roles
+            .as_array()
+            .expect("roles is a list")
+            .iter()
+            .any(|role| role["email"] == json!("ada@example.com") && role["role"] == json!("Admin"))
+    );
+
+    let (status, funnel) = get(
+        &app,
+        "/api/admin/calling-visits/funnel",
+        Some(&admin.cookie),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let count = |key: &str| funnel[key].as_i64().expect("count is a number");
+    assert!(count("visits") >= count("form_submitted"));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn admin_emails_show_state_without_the_payload(pool: PgPool) {
+    let app = app(&pool);
+    let admin = register(&app, "Ada Admin", "ada@example.com").await;
+    grant_admin(&pool, &admin).await;
+
+    for (email, due_in_minutes, sent, attempts) in [
+        ("sent@example.com", -60, true, 0),
+        ("retrying@example.com", 0, false, 2),
+        ("overdue@example.com", -60, false, 0),
+        ("scheduled@example.com", 60, false, 0),
+    ] {
+        sqlx::query_scalar!(
+            r#"INSERT INTO email_queue (email, template, send_at, sent_at, attempts, payload)
+               VALUES ($1, 'booking_confirmation', now() + make_interval(mins => $2),
+                       CASE WHEN $3::bool THEN now() END, $4,
+                       '{"meeting_url":"https://secret.example.com"}')
+               RETURNING 1"#,
+            email,
+            due_in_minutes,
+            sent,
+            attempts,
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("email is queued");
+    }
+
+    let (status, emails) = get(&app, "/api/admin/emails", Some(&admin.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    let emails = emails.as_array().expect("emails is a list");
+    for (email, state) in [
+        ("sent@example.com", "Sent"),
+        ("retrying@example.com", "Retrying"),
+        ("overdue@example.com", "Overdue"),
+        ("scheduled@example.com", "Scheduled"),
+    ] {
+        let row = emails
+            .iter()
+            .find(|row| row["email"] == json!(email))
+            .expect("the email is listed");
+        assert_eq!(row["state"], json!(state), "{email}");
+        assert!(row.get("payload").is_none());
+    }
+}

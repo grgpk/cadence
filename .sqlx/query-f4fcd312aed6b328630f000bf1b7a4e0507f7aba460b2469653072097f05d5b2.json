@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, grantedto_unid, role FROM roleaccesses ORDER BY grantedto_unid, role",
+  "query": "SELECT r.unid, r.grantedto_unid, r.role, u.full_name, u.email\n         FROM roleaccesses r JOIN users u ON u.unid = r.grantedto_unid\n         ORDER BY u.full_name, r.role",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,28 @@
             "name": "role"
           }
         }
+      },
+      {
+        "ordinal": 3,
+        "name": "full_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
       }
     ],
     "parameters": {
@@ -43,8 +65,10 @@
     "nullable": [
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "525d687b398a624d94c20b40da6964bcd92f68812439f2d4beb595fcfeb467cc"
+  "hash": "f4fcd312aed6b328630f000bf1b7a4e0507f7aba460b2469653072097f05d5b2"
 }

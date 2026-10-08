@@ -1,3 +1,4 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -43,5 +44,24 @@ pub struct BookingPage {
     #[serde(skip)]
     #[ts(skip)]
     pub meeting_link: Option<String>,
+    pub has_meeting_link: bool,
+}
+
+/// One host as an admin sees them: who they are and how far their booking
+/// page is set up.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/AdminHost.ts")]
+pub struct AdminHost {
+    pub unid: Uuid,
+    pub full_name: String,
+    pub email: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    /// `None` until the host first opens their dashboard.
+    pub public_slug: Option<String>,
+    pub page_active: bool,
+    pub has_hours: bool,
+    pub calendar_connected: bool,
     pub has_meeting_link: bool,
 }

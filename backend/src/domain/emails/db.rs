@@ -45,5 +45,31 @@ pub async fn mark_failed(pool: &PgPool, id: Uuid, error: &str) -> Result<(), sql
     .map(|_| ())
 }
 
+#[derive(sqlx::FromRow)]
+pub struct QueuedEmail {
+    pub id: Uuid,
+    pub booking_unid: Option<Uuid>,
+    pub email: String,
+    pub template: String,
+    pub send_at: DateTime<Utc>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub attempts: i32,
+    pub last_error: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+/// Unsent first. The payload is left out on purpose, see `AdminEmail`.
+pub async fn list_recent(pool: &PgPool) -> Result<Vec<QueuedEmail>, sqlx::Error> {
+    sqlx::query_as!(
+        QueuedEmail,
+        "SELECT id, booking_unid, email, template, send_at, sent_at, attempts, last_error, created_at
+         FROM email_queue
+         ORDER BY (sent_at IS NULL) DESC, send_at DESC
+         LIMIT 200",
+    )
+    .fetch_all(pool)
+    .await
+}
+
 #[allow(dead_code)]
 fn _datetime_type_is_explicit(_: DateTime<Utc>) {}

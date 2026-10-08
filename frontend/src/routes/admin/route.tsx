@@ -21,7 +21,7 @@ function AdminLayout() {
   }
 
   return (
-    <AppShell user={user} home={ROUTES.admin} area="Admin" sections={ADMIN_NAV}>
+    <AppShell user={user} home={ROUTES.admin} area="Admin" sections={ADMIN_NAV} wide>
       <Outlet />
     </AppShell>
   );

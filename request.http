@@ -87,5 +87,14 @@ Content-Type: application/json
 ### Admin role accesses
 GET {{baseUrl}}/api/admin/roleaccesses
 
+### Admin hosts
+GET {{baseUrl}}/api/admin/hosts
+
+### Admin emails
+GET {{baseUrl}}/api/admin/emails
+
+### Admin visit funnel, last 7 days
+GET {{baseUrl}}/api/admin/calling-visits/funnel
+
 ### Logout
 POST {{baseUrl}}/api/auth/logout

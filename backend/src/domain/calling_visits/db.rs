@@ -1,4 +1,4 @@
-use super::models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest};
+use super::models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest, VisitFunnel};
 use sqlx::PgPool;
 use std::net::IpAddr;
 
@@ -49,6 +49,18 @@ impl CallingVisitsDb {
             "SELECT unid, source_page, created_at FROM calling_visits ORDER BY created_at DESC",
         )
         .fetch_all(pool)
+        .await
+    }
+
+    pub async fn funnel(pool: &PgPool) -> Result<VisitFunnel, sqlx::Error> {
+        sqlx::query_as!(
+            VisitFunnel,
+            r#"SELECT COUNT(*)::int4 AS "visits!",
+                      (COUNT(*) FILTER (WHERE form_submitted))::int4 AS "form_submitted!",
+                      (COUNT(*) FILTER (WHERE booked_call))::int4 AS "booked!"
+               FROM calling_visits WHERE created_at >= now() - interval '7 days'"#,
+        )
+        .fetch_one(pool)
         .await
     }
 }

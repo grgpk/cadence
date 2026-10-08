@@ -17,10 +17,12 @@ import {
 } from "../shared/phone/country";
 
 export function TimezoneCombobox({
+  id,
   selected,
   fallbackLabel = "Choose a timezone",
   onSelect,
 }: {
+  id?: string;
   /** Missing when the stored timezone is not in the country list, such as UTC. */
   selected: CountryTimezone | undefined;
   /** Shown instead when nothing in the list is selected. */
@@ -32,6 +34,7 @@ export function TimezoneCombobox({
     <Popover>
       <PopoverTrigger asChild>
         <button
+          id={id}
           type="button"
           aria-label={`Timezone: ${label}. Change timezone`}
           className="flex min-w-0 items-center gap-1 rounded-sm text-left text-sm font-medium outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"

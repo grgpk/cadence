@@ -1,0 +1,114 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.unid, u.full_name, u.email, u.status, u.created_at,\n                  w.public_slug AS \"public_slug?\",\n                  COALESCE(w.is_active, false) AS \"page_active!\",\n                  EXISTS(SELECT 1 FROM availability a WHERE a.host_unid = u.unid) AS \"has_hours!\",\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = u.unid) AS \"calendar_connected!\",\n                  COALESCE(w.meeting_link IS NOT NULL, false) AS \"has_meeting_link!\"\n           FROM users u LEFT JOIN widget_settings w ON w.host_unid = u.unid\n           WHERE w.host_unid IS NOT NULL\n              OR EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')\n           ORDER BY u.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "full_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "public_slug?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "public_slug"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "page_active!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "has_hours!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "calendar_connected!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "has_meeting_link!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "2908c93e336fb2c29d6259a0aa0519dd9cd5e1d8dc76db3b496e39ef13088e55"
+}

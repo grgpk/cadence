@@ -21,6 +21,8 @@ import { Route as AdminIndexRouteImport } from './routes/admin/index'
 import { Route as AdminBookingsRouteImport } from './routes/admin/bookings'
 import { Route as AdminBugReportsRouteImport } from './routes/admin/bug-reports'
 import { Route as AdminCallingVisitsRouteImport } from './routes/admin/calling-visits'
+import { Route as AdminEmailsRouteImport } from './routes/admin/emails'
+import { Route as AdminHostsRouteImport } from './routes/admin/hosts'
 import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
 import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccesses'
 import { Route as BookSlugRouteImport } from './routes/book/$slug'
@@ -90,6 +92,16 @@ const AdminCallingVisitsRoute = AdminCallingVisitsRouteImport.update({
   path: '/calling-visits',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminEmailsRoute = AdminEmailsRouteImport.update({
+  id: '/emails',
+  path: '/emails',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
+const AdminHostsRoute = AdminHostsRouteImport.update({
+  id: '/hosts',
+  path: '/hosts',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminLeadsRoute = AdminLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -144,6 +156,8 @@ export interface FileRoutesByFullPath {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/emails': typeof AdminEmailsRoute
+  '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
@@ -164,6 +178,8 @@ export interface FileRoutesByTo {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/emails': typeof AdminEmailsRoute
+  '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
@@ -187,6 +203,8 @@ export interface FileRoutesById {
   '/admin/bookings': typeof AdminBookingsRoute
   '/admin/bug-reports': typeof AdminBugReportsRoute
   '/admin/calling-visits': typeof AdminCallingVisitsRoute
+  '/admin/emails': typeof AdminEmailsRoute
+  '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
@@ -211,6 +229,8 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
+    | '/admin/emails'
+    | '/admin/hosts'
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
@@ -231,6 +251,8 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
+    | '/admin/emails'
+    | '/admin/hosts'
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
@@ -253,6 +275,8 @@ export interface FileRouteTypes {
     | '/admin/bookings'
     | '/admin/bug-reports'
     | '/admin/calling-visits'
+    | '/admin/emails'
+    | '/admin/hosts'
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
@@ -362,6 +386,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCallingVisitsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/emails': {
+      id: '/admin/emails'
+      path: '/emails'
+      fullPath: '/admin/emails'
+      preLoaderRoute: typeof AdminEmailsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
+    '/admin/hosts': {
+      id: '/admin/hosts'
+      path: '/hosts'
+      fullPath: '/admin/hosts'
+      preLoaderRoute: typeof AdminHostsRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/leads': {
       id: '/admin/leads'
       path: '/leads'
@@ -425,6 +463,8 @@ interface AdminRouteRouteChildren {
   AdminBookingsRoute: typeof AdminBookingsRoute
   AdminBugReportsRoute: typeof AdminBugReportsRoute
   AdminCallingVisitsRoute: typeof AdminCallingVisitsRoute
+  AdminEmailsRoute: typeof AdminEmailsRoute
+  AdminHostsRoute: typeof AdminHostsRoute
   AdminLeadsRoute: typeof AdminLeadsRoute
   AdminRoleaccessesRoute: typeof AdminRoleaccessesRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -434,6 +474,8 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminBookingsRoute: AdminBookingsRoute,
   AdminBugReportsRoute: AdminBugReportsRoute,
   AdminCallingVisitsRoute: AdminCallingVisitsRoute,
+  AdminEmailsRoute: AdminEmailsRoute,
+  AdminHostsRoute: AdminHostsRoute,
   AdminLeadsRoute: AdminLeadsRoute,
   AdminRoleaccessesRoute: AdminRoleaccessesRoute,
   AdminIndexRoute: AdminIndexRoute,

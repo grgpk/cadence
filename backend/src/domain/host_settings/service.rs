@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{BookingPage, HostSettings},
+    models::{AdminHost, BookingPage, HostSettings},
 };
 use crate::{
     domain::auth::models::UserRecord,
@@ -76,6 +76,10 @@ pub async fn public_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
     db::find_active_by_slug(pool, &slug.to_lowercase())
         .await?
         .ok_or(AppError::NotFound)
+}
+
+pub async fn list_hosts(pool: &PgPool) -> AppResult<Vec<AdminHost>> {
+    db::list_hosts(pool).await.map_err(Into::into)
 }
 
 fn validate(settings: &HostSettings) -> AppResult<()> {

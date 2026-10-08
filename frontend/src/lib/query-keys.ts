@@ -3,6 +3,7 @@ export const QUERY_KEYS = {
   bookings: ["bookings"] as const,
   availability: ["availability"] as const,
   hostSettings: ["host-settings"] as const,
+  bookingPage: (slug: string) => ["booking-page", slug] as const,
   publicSlots: (slug: string) => ["public-slots", slug] as const,
   calendarEvents: ["google-calendar-events"] as const,
 } as const;

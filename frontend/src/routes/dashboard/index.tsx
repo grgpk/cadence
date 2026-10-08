@@ -1,19 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Clock, Copy, ExternalLink } from "lucide-react";
-import { toast } from "sonner";
+import { CalendarDays, Copy } from "lucide-react";
 
-import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
+import { Card, CardContent } from "../../components/ui/card";
+import { copyBookingLink } from "../../domains/dashboard/booking-link";
+import { BookingPageStatus } from "../../domains/dashboard/BookingPageStatus";
 import { BOOKING_COLUMNS, isUpcoming } from "../../domains/bookings/booking-columns";
 import { DataTable } from "../../domains/shared/DataTable";
 import { EmptyState } from "../../domains/shared/EmptyState";
@@ -22,20 +15,16 @@ import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
 import { getHostSettings } from "../../domains/widget/cadence-api";
 import { api } from "../../lib/api";
+import { APP_NAME } from "../../lib/config";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { bookingPath, ROUTES } from "../../lib/routes";
+import { ROUTES } from "../../lib/routes";
 
-export const Route = createFileRoute("/dashboard/")({ component: DashboardHome });
+export const Route = createFileRoute("/dashboard/")({
+  head: () => ({ meta: [{ title: `Overview | ${APP_NAME}` }] }),
+  component: DashboardHome,
+});
 
 const NEXT_UP_LIMIT = 5;
-
-function copyBookingLink(slug: string) {
-  const link = `${window.location.origin}${bookingPath(slug)}`;
-  navigator.clipboard.writeText(link).then(
-    () => toast.success("Link copied"),
-    () => toast.error("The link could not be copied. Copy it from the address bar."),
-  );
-}
 
 function DashboardHome() {
   const { user } = Route.useRouteContext();
@@ -43,11 +32,6 @@ function DashboardHome() {
     queryKey: QUERY_KEYS.bookings,
     queryFn: () => api<Booking[]>("/api/bookings"),
   });
-  const availability = useQuery({
-    queryKey: QUERY_KEYS.availability,
-    queryFn: () => api<AvailabilityRule[]>("/api/availability"),
-  });
-
   const settings = useQuery({
     queryKey: QUERY_KEYS.hostSettings,
     queryFn: getHostSettings,
@@ -60,50 +44,16 @@ function DashboardHome() {
     .filter((booking) => isUpcoming(booking, now))
     .sort((a, b) => a.slot_start.localeCompare(b.slot_start))
     .slice(0, NEXT_UP_LIMIT);
-  const hasNoHours = availability.data?.length === 0;
   const firstName = user?.full_name.trim().split(/\s+/)[0];
 
   return (
     <>
       <PageHeader
         title={firstName ? `Welcome back, ${firstName}` : "Welcome back"}
-        description="Your next calls and the page people book them from."
-        actions={
-          <>
-            {slug ? (
-              <Button variant="outline" asChild>
-                <Link to={ROUTES.bookingPage} params={{ slug }} target="_blank">
-                  <ExternalLink />
-                  Open booking page
-                </Link>
-              </Button>
-            ) : null}
-            <Button disabled={!slug} onClick={() => slug && copyBookingLink(slug)}>
-              <Copy />
-              Copy link
-            </Button>
-          </>
-        }
+        description="The page people book you from, and your next calls."
       />
 
-      {hasNoHours ? (
-        <Card className="border-warning/40">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="size-4 text-warning" />
-              Nobody can book you yet
-            </CardTitle>
-            <CardDescription>
-              You have no hours set, so your link has no times to offer.
-            </CardDescription>
-            <CardAction>
-              <Button size="sm" asChild>
-                <Link to={ROUTES.dashboardAvailability}>Set your hours</Link>
-              </Button>
-            </CardAction>
-          </CardHeader>
-        </Card>
-      ) : null}
+      <BookingPageStatus />
 
       <Card className="gap-0 overflow-hidden py-0">
         <div className="flex items-center justify-between gap-4 border-b py-3 pr-3 pl-5">

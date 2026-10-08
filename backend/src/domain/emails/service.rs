@@ -1,8 +1,55 @@
+use chrono::{DateTime, Duration, Utc};
 use serde_json::Value;
+use sqlx::PgPool;
 use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::format_description};
 use time_tz::{OffsetDateTimeExt, timezones};
 
+use super::{
+    db,
+    models::{AdminEmail, EmailState},
+};
+use crate::error::AppResult;
+
 const UTC: &str = "UTC";
+/// The worker runs every minute, so anything this late is not being picked up.
+const OVERDUE_AFTER_MINUTES: i64 = 5;
+
+pub async fn list_recent(pool: &PgPool) -> AppResult<Vec<AdminEmail>> {
+    let now = Utc::now();
+    Ok(db::list_recent(pool)
+        .await?
+        .into_iter()
+        .map(|row| AdminEmail {
+            state: state_of(row.sent_at, row.attempts, row.send_at, now),
+            id: row.id,
+            booking_unid: row.booking_unid,
+            email: row.email,
+            template: row.template,
+            send_at: row.send_at,
+            sent_at: row.sent_at,
+            attempts: row.attempts,
+            last_error: row.last_error,
+            created_at: row.created_at,
+        })
+        .collect())
+}
+
+fn state_of(
+    sent_at: Option<DateTime<Utc>>,
+    attempts: i32,
+    send_at: DateTime<Utc>,
+    now: DateTime<Utc>,
+) -> EmailState {
+    if sent_at.is_some() {
+        EmailState::Sent
+    } else if attempts > 0 {
+        EmailState::Retrying
+    } else if send_at < now - Duration::minutes(OVERDUE_AFTER_MINUTES) {
+        EmailState::Overdue
+    } else {
+        EmailState::Scheduled
+    }
+}
 
 pub fn render(template: &str, payload: Option<&Value>) -> Option<(String, String)> {
     let (subject, lead) = match template {
@@ -68,6 +115,16 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn email_state_follows_the_queue_row() {
+        let now = Utc::now();
+        let late = now - Duration::minutes(OVERDUE_AFTER_MINUTES + 1);
+        assert_eq!(state_of(Some(now), 3, late, now), EmailState::Sent);
+        assert_eq!(state_of(None, 1, late, now), EmailState::Retrying);
+        assert_eq!(state_of(None, 0, late, now), EmailState::Overdue);
+        assert_eq!(state_of(None, 0, now, now), EmailState::Scheduled);
+    }
 
     const TEMPLATES: [&str; 4] = [
         "booking_confirmation",

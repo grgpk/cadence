@@ -2,12 +2,15 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import type { Lead } from "../../bindings/Lead";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
+import { DetailSheet } from "../../domains/admin/components/DetailSheet";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
 import { TwoLine, type Column } from "../../domains/shared/DataTable";
 import { LEAD_STATUS, StatusBadge } from "../../domains/shared/StatusBadge";
+import { APP_NAME } from "../../lib/config";
 import { formatDateTime } from "../../lib/format";
 
 export const Route = createFileRoute("/admin/leads")({
+  head: () => ({ meta: [{ title: `${ADMIN_PAGES.leads.title} | ${APP_NAME}` }] }),
   component: AdminLeadsPage,
 });
 
@@ -18,13 +21,39 @@ function formatPhone(lead: Lead): string {
   return isDialCode && !phone.startsWith("+") ? `+${lead.country_code} ${phone}` : phone;
 }
 
+function leadName(lead: Lead): string {
+  return [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "No name yet";
+}
+
 const COLUMNS: Column<Lead>[] = [
   {
     header: "Lead",
     cell: (lead) => (
       <TwoLine
         primary={
-          [lead.first_name, lead.last_name].filter(Boolean).join(" ") || "No name yet"
+          <DetailSheet
+            trigger={leadName(lead)}
+            title={leadName(lead)}
+            description={lead.email ?? "No email yet"}
+            fields={[
+              { label: "Phone", value: lead.phone ? formatPhone(lead) : null },
+              { label: "Working on", value: lead.currently_working_on },
+              { label: "What is stopping them", value: lead.what_stopping_you },
+              { label: "Investment comfort", value: lead.investment_comfort },
+              { label: "Urgency", value: lead.urgency_level },
+              { label: "Heard about us from", value: lead.how_heard_about_us },
+              { label: "Came from page", value: lead.source_page },
+              {
+                label: "Campaign",
+                value:
+                  [lead.utm_source, lead.utm_medium, lead.utm_campaign]
+                    .filter(Boolean)
+                    .join(", ") || null,
+              },
+              { label: "Created", value: formatDateTime(lead.created_at) },
+              { label: "Last changed", value: formatDateTime(lead.updated_at) },
+            ]}
+          />
         }
         secondary={lead.email ?? "No email yet"}
       />
@@ -71,11 +100,15 @@ function AdminLeadsPage() {
   return (
     <AdminDataPage<Lead>
       {...ADMIN_PAGES.leads}
-      endpoint="/api/admin/leads"
       emptyTitle="No leads yet"
       emptyDescription="A lead appears as soon as someone starts the booking form."
       rowKey={(lead) => lead.unid}
       columns={COLUMNS}
+      searchText={(lead) =>
+        [leadName(lead), lead.email, lead.phone, lead.qualification_status]
+          .filter(Boolean)
+          .join(" ")
+      }
     />
   );
 }

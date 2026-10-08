@@ -13,5 +13,7 @@ pub fn public_routes() -> Router<AppState> {
 }
 
 pub fn protected_routes() -> Router<AppState> {
-    Router::new().route("/api/admin/calling-visits", get(handlers::list_all))
+    Router::new()
+        .route("/api/admin/calling-visits", get(handlers::list_all))
+        .route("/api/admin/calling-visits/funnel", get(handlers::funnel))
 }

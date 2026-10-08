@@ -3,7 +3,7 @@ use std::net::IpAddr;
 
 use super::{
     db,
-    models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest},
+    models::{CallingVisit, CallingVisitEngagement, CallingVisitRequest, VisitFunnel},
 };
 use crate::error::{AppError, AppResult};
 
@@ -36,5 +36,9 @@ impl CallingVisitsService {
         db::CallingVisitsDb::list_all(pool)
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn funnel(pool: &PgPool) -> AppResult<VisitFunnel> {
+        db::CallingVisitsDb::funnel(pool).await.map_err(Into::into)
     }
 }

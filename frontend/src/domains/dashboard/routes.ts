@@ -13,3 +13,11 @@ export const DASHBOARD_NAV: NavSection[] = [
     ],
   },
 ];
+
+/** Anchors on the settings page, so other pages can link to one setting. */
+export const SETTINGS_SECTIONS = {
+  bookingPage: "booking-page",
+  time: "time",
+  calls: "calls",
+  questions: "questions",
+} as const;
