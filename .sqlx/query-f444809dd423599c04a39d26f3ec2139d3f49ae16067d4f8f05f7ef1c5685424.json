@@ -1,0 +1,258 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE leads SET form_submitted_at = now(), source_page = COALESCE($3, source_page), updated_at = now()\n         WHERE host_unid = $1 AND unid = $2\n         RETURNING unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,\n                   investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,\n                   source_page, utm_source, utm_medium, utm_campaign,\n                   qualification_status, form_submitted_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "first_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "first_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "last_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "last_name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "phone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "country_code",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "country_code"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "investment_comfort",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "investment_comfort"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "what_stopping_you",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "what_stopping_you"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "how_heard_about_us",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "how_heard_about_us"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "currently_working_on",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "currently_working_on"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "urgency_level",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "urgency_level"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "source_page",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "source_page"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "utm_source",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "utm_source"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "utm_medium",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "utm_medium"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "utm_campaign",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "utm_campaign"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
+        "name": "qualification_status",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "qualification_status"
+          }
+        }
+      },
+      {
+        "ordinal": 19,
+        "name": "form_submitted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "form_submitted_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f444809dd423599c04a39d26f3ec2139d3f49ae16067d4f8f05f7ef1c5685424"
+}

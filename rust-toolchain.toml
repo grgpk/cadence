@@ -1,0 +1,5 @@
+# Pin lint and formatter behavior to CI baseline.
+[toolchain]
+channel = "1.97.1"
+components = ["clippy", "rustfmt", "rust-src"]
+profile = "default"

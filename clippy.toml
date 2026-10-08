@@ -1,0 +1,45 @@
+# Test code gets ergonomic escapes; production code does not.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true
+allow-indexing-slicing-in-tests = true
+allow-dbg-in-tests = true
+
+# Internal binary, not published library.
+avoid-breaking-exported-api = false
+
+# Match pinned CI toolchain.
+msrv = "1.97.0"
+
+# Catch complexity before review.
+too-many-arguments-threshold = 8
+too-many-lines-threshold = 120
+type-complexity-threshold = 250
+enum-variant-name-threshold = 4
+cognitive-complexity-threshold = 30
+excessive-nesting-threshold = 6
+large-error-threshold = 160
+future-size-threshold = 16384
+stack-size-threshold = 262144
+trivial-copy-size-limit = 16
+array-size-threshold = 32768
+vec-box-size-threshold = 4096
+semicolon-inside-block-ignore-singleline = true
+accept-comment-above-statement = true
+accept-comment-above-attributes = true
+check-private-items = true
+
+# Require compile-time checked SQL and safe async/runtime APIs.
+disallowed-macros = [
+    { path = "sqlx::query", reason = "use query_as! or query_scalar! for compile-time-checked SQL" },
+]
+disallowed-methods = [
+    { path = "sqlx::query_as", reason = "use the query_as! macro for compile-time type safety" },
+    { path = "sqlx::query", reason = "use query_as! or query_scalar! for compile-time type safety" },
+    { path = "std::env::set_var", reason = "mutating the process env at runtime is a data race under async" },
+    { path = "std::env::remove_var", reason = "mutating the process env at runtime is a data race under async" },
+    { path = "std::time::SystemTime::now", reason = "use time::OffsetDateTime::now_utc so timestamps stay UTC and consistent" },
+]
+disallowed-types = [
+    { path = "std::sync::RwLock", reason = "use tokio::sync::RwLock in async code, or parking_lot::RwLock for short non-async critical sections" },
+]

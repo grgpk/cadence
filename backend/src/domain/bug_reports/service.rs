@@ -5,7 +5,9 @@
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
+use uuid::Uuid;
 
 use crate::domain::bug_reports::models::{AdminBugReport, AdminBugType};
 
@@ -18,6 +20,23 @@ pub struct NewBugReport {
     pub stack_trace: Option<String>,
     pub url: Option<String>,
     pub user_agent: Option<String>,
+}
+
+struct AdminBugReportRow {
+    id: i64,
+    unid: Uuid,
+    bugtype: String,
+    similarityhash: i32,
+    message: Option<String>,
+    exceptionmessage: Option<String>,
+    stacktrace: Option<String>,
+    userlogin: Option<String>,
+    url: Option<String>,
+    useragent: Option<String>,
+    application: Option<String>,
+    created: DateTime<Utc>,
+    total_count: Option<i64>,
+    similar_count: Option<i64>,
 }
 
 impl NewBugReport {
@@ -104,8 +123,9 @@ impl BugReportsService {
     }
 
     pub async fn list(pool: &PgPool) -> Result<Vec<AdminBugReport>, sqlx::Error> {
-        sqlx::query_as::<_, AdminBugReport>(
-            "WITH unique_bugs AS (
+        let rows = sqlx::query_as!(
+            AdminBugReportRow,
+            r#"WITH unique_bugs AS (
                 SELECT DISTINCT ON (similarityhash)
                     id, unid, bugtype, similarityhash, message, exceptionmessage,
                     stacktrace, userlogin, url, useragent, application, created
@@ -118,11 +138,31 @@ impl BugReportsService {
             )
             SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,
                 stacktrace, userlogin, url, useragent, application, created,
-                COUNT(*) OVER() AS total_count, similar_count
-            FROM counted ORDER BY created DESC LIMIT 500",
+                    COUNT(*) OVER() AS total_count, similar_count
+            FROM counted ORDER BY created DESC LIMIT 500"#,
         )
         .fetch_all(pool)
-        .await
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| AdminBugReport {
+                id: row.id,
+                unid: row.unid,
+                bugtype: row.bugtype,
+                similarityhash: row.similarityhash,
+                message: row.message,
+                exceptionmessage: row.exceptionmessage,
+                stacktrace: row.stacktrace,
+                userlogin: row.userlogin,
+                url: row.url,
+                useragent: row.useragent,
+                application: row.application,
+                created: row.created,
+                total_count: row.total_count.unwrap_or_default(),
+                similar_count: row.similar_count.unwrap_or_default(),
+            })
+            .collect())
     }
 }
 
@@ -158,10 +198,11 @@ mod contract_tests {
             url: Option<String>,
         }
 
-        let row = sqlx::query_as::<_, BugRow>(
+        let row = sqlx::query_as!(
+            BugRow,
             "SELECT bugtype, userlogin, url FROM bug_reports WHERE id = $1",
+            id,
         )
-        .bind(id)
         .fetch_one(&pool)
         .await?;
 

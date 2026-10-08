@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE calling_visits SET duration_seconds = COALESCE($2, duration_seconds), form_started = COALESCE($3, form_started), form_submitted = COALESCE($4, form_submitted), booked_call = COALESCE($5, booked_call), updated_at = now() WHERE unid = $1 RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4",
+        "Bool",
+        "Bool",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "2999f3457914d1537205eca346d9da7dda59850dda76b2405d31531c3fa04247"
+}

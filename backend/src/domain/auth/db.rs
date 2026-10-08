@@ -18,10 +18,11 @@ struct RoleRow {
 }
 
 async fn roles_for(pool: &PgPool, user_unid: Uuid) -> Result<Vec<Role>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, RoleRow>(
+    let rows = sqlx::query_as!(
+        RoleRow,
         "SELECT role FROM roleaccesses WHERE grantedto_unid = $1 ORDER BY role",
+        user_unid,
     )
-    .bind(user_unid)
     .fetch_all(pool)
     .await?;
 
@@ -43,10 +44,11 @@ async fn assemble(pool: &PgPool, base: UserBase) -> Result<UserRecord, sqlx::Err
 }
 
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRecord>, sqlx::Error> {
-    let base = sqlx::query_as::<_, UserBase>(
+    let base = sqlx::query_as!(
+        UserBase,
         "SELECT unid, email, password_hash, full_name, status FROM users WHERE lower(email) = lower($1)",
+        email,
     )
-    .bind(email)
     .fetch_optional(pool)
     .await?;
 
@@ -57,10 +59,11 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserReco
 }
 
 pub async fn find_by_unid(pool: &PgPool, unid: Uuid) -> Result<Option<UserRecord>, sqlx::Error> {
-    let base = sqlx::query_as::<_, UserBase>(
+    let base = sqlx::query_as!(
+        UserBase,
         "SELECT unid, email, password_hash, full_name, status FROM users WHERE unid = $1",
+        unid,
     )
-    .bind(unid)
     .fetch_optional(pool)
     .await?;
 
@@ -77,19 +80,22 @@ pub async fn create_host(
     full_name: &str,
 ) -> Result<UserRecord, sqlx::Error> {
     let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
-    let user = sqlx::query_as::<_, UserBase>(
+    let user = sqlx::query_as!(
+        UserBase,
         "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status",
+        email,
+        password_hash,
+        full_name,
     )
-    .bind(email)
-    .bind(password_hash)
-    .bind(full_name)
     .fetch_one(&mut *transaction)
     .await?;
 
-    sqlx::query("INSERT INTO roleaccesses (grantedto_unid, role) VALUES ($1, 'Host')")
-        .bind(user.unid)
-        .execute(&mut *transaction)
-        .await?;
+    sqlx::query_scalar!(
+        "INSERT INTO roleaccesses (grantedto_unid, role) VALUES ($1, 'Host') RETURNING 1",
+        user.unid,
+    )
+    .fetch_one(&mut *transaction)
+    .await?;
     transaction.commit().await?;
 
     assemble(pool, user).await

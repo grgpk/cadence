@@ -40,18 +40,20 @@ pub async fn create(
 }
 
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
-    sqlx::query_as::<_, Booking>(
+    sqlx::query_as!(
+        Booking,
         "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
          FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC",
+        host_unid,
     )
-    .bind(host_unid)
     .fetch_all(pool)
     .await
 }
 
 impl BookingsDb {
     pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
-        sqlx::query_as::<_, Booking>(
+        sqlx::query_as!(
+            Booking,
             "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url, created_at
              FROM bookings ORDER BY slot_start DESC",
         )
@@ -68,15 +70,15 @@ pub async fn queue_email(
     send_at: DateTime<Utc>,
     payload: Value,
 ) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "INSERT INTO email_queue (booking_unid, email, template, send_at, payload) VALUES ($1, $2, $3, $4, $5)",
+    sqlx::query_scalar!(
+        "INSERT INTO email_queue (booking_unid, email, template, send_at, payload) VALUES ($1, $2, $3, $4, $5) RETURNING 1",
+        booking_unid,
+        email,
+        template,
+        send_at,
+        payload,
     )
-    .bind(booking_unid)
-    .bind(email)
-    .bind(template)
-    .bind(send_at)
-    .bind(payload)
-    .execute(connection)
+    .fetch_one(connection)
     .await
     .map(|_| ())
 }

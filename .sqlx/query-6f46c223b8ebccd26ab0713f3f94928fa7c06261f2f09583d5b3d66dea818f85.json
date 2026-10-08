@@ -1,0 +1,172 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH unique_bugs AS (\n                SELECT DISTINCT ON (similarityhash)\n                    id, unid, bugtype, similarityhash, message, exceptionmessage,\n                    stacktrace, userlogin, url, useragent, application, created\n                FROM bug_reports\n                ORDER BY similarityhash, created DESC\n            ), counted AS (\n                SELECT u.*,\n                    (SELECT COUNT(*) FROM bug_reports b2 WHERE b2.similarityhash = u.similarityhash) AS similar_count\n                FROM unique_bugs u\n            )\n            SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,\n                stacktrace, userlogin, url, useragent, application, created,\n                    COUNT(*) OVER() AS total_count, similar_count\n            FROM counted ORDER BY created DESC LIMIT 500",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "bugtype",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "bugtype"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "similarityhash",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "similarityhash"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "message"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "exceptionmessage",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "exceptionmessage"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "stacktrace",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "stacktrace"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "userlogin",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "userlogin"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "useragent",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "useragent"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "application",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "application"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "created",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "created"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "total_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "similar_count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "6f46c223b8ebccd26ab0713f3f94928fa7c06261f2f09583d5b3d66dea818f85"
+}

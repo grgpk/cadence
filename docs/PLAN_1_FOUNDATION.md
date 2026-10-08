@@ -25,6 +25,8 @@ TanStack frontend.
 - `backend/tests/export_bindings.rs` owns ts-rs exports.
 - `frontend/` uses TanStack Start/Vite, TanStack Router, TanStack Query,
   shadcn UI, and strict Biome/Knip checks.
+- Rust uses Rustify-parity workspace Clippy policy, pinned toolchain, and
+  `clippy.toml` thresholds/API bans.
 - Root `pnpm run dev` uses `concurrently` and `wait-on` to run both apps.
 
 ## Data model

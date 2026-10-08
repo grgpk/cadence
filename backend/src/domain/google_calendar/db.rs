@@ -28,7 +28,7 @@ impl GoogleCalendarDb {
         refresh_token: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
+        sqlx::query_scalar!(
             "INSERT INTO google_calendar_config
                 (host_unid, access_token, refresh_token, expires_at, calendar_id, updated_at)
              VALUES ($1, $2, $3, $4, 'primary', now())
@@ -36,13 +36,14 @@ impl GoogleCalendarDb {
                 access_token = EXCLUDED.access_token,
                 refresh_token = EXCLUDED.refresh_token,
                 expires_at = EXCLUDED.expires_at,
-                updated_at = now()",
+                updated_at = now()
+             RETURNING 1",
             host_unid,
             access_token,
             refresh_token,
             expires_at,
         )
-        .execute(pool)
+        .fetch_optional(pool)
         .await
         .map(|_| ())
     }
@@ -53,25 +54,26 @@ impl GoogleCalendarDb {
         access_token: &str,
         expires_at: DateTime<Utc>,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query!(
+        sqlx::query_scalar!(
             "UPDATE google_calendar_config
              SET access_token = $1, expires_at = $2, updated_at = now()
-             WHERE host_unid = $3",
+             WHERE host_unid = $3
+             RETURNING 1",
             access_token,
             expires_at,
             host_unid,
         )
-        .execute(pool)
+        .fetch_optional(pool)
         .await
         .map(|_| ())
     }
 
     pub async fn delete(pool: &PgPool, host_unid: Uuid) -> Result<(), sqlx::Error> {
-        sqlx::query!(
-            "DELETE FROM google_calendar_config WHERE host_unid = $1",
+        sqlx::query_scalar!(
+            "DELETE FROM google_calendar_config WHERE host_unid = $1 RETURNING 1",
             host_unid
         )
-        .execute(pool)
+        .fetch_optional(pool)
         .await
         .map(|_| ())
     }

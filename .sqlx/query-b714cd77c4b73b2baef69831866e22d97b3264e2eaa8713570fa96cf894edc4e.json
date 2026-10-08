@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid, grantedto_unid, role FROM roleaccesses WHERE grantedto_unid = $1 ORDER BY role",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "roleaccesses",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "grantedto_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "roleaccesses",
+            "name": "grantedto_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "role",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "roleaccesses",
+            "name": "role"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b714cd77c4b73b2baef69831866e22d97b3264e2eaa8713570fa96cf894edc4e"
+}

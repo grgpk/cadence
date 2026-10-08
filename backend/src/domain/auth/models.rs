@@ -19,13 +19,13 @@ impl Role {
 }
 
 impl fmt::Display for Role {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let value = match self {
             Self::Root => "Root",
             Self::Admin => "Admin",
             Self::Host => "Host",
         };
-        formatter.write_str(value)
+        f.write_str(value)
     }
 }
 

@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO calling_visits (source_page, referer, utm_source, utm_medium, utm_campaign, user_agent, ip_address, country)\n         VALUES ($1, $2, $3, $4, $5, $6, $7::text::inet, $8) RETURNING unid, source_page, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "source_page",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "source_page"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "97bfd1b32ac6e8139f7e74cc589bfdc2494543578aa548c4017ca30ab4ffa639"
+}
