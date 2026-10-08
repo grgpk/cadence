@@ -15,6 +15,19 @@ GitHub Actions configuration:
 | Variable | `PROD_DOCKER_REPOSITORY=cadence` |
 | Variable | `LETSENCRYPT_EMAIL=contact@rustify.rs` |
 
+Current Cadence GitHub setup already has `SSH_PRIVATE_KEY`, `SERVER_IP`, and
+`LETSENCRYPT_EMAIL`. Add the two Docker secrets and repository variable before
+first image deploy.
+
+Application runtime secrets are separate and stay on the server:
+
+| Group | Variables in `/root/cadence/.env` |
+| --- | --- |
+| Database | `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE`, `DATABASE_URL` |
+| Auth | `JWT_SECRET`, `APP_ENV`, `ENVIRONMENT`, `CORS_ORIGINS` |
+| Google Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
+| Resend SMTP | `EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_SMTP_HOST`, `RESEND_SMTP_PORT`, `RESEND_SMTP_USERNAME` |
+
 Create server runtime env. Never commit it:
 
 ```sh
