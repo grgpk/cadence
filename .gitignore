@@ -1,5 +1,6 @@
 /target
 .env
+.env.prod
 node_modules/
 frontend/.output/
 **/node_modules/

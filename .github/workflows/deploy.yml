@@ -1,31 +1,142 @@
-name: Deploy Cadence
+name: Build and deploy Cadence
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+    inputs:
+      skip_backend_build:
+        description: Skip backend image build and deploy latest image
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      skip_frontend_build:
+        description: Skip frontend image build and deploy latest image
+        required: false
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
+      confirm_deploy:
+        description: Confirm production deployment
+        required: true
+        default: 'false'
+        type: choice
+        options: ['false', 'true']
 
 concurrency:
-  group: cadence-shared-apps-production
+  group: cadence-production
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   quality:
     uses: ./.github/workflows/quality.yml
 
-  deploy:
+  build_backend:
+    name: Build backend image
     needs: quality
+    if: github.event.inputs.skip_backend_build != 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            .dockerignore
+            Cargo.toml
+            Cargo.lock
+            Dockerfile.backend
+            .sqlx
+            backend
+            migrations
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.PROD_DOCKER_USERNAME }}
+          password: ${{ secrets.PROD_DOCKER_PASSWORD }}
+
+      - id: tag
+        run: echo "image_tag=${GITHUB_SHA::7}-cadence-backend" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.backend
+          push: true
+          tags: |
+            ${{ secrets.PROD_DOCKER_USERNAME }}/${{ vars.PROD_DOCKER_REPOSITORY }}:${{ steps.tag.outputs.image_tag }}
+            ${{ secrets.PROD_DOCKER_USERNAME }}/${{ vars.PROD_DOCKER_REPOSITORY }}:latest-cadence-backend
+          cache-from: type=gha,scope=cadence-backend
+          cache-to: type=gha,mode=max,scope=cadence-backend
+
+  build_frontend:
+    name: Build frontend image
+    needs: quality
+    if: github.event.inputs.skip_frontend_build != 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            .dockerignore
+            Dockerfile.frontend
+            frontend
+            package.json
+            pnpm-lock.yaml
+            pnpm-workspace.yaml
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.PROD_DOCKER_USERNAME }}
+          password: ${{ secrets.PROD_DOCKER_PASSWORD }}
+
+      - id: tag
+        run: echo "image_tag=${GITHUB_SHA::7}-cadence-frontend" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: true
+          build-args: |
+            VITE_API_URL=
+          tags: |
+            ${{ secrets.PROD_DOCKER_USERNAME }}/${{ vars.PROD_DOCKER_REPOSITORY }}:${{ steps.tag.outputs.image_tag }}
+            ${{ secrets.PROD_DOCKER_USERNAME }}/${{ vars.PROD_DOCKER_REPOSITORY }}:latest-cadence-frontend
+          cache-from: type=gha,scope=cadence-frontend
+          cache-to: type=gha,mode=max,scope=cadence-frontend
+
+  deploy:
+    name: Deploy containers
+    needs: [quality, build_backend, build_frontend]
+    if: |
+      always() &&
+      needs.quality.result == 'success' &&
+      (needs.build_backend.result == 'success' || needs.build_backend.result == 'skipped') &&
+      (needs.build_frontend.result == 'success' || needs.build_frontend.result == 'skipped') &&
+      github.event.inputs.confirm_deploy == 'true'
     runs-on: ubuntu-latest
     env:
       SERVER_IP: ${{ vars.SERVER_IP }}
-      DEPLOY_USER: root
       DEPLOY_DIR: /root/cadence
-      LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          filter: blob:none
+          sparse-checkout: |
+            docker-compose.prod.yml
+            nginx.prod.conf
+            nginx.prod.bootstrap.conf
 
       - name: Configure SSH
         env:
@@ -34,64 +145,110 @@ jobs:
           set -euo pipefail
           test -n "$SERVER_IP"
           test -n "$SSH_PRIVATE_KEY"
-          mkdir -p "$HOME/.ssh"
-          chmod 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/deploy_key"
-          chmod 600 "$HOME/.ssh/deploy_key"
-          ssh-keyscan -H "$SERVER_IP" >> "$HOME/.ssh/known_hosts"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$SERVER_IP" >> ~/.ssh/known_hosts
 
-      - name: Deploy main on shared-apps
+      - name: Copy deployment config
         run: |
           set -euo pipefail
-          SSH=(ssh -i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$SERVER_IP")
-          "${SSH[@]}" "set -e
-            cd '$DEPLOY_DIR'
-            git fetch origin main
-            git checkout main
-            git reset --hard origin/main
-            test -s .env
-            docker compose -f docker-compose.prod.yml build
-            docker compose -f docker-compose.prod.yml up -d
-          "
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
+          SCP=(scp -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes)
+          "${SSH[@]}" "install -d -m 700 '$DEPLOY_DIR'"
+          "${SCP[@]}" docker-compose.prod.yml root@"$SERVER_IP":"$DEPLOY_DIR/docker-compose.prod.yml"
+          "${SCP[@]}" nginx.prod.conf root@"$SERVER_IP":"$DEPLOY_DIR/nginx.prod.conf"
+          "${SCP[@]}" nginx.prod.bootstrap.conf root@"$SERVER_IP":"$DEPLOY_DIR/nginx.prod.bootstrap.conf"
+
+      - name: Login to Docker Hub on server
+        env:
+          DOCKER_USERNAME: ${{ secrets.PROD_DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.PROD_DOCKER_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$DOCKER_USERNAME"
+          test -n "$DOCKER_PASSWORD"
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
+          printf '%s' "$DOCKER_PASSWORD" | "${SSH[@]}" "docker login -u '$DOCKER_USERNAME' --password-stdin"
+
+      - name: Pull and swap containers
+        env:
+          DOCKER_USERNAME: ${{ secrets.PROD_DOCKER_USERNAME }}
+          DOCKER_REPOSITORY: ${{ vars.PROD_DOCKER_REPOSITORY }}
+          BACKEND_IMAGE_TAG: ${{ needs.build_backend.outputs.image_tag || 'latest-cadence-backend' }}
+          FRONTEND_IMAGE_TAG: ${{ needs.build_frontend.outputs.image_tag || 'latest-cadence-frontend' }}
+        run: |
+          set -euo pipefail
+          test -n "$DOCKER_USERNAME"
+          test -n "$DOCKER_REPOSITORY"
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
+          {
+            printf 'DOCKER_USERNAME=%s\n' "$DOCKER_USERNAME"
+            printf 'DOCKER_REPOSITORY=%s\n' "$DOCKER_REPOSITORY"
+            printf 'BACKEND_IMAGE_TAG=%s\n' "$BACKEND_IMAGE_TAG"
+            printf 'FRONTEND_IMAGE_TAG=%s\n' "$FRONTEND_IMAGE_TAG"
+          } | "${SSH[@]}" 'set -eu
+            runtime_env=$(mktemp "$HOME/.cadence-deploy-env.XXXXXX")
+            trap "rm -f \"$runtime_env\"" EXIT
+            chmod 600 "$runtime_env"
+            cat > "$runtime_env"
+            compose() {
+              docker compose --env-file "$HOME/.env" --env-file "$runtime_env" -f "$HOME/cadence/docker-compose.prod.yml" "$@"
+            }
+            compose config --images >/dev/null
+            compose pull backend frontend
+            compose up -d db
+            compose up -d backend frontend
+          '
 
       - name: Configure Nginx and TLS
+        env:
+          LETSENCRYPT_EMAIL: ${{ vars.LETSENCRYPT_EMAIL }}
         run: |
           set -euo pipefail
-          SSH=(ssh -i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$SERVER_IP")
-          "${SSH[@]}" "set -e
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
+          printf '%s\n' "$LETSENCRYPT_EMAIL" | "${SSH[@]}" 'read -r letsencrypt_email
+            set -eu
             if [ ! -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
-              install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.bootstrap.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
               nginx -t
               systemctl reload nginx
-              if test -n '$LETSENCRYPT_EMAIL'; then
-                certbot certonly --nginx --non-interactive --agree-tos --email '$LETSENCRYPT_EMAIL' --cert-name cadence.rustify.app -d cadence.rustify.app
-              else
-                echo 'LETSENCRYPT_EMAIL missing; keeping HTTP bootstrap until DNS and email are configured'
+              if [ -n "$letsencrypt_email" ]; then
+                certbot certonly --nginx --non-interactive --agree-tos --email "$letsencrypt_email" --cert-name cadence.rustify.app -d cadence.rustify.app
               fi
             fi
             if [ -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
-              install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+              install -m 0644 "$HOME/cadence/nginx.prod.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
             else
-              install -m 0644 '$DEPLOY_DIR/deploy/nginx.cadence.bootstrap.conf' /etc/nginx/conf.d/cadence.rustify.app.conf
+              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
             fi
             nginx -t
             systemctl reload nginx
-          "
+          '
 
       - name: Smoke test
         run: |
           set -euo pipefail
-          SSH=(ssh -i "$HOME/.ssh/deploy_key" -o BatchMode=yes -o StrictHostKeyChecking=yes "$DEPLOY_USER@$SERVER_IP")
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
           for attempt in $(seq 1 30); do
-            if "${SSH[@]}" "curl -fsS http://127.0.0.1:5105/health >/dev/null && curl -fsS http://127.0.0.1:5104/ >/dev/null"; then
-              if "${SSH[@]}" "test -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem"; then
-                "${SSH[@]}" "curl -fsS --resolve cadence.rustify.app:443:127.0.0.1 https://cadence.rustify.app/health"
-              else
-                "${SSH[@]}" "curl -fsS -H 'Host: cadence.rustify.app' http://127.0.0.1/ >/dev/null"
-              fi
+            if "${SSH[@]}" 'curl -fsS http://127.0.0.1:5105/health >/dev/null && curl -fsS http://127.0.0.1:5104/ >/dev/null'; then
               exit 0
             fi
             sleep 2
           done
-          "${SSH[@]}" "cd '$DEPLOY_DIR' && docker compose -f docker-compose.prod.yml ps && docker compose -f docker-compose.prod.yml logs --tail=80 backend frontend"
+          "${SSH[@]}" 'cd "$HOME/cadence" && docker compose --env-file "$HOME/.env" -f docker-compose.prod.yml ps && docker compose --env-file "$HOME/.env" -f docker-compose.prod.yml logs --tail=80 backend frontend'
           exit 1
+
+      - name: Cleanup unused images
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
+          "${SSH[@]}" 'docker image prune -af && docker builder prune -f'
+
+      - name: Tag deployed commit
+        run: |
+          set -euo pipefail
+          tag_name="deploy_cadence_$(date -u +'%Y/%m/%d_%Hh%Mm%Ss')_${GITHUB_RUN_ID}"
+          git tag "$tag_name" "$GITHUB_SHA"
+          git push origin "$tag_name"

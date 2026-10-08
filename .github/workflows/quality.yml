@@ -39,5 +39,6 @@ jobs:
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - run: cargo test --workspace --test export_bindings
       - run: pnpm --dir frontend build
+      - run: pnpm --dir frontend typecheck
       - run: pnpm --dir frontend lint
       - run: pnpm --dir frontend knip
