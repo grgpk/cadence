@@ -33,6 +33,17 @@ pub async fn create(
     .await
 }
 
+pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> Result<bool, sqlx::Error> {
+    let deleted = sqlx::query_scalar!(
+        "DELETE FROM availability WHERE id = $1 AND host_unid = $2 RETURNING id",
+        id,
+        host_unid,
+    )
+    .fetch_optional(pool)
+    .await?;
+    Ok(deleted.is_some())
+}
+
 pub async fn has_host(pool: &PgPool, host_unid: Uuid) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar::<_, bool>("SELECT EXISTS(SELECT 1 FROM users WHERE unid = $1)")
         .bind(host_unid)

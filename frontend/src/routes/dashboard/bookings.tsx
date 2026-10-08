@@ -1,79 +1,133 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, CircleAlert, Inbox } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { CalendarDays } from "lucide-react";
+import { useMemo } from "react";
 
 import type { Booking } from "../../bindings/Booking";
-import { Alert, AlertDescription } from "../../components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Skeleton } from "../../components/ui/skeleton";
+import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { BOOKING_COLUMNS, isUpcoming } from "../../domains/bookings/booking-columns";
+import { DataTable } from "../../domains/shared/DataTable";
+import { EmptyState } from "../../domains/shared/EmptyState";
+import { ErrorState } from "../../domains/shared/ErrorState";
+import { PageHeader } from "../../domains/shared/PageHeader";
+import { TableSkeleton } from "../../domains/shared/TableSkeleton";
 import { api } from "../../lib/api";
+import { APP_NAME } from "../../lib/config";
 import { QUERY_KEYS } from "../../lib/query-keys";
+import { ROUTES } from "../../lib/routes";
 
-export const Route = createFileRoute("/dashboard/bookings")({ component: BookingsPage });
+export const Route = createFileRoute("/dashboard/bookings")({
+  head: () => ({ meta: [{ title: `Bookings | ${APP_NAME}` }] }),
+  component: BookingsPage,
+});
+
+const TABS = { UPCOMING: "upcoming", PAST: "past" } as const;
+
+function BookingList({
+  bookings,
+  empty,
+}: {
+  bookings: Booking[];
+  empty: React.ReactNode;
+}) {
+  return (
+    <Card className="gap-0 overflow-hidden py-0">
+      {bookings.length === 0 ? (
+        empty
+      ) : (
+        <DataTable
+          columns={BOOKING_COLUMNS}
+          rows={bookings}
+          rowKey={(booking) => booking.unid}
+        />
+      )}
+    </Card>
+  );
+}
 
 function BookingsPage() {
-  const {
-    data: bookings = [],
-    error,
-    isPending,
-  } = useQuery({
+  const query = useQuery({
     queryKey: QUERY_KEYS.bookings,
     queryFn: () => api<Booking[]>("/api/bookings"),
   });
 
+  const { upcoming, past } = useMemo(() => {
+    const now = Date.now();
+    const all = query.data ?? [];
+    return {
+      // Soonest first for what is coming, most recent first for what has been.
+      upcoming: all
+        .filter((booking) => isUpcoming(booking, now))
+        .sort((a, b) => a.slot_start.localeCompare(b.slot_start)),
+      past: all
+        .filter((booking) => !isUpcoming(booking, now))
+        .sort((a, b) => b.slot_start.localeCompare(a.slot_start)),
+    };
+  }, [query.data]);
+
   return (
-    <section className="flex flex-1 flex-col gap-6">
-      <header>
-        <p className="text-sm font-medium text-muted-foreground">Workspace</p>
-        <h1 className="text-2xl font-semibold tracking-tight">Bookings</h1>
-        <p className="text-muted-foreground">Calls booked through your Cadence widget.</p>
-      </header>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="size-5 text-muted-foreground" />
-            Upcoming and past calls
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isPending ? (
-            <div className="space-y-4">
-              <Skeleton className="h-14 w-full" />
-              <Skeleton className="h-14 w-full" />
-            </div>
-          ) : error ? (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
-              <AlertDescription>{error.message}</AlertDescription>
-            </Alert>
-          ) : bookings.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-12 text-center text-muted-foreground">
-              <Inbox className="size-8" />
-              <p>No bookings yet.</p>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {bookings.map((booking) => (
-                <article
-                  key={booking.unid}
-                  className="flex flex-wrap items-center justify-between gap-4 py-4 first:pt-0 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium">{booking.invitee_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {booking.invitee_email}
-                    </p>
-                  </div>
-                  <div className="text-right text-sm text-muted-foreground">
-                    <p>{new Date(booking.slot_start).toLocaleString()}</p>
-                    <p>{booking.status}</p>
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </section>
+    <>
+      <PageHeader
+        title="Bookings"
+        description="Calls people booked from your booking page."
+      />
+      {query.isPending ? (
+        <Card className="gap-0 overflow-hidden py-0">
+          <TableSkeleton />
+        </Card>
+      ) : query.isError ? (
+        <ErrorState
+          title="Bookings did not load"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : (
+        <Tabs defaultValue={TABS.UPCOMING}>
+          <TabsList>
+            <TabsTrigger value={TABS.UPCOMING}>
+              Upcoming
+              <span className="text-muted-foreground tabular-nums">
+                {upcoming.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value={TABS.PAST}>
+              Past
+              <span className="text-muted-foreground tabular-nums">{past.length}</span>
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value={TABS.UPCOMING}>
+            <BookingList
+              bookings={upcoming}
+              empty={
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No upcoming calls"
+                  description="New bookings appear here as soon as someone picks a time."
+                  action={
+                    <Button variant="outline" size="sm" asChild>
+                      <Link to={ROUTES.dashboardAvailability}>Check your hours</Link>
+                    </Button>
+                  }
+                />
+              }
+            />
+          </TabsContent>
+          <TabsContent value={TABS.PAST}>
+            <BookingList
+              bookings={past}
+              empty={
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No past calls"
+                  description="Calls move here once their start time has passed."
+                />
+              }
+            />
+          </TabsContent>
+        </Tabs>
+      )}
+    </>
   );
 }

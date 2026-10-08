@@ -1,6 +1,8 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { DashboardSidenavLayout } from "../../domains/dashboard/components/dashboard-sidenav";
+import { DASHBOARD_NAV } from "../../domains/dashboard/routes";
+import { AppShell } from "../../domains/shared/AppShell";
+import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard")({ component: DashboardLayout });
 
@@ -11,8 +13,13 @@ function DashboardLayout() {
   }
 
   return (
-    <DashboardSidenavLayout user={user}>
+    <AppShell
+      user={user}
+      home={ROUTES.dashboard}
+      area="Dashboard"
+      sections={DASHBOARD_NAV}
+    >
       <Outlet />
-    </DashboardSidenavLayout>
+    </AppShell>
   );
 }

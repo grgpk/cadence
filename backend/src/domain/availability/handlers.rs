@@ -63,3 +63,12 @@ pub async fn create(
         Json(service::create(&state.pool, user.user.unid, input).await?),
     ))
 }
+
+pub async fn delete(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<i64>,
+) -> AppResult<axum::http::StatusCode> {
+    service::delete(&state.pool, user.user.unid, id).await?;
+    Ok(axum::http::StatusCode::NO_CONTENT)
+}

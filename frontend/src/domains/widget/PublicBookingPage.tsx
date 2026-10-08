@@ -1,8 +1,24 @@
 import { Link } from "@tanstack/react-router";
-import { ArrowRight } from "lucide-react";
 
 import { Button } from "../../components/ui/button";
-import { CadenceBookingWidget } from "./CadenceBookingWidget";
+import { ROUTES } from "../../lib/routes";
+import { PublicLayout } from "../shared/PublicLayout";
+import { BookingCard } from "./BookingCard";
+
+const STEPS = [
+  {
+    title: "Set your hours",
+    body: "Add the weekly hours when you take calls. Change them whenever your week changes.",
+  },
+  {
+    title: "Share your link",
+    body: "Send one link instead of trading emails about who is free when.",
+  },
+  {
+    title: "Get booked",
+    body: "People pick a time in their own timezone. The call lands on your calendar with a Google Meet link.",
+  },
+];
 
 export function PublicBookingPage({
   initialCountryAlpha2,
@@ -10,73 +26,46 @@ export function PublicBookingPage({
   initialCountryAlpha2?: string | null;
 }) {
   return (
-    <main className="min-h-svh bg-background text-foreground">
-      <header className="sticky top-0 z-20 border-b bg-background/90 px-6 py-4 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between">
-          <Link to="/" className="text-lg font-bold text-foreground">
-            Cadence
-          </Link>
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" asChild>
-              <Link to="/login">Login</Link>
+    <PublicLayout>
+      <section className="mx-auto grid max-w-[82rem] items-start gap-10 px-4 py-10 sm:px-6 sm:py-16 xl:grid-cols-[22rem_minmax(0,1fr)] xl:gap-12">
+        <div className="max-w-xl xl:pt-6">
+          <h1 className="font-display text-4xl leading-[1.05] font-semibold tracking-tight sm:text-5xl">
+            Book calls without the back-and-forth.
+          </h1>
+          <p className="mt-5 text-lg text-muted-foreground">
+            Share one link. People pick a time that works, and the call shows up on both
+            calendars.
+          </p>
+          <div className="mt-7 flex flex-wrap items-center gap-3">
+            <Button size="lg" asChild>
+              <Link to={ROUTES.register}>Create your account</Link>
+            </Button>
+            <Button size="lg" variant="outline" className="xl:hidden" asChild>
+              <a href="#booking-card">Book a call</a>
             </Button>
           </div>
         </div>
-      </header>
-      <section className="mx-auto max-w-6xl px-6 pb-16 pt-20">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="mx-auto inline-flex items-center gap-2 rounded-full border border-[#f52326]/20 bg-[#f52326]/5 px-3 py-1 text-xs font-semibold tracking-wide text-[#c51c1f] uppercase">
-            <span className="size-1.5 rounded-full bg-[#f52326]" aria-hidden="true" />
-            Simple scheduling for modern teams
-          </p>
-          <h1 className="mt-5 text-4xl font-black tracking-tight text-slate-950 sm:text-6xl">
-            Book calls without the back-and-forth.
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-            Cadence makes it easy to share your availability, collect the right context,
-            and let people book a time that works for everyone.
-          </p>
-          <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2 text-sm font-medium text-slate-500">
-            <span>Share one link</span>
-            <span>Collect useful details</span>
-            <span>Keep every booking clear</span>
-          </div>
-          <Button
-            className="mt-8 gap-2 bg-[#f52326] text-white hover:bg-[#d91f22]"
-            size="lg"
-            asChild
-          >
-            <a href="#book-your-call">
-              Book a call <ArrowRight className="size-4" />
-            </a>
-          </Button>
-        </div>
-        <div
-          id="book-your-call"
-          className="mx-auto mt-12 w-full max-w-[1100px] scroll-mt-24"
-        >
-          <CadenceBookingWidget initialCountryAlpha2={initialCountryAlpha2} />
+        <BookingCard initialCountryAlpha2={initialCountryAlpha2} />
+      </section>
+
+      <section className="border-t bg-card">
+        <div className="mx-auto max-w-[82rem] px-4 py-12 sm:px-6 sm:py-16">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">
+            How it works
+          </h2>
+          <ol className="mt-8 grid gap-8 md:grid-cols-3">
+            {STEPS.map((step, index) => (
+              <li key={step.title} className="border-t pt-4">
+                <span className="font-display text-sm font-semibold text-signal tabular-nums">
+                  {index + 1}
+                </span>
+                <h3 className="mt-2 font-semibold">{step.title}</h3>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground">{step.body}</p>
+              </li>
+            ))}
+          </ol>
         </div>
       </section>
-      <footer className="border-t px-6 py-8 text-sm text-slate-500">
-        <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} Cadence</span>
-          <div className="flex gap-4">
-            <Link to="/terms" className="hover:text-slate-900">
-              Terms
-            </Link>
-            <Link to="/privacy-policy" className="hover:text-slate-900">
-              Privacy
-            </Link>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-1 hover:text-slate-900"
-            >
-              Host workspace <ArrowRight className="size-3" />
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </main>
+    </PublicLayout>
   );
 }

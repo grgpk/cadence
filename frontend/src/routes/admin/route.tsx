@@ -1,12 +1,14 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
-import { AdminSidenavLayout } from "../../domains/admin/components/admin-sidenav";
+import { ADMIN_NAV } from "../../domains/admin/routes";
+import { AppShell } from "../../domains/shared/AppShell";
 import { hasAdminAccess } from "../../lib/auth";
+import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/admin")({
   beforeLoad: ({ context }) => {
     if (!hasAdminAccess(context.user)) {
-      throw redirect({ to: "/dashboard" });
+      throw redirect({ to: ROUTES.dashboard });
     }
   },
   component: AdminLayout,
@@ -19,8 +21,8 @@ function AdminLayout() {
   }
 
   return (
-    <AdminSidenavLayout user={user}>
+    <AppShell user={user} home={ROUTES.admin} area="Admin" sections={ADMIN_NAV}>
       <Outlet />
-    </AdminSidenavLayout>
+    </AppShell>
   );
 }

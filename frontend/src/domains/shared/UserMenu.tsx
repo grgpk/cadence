@@ -1,8 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
+import { ChevronsUpDownIcon, LogOutIcon, MoonIcon, SunIcon } from "lucide-react";
 
-import type { SessionUser } from "../../../bindings/SessionUser";
-import { Avatar, AvatarFallback } from "../../../components/ui/avatar";
+import type { SessionUser } from "../../bindings/SessionUser";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,20 +11,20 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../../../components/ui/dropdown-menu";
-import { SidebarMenuButton, useSidebar } from "../../../components/ui/sidebar";
-import { hasAdminAccess, logout } from "../../../lib/auth";
+} from "../../components/ui/dropdown-menu";
+import { SidebarMenuButton, useSidebar } from "../../components/ui/sidebar";
+import { hasAdminAccess, logout } from "../../lib/auth";
+import { ROUTES } from "../../lib/routes";
+import { THEMES, useTheme } from "../../lib/theme";
 
-type UserDropdownSidenavProps = {
-  user: SessionUser;
-};
-
-export function UserDropdownSidenav({ user }: UserDropdownSidenavProps) {
+export function UserMenu({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
   const { isMobile } = useSidebar();
   const userName = user.full_name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
   const canAccessAdmin = hasAdminAccess(user);
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === THEMES.DARK;
 
   return (
     <DropdownMenu>
@@ -63,22 +63,31 @@ export function UserDropdownSidenav({ user }: UserDropdownSidenavProps) {
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem asChild>
-            <Link to="/dashboard">Dashboard</Link>
+            <Link to={ROUTES.dashboard}>Dashboard</Link>
           </DropdownMenuItem>
           {canAccessAdmin ? (
             <DropdownMenuItem asChild>
-              <Link to="/admin">Admin</Link>
+              <Link to={ROUTES.admin}>Admin</Link>
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem
+          onSelect={(event) => {
+            event.preventDefault();
+            toggleTheme();
+          }}
+        >
+          {isDark ? <SunIcon /> : <MoonIcon />}
+          {isDark ? "Light theme" : "Dark theme"}
+        </DropdownMenuItem>
+        <DropdownMenuItem
           onClick={() => {
-            void logout().then(() => navigate({ to: "/login" }));
+            void logout().then(() => navigate({ to: ROUTES.login }));
           }}
         >
           <LogOutIcon />
-          Log Out
+          Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

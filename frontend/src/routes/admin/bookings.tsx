@@ -1,10 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import type { Booking } from "../../bindings/Booking";
-import {
-  AdminDataPage,
-  formatAdminDate,
-} from "../../domains/admin/components/admin-data-page";
+import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
+import { ADMIN_PAGES } from "../../domains/admin/routes";
+import { BOOKING_COLUMNS } from "../../domains/bookings/booking-columns";
 
 export const Route = createFileRoute("/admin/bookings")({
   component: AdminBookingsPage,
@@ -13,23 +12,12 @@ export const Route = createFileRoute("/admin/bookings")({
 function AdminBookingsPage() {
   return (
     <AdminDataPage<Booking>
-      title="Bookings"
-      description="Booked calls across all hosts."
+      {...ADMIN_PAGES.bookings}
       endpoint="/api/admin/bookings"
-      emptyMessage="No bookings found."
-      itemKey={(booking) => booking.unid}
-      renderItem={(booking) => (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-          <div>
-            <p className="font-medium">{booking.invitee_name}</p>
-            <p className="text-sm text-muted-foreground">{booking.invitee_email}</p>
-          </div>
-          <div className="text-right text-sm text-muted-foreground">
-            <p>{booking.status}</p>
-            <p>{formatAdminDate(booking.slot_start)}</p>
-          </div>
-        </div>
-      )}
+      emptyTitle="No bookings yet"
+      emptyDescription="Calls booked with any host are listed here."
+      rowKey={(booking) => booking.unid}
+      columns={BOOKING_COLUMNS}
     />
   );
 }

@@ -1,76 +1,71 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import type { LucideIcon } from "lucide-react";
 
-import { Badge } from "../../../components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../../components/ui/card";
+import { Card } from "../../../components/ui/card";
 import { api } from "../../../lib/api";
 import { QUERY_KEYS } from "../../../lib/query-keys";
+import { DataTable, type Column } from "../../shared/DataTable";
+import { EmptyState } from "../../shared/EmptyState";
+import { ErrorState } from "../../shared/ErrorState";
+import { PageHeader } from "../../shared/PageHeader";
+import { TableSkeleton } from "../../shared/TableSkeleton";
 
 type AdminDataPageProps<T> = {
   title: string;
   description: string;
+  icon: LucideIcon;
   endpoint: string;
-  emptyMessage: string;
-  itemKey: (item: T) => string;
-  renderItem: (item: T) => ReactNode;
+  emptyTitle: string;
+  emptyDescription: string;
+  rowKey: (item: T) => string;
+  columns: Column<T>[];
 };
 
 export function AdminDataPage<T>({
   title,
   description,
+  icon,
   endpoint,
-  emptyMessage,
-  itemKey,
-  renderItem,
+  emptyTitle,
+  emptyDescription,
+  rowKey,
+  columns,
 }: AdminDataPageProps<T>) {
-  const {
-    data: items = [],
-    error,
-    isPending,
-  } = useQuery({
+  const query = useQuery({
     queryKey: QUERY_KEYS.adminData(endpoint),
     queryFn: () => api<T[]>(endpoint),
   });
-  const errorMessage = error instanceof Error ? error.message : null;
 
   return (
-    <section className="flex flex-1 flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="text-muted-foreground">{description}</p>
-      </header>
-      <Card>
-        <CardHeader>
-          <CardTitle>{isPending ? "Loading..." : `${items.length} records`}</CardTitle>
-          <CardDescription>{errorMessage ?? emptyMessage}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {errorMessage ? (
-            <Badge variant="outline">{errorMessage}</Badge>
-          ) : items.length === 0 && !isPending ? (
-            <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+    <>
+      <PageHeader
+        title={title}
+        description={description}
+        actions={
+          query.data ? (
+            <p className="text-sm text-muted-foreground tabular-nums">
+              {query.data.length} {query.data.length === 1 ? "record" : "records"}
+            </p>
+          ) : null
+        }
+      />
+      {query.isError ? (
+        <ErrorState
+          title={`${title} did not load`}
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : (
+        <Card className="gap-0 overflow-hidden py-0">
+          {query.isPending ? (
+            <TableSkeleton />
+          ) : query.data.length === 0 ? (
+            <EmptyState icon={icon} title={emptyTitle} description={emptyDescription} />
           ) : (
-            <div className="space-y-3">
-              {items.map((item) => (
-                <div key={itemKey(item)}>{renderItem(item)}</div>
-              ))}
-            </div>
+            <DataTable columns={columns} rows={query.data} rowKey={rowKey} />
           )}
-        </CardContent>
-      </Card>
-    </section>
+        </Card>
+      )}
+    </>
   );
-}
-
-export function formatAdminDate(value: string) {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }

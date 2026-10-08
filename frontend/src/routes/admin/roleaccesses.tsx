@@ -1,26 +1,37 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import type { RoleAccess } from "../../bindings/RoleAccess";
+import { Badge } from "../../components/ui/badge";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
+import { ADMIN_PAGES } from "../../domains/admin/routes";
+import type { Column } from "../../domains/shared/DataTable";
 
 export const Route = createFileRoute("/admin/roleaccesses")({
   component: AdminRoleAccessesPage,
 });
 
+const COLUMNS: Column<RoleAccess>[] = [
+  {
+    header: "User ID",
+    className: "tabular-nums",
+    cell: (access) => access.grantedto_unid,
+  },
+  {
+    header: "Role",
+    className: "text-right",
+    cell: (access) => <Badge variant="secondary">{access.role}</Badge>,
+  },
+];
+
 function AdminRoleAccessesPage() {
   return (
     <AdminDataPage<RoleAccess>
-      title="Role Accesses"
-      description="Users and roles granted in Cadence."
+      {...ADMIN_PAGES.roleAccesses}
       endpoint="/api/admin/roleaccesses"
-      emptyMessage="No role accesses found."
-      itemKey={(access) => access.unid}
-      renderItem={(access) => (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border p-4">
-          <p className="font-mono text-sm">{access.grantedto_unid}</p>
-          <p className="text-sm font-medium">{access.role}</p>
-        </div>
-      )}
+      emptyTitle="No roles granted"
+      emptyDescription="Roles given to users are listed here."
+      rowKey={(access) => access.unid}
+      columns={COLUMNS}
     />
   );
 }

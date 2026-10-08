@@ -1,4 +1,3 @@
-import type { LucideIcon } from "lucide-react";
 import {
   Bug,
   CalendarCheck,
@@ -8,69 +7,65 @@ import {
   Video,
 } from "lucide-react";
 
-export const ADMIN_SECTIONS = {
-  MANAGEMENT: "Management",
-  MONITOR: "Monitor",
-} as const;
+import { ROUTES } from "../../lib/routes";
+import type { NavItem, NavSection } from "../shared/AppShell";
 
-export type AdminSection = (typeof ADMIN_SECTIONS)[keyof typeof ADMIN_SECTIONS];
-type AdminRouteSegment =
-  | "leads"
-  | "bookings"
-  | "calling-visits"
-  | "roleaccesses"
-  | "bug-reports";
-
-const ADMIN_ROUTE_PATHS = {
+const ADMIN_ROUTES = {
   leads: "/admin/leads",
   bookings: "/admin/bookings",
-  "calling-visits": "/admin/calling-visits",
-  roleaccesses: "/admin/roleaccesses",
-  "bug-reports": "/admin/bug-reports",
+  callingVisits: "/admin/calling-visits",
+  roleAccesses: "/admin/roleaccesses",
+  bugReports: "/admin/bug-reports",
 } as const;
 
-type AdminNavItem = {
-  segment: AdminRouteSegment;
-  title: string;
-  icon: LucideIcon;
-  section: AdminSection;
-};
+type AdminPage = NavItem & { description: string };
 
-export function adminRoutePath(segment: AdminRouteSegment) {
-  return ADMIN_ROUTE_PATHS[segment];
-}
-
-export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
-  {
-    segment: "leads",
+/** The admin list pages: the sidebar and the overview both render from this. */
+export const ADMIN_PAGES = {
+  leads: {
     title: "Leads",
+    description: "People who filled in the booking form.",
+    to: ADMIN_ROUTES.leads,
     icon: Users,
-    section: ADMIN_SECTIONS.MANAGEMENT,
   },
-  {
-    segment: "bookings",
+  bookings: {
     title: "Bookings",
+    description: "Booked calls across all hosts.",
+    to: ADMIN_ROUTES.bookings,
     icon: CalendarCheck,
-    section: ADMIN_SECTIONS.MANAGEMENT,
   },
-  {
-    segment: "calling-visits",
-    title: "Calling Visits",
+  callingVisits: {
+    title: "Calling visits",
+    description: "Visits to the booking page.",
+    to: ADMIN_ROUTES.callingVisits,
     icon: Video,
-    section: ADMIN_SECTIONS.MANAGEMENT,
   },
-  {
-    segment: "roleaccesses",
-    title: "Role Accesses",
+  roleAccesses: {
+    title: "Role accesses",
+    description: "Roles granted to users.",
+    to: ADMIN_ROUTES.roleAccesses,
     icon: KeyRound,
-    section: ADMIN_SECTIONS.MANAGEMENT,
+  },
+  bugReports: {
+    title: "Bug reports",
+    description: "Errors captured by the application.",
+    to: ADMIN_ROUTES.bugReports,
+    icon: Bug,
+  },
+} as const satisfies Record<keyof typeof ADMIN_ROUTES, AdminPage>;
+
+export const ADMIN_NAV: NavSection[] = [
+  {
+    items: [{ title: "Overview", to: ROUTES.admin, icon: LayoutDashboard, exact: true }],
   },
   {
-    segment: "bug-reports",
-    title: "Bug Reports",
-    icon: Bug,
-    section: ADMIN_SECTIONS.MONITOR,
+    label: "Management",
+    items: [
+      ADMIN_PAGES.leads,
+      ADMIN_PAGES.bookings,
+      ADMIN_PAGES.callingVisits,
+      ADMIN_PAGES.roleAccesses,
+    ],
   },
+  { label: "Monitor", items: [ADMIN_PAGES.bugReports] },
 ];
-
-export const ADMIN_OVERVIEW_ICON = LayoutDashboard;

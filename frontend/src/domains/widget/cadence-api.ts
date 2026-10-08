@@ -1,3 +1,4 @@
+import type { BookingResult } from "../../bindings/BookingResult";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import type { CallingVisitRequest } from "../../bindings/CallingVisitRequest";
 import type { CalendarEvent } from "../../bindings/CalendarEvent";
@@ -11,10 +12,6 @@ export function saveLead(leadUnid: string, update: LeadUpdate): Promise<Lead> {
     method: "POST",
     body: JSON.stringify(update),
   });
-}
-
-export function getLead(leadUnid: string): Promise<Lead | null> {
-  return api<Lead | null>(`/api/leads/${leadUnid}`);
 }
 
 export function submitLead(leadUnid: string, sourcePage: string): Promise<Lead> {
@@ -102,8 +99,8 @@ type BookSlotRequest = {
   lead_id: string;
 };
 
-export function createBooking(request: BookSlotRequest): Promise<unknown> {
-  return api("/api/google-calendar/book", {
+export function createBooking(request: BookSlotRequest): Promise<BookingResult> {
+  return api<BookingResult>("/api/google-calendar/book", {
     method: "POST",
     body: JSON.stringify(request),
   });

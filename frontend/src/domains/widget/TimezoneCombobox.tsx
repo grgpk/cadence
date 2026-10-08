@@ -1,6 +1,4 @@
-"use client";
-
-import { ChevronDown, Globe, Search } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
 
 import {
   Command,
@@ -26,48 +24,39 @@ export function TimezoneCombobox({
   onSelect: (tz: CountryTimezone) => void;
 }) {
   return (
-    <div className="flex items-center gap-2 px-0.5 py-1">
-      <Globe className="size-5 shrink-0 text-muted-foreground" />
-      <Popover>
-        <PopoverTrigger asChild>
-          <button
-            type="button"
-            className="flex w-fit items-center gap-1 border-none bg-transparent p-0 shadow-none outline-none"
-          >
-            <span className="min-w-0 truncate text-left text-sm font-medium whitespace-nowrap">
-              {timezoneDisplayWithTime(selected)}
-            </span>
-            <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
-          </button>
-        </PopoverTrigger>
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Timezone: ${timezoneDisplayWithTime(selected)}. Change timezone`}
+          className="flex min-w-0 items-center gap-1 rounded-sm text-left text-sm font-medium outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <span className="min-w-0 truncate">{timezoneDisplayWithTime(selected)}</span>
+          <ChevronDown className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      </PopoverTrigger>
 
-        <PopoverContent align="start" className="w-[320px] p-0">
-          <Command>
-            <div className="flex items-center gap-2 border-b px-2">
-              <Search className="size-4 shrink-0 text-muted-foreground" />
-              <CommandInput placeholder="Search country or timezone..." />
-            </div>
-            <CommandList className="min-h-0">
-              <CommandEmpty>No timezone found.</CommandEmpty>
-              <CommandGroup>
-                {ALL_COUNTRY_TIMEZONES.map((tz) => (
-                  <CommandItem
-                    key={tz.iana}
-                    value={timezoneDisplayWithTime(tz)}
-                    onSelect={() => onSelect(tz)}
-                  >
-                    <span className="text-base">{timezoneFlag(tz)}</span>
-                    {timezoneDisplayWithTime(tz)}
-                    {selected.iana === tz.iana && (
-                      <span className="ml-auto text-xs">✓</span>
-                    )}
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-    </div>
+      <PopoverContent align="start" className="w-[320px] p-0">
+        <Command>
+          <CommandInput placeholder="Search country or timezone..." />
+          <CommandList className="min-h-0">
+            <CommandEmpty>No timezone found.</CommandEmpty>
+            <CommandGroup>
+              {ALL_COUNTRY_TIMEZONES.map((tz) => (
+                <CommandItem
+                  key={tz.iana}
+                  value={timezoneDisplayWithTime(tz)}
+                  onSelect={() => onSelect(tz)}
+                >
+                  <span className="text-base">{timezoneFlag(tz)}</span>
+                  {timezoneDisplayWithTime(tz)}
+                  {selected.iana === tz.iana && <Check className="ml-auto size-4" />}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }

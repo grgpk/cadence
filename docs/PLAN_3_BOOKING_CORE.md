@@ -20,7 +20,7 @@ and calling visits.
 
 The baseline domains exist in `backend/src/domain/leads/`, `availability/`,
 `calling_visits/`, and `bookings/`. The public widget is
-`frontend/src/domains/widget/BookingWidget.tsx`. Remaining work is richer
+`frontend/src/domains/widget/BookingCard.tsx`. Remaining work is richer
 development data, complete booking UX, and end-to-end contract tests.
 
 ## Approach
@@ -72,9 +72,12 @@ widget
 - `leads/db.rs`: upsert and submit queries.
 - `bookings/service.rs`: validation, transaction, queue writes.
 - `frontend/src/lib/query-keys.ts`: stable query keys.
-- `BookingWidget.tsx`: shadcn form, loading, error, and success states.
-- `CadenceBookingWidget.tsx`: two-step Cadence-branded qualification and booking
-  widget, matching the Rustify reference behavior.
+- `BookingCard.tsx`: two-step booking widget. The visitor picks a time first
+  (`SlotStep.tsx`), then answers the qualification questions
+  (`DetailsStep.tsx`). The lead is saved and submitted before the slot is
+  booked. See `PLAN_8_UI_REFRESH.md`.
+- `DELETE /api/availability/{id}` (`AuthUser`): removes one of the host's own
+  rules, 404 when it is not theirs. Used by the availability editor.
 
 ## Out of scope
 

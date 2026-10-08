@@ -4,15 +4,16 @@ import type { Role } from "../bindings/Role";
 import type { SessionUser } from "../bindings/SessionUser";
 import { SERVER_API_URL } from "./api-url";
 import { api } from "./api";
+import { ROUTES } from "./routes";
 
-export const PUBLIC_PATHS = [
-  "/",
-  "/book-a-call",
-  "/booking-confirmation",
-  "/login",
-  "/privacy-policy",
-  "/register",
-  "/terms",
+export const PUBLIC_PATHS: readonly string[] = [
+  ROUTES.home,
+  ROUTES.bookACall,
+  ROUTES.bookingConfirmation,
+  ROUTES.login,
+  ROUTES.privacy,
+  ROUTES.register,
+  ROUTES.terms,
 ];
 const ROLES = {
   ROOT: "Root",

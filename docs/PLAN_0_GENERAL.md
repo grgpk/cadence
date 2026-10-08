@@ -87,6 +87,7 @@ cadence/
 | 5 | `PLAN_5_TEST_HARDENING.md` | HTTP contract tests, auth matrix, migration and UI verification | 📅 planned |
 | 6 | `PLAN_6_DEPLOYMENT_EMBED.md` | production build, HTTPS deployment, embeddable widget | 📅 planned |
 | 7 | `PLAN_7_MULTI_HOST.md` | host onboarding, isolation, custom widget branding | 📅 planned |
+| 8 | `PLAN_8_UI_REFRESH.md` | one token-driven look, time-first booking card, availability editor | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

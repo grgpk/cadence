@@ -1,141 +1,41 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Bug,
-  CalendarCheck,
-  CalendarDays,
-  CheckCircle2,
-  Users,
-  Video,
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
 
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
-import {
-  connectGoogleCalendar,
-  disconnectGoogleCalendar,
-  getCalendarEvents,
-} from "../../domains/widget/cadence-api";
+import { Card } from "../../components/ui/card";
+import { GoogleCalendarCard } from "../../domains/admin/components/GoogleCalendarCard";
+import { ADMIN_PAGES } from "../../domains/admin/routes";
+import { PageHeader } from "../../domains/shared/PageHeader";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminOverviewPage,
 });
 
-const CARDS = [
-  {
-    title: "Leads",
-    description: "Review captured coaching leads.",
-    to: "/admin/leads",
-    icon: Users,
-  },
-  {
-    title: "Bookings",
-    description: "Review booked calls and statuses.",
-    to: "/admin/bookings",
-    icon: CalendarCheck,
-  },
-  {
-    title: "Calling Visits",
-    description: "Inspect call funnel visits.",
-    to: "/admin/calling-visits",
-    icon: Video,
-  },
-  {
-    title: "Bug Reports",
-    description: "Monitor application errors.",
-    to: "/admin/bug-reports",
-    icon: Bug,
-  },
-] as const;
-
 function AdminOverviewPage() {
-  const queryClient = useQueryClient();
-  const calendarQuery = useQuery({
-    queryKey: ["google-calendar-events"],
-    queryFn: getCalendarEvents,
-    retry: false,
-  });
-  const disconnect = useMutation({
-    mutationFn: disconnectGoogleCalendar,
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ["google-calendar-events"] }),
-  });
-
   return (
-    <section className="flex flex-1 flex-col gap-6 p-6">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Admin</h1>
-        <p className="text-muted-foreground">
-          Manage leads, calls, access, and application health.
-        </p>
-      </header>
-      <div className="grid gap-4 md:grid-cols-2">
-        {CARDS.map(({ title, description, to, icon: Icon }) => (
-          <Link key={to} to={to} className="group">
-            <Card className="h-full transition-colors group-hover:border-primary">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>{title}</CardTitle>
-                  <Icon className="size-5 text-muted-foreground" />
-                </div>
-                <CardDescription>{description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <span className="inline-flex items-center gap-2 text-sm font-medium">
-                  Open section <ArrowRight className="size-4" />
-                </span>
-              </CardContent>
-            </Card>
+    <>
+      <PageHeader
+        title="Admin"
+        description="Leads, calls, access and application health."
+      />
+      <Card className="gap-0 divide-y overflow-hidden py-0">
+        {Object.values(ADMIN_PAGES).map(({ title, description, to, icon: Icon }) => (
+          <Link
+            key={to}
+            to={to}
+            className="flex items-center gap-4 px-5 py-4 outline-none hover:bg-muted focus-visible:bg-muted"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+              <Icon className="size-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-medium">{title}</span>
+              <span className="block text-sm text-muted-foreground">{description}</span>
+            </span>
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
           </Link>
         ))}
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarDays className="size-5 text-muted-foreground" />
-            Google Calendar
-          </CardTitle>
-          <CardDescription>
-            Required for live availability and Google Meet booking.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-3">
-          {calendarQuery.isPending ? (
-            <span className="text-sm text-muted-foreground">Checking connection...</span>
-          ) : calendarQuery.isError ? (
-            <button
-              type="button"
-              className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-xs transition-colors hover:bg-primary/90"
-              onClick={() => void connectGoogleCalendar()}
-            >
-              Connect Google Calendar
-            </button>
-          ) : (
-            <>
-              <span className="inline-flex items-center gap-2 rounded-md bg-green-100 px-3 py-2 text-sm font-medium text-green-700">
-                <CheckCircle2 className="size-4" /> Connected
-              </span>
-              <span className="text-sm text-muted-foreground">
-                {calendarQuery.data.length} events next 7 days
-              </span>
-              <button
-                type="button"
-                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 text-sm font-medium shadow-xs transition-colors hover:bg-accent hover:text-accent-foreground"
-                onClick={() => disconnect.mutate()}
-                disabled={disconnect.isPending}
-              >
-                {disconnect.isPending ? "Disconnecting..." : "Disconnect"}
-              </button>
-            </>
-          )}
-        </CardContent>
       </Card>
-    </section>
+      <GoogleCalendarCard />
+    </>
   );
 }

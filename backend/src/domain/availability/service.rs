@@ -29,6 +29,14 @@ pub async fn create(
         .map_err(Into::into)
 }
 
+pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> AppResult<()> {
+    if db::delete(pool, host_unid, id).await? {
+        Ok(())
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
 pub async fn slots(pool: &PgPool, host_unid: Uuid, days: i64) -> AppResult<Vec<TimeSlot>> {
     if !(1..=MAX_PUBLIC_BOOKING_DAYS).contains(&days) {
         return Err(AppError::BadRequest(

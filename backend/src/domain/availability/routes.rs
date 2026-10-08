@@ -1,5 +1,8 @@
 use crate::app_state::AppState;
-use axum::{Router, routing::get};
+use axum::{
+    Router,
+    routing::{delete, get},
+};
 
 use super::handlers;
 
@@ -13,8 +16,10 @@ pub fn public_routes() -> Router<AppState> {
 }
 
 pub fn protected_routes() -> Router<AppState> {
-    Router::new().route(
-        "/api/availability",
-        get(handlers::list).post(handlers::create),
-    )
+    Router::new()
+        .route(
+            "/api/availability",
+            get(handlers::list).post(handlers::create),
+        )
+        .route("/api/availability/{id}", delete(handlers::delete))
 }

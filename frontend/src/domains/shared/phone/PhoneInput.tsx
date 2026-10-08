@@ -1,4 +1,4 @@
-import { ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X } from "lucide-react";
 import * as React from "react";
 
 import {
@@ -41,12 +41,13 @@ function CountryItem({
       <span className="w-12 text-right text-muted-foreground">
         {dialCodeFormatted(country)}
       </span>
-      {selectedCountry?.variant === country.variant && <span className="text-xs">✓</span>}
+      {selectedCountry?.variant === country.variant && <Check className="size-4" />}
     </CommandItem>
   );
 }
 
 type PhoneInputProps = {
+  id?: string;
   country: Country;
   digits: string;
   onCountryChange: (country: Country) => void;
@@ -57,6 +58,7 @@ type PhoneInputProps = {
 };
 
 export function PhoneInput({
+  id,
   country,
   digits,
   onCountryChange,
@@ -123,6 +125,7 @@ export function PhoneInput({
 
       <div className="relative flex-1">
         <Input
+          id={id}
           className="w-full rounded-l-none pr-8"
           type="tel"
           inputMode="numeric"

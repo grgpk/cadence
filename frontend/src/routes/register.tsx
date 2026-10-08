@@ -1,22 +1,23 @@
 import { useMutation } from "@tanstack/react-query";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 
 import type { RegisterRequest } from "../bindings/RegisterRequest";
-import { Alert, AlertDescription } from "../components/ui/alert";
 import { Button } from "../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { AuthCard, PasswordInput } from "../domains/shared/AuthCard";
 import { api } from "../lib/api";
+import { getSessionUser } from "../lib/auth";
+import { APP_NAME } from "../lib/config";
+import { ROUTES } from "../lib/routes";
 
-export const Route = createFileRoute("/register")({ component: RegisterPage });
+export const Route = createFileRoute("/register")({
+  beforeLoad: async () => {
+    if (await getSessionUser()) throw redirect({ to: ROUTES.dashboard });
+  },
+  head: () => ({ meta: [{ title: `Create account | ${APP_NAME}` }] }),
+  component: RegisterPage,
+});
 
 function RegisterPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ function RegisterPage() {
         body: JSON.stringify(request),
       }),
     onSuccess: () => {
-      void navigate({ to: "/dashboard" });
+      void navigate({ to: ROUTES.dashboard });
     },
   });
 
@@ -41,55 +42,49 @@ function RegisterPage() {
     });
   }
 
-  const errorMessage =
-    registerMutation.error instanceof Error ? registerMutation.error.message : null;
-
   return (
-    <main className="flex min-h-svh items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Create host account</CardTitle>
-          <CardDescription>Start managing your booking cadence.</CardDescription>
-        </CardHeader>
-        <form onSubmit={submit}>
-          <CardContent className="grid gap-4">
-            {errorMessage ? (
-              <Alert variant="destructive">
-                <AlertDescription>{errorMessage}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="grid gap-2">
-              <Label htmlFor="full_name">Name</Label>
-              <Input id="full_name" name="full_name" required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" name="email" type="email" required />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                minLength={8}
-                required
-              />
-            </div>
-          </CardContent>
-          <CardFooter className="flex-col gap-4">
-            <Button className="w-full" disabled={registerMutation.isPending}>
-              {registerMutation.isPending ? "Creating account..." : "Create account"}
-            </Button>
-            <p className="text-sm text-muted-foreground">
-              Already host?{" "}
-              <Link to="/login" className="font-medium text-foreground underline">
-                Log in
-              </Link>
-            </p>
-          </CardFooter>
-        </form>
-      </Card>
-    </main>
+    <AuthCard
+      title="Create your account"
+      description="Set your hours, share one link, and let people book you."
+      error={registerMutation.error}
+      onSubmit={submit}
+      footer={
+        <>
+          Already have an account?{" "}
+          <Link
+            to={ROUTES.login}
+            className="font-medium text-foreground underline underline-offset-4"
+          >
+            Log in
+          </Link>
+        </>
+      }
+    >
+      <div className="grid gap-2">
+        <Label htmlFor="full_name">Name</Label>
+        <Input id="full_name" name="full_name" autoComplete="name" required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="email">Email</Label>
+        <Input id="email" name="email" type="email" autoComplete="email" required />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="password">Password</Label>
+        <PasswordInput
+          id="password"
+          name="password"
+          autoComplete="new-password"
+          minLength={8}
+          aria-describedby="password-hint"
+          required
+        />
+        <p id="password-hint" className="text-xs text-muted-foreground">
+          At least 8 characters.
+        </p>
+      </div>
+      <Button className="mt-2 w-full" disabled={registerMutation.isPending}>
+        {registerMutation.isPending ? "Creating account" : "Create account"}
+      </Button>
+    </AuthCard>
   );
 }
