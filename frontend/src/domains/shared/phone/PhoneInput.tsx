@@ -53,6 +53,8 @@ type PhoneInputProps = {
   onCountryChange: (country: Country) => void;
   onDigitsChange: (digits: string) => void;
   invalid?: boolean;
+  /** The id of the line that explains what is wrong with the number. */
+  describedBy?: string;
   disabled?: boolean;
   onBlur?: () => void;
 };
@@ -64,6 +66,7 @@ export function PhoneInput({
   onCountryChange,
   onDigitsChange,
   invalid = false,
+  describedBy,
   disabled = false,
   onBlur,
 }: PhoneInputProps) {
@@ -76,7 +79,7 @@ export function PhoneInput({
           <button
             type="button"
             disabled={disabled}
-            aria-label="Select country"
+            aria-label={`Country: ${country.name}, ${dialCodeFormatted(country)}. Change country`}
             className="flex h-9 items-center gap-1 rounded-l-md rounded-r-none border border-r-0 border-input bg-transparent px-3 shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="text-base">{country.flag}</span>
@@ -134,6 +137,7 @@ export function PhoneInput({
           disabled={disabled}
           aria-label="Phone number"
           aria-invalid={invalid}
+          aria-describedby={describedBy}
           value={formatPhone(country.variant, digits)}
           onChange={(event) =>
             onDigitsChange(
@@ -145,9 +149,8 @@ export function PhoneInput({
         {digits.length > 0 && !disabled && (
           <button
             type="button"
-            tabIndex={-1}
             aria-label="Clear phone number"
-            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="absolute top-1/2 right-2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
             onClick={() => onDigitsChange("")}
           >
             <X className="size-4" />

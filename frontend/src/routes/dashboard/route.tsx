@@ -2,9 +2,13 @@ import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { DASHBOARD_NAV } from "../../domains/dashboard/routes";
 import { AppShell } from "../../domains/shared/AppShell";
+import { NOINDEX_META } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 
-export const Route = createFileRoute("/dashboard")({ component: DashboardLayout });
+export const Route = createFileRoute("/dashboard")({
+  head: () => ({ meta: [NOINDEX_META] }),
+  component: DashboardLayout,
+});
 
 function DashboardLayout() {
   const { user } = Route.useRouteContext();

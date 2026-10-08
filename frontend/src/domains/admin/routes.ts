@@ -9,6 +9,10 @@ import {
   Video,
 } from "lucide-react";
 
+import { queryOptions } from "@tanstack/react-query";
+
+import { api } from "../../lib/api";
+import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 import type { NavItem, NavSection } from "../shared/AppShell";
 
@@ -99,3 +103,11 @@ export const ADMIN_NAV: NavSection[] = [
   },
   { label: "Monitor", items: [ADMIN_PAGES.emails, ADMIN_PAGES.bugReports] },
 ];
+
+/** What an admin endpoint returns, cached under the endpoint so pages share it. */
+export function adminDataQuery<T>(endpoint: string) {
+  return queryOptions({
+    queryKey: QUERY_KEYS.adminData(endpoint),
+    queryFn: () => api<T>(endpoint),
+  });
+}

@@ -2,11 +2,14 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::domain::auth::models::Role;
+
 #[derive(Debug, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/RoleAccess.ts")]
 pub struct RoleAccess {
     pub unid: Uuid,
     pub grantedto_unid: Uuid,
+    #[ts(as = "Role")]
     pub role: String,
 }
 
@@ -16,6 +19,7 @@ pub struct RoleAccess {
 pub struct AdminRoleAccess {
     pub unid: Uuid,
     pub grantedto_unid: Uuid,
+    #[ts(as = "Role")]
     pub role: String,
     pub full_name: String,
     pub email: String,

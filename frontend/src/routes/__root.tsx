@@ -5,11 +5,11 @@ import {
   Scripts,
   redirect,
 } from "@tanstack/react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState } from "react";
-import { getSessionUser, isPublicPath } from "../lib/auth";
-import { APP_NAME } from "../lib/config";
-import { ROUTES } from "../lib/routes";
+import { useEffect } from "react";
+import { getSessionUser } from "../lib/auth";
+import { watchErrors } from "../lib/bug-report";
+import { APP_DESCRIPTION, APP_NAME } from "../lib/config";
+import { isProtectedPath, ROUTES } from "../lib/routes";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
@@ -18,9 +18,11 @@ import "../styles/globals.css";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
-    if (isPublicPath(location.pathname)) return { user: null };
+    if (!isProtectedPath(location.pathname)) return { user: null };
     const user = await getSessionUser();
-    if (!user) throw redirect({ to: ROUTES.login });
+    if (!user) {
+      throw redirect({ to: ROUTES.login, search: { redirect: location.href } });
+    }
     return { user };
   },
   pendingMs: 0,
@@ -30,10 +32,12 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: APP_NAME },
-      {
-        name: "description",
-        content: "Set the hours you take calls, share one link, and let people book you.",
-      },
+      { name: "description", content: APP_DESCRIPTION },
+      { property: "og:site_name", content: APP_NAME },
+      { property: "og:type", content: "website" },
+      { property: "og:title", content: APP_NAME },
+      { property: "og:description", content: APP_DESCRIPTION },
+      { name: "twitter:card", content: "summary" },
     ],
     links: [{ rel: "icon", href: "/favicon.svg" }],
   }),
@@ -44,7 +48,7 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  useEffect(watchErrors, []);
 
   return (
     // The theme script sets the class before hydration, so the attribute may differ.
@@ -54,10 +58,8 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>{children}</TooltipProvider>
-          <Toaster position="bottom-right" />
-        </QueryClientProvider>
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster position="bottom-right" />
         <Scripts />
       </body>
     </html>

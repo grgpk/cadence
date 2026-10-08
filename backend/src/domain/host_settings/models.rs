@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::domain::auth::models::UserStatus;
+
 /// A host's own booking page settings. Read and written by the host only.
 /// Each `ask_*` flag is an independent switch for one form question.
 #[allow(clippy::struct_excessive_bools)]
@@ -56,6 +58,7 @@ pub struct AdminHost {
     pub unid: Uuid,
     pub full_name: String,
     pub email: String,
+    #[ts(as = "UserStatus")]
     pub status: String,
     pub created_at: DateTime<Utc>,
     /// `None` until the host first opens their dashboard.

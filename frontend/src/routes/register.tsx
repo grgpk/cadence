@@ -6,17 +6,24 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { AuthCard, PasswordInput } from "../domains/shared/AuthCard";
+import { RouteError } from "../domains/shared/NotFound";
 import { api } from "../lib/api";
 import { getSessionUser } from "../lib/auth";
-import { APP_NAME } from "../lib/config";
+import { APP_NAME, NOINDEX_META } from "../lib/config";
 import { ROUTES } from "../lib/routes";
+
+const REGISTER_ERRORS = {
+  400: "Check your name and email, and use a password of at least 8 characters.",
+  409: "An account with this email already exists.",
+};
 
 export const Route = createFileRoute("/register")({
   beforeLoad: async () => {
     if (await getSessionUser()) throw redirect({ to: ROUTES.dashboard });
   },
-  head: () => ({ meta: [{ title: `Create account | ${APP_NAME}` }] }),
+  head: () => ({ meta: [{ title: `Create account | ${APP_NAME}` }, NOINDEX_META] }),
   component: RegisterPage,
+  errorComponent: RouteError,
 });
 
 function RegisterPage() {
@@ -47,6 +54,7 @@ function RegisterPage() {
       title="Create your account"
       description="Set your hours, share one link, and let people book you."
       error={registerMutation.error}
+      errorMessages={REGISTER_ERRORS}
       onSubmit={submit}
       footer={
         <>

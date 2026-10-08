@@ -105,6 +105,7 @@ export function BookingCalendar({
               type="button"
               disabled={!available}
               aria-pressed={selected}
+              aria-current={day === todayDay ? "date" : undefined}
               aria-label={`${dayLabel(year, month, day)}${available ? "" : ", unavailable"}`}
               onClick={() => onSelect(day)}
               className={cn(

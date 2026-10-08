@@ -7,7 +7,7 @@ export const HOST_GAPS = {
   noCallLink: "No call link",
 } as const;
 
-type HostGap = (typeof HOST_GAPS)[keyof typeof HOST_GAPS];
+export type HostGap = (typeof HOST_GAPS)[keyof typeof HOST_GAPS];
 
 export function hostGaps(host: AdminHost): HostGap[] {
   if (host.public_slug === null) return [HOST_GAPS.notStarted];

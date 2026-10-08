@@ -5,7 +5,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
-import type { AvailabilityRuleInput } from "../../bindings/AvailabilityRuleInput";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Checkbox } from "../../components/ui/checkbox";
@@ -17,16 +16,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import {
+  availabilityQuery,
+  createAvailabilityRule,
+  hostSettingsQuery,
+  removeAvailabilityRule,
+} from "../../domains/dashboard/host-api";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { Field } from "../../domains/shared/Field";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
-import { prefersHour12, TimePicker } from "../../domains/shared/TimePicker";
-import { getHostSettings } from "../../domains/widget/cadence-api";
-import { api } from "../../lib/api";
+import { TimePicker } from "../../domains/shared/TimePicker";
 import { APP_NAME } from "../../lib/config";
-import { formatClock, weekdayName } from "../../lib/format";
+import { errorMessage } from "../../lib/error-message";
+import {
+  clockMinutes,
+  clockTime,
+  formatClock,
+  prefersHour12,
+  weekdayName,
+  zoneName,
+} from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 
@@ -40,24 +51,12 @@ const SLOT_MINUTES = [15, 20, 30, 45, 60];
 const DEFAULT_HOURS = { start: "09:00", end: "17:00", slotMinutes: 30 };
 /** The latest time the picker offers. */
 const LAST_TIME = "23:45";
-
-function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Something went wrong.";
-}
-
-function createRule(input: AvailabilityRuleInput) {
-  return api<AvailabilityRule>("/api/availability", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
+const LAST_HOUR = 23;
 
 /** One hour after `time`, kept inside the day. */
 function hourAfter(time: string): string {
-  const [hours = 0, minutes = 0] = time.split(":").map(Number);
-  return hours >= 23
-    ? LAST_TIME
-    : `${String(hours + 1).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  const minutes = clockMinutes(time);
+  return minutes >= LAST_HOUR * 60 ? LAST_TIME : clockTime(minutes + 60);
 }
 
 function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void }) {
@@ -73,7 +72,7 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
     mutationFn: (days: number[]) =>
       Promise.all(
         days.map((day) =>
-          createRule({
+          createAvailabilityRule({
             weekday: day,
             start_time: `${start}:00`,
             end_time: `${end}:00`,
@@ -198,7 +197,7 @@ function DayStrip({ rules }: { rules: AvailabilityRule[] }) {
         const end = secondsOfDay(rule.end_time);
         return (
           <span
-            key={String(rule.id)}
+            key={rule.id}
             className="absolute inset-y-0 rounded-full bg-noon"
             style={{
               left: `${(start / DAY_SECONDS) * 100}%`,
@@ -220,7 +219,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
 
   const restoreHours = useMutation({
-    mutationFn: createRule,
+    mutationFn: createAvailabilityRule,
     onSuccess: async () => {
       await refresh();
       toast.success("Hours put back");
@@ -228,8 +227,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
     onError: (error) => toast.error(`Hours were not put back. ${errorMessage(error)}`),
   });
   const removeHours = useMutation({
-    mutationFn: (rule: AvailabilityRule) =>
-      api<void>(`/api/availability/${rule.id}`, { method: "DELETE" }),
+    mutationFn: removeAvailabilityRule,
     onSuccess: async (_, rule) => {
       await refresh();
       toast.success("Hours removed", {
@@ -260,7 +258,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
         {rules.map((rule) => {
           const range = `${formatClock(rule.start_time, hour12)} to ${formatClock(rule.end_time, hour12)}`;
           return (
-            <div key={String(rule.id)} className="flex items-center gap-3 text-sm">
+            <div key={rule.id} className="flex items-center gap-3 text-sm">
               <span className="rounded-md border bg-card px-2.5 py-1 font-medium tabular-nums">
                 {range}
               </span>
@@ -300,15 +298,9 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
 }
 
 function AvailabilityPage() {
-  const query = useQuery({
-    queryKey: QUERY_KEYS.availability,
-    queryFn: () => api<AvailabilityRule[]>("/api/availability"),
-  });
-  const settings = useQuery({
-    queryKey: QUERY_KEYS.hostSettings,
-    queryFn: getHostSettings,
-  });
-  const timezone = settings.data?.timezone.replaceAll("_", " ");
+  const query = useQuery(availabilityQuery);
+  const settings = useQuery(hostSettingsQuery);
+  const timezone = settings.data && zoneName(settings.data.timezone);
 
   return (
     <>

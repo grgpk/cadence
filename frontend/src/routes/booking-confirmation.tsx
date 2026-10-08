@@ -6,8 +6,10 @@ import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/PublicLayout";
 import { PHASE_STYLES } from "../domains/widget/SlotStep";
 import { callEnd, clockLabel, dayPhase, zonedTime } from "../domains/widget/zoned-time";
-import { APP_NAME } from "../lib/config";
+import { APP_NAME, NOINDEX_META } from "../lib/config";
+import { zoneName } from "../lib/format";
 import { ROUTES } from "../lib/routes";
+import { searchInstant, searchMinutes, searchText, searchTimezone } from "../lib/search";
 
 const MEET_ORIGIN = "https://meet.google.com/";
 const MAX_CALL_MINUTES = 240;
@@ -15,51 +17,26 @@ const MAX_CALL_MINUTES = 240;
 const STRIP_HOURS = 4;
 const STRIP_MINUTES = STRIP_HOURS * 60;
 
-function text(value: unknown, pattern: RegExp): string | undefined {
-  return typeof value === "string" && pattern.test(value) ? value : undefined;
-}
-
-function instant(value: unknown): string | undefined {
-  return typeof value === "string" && !Number.isNaN(Date.parse(value))
-    ? value
-    : undefined;
-}
-
-function callMinutes(value: unknown): number | undefined {
-  const minutes = Number(value);
-  return Number.isInteger(minutes) && minutes > 0 && minutes <= MAX_CALL_MINUTES
-    ? minutes
-    : undefined;
-}
-
-function timezone(value: unknown): string | undefined {
-  const name = text(value, /^[\w+-]+(\/[\w+-]+)*$/);
-  if (!name) return undefined;
-  try {
-    new Intl.DateTimeFormat("en", { timeZone: name });
-    return name;
-  } catch {
-    return undefined;
-  }
-}
-
 export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
   // Only a Google Meet address can become a button: a crafted URL must not be able
   // to put an arbitrary "join" link on this page.
   validateSearch: (search) => ({
-    start: instant(search.start),
-    minutes: callMinutes(search.minutes),
-    tz: timezone(search.tz),
+    start: searchInstant(search.start),
+    minutes: searchMinutes(search.minutes, MAX_CALL_MINUTES),
+    tz: searchTimezone(search.tz),
+    // The clock the visitor chose on the booking card. This page is rendered on
+    // the server, which cannot know the device's own style.
+    h12: search.h12 === true,
     meet:
       typeof search.meet === "string" && search.meet.startsWith(MEET_ORIGIN)
         ? search.meet
         : undefined,
     // Whether the booking has a place to meet. A host's own link is only sent by email.
     link: search.link === true,
-    slug: text(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
+    slug: searchText(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
   }),
-  head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }] }),
+  head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }, NOINDEX_META] }),
   component: BookingConfirmationPage,
 });
 
@@ -108,7 +85,7 @@ function BookedStrip({
 }
 
 function BookingConfirmationPage() {
-  const { start, minutes, tz, meet, link, slug } = Route.useSearch();
+  const { start, minutes, tz, h12, meet, link, slug } = Route.useSearch();
 
   if (!start || !minutes || !tz) {
     return (
@@ -163,13 +140,13 @@ function BookingConfirmationPage() {
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Time</dt>
             <dd className="text-right font-medium tabular-nums">
-              {clockLabel(startsAt, tz, false)} to{" "}
-              {clockLabel(callEnd(start, minutes), tz, false)}
+              {clockLabel(startsAt, tz, h12)} to{" "}
+              {clockLabel(callEnd(start, minutes), tz, h12)}
             </dd>
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Timezone</dt>
-            <dd className="text-right font-medium">{tz.replaceAll("_", " ")}</dd>
+            <dd className="text-right font-medium">{zoneName(tz)}</dd>
           </div>
         </dl>
 

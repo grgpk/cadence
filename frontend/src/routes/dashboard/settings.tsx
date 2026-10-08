@@ -20,6 +20,7 @@ import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
 import { GoogleCalendarConnection } from "../../domains/dashboard/GoogleCalendarConnection";
+import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { ConfirmDialog } from "../../domains/shared/ConfirmDialog";
 import { ErrorState } from "../../domains/shared/ErrorState";
@@ -30,10 +31,10 @@ import {
   detectBrowserCountryTimezone,
 } from "../../domains/shared/phone/country";
 import { QUESTIONS } from "../../domains/widget/booking-form";
-import { getHostSettings, saveHostSettings } from "../../domains/widget/cadence-api";
 import { TimezoneCombobox } from "../../domains/widget/TimezoneCombobox";
 import { ApiError } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
+import { errorMessage } from "../../lib/error-message";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { bookingPath } from "../../lib/routes";
 
@@ -100,7 +101,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
         document.getElementById(`${ID}-slug`)?.focus();
         return;
       }
-      toast.error(`Changes were not saved. ${error.message}`);
+      toast.error(`Changes were not saved. ${errorMessage(error)}`);
     },
   });
 
@@ -143,7 +144,11 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
               <Input
                 id={`${ID}-slug`}
                 value={values.public_slug}
+                required
+                minLength={3}
                 maxLength={40}
+                pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                title="3 to 40 lowercase letters, numbers and single dashes"
                 spellCheck={false}
                 autoCapitalize="none"
                 aria-invalid={Boolean(slugError)}
@@ -295,10 +300,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
 }
 
 function SettingsPage() {
-  const query = useQuery({
-    queryKey: QUERY_KEYS.hostSettings,
-    queryFn: getHostSettings,
-  });
+  const query = useQuery(hostSettingsQuery);
 
   return (
     <>

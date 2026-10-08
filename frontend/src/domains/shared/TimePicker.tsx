@@ -11,23 +11,14 @@ import {
   CommandList,
 } from "../../components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
-import { formatClock } from "../../lib/format";
+import { clockMinutes, clockTime, formatClock, prefersHour12 } from "../../lib/format";
 
 const STEP_MINUTES = 15;
 const DAY_MINUTES = 24 * 60;
 
-function toMinutes(time: string): number {
-  const [hours = 0, minutes = 0] = time.split(":").map(Number);
-  return hours * 60 + minutes;
-}
-
-function toTime(minutes: number): string {
-  return `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
-}
-
 /** Every quarter hour of the day as "HH:MM". */
 const TIMES = Array.from({ length: DAY_MINUTES / STEP_MINUTES }, (_, index) =>
-  toTime(index * STEP_MINUTES),
+  clockTime(index * STEP_MINUTES),
 );
 
 /** "45 min", "8 h", "7 h 30 min" */
@@ -35,14 +26,6 @@ function lengthLabel(minutes: number): string {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return [hours ? `${hours} h` : "", rest ? `${rest} min` : ""].filter(Boolean).join(" ");
-}
-
-/** Whether this device writes times as "5:00 PM". */
-export function prefersHour12(): boolean {
-  return (
-    new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12 ??
-    false
-  );
 }
 
 /** A time of day, picked from a list or typed. Reads and writes a wall-clock "HH:MM". */
@@ -62,8 +45,8 @@ export function TimePicker({
 }) {
   const [open, setOpen] = useState(false);
   const hour12 = prefersHour12();
-  const floor = after === undefined ? -1 : toMinutes(after);
-  const times = TIMES.filter((time) => toMinutes(time) > floor);
+  const floor = after === undefined ? -1 : clockMinutes(after);
+  const times = TIMES.filter((time) => clockMinutes(time) > floor);
   // Both spellings, so "17", "5:30" and "5 pm" all find the same time.
   const searchValue = (time: string) =>
     `${formatClock(time, true)} ${formatClock(time, false)}`;
@@ -105,7 +88,7 @@ export function TimePicker({
                   {time === value ? <Check className="size-4" /> : null}
                   {after === undefined ? null : (
                     <span className="ml-auto text-muted-foreground">
-                      {lengthLabel(toMinutes(time) - floor)}
+                      {lengthLabel(clockMinutes(time) - floor)}
                     </span>
                   )}
                 </CommandItem>

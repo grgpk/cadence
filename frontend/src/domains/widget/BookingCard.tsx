@@ -1,15 +1,16 @@
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Skeleton } from "../../components/ui/skeleton";
 import { ApiError } from "../../lib/api";
+import { prefersHour12 } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 import {
-  ALL_COUNTRY_TIMEZONES,
+  DEFAULT_TIMEZONE,
   defaultTimezoneForCountry,
   detectBrowserCountryTimezone,
   getCountryByAlpha2,
@@ -27,10 +28,6 @@ import { DetailsStep } from "./DetailsStep";
 import { SlotStep, type CalendarView } from "./SlotStep";
 import { zonedTime } from "./zoned-time";
 
-const DEFAULT_TIMEZONE = "Europe/Paris";
-const DEFAULT_TZ: CountryTimezone =
-  ALL_COUNTRY_TIMEZONES.find((timezone) => timezone.iana === DEFAULT_TIMEZONE) ??
-  ALL_COUNTRY_TIMEZONES[0];
 const HOUR12_KEY = "cadence-hour12";
 
 function initialHour12(): boolean {
@@ -40,10 +37,32 @@ function initialHour12(): boolean {
   } catch {
     // Storage can be blocked; fall through to the locale's own convention.
   }
-  return (
-    new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions().hour12 ??
-    false
-  );
+  return prefersHour12();
+}
+
+type StoredForm = { leadUnid: string; values: FormValues };
+
+function formKey(slug: string): string {
+  return `cadence-booking-${slug}`;
+}
+
+/** The form as it was before a refresh, for this tab and this booking page only. */
+function storedForm(slug: string): StoredForm | null {
+  try {
+    const stored = sessionStorage.getItem(formKey(slug));
+    return stored ? (JSON.parse(stored) as StoredForm) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeForm(slug: string, form: StoredForm | null) {
+  try {
+    if (form) sessionStorage.setItem(formKey(slug), JSON.stringify(form));
+    else sessionStorage.removeItem(formKey(slug));
+  } catch {
+    // Storage can be blocked; the form still works for this page load.
+  }
 }
 
 function ignore() {
@@ -61,12 +80,17 @@ function Booking({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [values, setValues] = useState<FormValues>({ ...EMPTY_FORM, countryVariant });
+  const [stored] = useState(() => storedForm(slug));
+  const [values, setValues] = useState<FormValues>({
+    ...EMPTY_FORM,
+    countryVariant,
+    ...stored?.values,
+  });
   const [timezone, setTimezone] = useState<CountryTimezone>(
     () =>
       detectBrowserCountryTimezone() ??
       defaultTimezoneForCountry(countryVariant) ??
-      DEFAULT_TZ,
+      DEFAULT_TIMEZONE,
   );
   const [view, setView] = useState<CalendarView>(() => {
     const today = zonedTime(new Date(), timezone.iana);
@@ -74,11 +98,24 @@ function Booking({
   });
   const [slot, setSlot] = useState<TimeSlot | null>(null);
   const [hour12, setHour12] = useState(initialHour12);
-  const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [leadUnid] = useState(() => crypto.randomUUID());
+  const [leadUnid] = useState(() => stored?.leadUnid ?? crypto.randomUUID());
   const [visitUnid, setVisitUnid] = useState<string | null>(null);
   const leadSubmitted = useRef(false);
+  // Set once the visitor moves between steps, so the first render takes no focus.
+  const stepChanged = useRef(false);
+  const focusStep = useCallback((step: HTMLElement | null) => {
+    if (step && stepChanged.current) step.focus();
+  }, []);
+
+  function changeValues(next: FormValues) {
+    setValues(next);
+    storeForm(slug, { leadUnid, values: next });
+  }
+
+  function showStep(next: TimeSlot | null) {
+    stepChanged.current = true;
+    setSlot(next);
+  }
 
   useEffect(() => {
     void createCallingVisit({
@@ -102,10 +139,8 @@ function Booking({
     }
   }
 
-  async function confirm(picked: TimeSlot) {
-    setSubmitting(true);
-    setSubmitError(null);
-    try {
+  const book = useMutation({
+    mutationFn: async (picked: TimeSlot) => {
       await saveLead(slug, leadUnid, leadUpdate(values));
       if (!leadSubmitted.current) {
         await submitLead(slug, leadUnid, window.location.pathname);
@@ -125,36 +160,40 @@ function Booking({
       if (visitUnid) {
         void updateCallingVisit(visitUnid, { booked_call: true }).catch(ignore);
       }
+      storeForm(slug, null);
+      // Part of the request, so the button stays busy until the next page is up.
       await navigate({
         to: ROUTES.bookingConfirmation,
         search: {
           start: booking.slot_start,
           minutes: picked.minutes,
           tz: timezone.iana,
+          h12: hour12,
           meet: booking.meeting_url ?? undefined,
           link: booking.meeting_url !== null,
           slug,
         },
       });
-    } catch (error) {
-      // The time may have just been taken, so the cached times can no longer be trusted.
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) });
-      setSubmitError(
-        error instanceof ApiError && error.isConflict
-          ? "That time was just taken. Go back and pick another one."
-          : "The booking did not go through. Try again or pick another time.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
+    },
+    // The time may have just been taken, so the cached times can no longer be trusted.
+    onError: () =>
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) }),
+  });
+  const submitError = !book.error
+    ? null
+    : book.error instanceof ApiError && book.error.isConflict
+      ? "That time was just taken. Go back and pick another one."
+      : "The booking did not go through. Try again or pick another time.";
 
   // Each step slides in from the side it lives on: details to the right of times.
   return slot === null ? (
-    <div
+    <section
       key="times"
+      ref={focusStep}
+      tabIndex={-1}
+      aria-label="Pick a time"
       style={{ "--step-from": "-1rem" } as CSSProperties}
-      className="motion-safe:animate-step-in"
+      className="outline-none motion-safe:animate-step-in"
     >
       <SlotStep
         slug={slug}
@@ -166,27 +205,33 @@ function Booking({
         hour12={hour12}
         onHour12Change={changeHour12}
         onPick={(picked) => {
-          setSubmitError(null);
-          setSlot(picked);
+          book.reset();
+          showStep(picked);
         }}
       />
-    </div>
+    </section>
   ) : (
-    <div key="details" className="motion-safe:animate-step-in">
+    <section
+      key="details"
+      ref={focusStep}
+      tabIndex={-1}
+      aria-label="Your details"
+      className="outline-none motion-safe:animate-step-in"
+    >
       <DetailsStep
         page={page}
         slot={slot}
         timezone={timezone}
         hour12={hour12}
         values={values}
-        onChange={setValues}
+        onChange={changeValues}
         onSave={(next) => void saveLead(slug, leadUnid, leadUpdate(next)).catch(ignore)}
-        onBack={() => setSlot(null)}
-        onSubmit={() => void confirm(slot)}
-        submitting={submitting}
+        onBack={() => showStep(null)}
+        onSubmit={() => book.mutate(slot)}
+        submitting={book.isPending}
         submitError={submitError}
       />
-    </div>
+    </section>
   );
 }
 
@@ -204,8 +249,8 @@ export function BookingCard({
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const countryVariant =
-    getCountryByAlpha2(initialCountryAlpha2 ?? "FR")?.variant ??
-    EMPTY_FORM.countryVariant;
+    (initialCountryAlpha2 ? getCountryByAlpha2(initialCountryAlpha2)?.variant : null) ??
+    DEFAULT_TIMEZONE.variant;
 
   return (
     <div className="@container w-full">

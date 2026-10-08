@@ -1,3 +1,4 @@
+import { formatTime } from "../../../lib/format";
 import { COUNTRIES, type Country } from "./generated/country-data";
 import { ALL_COUNTRY_TIMEZONES, type CountryTimezone } from "./generated/timezone-data";
 
@@ -5,6 +6,13 @@ export type { Country, CountryTimezone };
 
 const byVariant = new Map(COUNTRIES.map((country) => [country.variant, country]));
 const byAlpha2 = new Map(COUNTRIES.map((country) => [country.alpha2, country]));
+
+/** Where a visitor is taken to be when neither the request nor the browser says. */
+export const DEFAULT_TIMEZONE: CountryTimezone = {
+  variant: "France",
+  region: null,
+  iana: "Europe/Paris",
+};
 
 export function getCountryByVariant(variant: string): Country | undefined {
   return byVariant.get(variant);
@@ -48,16 +56,12 @@ export function timezoneFlag(timezone: CountryTimezone): string {
   return getCountryByVariant(timezone.variant)?.flag ?? "🌐";
 }
 
+/** The zone with its current time, in the device's 12 or 24 hour style unless told. */
 export function timezoneDisplayWithTime(
   timezone: CountryTimezone,
-  now: Date = new Date(),
+  hour12?: boolean,
 ): string {
-  const time = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone.iana,
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  }).format(now);
+  const time = formatTime(new Date().toISOString(), timezone.iana, hour12);
   return `${timezoneLabel(timezone)} - ${time}`;
 }
 

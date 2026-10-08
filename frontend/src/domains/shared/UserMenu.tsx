@@ -1,3 +1,4 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
 import { toast } from "sonner";
@@ -18,6 +19,7 @@ import { ROUTES } from "../../lib/routes";
 
 export function UserMenu({ user }: { user: SessionUser }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { isMobile } = useSidebar();
   const userName = user.full_name || "User";
   const userInitial = userName.charAt(0).toUpperCase();
@@ -60,7 +62,11 @@ export function UserMenu({ user }: { user: SessionUser }) {
         <DropdownMenuItem
           onClick={() => {
             void logout().then(
-              () => navigate({ to: ROUTES.login }),
+              () => {
+                // The next person on this tab must not see this account's data.
+                queryClient.clear();
+                return navigate({ to: ROUTES.login });
+              },
               () => toast.error("You were not logged out. Try again."),
             );
           }}

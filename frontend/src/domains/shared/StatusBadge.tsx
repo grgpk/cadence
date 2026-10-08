@@ -1,6 +1,9 @@
 import { cn } from "cn";
 
+import type { BookingStatus } from "../../bindings/BookingStatus";
 import type { EmailState } from "../../bindings/EmailState";
+import type { LeadQualification } from "../../bindings/LeadQualification";
+import type { UserStatus } from "../../bindings/UserStatus";
 import { Badge } from "../../components/ui/badge";
 
 const TONES = {
@@ -12,21 +15,19 @@ const TONES = {
 
 type Status = { label: string; tone: keyof typeof TONES };
 
-/** Booking statuses, as constrained by the `bookings_status` check. */
-export const BOOKING_STATUS: Record<string, Status> = {
+export const BOOKING_STATUS: Record<BookingStatus, Status> = {
   confirmed: { label: "Confirmed", tone: "positive" },
   pending: { label: "Pending", tone: "caution" },
   cancelled: { label: "Cancelled", tone: "negative" },
 };
 
-/** Lead qualification, as constrained by the `leads_qualification_status` check. */
-export const LEAD_STATUS: Record<string, Status> = {
+export const LEAD_STATUS: Record<LeadQualification, Status> = {
   Qualified: { label: "Qualified", tone: "positive" },
   NotSure: { label: "Not sure", tone: "caution" },
   Disqualified: { label: "Disqualified", tone: "negative" },
 };
 
-/** `EmailState`. Nothing fails for good: an email that will not send keeps retrying. */
+/** Nothing fails for good: an email that will not send keeps retrying. */
 export const EMAIL_STATUS: Record<EmailState, Status> = {
   Sent: { label: "Sent", tone: "positive" },
   Scheduled: { label: "Scheduled", tone: "neutral" },
@@ -34,19 +35,18 @@ export const EMAIL_STATUS: Record<EmailState, Status> = {
   Overdue: { label: "Overdue", tone: "caution" },
 };
 
-/** `users_status`. */
-export const USER_STATUS: Record<string, Status> = {
+export const USER_STATUS: Record<UserStatus, Status> = {
   Active: { label: "Active", tone: "positive" },
   Banned: { label: "Banned", tone: "negative" },
 };
 
-export function StatusBadge({
+export function StatusBadge<T extends string>({
   value,
   statuses,
   fallback = "Unknown",
 }: {
-  value: string | null;
-  statuses: Record<string, Status>;
+  value: T | null;
+  statuses: Partial<Record<T, Status>>;
   fallback?: string;
 }) {
   const status = (value ? statuses[value] : undefined) ?? {

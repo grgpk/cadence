@@ -1,5 +1,6 @@
 import { API_URL } from "./config";
 
+export const UNAUTHORIZED = 401;
 const CONFLICT = 409;
 
 /** A failed API call. Keeps the status so callers can tell a conflict from a bad request. */
@@ -13,6 +14,11 @@ export class ApiError extends Error {
 
   get isConflict(): boolean {
     return this.status === CONFLICT;
+  }
+
+  /** No session, or one that has ended. Login answers a wrong password the same way. */
+  get isUnauthorized(): boolean {
+    return this.status === UNAUTHORIZED;
   }
 }
 

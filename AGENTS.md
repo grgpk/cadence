@@ -63,6 +63,7 @@ pnpm --dir frontend build
 pnpm --dir frontend typecheck
 pnpm --dir frontend lint
 pnpm --dir frontend knip
+pnpm --dir frontend test
 ```
 
 After schema changes, run migration tests or the local database reset. After a

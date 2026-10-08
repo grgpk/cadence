@@ -10,14 +10,14 @@ export const Route = createFileRoute("/terms")({
 
 function TermsPage() {
   return (
-    <LegalPage title="Terms of service" updated="October 1, 2026">
-      <LegalSection title="Using Cadence">
-        Cadence provides scheduling tools and coaching-call services. By using Cadence,
-        you agree to use the service lawfully and provide accurate information.
+    <LegalPage title="Terms of service" updated="October 9, 2026">
+      <LegalSection title={`Using ${APP_NAME}`}>
+        {APP_NAME} provides tools for scheduling calls. By using {APP_NAME}, you agree to
+        use the service lawfully and provide accurate information.
       </LegalSection>
       <LegalSection title="Bookings">
-        A booking is requested through the public widget and confirmed after Cadence
-        accepts the selected slot. You must provide a valid name, email, and contact
+        A booking is requested on a host's booking page and confirmed after {APP_NAME}{" "}
+        accepts the selected time. You must provide a valid name, email, and contact
         details.
       </LegalSection>
       <LegalSection title="Communications">
@@ -30,10 +30,10 @@ function TermsPage() {
       </LegalSection>
       <LegalSection title="Third-party services">
         Calendar, video-call, email, analytics, and hosting providers may process data
-        needed to operate Cadence.
+        needed to operate {APP_NAME}.
       </LegalSection>
       <LegalSection title="Contact">
-        Questions about these terms: contact the Cadence operator through the email
+        Questions about these terms: contact the {APP_NAME} operator through the email
         address shown in your booking communication.
       </LegalSection>
     </LegalPage>

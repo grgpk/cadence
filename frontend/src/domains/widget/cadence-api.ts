@@ -1,20 +1,19 @@
+import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 
 import type { Booking } from "../../bindings/Booking";
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import type { CallingVisitRequest } from "../../bindings/CallingVisitRequest";
-import type { CalendarEvent } from "../../bindings/CalendarEvent";
 import type { CreateBookingRequest } from "../../bindings/CreateBookingRequest";
-import type { HostSettings } from "../../bindings/HostSettings";
 import type { Lead } from "../../bindings/Lead";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { api } from "../../lib/api";
 import { SERVER_API_URL } from "../../lib/api-url";
+import { QUERY_KEYS } from "../../lib/query-keys";
 
 const NOT_FOUND = 404;
-const HOST_SETTINGS_PATH = "/api/host/settings";
 
 function hostPath(slug: string): string {
   return `/api/hosts/${encodeURIComponent(slug)}`;
@@ -72,35 +71,6 @@ export function updateCallingVisit(
   });
 }
 
-export function getCalendarEvents(): Promise<CalendarEvent[]> {
-  return api<CalendarEvent[]>("/api/google-calendar/events");
-}
-
-export async function connectGoogleCalendar(): Promise<void> {
-  const config = await api<{ client_id: string; redirect_uri: string }>(
-    "/api/google-calendar/oauth-config",
-  );
-  const scope = "https://www.googleapis.com/auth/calendar.events";
-  window.location.href =
-    `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(config.client_id)}` +
-    `&redirect_uri=${encodeURIComponent(config.redirect_uri)}` +
-    `&response_type=code&scope=${encodeURIComponent(scope)}&access_type=offline&prompt=consent`;
-}
-
-export function submitGoogleCalendarCode(code: string): Promise<void> {
-  return api<void>("/api/google-calendar/login", {
-    method: "POST",
-    body: JSON.stringify({ code }),
-  });
-}
-
-export function disconnectGoogleCalendar(): Promise<void> {
-  return api<void>("/api/google-calendar/disconnect", {
-    method: "POST",
-    body: JSON.stringify({}),
-  });
-}
-
 /** A host's booking page, or `null` when the link is unknown or switched off. */
 export const getBookingPage = createServerFn({ method: "GET" })
   .inputValidator((slug: string) => slug)
@@ -113,9 +83,19 @@ export const getBookingPage = createServerFn({ method: "GET" })
     return response.json() as Promise<BookingPage>;
   });
 
+export function bookingPageQuery(slug: string) {
+  return queryOptions({
+    queryKey: QUERY_KEYS.bookingPage(slug),
+    queryFn: () => getBookingPage({ data: slug }),
+  });
+}
+
 /** Every time the host can still be booked in the coming week. */
-export function getSlots(slug: string): Promise<TimeSlot[]> {
-  return api<TimeSlot[]>(`${hostPath(slug)}/slots`);
+export function publicSlotsQuery(slug: string) {
+  return queryOptions({
+    queryKey: QUERY_KEYS.publicSlots(slug),
+    queryFn: () => api<TimeSlot[]>(`${hostPath(slug)}/slots`),
+  });
 }
 
 export function createBooking(
@@ -125,16 +105,5 @@ export function createBooking(
   return api<Booking>(`${hostPath(slug)}/bookings`, {
     method: "POST",
     body: JSON.stringify(request),
-  });
-}
-
-export function getHostSettings(): Promise<HostSettings> {
-  return api<HostSettings>(HOST_SETTINGS_PATH);
-}
-
-export function saveHostSettings(settings: HostSettings): Promise<HostSettings> {
-  return api<HostSettings>(HOST_SETTINGS_PATH, {
-    method: "PUT",
-    body: JSON.stringify(settings),
   });
 }

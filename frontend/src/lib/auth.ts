@@ -3,22 +3,7 @@ import { getCookie } from "@tanstack/react-start/server";
 import type { Role } from "../bindings/Role";
 import type { SessionUser } from "../bindings/SessionUser";
 import { SERVER_API_URL } from "./api-url";
-import { api } from "./api";
-import { isBookingPath, ROUTES } from "./routes";
-
-const PUBLIC_PATHS: readonly string[] = [
-  ROUTES.home,
-  ROUTES.bookingConfirmation,
-  ROUTES.login,
-  ROUTES.privacy,
-  ROUTES.register,
-  ROUTES.terms,
-];
-
-/** Pages a visitor can open without an account. */
-export function isPublicPath(pathname: string): boolean {
-  return PUBLIC_PATHS.includes(pathname) || isBookingPath(pathname);
-}
+import { api, UNAUTHORIZED } from "./api";
 
 const ROLES = {
   ROOT: "Root",
@@ -39,7 +24,9 @@ export const getSessionUser = createServerFn({ method: "GET" }).handler(async ()
   const response = await fetch(`${SERVER_API_URL}/api/auth/me`, {
     headers: { Cookie: `session=${session}` },
   });
-  if (!response.ok) return null;
+  if (response.status === UNAUTHORIZED) return null;
+  // An outage is not a logout: let the error page show instead of the login form.
+  if (!response.ok) throw new Error(`Session check failed: ${response.status}`);
 
   return response.json() as Promise<SessionUser>;
 });

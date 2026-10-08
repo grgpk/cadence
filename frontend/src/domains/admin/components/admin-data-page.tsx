@@ -5,13 +5,12 @@ import { useState } from "react";
 
 import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
-import { api } from "../../../lib/api";
-import { QUERY_KEYS } from "../../../lib/query-keys";
 import { DataTable, type Column } from "../../shared/DataTable";
 import { EmptyState } from "../../shared/EmptyState";
 import { ErrorState } from "../../shared/ErrorState";
 import { PageHeader } from "../../shared/PageHeader";
 import { TableSkeleton } from "../../shared/TableSkeleton";
+import { adminDataQuery } from "../routes";
 
 type AdminDataPageProps<T> = {
   title: string;
@@ -41,10 +40,7 @@ export function AdminDataPage<T>({
   initialSearch = "",
 }: AdminDataPageProps<T>) {
   const [search, setSearch] = useState(initialSearch);
-  const query = useQuery({
-    queryKey: QUERY_KEYS.adminData(endpoint),
-    queryFn: () => api<T[]>(endpoint),
-  });
+  const query = useQuery(adminDataQuery<T[]>(endpoint));
 
   const all = query.data ?? [];
   const wanted = search.trim().toLowerCase();

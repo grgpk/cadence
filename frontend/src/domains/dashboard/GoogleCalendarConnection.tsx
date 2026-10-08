@@ -7,12 +7,12 @@ import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
+import { bookingPageQuery } from "../widget/cadence-api";
 import {
+  calendarEventsQuery,
   connectGoogleCalendar,
   disconnectGoogleCalendar,
-  getBookingPage,
-  getCalendarEvents,
-} from "../widget/cadence-api";
+} from "./host-api";
 
 function connect() {
   void connectGoogleCalendar().catch(() =>
@@ -24,17 +24,10 @@ function connect() {
 export function GoogleCalendarConnection({ slug }: { slug: string }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
-  const events = useQuery({
-    queryKey: QUERY_KEYS.calendarEvents,
-    queryFn: getCalendarEvents,
-    retry: false,
-  });
+  const events = useQuery(calendarEventsQuery);
   // The events call fails both when no calendar is connected and when Google
   // is unreachable. The booking page knows which, straight from our database.
-  const page = useQuery({
-    queryKey: QUERY_KEYS.bookingPage(slug),
-    queryFn: () => getBookingPage({ data: slug }),
-  });
+  const page = useQuery(bookingPageQuery(slug));
   const disconnect = useMutation({
     mutationFn: disconnectGoogleCalendar,
     onSuccess: async () => {

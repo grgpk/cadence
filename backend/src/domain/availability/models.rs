@@ -18,6 +18,7 @@ pub struct AvailabilityRuleInput {
 #[derive(Debug, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/AvailabilityRule.ts")]
 pub struct AvailabilityRule {
+    #[ts(type = "number")]
     pub id: i64,
     pub host_unid: Uuid,
     pub weekday: i32,

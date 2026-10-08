@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { ADMIN_NAV } from "../../domains/admin/routes";
 import { AppShell } from "../../domains/shared/AppShell";
 import { hasAdminAccess } from "../../lib/auth";
+import { NOINDEX_META } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/admin")({
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/admin")({
       throw redirect({ to: ROUTES.dashboard });
     }
   },
+  head: () => ({ meta: [NOINDEX_META] }),
   component: AdminLayout,
 });
 

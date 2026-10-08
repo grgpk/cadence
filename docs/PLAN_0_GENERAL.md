@@ -94,6 +94,7 @@ cadence/
 | 8 | `PLAN_8_UI_REFRESH.md` | one token-driven look, time-first booking card, availability editor | ✅ done |
 | 9 | `PLAN_9_DAY_TAPE.md` | "day tape" identity: palette, type, landing page, motion | ✅ done |
 | 10 | `PLAN_10_ADMIN_CLARITY.md` | admin health overview, booking page status, grouped settings, time picker | ✅ done |
+| 11 | `PLAN_11_FRONTEND_HARDENING.md` | session and error handling, booking form accessibility, typed statuses, frontend tests | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

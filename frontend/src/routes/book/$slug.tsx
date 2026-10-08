@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
+import { RouteError } from "../../domains/shared/NotFound";
 import { getBookingPage } from "../../domains/widget/cadence-api";
 import { PublicBookingPage } from "../../domains/widget/PublicBookingPage";
 import { APP_NAME } from "../../lib/config";
@@ -14,15 +15,23 @@ export const Route = createFileRoute("/book/$slug")({
     if (!page) throw notFound();
     return { country, page };
   },
-  head: ({ loaderData }) => ({
-    meta: loaderData
-      ? [
-          { title: `${loaderData.page.title} | ${loaderData.page.host_name}` },
-          { name: "description", content: loaderData.page.description },
-        ]
-      : [{ title: APP_NAME }],
-  }),
+  head: ({ loaderData }) => {
+    if (!loaderData) return { meta: [{ title: APP_NAME }] };
+    const { page } = loaderData;
+    const title = `${page.title} | ${page.host_name}`;
+    // The description is optional in a host's settings.
+    const description = page.description || `Book a call with ${page.host_name}.`;
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+      ],
+    };
+  },
   component: HostBookingPage,
+  errorComponent: RouteError,
 });
 
 function HostBookingPage() {

@@ -3,6 +3,16 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+/// The values of the `leads_qualification_status` check. The fields that carry
+/// one stay strings for sqlx; this gives the frontend the closed set.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/LeadQualification.ts")]
+pub enum LeadQualification {
+    Qualified,
+    NotSure,
+    Disqualified,
+}
+
 #[derive(Debug, Default, Deserialize, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/LeadUpdate.ts")]
 #[serde(default)]
@@ -21,6 +31,7 @@ pub struct LeadUpdate {
     pub utm_source: Option<String>,
     pub utm_medium: Option<String>,
     pub utm_campaign: Option<String>,
+    #[ts(as = "Option<LeadQualification>")]
     pub qualification_status: Option<String>,
 }
 
@@ -45,6 +56,7 @@ pub struct Lead {
     pub utm_source: Option<String>,
     pub utm_medium: Option<String>,
     pub utm_campaign: Option<String>,
+    #[ts(as = "Option<LeadQualification>")]
     pub qualification_status: Option<String>,
     pub form_submitted_at: Option<DateTime<Utc>>,
 }

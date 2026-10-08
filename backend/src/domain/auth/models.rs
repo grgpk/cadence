@@ -44,6 +44,15 @@ impl FromStr for Role {
 
 pub const USER_STATUS_ACTIVE: &str = "Active";
 
+/// The values of the `users_status` check, for wire types that carry the
+/// status as a string.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/UserStatus.ts")]
+pub enum UserStatus {
+    Active,
+    Banned,
+}
+
 #[derive(Clone, Debug)]
 pub struct UserRecord {
     pub unid: Uuid,

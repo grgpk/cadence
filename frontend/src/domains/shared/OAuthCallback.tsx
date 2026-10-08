@@ -4,7 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useEffect, useRef } from "react";
 
 import { Button } from "../../components/ui/button";
-import { submitGoogleCalendarCode } from "../widget/cadence-api";
+import { submitGoogleCalendarCode } from "../dashboard/host-api";
 import { ErrorState } from "./ErrorState";
 
 /** Finishes the Google sign-in round trip, then returns to the page that started it. */
@@ -28,14 +28,15 @@ export function GoogleCalendarCallback({
     connect.mutate(code);
   }, [code, connect]);
 
-  const error =
-    connect.error ?? (code ? null : new Error("Google did not return a code."));
-
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4">
-      {error ? (
+      {connect.error || !code ? (
         <>
-          <ErrorState title="Google Calendar was not connected" error={error} />
+          <ErrorState
+            title="Google Calendar was not connected"
+            error={connect.error}
+            description={code ? undefined : "Google did not return a code."}
+          />
           <Button variant="outline" className="self-start" asChild>
             <Link to={returnTo}>Go back</Link>
           </Button>

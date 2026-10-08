@@ -7,12 +7,11 @@ import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
-import { api } from "../../lib/api";
-import { weekdayName } from "../../lib/format";
-import { QUERY_KEYS } from "../../lib/query-keys";
+import { weekdayName, zoneName } from "../../lib/format";
 import { bookingPath, ROUTES } from "../../lib/routes";
-import { getBookingPage, getHostSettings } from "../widget/cadence-api";
+import { bookingPageQuery } from "../widget/cadence-api";
 import { copyBookingLink } from "./booking-link";
+import { availabilityQuery, hostSettingsQuery } from "./host-api";
 import { SETTINGS_SECTIONS } from "./routes";
 
 const WEEK_DAYS = 7;
@@ -111,20 +110,10 @@ function FixLink({
 
 /** Everything a booking page needs to work, with its current state and where to change it. */
 export function BookingPageStatus() {
-  const settings = useQuery({
-    queryKey: QUERY_KEYS.hostSettings,
-    queryFn: getHostSettings,
-  });
-  const availability = useQuery({
-    queryKey: QUERY_KEYS.availability,
-    queryFn: () => api<AvailabilityRule[]>("/api/availability"),
-  });
+  const settings = useQuery(hostSettingsQuery);
+  const availability = useQuery(availabilityQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({
-    queryKey: QUERY_KEYS.bookingPage(slug ?? ""),
-    queryFn: () => getBookingPage({ data: slug ?? "" }),
-    enabled: Boolean(slug),
-  });
+  const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
   // Where calls happen needs both the saved link and the calendar state.
   const calls = settings.isError ? settings : page;
 
@@ -176,7 +165,7 @@ export function BookingPageStatus() {
         </Row>
         <Row label="Timezone" query={settings}>
           {() => ({
-            value: settings.data?.timezone.replaceAll("_", " "),
+            value: settings.data && zoneName(settings.data.timezone),
             actions: (
               <FixLink to={ROUTES.dashboardSettings} hash={SETTINGS_SECTIONS.time}>
                 Change

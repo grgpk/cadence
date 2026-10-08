@@ -11,8 +11,9 @@ import { Label } from "../../components/ui/label";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
 import { formatDay } from "../../lib/format";
+import { Field, fieldHelpId } from "../shared/Field";
 import {
-  getCountryByAlpha2,
+  DEFAULT_TIMEZONE,
   getCountryByVariant,
   timezoneDisplayWithTime,
   type CountryTimezone,
@@ -24,33 +25,6 @@ import { PHASE_STYLES } from "./SlotStep";
 import { callEnd, clockLabel, dayPhase, zonedTime } from "./zoned-time";
 
 const ID = "cadence";
-
-function Field({
-  id,
-  label,
-  error,
-  required = true,
-  children,
-}: {
-  id: string;
-  label: string;
-  error?: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <div className="grid content-start gap-1.5">
-      <Label htmlFor={id}>
-        {label}
-        {required ? null : (
-          <span className="font-normal text-muted-foreground">(optional)</span>
-        )}
-      </Label>
-      {children}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-    </div>
-  );
-}
 
 function OptionGroup({
   legend,
@@ -65,7 +39,11 @@ function OptionGroup({
     <fieldset className="grid content-start gap-2.5">
       <legend className="mb-2.5 text-sm leading-none font-medium">{legend}</legend>
       {children}
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
     </fieldset>
   );
 }
@@ -155,7 +133,9 @@ export function DetailsStep({
   const [attempted, setAttempted] = useState(false);
   const allErrors = formErrors(values, page);
   const errors = attempted ? allErrors : {};
-  const country = getCountryByVariant(values.countryVariant) ?? getCountryByAlpha2("FR");
+  const country =
+    getCountryByVariant(values.countryVariant) ??
+    getCountryByVariant(DEFAULT_TIMEZONE.variant);
 
   const update = (patch: Partial<FormValues>) => onChange({ ...values, ...patch });
   const updateAndSave = (patch: Partial<FormValues>) => {
@@ -179,7 +159,7 @@ export function DetailsStep({
         <BookingSummary
           page={page}
           minutes={slot.minutes}
-          timezone={timezoneDisplayWithTime(timezone)}
+          timezone={timezoneDisplayWithTime(timezone, hour12)}
         >
           <div className="relative overflow-hidden rounded-lg border bg-muted py-3 pr-3 pl-4">
             <span
@@ -232,41 +212,68 @@ export function DetailsStep({
         </h2>
 
         <div className="grid gap-4 @md/form:grid-cols-2">
-          <Field id={`${ID}-first-name`} label="First name" error={errors.firstName}>
+          <Field
+            className="content-start"
+            id={`${ID}-first-name`}
+            label="First name"
+            error={errors.firstName}
+          >
             <Input
               id={`${ID}-first-name`}
               autoComplete="given-name"
-              maxLength={30}
+              maxLength={60}
               value={values.firstName}
               aria-invalid={Boolean(errors.firstName)}
+              aria-describedby={
+                errors.firstName ? fieldHelpId(`${ID}-first-name`) : undefined
+              }
               onChange={(event) => update({ firstName: event.target.value })}
               onBlur={() => onSave(values)}
             />
           </Field>
-          <Field id={`${ID}-last-name`} label="Last name" error={errors.lastName}>
+          <Field
+            className="content-start"
+            id={`${ID}-last-name`}
+            label="Last name"
+            error={errors.lastName}
+          >
             <Input
               id={`${ID}-last-name`}
               autoComplete="family-name"
-              maxLength={30}
+              maxLength={60}
               value={values.lastName}
               aria-invalid={Boolean(errors.lastName)}
+              aria-describedby={
+                errors.lastName ? fieldHelpId(`${ID}-last-name`) : undefined
+              }
               onChange={(event) => update({ lastName: event.target.value })}
               onBlur={() => onSave(values)}
             />
           </Field>
-          <Field id={`${ID}-email`} label="Email" error={errors.email}>
+          <Field
+            className="content-start"
+            id={`${ID}-email`}
+            label="Email"
+            error={errors.email}
+          >
             <Input
               id={`${ID}-email`}
               type="email"
               autoComplete="email"
-              maxLength={50}
+              maxLength={254}
               value={values.email}
               aria-invalid={Boolean(errors.email)}
+              aria-describedby={errors.email ? fieldHelpId(`${ID}-email`) : undefined}
               onChange={(event) => update({ email: event.target.value })}
               onBlur={() => onSave(values)}
             />
           </Field>
-          <Field id={`${ID}-phone`} label="Phone" error={errors.phone}>
+          <Field
+            className="content-start"
+            id={`${ID}-phone`}
+            label="Phone"
+            error={errors.phone}
+          >
             {country ? (
               <PhoneInput
                 id={`${ID}-phone`}
@@ -278,6 +285,7 @@ export function DetailsStep({
                 onDigitsChange={(digits) => update({ phone: digits })}
                 onBlur={() => onSave(values)}
                 invalid={Boolean(errors.phone)}
+                describedBy={errors.phone ? fieldHelpId(`${ID}-phone`) : undefined}
               />
             ) : null}
           </Field>
@@ -289,7 +297,7 @@ export function DetailsStep({
               key={question.field}
               id={`${ID}-${question.field}`}
               label={question.label}
-              required={false}
+              optional
             >
               <Textarea
                 id={`${ID}-${question.field}`}

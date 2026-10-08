@@ -1,16 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
-import { CalendarDays, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { CalendarDays } from "lucide-react";
+import { useRef, useState } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
-import { QUERY_KEYS } from "../../lib/query-keys";
+import { Skeleton } from "../../components/ui/skeleton";
+import { formatDay } from "../../lib/format";
+import { EmptyState } from "../shared/EmptyState";
+import { ErrorState } from "../shared/ErrorState";
 import type { CountryTimezone } from "../shared/phone/country";
 import { BookingCalendar } from "./BookingCalendar";
 import { BookingSummary } from "./BookingSummary";
-import { getSlots } from "./cadence-api";
+import { publicSlotsQuery } from "./cadence-api";
 import { shiftMonth } from "./calendar-grid";
 import { TimezoneCombobox } from "./TimezoneCombobox";
 import {
@@ -28,6 +31,8 @@ const CLOCKS = [
   { hour12: true, label: "12h" },
   { hour12: false, label: "24h" },
 ] as const;
+
+const LOADING_ROWS = [0, 1, 2, 3];
 
 /** Long enough to see the slot fill before the card moves on. */
 const PICK_MS = 170;
@@ -135,10 +140,8 @@ export function SlotStep({
   onHour12Change: (hour12: boolean) => void;
   onPick: (slot: TimeSlot) => void;
 }) {
-  const query = useQuery({
-    queryKey: QUERY_KEYS.publicSlots(slug),
-    queryFn: () => getSlots(slug),
-  });
+  const query = useQuery(publicSlotsQuery(slug));
+  const timesRef = useRef<HTMLDivElement>(null);
   // +1 when the calendar last moved forward, -1 when it moved back.
   const [monthDirection, setMonthDirection] = useState(1);
 
@@ -161,12 +164,10 @@ export function SlotStep({
   const selectedDayLabel =
     selectedDay === null
       ? null
-      : new Intl.DateTimeFormat("en", {
-          weekday: "short",
-          day: "numeric",
-          month: "short",
-          timeZone: "UTC",
-        }).format(new Date(Date.UTC(view.year, view.month - 1, selectedDay)));
+      : formatDay(
+          new Date(Date.UTC(view.year, view.month - 1, selectedDay)).toISOString(),
+          "UTC",
+        );
 
   function moveMonth(offset: 1 | -1) {
     setMonthDirection(offset);
@@ -182,6 +183,7 @@ export function SlotStep({
           timezone={
             <TimezoneCombobox
               selected={timezone}
+              hour12={hour12}
               onSelect={(next) => {
                 onTimezoneChange(next);
                 onViewChange({ ...view, day: null });
@@ -206,36 +208,39 @@ export function SlotStep({
           canGoNext={slots.some(({ at }) => isLaterMonth(at, view))}
           onPrev={() => moveMonth(-1)}
           onNext={() => moveMonth(1)}
-          onSelect={(day) => onViewChange({ ...view, day })}
+          onSelect={(day) => {
+            onViewChange({ ...view, day });
+            // On a phone the times sit below the calendar; this is a no-op beside it.
+            requestAnimationFrame(() =>
+              timesRef.current?.scrollIntoView({ block: "nearest" }),
+            );
+          }}
         />
       </div>
 
-      <div className="p-5 @[760px]:p-6">
+      <div ref={timesRef} className="p-5 @[760px]:p-6">
         {query.isPending ? (
-          <p className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
-            <Loader2 className="size-4 animate-spin" />
-            Loading times
-          </p>
+          <div className="grid gap-2" role="status" aria-label="Loading times">
+            {LOADING_ROWS.map((row) => (
+              <Skeleton key={row} className="h-10 w-full" />
+            ))}
+          </div>
         ) : query.isError ? (
-          <div className="py-2 text-sm">
-            <p className="text-destructive">The times did not load.</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={() => void query.refetch()}
-            >
-              Try again
-            </Button>
-          </div>
+          <ErrorState
+            title="The times did not load"
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
         ) : selectedDay === null || selectedDayLabel === null ? (
-          <div className="flex h-full min-h-24 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
-            <CalendarDays className="size-5" />
-            {slots.length === 0
-              ? `${page.host_name} has no open times in the next 7 days. Check back later.`
-              : "Pick a day to see times"}
-          </div>
+          slots.length === 0 ? (
+            <EmptyState
+              icon={CalendarDays}
+              title="No open times"
+              description={`${page.host_name} has no open times in the next 7 days. Check back later.`}
+            />
+          ) : (
+            <EmptyState icon={CalendarDays} title="Pick a day to see times" />
+          )
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between gap-2">

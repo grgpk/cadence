@@ -1,6 +1,6 @@
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
-import { getCountryByVariant } from "../shared/phone/country";
+import { DEFAULT_TIMEZONE, getCountryByVariant } from "../shared/phone/country";
 import {
   formatForCountry,
   hasRepeatedDigits,
@@ -22,7 +22,7 @@ export type FormValues = {
 
 export const EMPTY_FORM: FormValues = {
   phone: "",
-  countryVariant: "France",
+  countryVariant: DEFAULT_TIMEZONE.variant,
   firstName: "",
   lastName: "",
   email: "",

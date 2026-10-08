@@ -46,7 +46,11 @@ impl AdminBugType {
 // Mirrors app/src/domain/admin/monitor/data/bug_reports_db.rs AddBugReport — the
 // client-facing request shape. `url`/`user_agent` are filled from request context
 // in the handler, not accepted from the client body.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/AddBugReportRequest.ts"
+)]
 pub struct AddBugReportRequest {
     pub bug_type: AdminBugType,
     pub message: String,
@@ -62,6 +66,7 @@ pub struct AddBugReportResponse {
 #[derive(Debug, Clone, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/AdminBugReport.ts")]
 pub struct AdminBugReport {
+    #[ts(type = "number")]
     pub id: i64,
     pub unid: Uuid,
     pub bugtype: String,
@@ -74,6 +79,8 @@ pub struct AdminBugReport {
     pub useragent: Option<String>,
     pub application: Option<String>,
     pub created: DateTime<Utc>,
+    #[ts(type = "number")]
     pub total_count: i64,
+    #[ts(type = "number")]
     pub similar_count: i64,
 }

@@ -7,17 +7,20 @@ import type { AdminBugReport } from "../../bindings/AdminBugReport";
 import type { AdminEmail } from "../../bindings/AdminEmail";
 import type { AdminHost } from "../../bindings/AdminHost";
 import type { EmailState } from "../../bindings/EmailState";
+import type { UserStatus } from "../../bindings/UserStatus";
 import type { VisitFunnel } from "../../bindings/VisitFunnel";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
-import { HOST_GAPS, hostGaps } from "../../domains/admin/host-setup";
-import { ADMIN_PAGES, VISIT_FUNNEL_ENDPOINT } from "../../domains/admin/routes";
+import { HOST_GAPS, type HostGap, hostGaps } from "../../domains/admin/host-setup";
+import {
+  ADMIN_PAGES,
+  adminDataQuery,
+  VISIT_FUNNEL_ENDPOINT,
+} from "../../domains/admin/routes";
 import { EmptyState } from "../../domains/shared/EmptyState";
 import { PageHeader } from "../../domains/shared/PageHeader";
-import { api } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
-import { QUERY_KEYS } from "../../lib/query-keys";
 
 export const Route = createFileRoute("/admin/")({
   head: () => ({ meta: [{ title: `Admin | ${APP_NAME}` }] }),
@@ -25,13 +28,12 @@ export const Route = createFileRoute("/admin/")({
 });
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const ACTIVE = "Active";
+const ACTIVE: UserStatus = "Active";
+const RETRYING: EmailState = "Retrying";
+const OVERDUE: EmailState = "Overdue";
 
 function useAdminData<T>(endpoint: string) {
-  return useQuery({
-    queryKey: QUERY_KEYS.adminData(endpoint),
-    queryFn: () => api<T>(endpoint),
-  });
+  return useQuery(adminDataQuery<T>(endpoint));
 }
 
 type Attention = {
@@ -49,7 +51,7 @@ function emailsIn(emails: AdminEmail[], state: EmailState): number {
   return emails.filter((email) => email.state === state).length;
 }
 
-function hostsWith(hosts: AdminHost[], gap: string): number {
+function hostsWith(hosts: AdminHost[], gap: HostGap): number {
   return hosts.filter(
     (host) => host.status === ACTIVE && hostGaps(host).some((found) => found === gap),
   ).length;
@@ -71,21 +73,21 @@ function NeedsAttention() {
   const items: Attention[] = [
     {
       key: "retrying",
-      count: emailsIn(emails.data ?? [], "Retrying"),
+      count: emailsIn(emails.data ?? [], RETRYING),
       one: "email keeps failing to send",
       many: "emails keep failing to send",
       urgent: true,
       to: ADMIN_PAGES.emails.to,
-      search: "Retrying",
+      search: RETRYING,
     },
     {
       key: "overdue",
-      count: emailsIn(emails.data ?? [], "Overdue"),
+      count: emailsIn(emails.data ?? [], OVERDUE),
       one: "email is overdue and was never tried",
       many: "emails are overdue and were never tried",
       urgent: true,
       to: ADMIN_PAGES.emails.to,
-      search: "Overdue",
+      search: OVERDUE,
     },
     {
       key: "no-hours",

@@ -36,16 +36,14 @@ function formatGermanyMobile(digits: string): string {
 }
 
 function formatWithGroups(groups: number[], digits: string): string {
-  let result = "";
+  const parts: string[] = [];
   let index = 0;
-  for (let i = 0; i < groups.length; i++) {
+  for (const size of groups) {
     if (index >= digits.length) break;
-    if (i > 0) result += " ";
-    result += digits.slice(index, index + groups[i]);
-    index += groups[i];
+    parts.push(digits.slice(index, index + size));
+    index += size;
   }
-  result += digits.slice(index);
-  return result;
+  return parts.join(" ") + digits.slice(index);
 }
 
 /** Mirrors PhoneNumber::format (variant param is the Country enum variant, e.g. "Germany"). */

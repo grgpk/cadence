@@ -5,6 +5,7 @@ import { useState, type ComponentProps, type FormEvent, type ReactNode } from "r
 import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Input } from "../../components/ui/input";
 import { APP_NAME } from "../../lib/config";
+import { errorMessage } from "../../lib/error-message";
 import { ROUTES } from "../../lib/routes";
 import { Logo } from "./Logo";
 
@@ -12,6 +13,7 @@ export function AuthCard({
   title,
   description,
   error,
+  errorMessages,
   onSubmit,
   children,
   footer,
@@ -19,6 +21,8 @@ export function AuthCard({
   title: string;
   description: string;
   error: unknown;
+  /** What a failed status means on this form, such as a wrong password. */
+  errorMessages?: Partial<Record<number, string>>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   children: ReactNode;
   footer: ReactNode;
@@ -35,9 +39,7 @@ export function AuthCard({
           {error ? (
             <Alert variant="destructive">
               <CircleAlert className="size-4" />
-              <AlertDescription>
-                {error instanceof Error ? error.message : "Something went wrong."}
-              </AlertDescription>
+              <AlertDescription>{errorMessage(error, errorMessages)}</AlertDescription>
             </Alert>
           ) : null}
           {children}

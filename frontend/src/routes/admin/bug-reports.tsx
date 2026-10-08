@@ -64,7 +64,7 @@ const COLUMNS: Column<AdminBugReport>[] = [
   {
     header: "Seen",
     className: "text-right tabular-nums",
-    cell: (report) => String(report.similar_count),
+    cell: (report) => report.similar_count,
   },
   {
     header: "Last seen",

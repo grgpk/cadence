@@ -1,4 +1,5 @@
 import { Check, ChevronDown } from "lucide-react";
+import { useState } from "react";
 
 import {
   Command,
@@ -20,6 +21,7 @@ export function TimezoneCombobox({
   id,
   selected,
   fallbackLabel = "Choose a timezone",
+  hour12,
   onSelect,
 }: {
   id?: string;
@@ -27,11 +29,14 @@ export function TimezoneCombobox({
   selected: CountryTimezone | undefined;
   /** Shown instead when nothing in the list is selected. */
   fallbackLabel?: string;
+  /** The visitor's choice of clock, where there is one. Otherwise the device's. */
+  hour12?: boolean;
   onSelect: (tz: CountryTimezone) => void;
 }) {
-  const label = selected ? timezoneDisplayWithTime(selected) : fallbackLabel;
+  const [open, setOpen] = useState(false);
+  const label = selected ? timezoneDisplayWithTime(selected, hour12) : fallbackLabel;
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           id={id}
@@ -53,11 +58,14 @@ export function TimezoneCombobox({
               {ALL_COUNTRY_TIMEZONES.map((tz) => (
                 <CommandItem
                   key={tz.iana}
-                  value={timezoneDisplayWithTime(tz)}
-                  onSelect={() => onSelect(tz)}
+                  value={timezoneDisplayWithTime(tz, hour12)}
+                  onSelect={() => {
+                    onSelect(tz);
+                    setOpen(false);
+                  }}
                 >
                   <span className="text-base">{timezoneFlag(tz)}</span>
-                  {timezoneDisplayWithTime(tz)}
+                  {timezoneDisplayWithTime(tz, hour12)}
                   {selected?.iana === tz.iana && <Check className="ml-auto size-4" />}
                 </CommandItem>
               ))}

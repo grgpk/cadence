@@ -7,15 +7,15 @@ import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { BOOKING_COLUMNS, isUpcoming } from "../../domains/bookings/booking-columns";
+import { bookingColumns } from "../../domains/bookings/booking-columns";
+import { hostSettingsQuery } from "../../domains/dashboard/host-api";
+import { bookingsQuery, splitBookings } from "../../domains/bookings/bookings";
 import { DataTable } from "../../domains/shared/DataTable";
 import { EmptyState } from "../../domains/shared/EmptyState";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
-import { api } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
-import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/bookings")({
@@ -32,13 +32,14 @@ function BookingList({
   bookings: Booking[];
   empty: React.ReactNode;
 }) {
+  const settings = useQuery(hostSettingsQuery);
   return (
     <Card className="gap-0 overflow-hidden py-0">
       {bookings.length === 0 ? (
         empty
       ) : (
         <DataTable
-          columns={BOOKING_COLUMNS}
+          columns={bookingColumns(settings.data?.timezone)}
           rows={bookings}
           rowKey={(booking) => booking.unid}
         />
@@ -48,24 +49,12 @@ function BookingList({
 }
 
 function BookingsPage() {
-  const query = useQuery({
-    queryKey: QUERY_KEYS.bookings,
-    queryFn: () => api<Booking[]>("/api/bookings"),
-  });
+  const query = useQuery(bookingsQuery);
 
-  const { upcoming, past } = useMemo(() => {
-    const now = Date.now();
-    const all = query.data ?? [];
-    return {
-      // Soonest first for what is coming, most recent first for what has been.
-      upcoming: all
-        .filter((booking) => isUpcoming(booking, now))
-        .sort((a, b) => a.slot_start.localeCompare(b.slot_start)),
-      past: all
-        .filter((booking) => !isUpcoming(booking, now))
-        .sort((a, b) => b.slot_start.localeCompare(a.slot_start)),
-    };
-  }, [query.data]);
+  const { upcoming, past } = useMemo(
+    () => splitBookings(query.data ?? [], Date.now()),
+    [query.data],
+  );
 
   return (
     <>
