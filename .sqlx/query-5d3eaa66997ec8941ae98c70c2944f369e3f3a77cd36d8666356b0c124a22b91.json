@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT payload->>'timezone' FROM email_queue\n         WHERE booking_unid = $1 AND template = 'host_new_booking'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "5d3eaa66997ec8941ae98c70c2944f369e3f3a77cd36d8666356b0c124a22b91"
+}

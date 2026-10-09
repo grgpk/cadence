@@ -48,6 +48,32 @@ export type DayPhase = (typeof DAY_PHASES)[number];
 const NOON = 12;
 const EVENING = 17;
 
+const HOUR_MINUTES = 60;
+const PHASE_ENDS: { phase: DayPhase; end: number }[] = [
+  { phase: "Morning", end: NOON * HOUR_MINUTES },
+  { phase: "Afternoon", end: EVENING * HOUR_MINUTES },
+  { phase: "Evening", end: 24 * HOUR_MINUTES },
+];
+
+/**
+ * A stretch of one day, in minutes since midnight, cut where the part of the
+ * day changes, so each piece can take its own color.
+ */
+export function phaseSpans(
+  from: number,
+  to: number,
+): { phase: DayPhase; from: number; to: number }[] {
+  const spans: { phase: DayPhase; from: number; to: number }[] = [];
+  let start = 0;
+  for (const { phase, end } of PHASE_ENDS) {
+    if (from < end && to > start) {
+      spans.push({ phase, from: Math.max(from, start), to: Math.min(to, end) });
+    }
+    start = end;
+  }
+  return spans;
+}
+
 /** The part of the visitor's day an hour falls in. */
 export function dayPhase(hour: number): DayPhase {
   if (hour < NOON) return "Morning";

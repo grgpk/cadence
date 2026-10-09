@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at\n             FROM bookings ORDER BY slot_start DESC",
+  "query": "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at\n             FROM bookings ORDER BY slot_start DESC",
   "describe": {
     "columns": [
       {
@@ -115,6 +115,17 @@
       },
       {
         "ordinal": 10,
+        "name": "manage_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "manage_token"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -139,8 +150,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "f014a976b24ce17ed2739c3d6014ece49d549e3888e0b667cb580ab9e38487bc"
+  "hash": "4b57356faf323d39f73ac6929ed1a8b9124eade5e40a17743abaa2af404bc232"
 }

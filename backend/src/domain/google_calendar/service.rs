@@ -243,3 +243,22 @@ pub async fn delete_event(
         .await
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }
+
+/// Moves a rescheduled call on the host's calendar.
+pub async fn move_event(
+    pool: &PgPool,
+    host_unid: Uuid,
+    event_id: &str,
+    start: DateTime<Utc>,
+    minutes: i32,
+) -> Result<(), anyhow::Error> {
+    let access_token = get_google_access_token(pool, host_unid).await?;
+    GoogleCalendarClient::new(access_token)
+        .update_event_time(
+            event_id,
+            start,
+            start + Duration::minutes(i64::from(minutes)),
+        )
+        .await
+        .map_err(|error| anyhow::anyhow!(error.to_string()))
+}

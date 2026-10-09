@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT send_at FROM email_queue WHERE booking_unid = $1 AND template = 'reminder_30min'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "send_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "email_queue",
+            "name": "send_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "62cdd064f1bbad4bf0903972ee898b7c0bcb03c834e77a10ae6283f058341130"
+}

@@ -11,7 +11,7 @@ import { clockMinutes } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { isCancelled } from "../bookings/bookings";
 import { OPEN_STYLES } from "../landing/DayTape";
-import { zonedTime, type DayPhase } from "../widget/zoned-time";
+import { phaseSpans, zonedTime } from "../widget/zoned-time";
 
 const HOUR = 60;
 const MINUTE_MS = 60_000;
@@ -21,13 +21,6 @@ const DEFAULT_CALL_MINUTES = 30;
 const HOUR_WIDTH_REM = 7;
 /** Where "now" sits in the strip when it first scrolls into view. */
 const NOW_AT = 0.3;
-
-/** Each part of the day in minutes since midnight, matching `dayPhase`. */
-const PHASES: { phase: DayPhase; from: number; to: number }[] = [
-  { phase: "Morning", from: 0, to: 12 * HOUR },
-  { phase: "Afternoon", from: 12 * HOUR, to: 17 * HOUR },
-  { phase: "Evening", from: 17 * HOUR, to: 24 * HOUR },
-];
 
 /** The current time, refreshed each minute. `null` until the browser has mounted. */
 function useNow(): Date | null {
@@ -179,15 +172,13 @@ export function TodayTape({
               </div>
               <div className="relative mt-2 h-12">
                 {open.flatMap((hours) =>
-                  PHASES.filter(({ from, to }) => hours.from < to && hours.to > from).map(
-                    ({ phase, from, to }) => (
-                      <span
-                        key={`${hours.id}-${phase}`}
-                        style={place(Math.max(hours.from, from), Math.min(hours.to, to))}
-                        className={cn("absolute inset-y-0 border-y", OPEN_STYLES[phase])}
-                      />
-                    ),
-                  ),
+                  phaseSpans(hours.from, hours.to).map(({ phase, from, to }) => (
+                    <span
+                      key={`${hours.id}-${phase}`}
+                      style={place(from, to)}
+                      className={cn("absolute inset-y-0 border-y", OPEN_STYLES[phase])}
+                    />
+                  )),
                 )}
                 {calls.map(({ booking, from, to }) => (
                   <span

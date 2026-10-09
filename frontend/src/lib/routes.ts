@@ -3,6 +3,7 @@ export const ROUTES = {
   home: "/",
   bookingPage: "/book/$slug",
   bookingConfirmation: "/booking-confirmation",
+  manageBooking: "/booking/$token",
   login: "/login",
   register: "/register",
   terms: "/terms",

@@ -97,6 +97,7 @@ cadence/
 | 11 | `PLAN_11_FRONTEND_HARDENING.md` | session and error handling, booking form accessibility, typed statuses, frontend tests | 🔄 in progress |
 | 12 | `PLAN_12_MOTION_POLISH.md` | view transitions, landing entrance, theme reveal, pending states, booking and loading fixes | 🔄 in progress |
 | 13 | `PLAN_13_DAY_IN_APP.md` | day tape in the dashboard and sign-in, type scale, add to calendar, booking rules, booking details, cancel | 🔄 in progress |
+| 14 | `PLAN_14_INVITEE_CONTROL.md` | invitee reschedule and cancel link, host emails, HTML emails, availability week view, bookings agenda, paused page | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

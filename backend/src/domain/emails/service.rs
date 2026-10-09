@@ -10,9 +10,38 @@ use super::{
 };
 use crate::error::AppResult;
 
-/// Sent when a host calls a booking off. Carries no join link.
+pub const BOOKING_CONFIRMATION_TEMPLATE: &str = "booking_confirmation";
+pub const REMINDER_24H_TEMPLATE: &str = "reminder_24h";
+pub const REMINDER_2H_TEMPLATE: &str = "reminder_2h";
+pub const REMINDER_30MIN_TEMPLATE: &str = "reminder_30min";
+/// Sent to the invitee when the host calls a booking off. Carries no links.
 pub const BOOKING_CANCELLED_TEMPLATE: &str = "booking_cancelled";
+/// Sent to the invitee after they moved their own call.
+pub const BOOKING_RESCHEDULED_TEMPLATE: &str = "booking_rescheduled";
+/// The `host_*` emails go to the host's account email, on the host's clock.
+pub const HOST_NEW_BOOKING_TEMPLATE: &str = "host_new_booking";
+pub const HOST_BOOKING_CANCELLED_TEMPLATE: &str = "host_booking_cancelled";
+pub const HOST_BOOKING_RESCHEDULED_TEMPLATE: &str = "host_booking_rescheduled";
+
+const DEFAULT_APP_URL: &str = "http://localhost:3000";
+/// Frontend routes the emails link to.
+const MANAGE_PATH: &str = "/booking";
+const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
+/// The calendar entry's name when the page title and host are unknown.
+const CALENDAR_TITLE: &str = "Cadence call";
 const UTC: &str = "UTC";
+
+// The app's light theme, as hex for mail clients.
+const PAGE: &str = "#F1F3F8";
+const CARD: &str = "#FFFFFF";
+const INK: &str = "#151B3D";
+const MUTED: &str = "#5F6685";
+const BORDER: &str = "#DFE2EC";
+const SIGNAL: &str = "#F0262D";
+const DAWN: &str = "#FFC79A";
+const NOON: &str = "#F0B030";
+const DUSK: &str = "#5139D6";
+const FONT: &str = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 /// The worker runs every minute, so anything this late is not being picked up.
 const OVERDUE_AFTER_MINUTES: i64 = 5;
 
@@ -53,68 +82,347 @@ fn state_of(
     }
 }
 
-pub fn render(template: &str, payload: Option<&Value>) -> Option<(String, String)> {
-    let (subject, lead) = match template {
-        "booking_confirmation" => (
-            "Your Cadence call is confirmed",
-            "Your call is confirmed for",
-        ),
-        "reminder_24h" => (
-            "Reminder: your Cadence call is tomorrow",
-            "Your Cadence call starts in 24 hours:",
-        ),
-        "reminder_2h" => (
-            "Reminder: your Cadence call starts in 2 hours",
-            "Your Cadence call starts in 2 hours:",
-        ),
-        "reminder_30min" => (
-            "Reminder: your Cadence call starts in 30 minutes",
-            "Your Cadence call starts in 30 minutes:",
-        ),
-        BOOKING_CANCELLED_TEMPLATE => (
-            "Your Cadence call was cancelled",
-            "Your host cancelled the call booked for",
-        ),
-        _ => return None,
+/// The public site, without a trailing slash: `APP_URL`, else the first
+/// allowed origin, else the local frontend.
+pub fn app_url() -> String {
+    let first = |name: &str| {
+        let value = std::env::var(name).ok()?;
+        let url = value.split(',').next()?.trim().trim_end_matches('/');
+        (!url.is_empty()).then(|| url.to_owned())
     };
+    first("APP_URL")
+        .or_else(|| first("CORS_ORIGINS"))
+        .unwrap_or_else(|| DEFAULT_APP_URL.to_owned())
+}
+
+/// Where an invitee changes their own call.
+pub fn manage_url(manage_token: &str) -> String {
+    format!("{}{MANAGE_PATH}/{manage_token}", app_url())
+}
+
+/// Where a host reads their calls.
+pub fn host_bookings_url() -> String {
+    format!("{}{HOST_BOOKINGS_PATH}", app_url())
+}
+
+pub struct RenderedEmail {
+    pub subject: String,
+    pub text: String,
+    pub html: String,
+}
+
+/// Everything an email says, before it is laid out as text or HTML.
+struct Content {
+    headline: String,
+    greeting: String,
+    when: When,
+    /// Who and what the call is, under its time.
+    details: Vec<String>,
+    /// Label and link, in order.
+    buttons: Vec<(&'static str, String)>,
+    manage_url: Option<String>,
+    footer: &'static str,
+}
+
+/// Payloads queued before host names, lengths and manage links existed carry
+/// only `name`, `slot_start`, `timezone` and `meeting_url`; whatever is
+/// missing is left out.
+pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> {
     let text = |key: &str| {
         payload
             .and_then(|value| value.get(key))
             .and_then(Value::as_str)
+            .filter(|value| !value.trim().is_empty())
     };
-    let name = text("name").unwrap_or("there");
-    let when = local_time(text("slot_start"), text("timezone").unwrap_or(UTC));
-    // Emails queued before the host's own link existed used `meet_link`.
-    let join = text("meeting_url")
-        .or_else(|| text("meet_link"))
-        .filter(|_| template != BOOKING_CANCELLED_TEMPLATE)
-        .map(|url| format!("\n\nJoin the call: {url}"))
-        .unwrap_or_default();
+    let link = |key: &str| {
+        text(key).filter(|url| url.starts_with("https://") || url.starts_with("http://"))
+    };
+    let host = text("host_name");
+    let with_host = host.map(|name| format!(" with {name}")).unwrap_or_default();
+    let invitee = text("name");
+    let who = invitee.unwrap_or("Someone");
+    let (for_host, headline) = match template {
+        BOOKING_CONFIRMATION_TEMPLATE => (false, format!("Your call{with_host} is booked")),
+        REMINDER_24H_TEMPLATE => (false, format!("Your call{with_host} is tomorrow")),
+        REMINDER_2H_TEMPLATE => (false, format!("Your call{with_host} starts in 2 hours")),
+        REMINDER_30MIN_TEMPLATE => (false, format!("Your call{with_host} starts in 30 minutes")),
+        BOOKING_CANCELLED_TEMPLATE => (false, format!("Your call{with_host} was cancelled")),
+        BOOKING_RESCHEDULED_TEMPLATE => (false, format!("Your call{with_host} was moved")),
+        HOST_NEW_BOOKING_TEMPLATE => (true, format!("{who} booked a call")),
+        HOST_BOOKING_CANCELLED_TEMPLATE => (true, format!("{who} cancelled their call")),
+        HOST_BOOKING_RESCHEDULED_TEMPLATE => (true, format!("{who} moved their call")),
+        _ => return None,
+    };
+    let minutes = payload
+        .and_then(|value| value.get("minutes"))
+        .and_then(Value::as_i64)
+        .filter(|minutes| *minutes > 0);
+    let when = When::new(text("slot_start"), text("timezone").unwrap_or(UTC), minutes);
+    let title = text("title");
 
-    Some((
-        subject.to_owned(),
-        format!("Hi {name},\n\n{lead} {when}.{join}\n\nCadence"),
-    ))
+    let content = if for_host {
+        Content {
+            greeting: greeting(host),
+            details: [
+                invitee.map(|name| match text("invitee_email") {
+                    Some(email) => format!("{name} ({email})"),
+                    None => name.to_owned(),
+                }),
+                title.map(str::to_owned),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            buttons: link("bookings_url")
+                .map(|url| ("Open your bookings", url.to_owned()))
+                .into_iter()
+                .collect(),
+            manage_url: None,
+            footer: "You are getting this because someone used your Cadence booking page.",
+            headline,
+            when,
+        }
+    } else {
+        let call = match (title, host) {
+            (Some(title), Some(host)) => Some(format!("{title} with {host}")),
+            (Some(title), None) => Some(title.to_owned()),
+            (None, Some(host)) => Some(format!("With {host}")),
+            (None, None) => None,
+        };
+        // A cancelled call has nothing left to join, save or change.
+        let live = template != BOOKING_CANCELLED_TEMPLATE;
+        // Emails queued before the host's own link existed used `meet_link`.
+        let join = link("meeting_url")
+            .or_else(|| link("meet_link"))
+            .filter(|_| live);
+        let calendar = when
+            .calendar_dates
+            .as_deref()
+            .filter(|_| live)
+            .map(|dates| {
+                google_calendar_url(call.as_deref().unwrap_or(CALENDAR_TITLE), dates, join)
+            });
+        Content {
+            greeting: greeting(invitee),
+            buttons: [
+                join.map(|url| ("Join the call", url.to_owned())),
+                calendar.map(|url| ("Add to Google Calendar", url)),
+            ]
+            .into_iter()
+            .flatten()
+            .collect(),
+            manage_url: link("manage_url").filter(|_| live).map(str::to_owned),
+            footer: "You are getting this because a call was booked with your email address.",
+            details: call.into_iter().collect(),
+            headline,
+            when,
+        }
+    };
+
+    Some(RenderedEmail {
+        text: text_body(&content),
+        html: html_body(&content),
+        subject: content.headline,
+    })
 }
 
-/// "Monday, 12 October 2026 at 09:00 (Europe/Paris)", in the invitee's own
-/// timezone. An unknown timezone falls back to UTC and says so.
-fn local_time(slot_start: Option<&str>, timezone: &str) -> String {
-    let Some(instant) = slot_start.and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok())
-    else {
-        return "the time you booked".to_owned();
-    };
-    let (local, label) = timezones::get_by_name(timezone).map_or_else(
-        || (instant.to_offset(time::UtcOffset::UTC), UTC),
-        |tz| (instant.to_timezone(tz), timezone),
-    );
-    let format = format_description!(
-        "[weekday], [day padding:none] [month repr:long] [year] at [hour]:[minute]"
-    );
-    local.format(format).map_or_else(
-        |_| "the time you booked".to_owned(),
-        |when| format!("{when} ({label})"),
+fn greeting(name: Option<&str>) -> String {
+    format!("Hi {},", name.unwrap_or("there"))
+}
+
+/// When a call happens, on the reader's own clock. An unknown timezone falls
+/// back to UTC and says so.
+struct When {
+    /// "Monday, 12 October 2026"
+    date: String,
+    /// "09:00 to 09:30 (Europe/Paris)", or only the start when the length is
+    /// unknown. `None` when the time itself could not be read.
+    time: Option<String>,
+    /// The part-of-day colour of the start.
+    accent: &'static str,
+    /// Start and end as Google Calendar wants them, when the length is known.
+    calendar_dates: Option<String>,
+}
+
+impl When {
+    fn new(slot_start: Option<&str>, timezone: &str, minutes: Option<i64>) -> Self {
+        let unknown = || Self {
+            date: "The time you booked".to_owned(),
+            time: None,
+            accent: DUSK,
+            calendar_dates: None,
+        };
+        let Some(start) = slot_start.and_then(|value| OffsetDateTime::parse(value, &Rfc3339).ok())
+        else {
+            return unknown();
+        };
+        let (zone, label) =
+            timezones::get_by_name(timezone).map_or((None, UTC), |zone| (Some(zone), timezone));
+        let local = |instant: OffsetDateTime| {
+            zone.map_or_else(
+                || instant.to_offset(time::UtcOffset::UTC),
+                |zone| instant.to_timezone(zone),
+            )
+        };
+        let clock =
+            |instant: OffsetDateTime| local(instant).format(format_description!("[hour]:[minute]"));
+        let end = minutes.map(|minutes| start + time::Duration::minutes(minutes));
+        let (Ok(date), Ok(from)) = (
+            local(start).format(format_description!(
+                "[weekday], [day padding:none] [month repr:long] [year]"
+            )),
+            clock(start),
+        ) else {
+            return unknown();
+        };
+        let range = match end.map(clock) {
+            Some(Ok(to)) => format!("{from} to {to}"),
+            _ => from,
+        };
+        let stamp = |instant: OffsetDateTime| {
+            instant
+                .to_offset(time::UtcOffset::UTC)
+                .format(format_description!(
+                    "[year][month][day]T[hour][minute][second]Z"
+                ))
+                .ok()
+        };
+        Self {
+            date,
+            time: Some(format!("{range} ({label})")),
+            accent: match local(start).hour() {
+                0..12 => DAWN,
+                12..17 => NOON,
+                _ => DUSK,
+            },
+            calendar_dates: end.and_then(|end| Some(format!("{}/{}", stamp(start)?, stamp(end)?))),
+        }
+    }
+}
+
+fn google_calendar_url(title: &str, dates: &str, location: Option<&str>) -> String {
+    let location = location
+        .map(|url| format!("&location={}", urlencoding::encode(url)))
+        .unwrap_or_default();
+    format!(
+        "https://calendar.google.com/calendar/render?action=TEMPLATE&text={}&dates={dates}{location}",
+        urlencoding::encode(title),
     )
+}
+
+fn text_body(content: &Content) -> String {
+    let call = std::iter::once(content.when.date.as_str())
+        .chain(content.when.time.as_deref())
+        .chain(content.details.iter().map(String::as_str))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let buttons = content
+        .buttons
+        .iter()
+        .map(|(label, url)| format!("{label}: {url}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let manage = content
+        .manage_url
+        .as_ref()
+        .map(|url| format!("Need to change it? Reschedule or cancel: {url}"));
+    [
+        Some(content.greeting.clone()),
+        Some(format!("{}.", content.headline)),
+        Some(call),
+        Some(buttons).filter(|buttons| !buttons.is_empty()),
+        manage,
+        Some("Cadence".to_owned()),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>()
+    .join("\n\n")
+}
+
+/// The one layout every email shares: tables and inline styles only, so mail
+/// clients cope. Every value is escaped on its way in.
+fn html_body(content: &Content) -> String {
+    let headline = escape(&content.headline);
+    let date = escape(&content.when.date);
+    let accent = content.when.accent;
+    let time = content.when.time.as_deref().map(|time| {
+        format!(
+            r#"<div style="font-size:16px;line-height:24px;color:{INK};">{}</div>"#,
+            escape(time)
+        )
+    });
+    let details = content.details.iter().map(|line| {
+        format!(
+            r#"<tr><td style="padding:0 0 4px;font-size:15px;line-height:22px;color:{MUTED};">{}</td></tr>"#,
+            escape(line)
+        )
+    });
+    let buttons = content.buttons.iter().map(|(label, url)| {
+        format!(
+            r#"<tr><td style="padding:12px 0 0;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="{INK}" style="background-color:{INK};border-radius:8px;"><a href="{}" style="display:inline-block;padding:12px 20px;font-size:15px;line-height:20px;font-weight:600;color:{CARD};text-decoration:none;">{label}</a></td></tr></table></td></tr>"#,
+            escape(url)
+        )
+    });
+    let manage = content.manage_url.as_ref().map(|url| {
+        format!(
+            r#"<tr><td style="padding:24px 0 0;font-size:14px;line-height:20px;color:{MUTED};">Need to change it? <a href="{}" style="color:{DUSK};text-decoration:underline;">Reschedule or cancel</a></td></tr>"#,
+            escape(url)
+        )
+    });
+    let bar = |height: u8, colour: &str| {
+        format!(
+            r#"<td valign="bottom" style="padding:0 3px 0 0;"><div style="width:4px;height:{height}px;background-color:{colour};border-radius:2px;font-size:0;line-height:0;">&nbsp;</div></td>"#
+        )
+    };
+    let time = time.unwrap_or_default();
+    let rows: String = details.chain(buttons).chain(manage).collect();
+    format!(
+        r#"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{headline}</title>
+</head>
+<body style="margin:0;padding:0;background-color:{PAGE};">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{PAGE}" style="background-color:{PAGE};">
+<tr><td align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;font-family:{FONT};color:{INK};">
+<tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>{bars}<td valign="bottom" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
+<tr><td bgcolor="{CARD}" style="background-color:{CARD};border:1px solid {BORDER};border-radius:12px;padding:32px 28px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:0 0 20px;font-size:22px;line-height:30px;font-weight:700;color:{INK};">{headline}</td></tr>
+<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-left:4px solid {accent};padding:6px 0 6px 16px;"><div style="font-size:16px;line-height:24px;font-weight:600;color:{INK};">{date}</div>{time}</td></tr></table></td></tr>
+{rows}
+</table>
+</td></tr>
+<tr><td style="padding:20px 4px 0;font-size:12px;line-height:18px;color:{MUTED};">{footer}</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>
+"#,
+        bars = [bar(12, INK), bar(18, SIGNAL), bar(9, INK)].concat(),
+        footer = content.footer,
+    )
+}
+
+/// Makes user input safe inside HTML text and attribute values.
+fn escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            '"' => escaped.push_str("&quot;"),
+            '\'' => escaped.push_str("&#39;"),
+            other => escaped.push(other),
+        }
+    }
+    escaped
 }
 
 #[cfg(test)]
@@ -133,88 +441,255 @@ mod tests {
         assert_eq!(state_of(None, 0, now, now), EmailState::Scheduled);
     }
 
-    const TEMPLATES: [&str; 4] = [
-        "booking_confirmation",
-        "reminder_24h",
-        "reminder_2h",
-        "reminder_30min",
+    const INVITEE_TEMPLATES: [&str; 6] = [
+        BOOKING_CONFIRMATION_TEMPLATE,
+        REMINDER_24H_TEMPLATE,
+        REMINDER_2H_TEMPLATE,
+        REMINDER_30MIN_TEMPLATE,
+        BOOKING_CANCELLED_TEMPLATE,
+        BOOKING_RESCHEDULED_TEMPLATE,
     ];
+    const HOST_TEMPLATES: [&str; 3] = [
+        HOST_NEW_BOOKING_TEMPLATE,
+        HOST_BOOKING_CANCELLED_TEMPLATE,
+        HOST_BOOKING_RESCHEDULED_TEMPLATE,
+    ];
+    const HOSTILE: &str = "<b>Mia</b> & co";
+    const HOSTILE_ESCAPED: &str = "&lt;b&gt;Mia&lt;/b&gt; &amp; co";
 
-    fn body(template: &str, payload: &Value) -> String {
-        render(template, Some(payload)).expect("known template").1
+    fn email(template: &str, payload: &Value) -> RenderedEmail {
+        render(template, Some(payload)).expect("known template")
+    }
+
+    /// 09:00 to 09:30 in Paris, the way the booking service queues it.
+    fn invitee_payload(name: &str) -> Value {
+        json!({
+            "name": name,
+            "slot_start": "2026-10-12T07:00:00Z",
+            "timezone": "Europe/Paris",
+            "meeting_url": "https://zoom.us/j/123?pwd=a&b=c",
+            "host_name": name,
+            "title": "Intro call",
+            "minutes": 30,
+            "manage_url": "https://cadence.example/booking/abc123",
+        })
+    }
+
+    /// The same call on the host's clock in Tbilisi.
+    fn host_payload(name: &str) -> Value {
+        json!({
+            "name": name,
+            "invitee_email": "mia@example.com",
+            "slot_start": "2026-10-12T07:00:00Z",
+            "timezone": "Asia/Tbilisi",
+            "host_name": "Nino",
+            "title": "Intro call",
+            "minutes": 30,
+            "bookings_url": "https://cadence.example/dashboard/bookings",
+        })
+    }
+
+    fn headline(template: &str, name: &str) -> String {
+        match template {
+            BOOKING_CONFIRMATION_TEMPLATE => format!("Your call with {name} is booked"),
+            REMINDER_24H_TEMPLATE => format!("Your call with {name} is tomorrow"),
+            REMINDER_2H_TEMPLATE => format!("Your call with {name} starts in 2 hours"),
+            REMINDER_30MIN_TEMPLATE => format!("Your call with {name} starts in 30 minutes"),
+            BOOKING_CANCELLED_TEMPLATE => format!("Your call with {name} was cancelled"),
+            BOOKING_RESCHEDULED_TEMPLATE => format!("Your call with {name} was moved"),
+            HOST_NEW_BOOKING_TEMPLATE => format!("{name} booked a call"),
+            HOST_BOOKING_CANCELLED_TEMPLATE => format!("{name} cancelled their call"),
+            HOST_BOOKING_RESCHEDULED_TEMPLATE => format!("{name} moved their call"),
+            other => panic!("no headline for {other}"),
+        }
     }
 
     #[test]
-    fn every_email_carries_the_call_link() {
+    fn every_template_renders_with_user_input_escaped() {
+        let cases = INVITEE_TEMPLATES
+            .map(|template| (template, invitee_payload(HOSTILE)))
+            .into_iter()
+            .chain(HOST_TEMPLATES.map(|template| (template, host_payload(HOSTILE))));
+        for (template, payload) in cases {
+            let email = email(template, &payload);
+            assert_eq!(email.subject, headline(template, HOSTILE), "{template}");
+            assert!(email.text.contains(&email.subject), "{template}");
+            assert!(
+                email.html.contains(&headline(template, HOSTILE_ESCAPED)),
+                "{template}"
+            );
+            assert!(!email.html.contains("<b>"), "{template}");
+            assert!(!email.html.contains("& co"), "{template}");
+        }
+    }
+
+    #[test]
+    fn an_invitee_email_carries_the_call_and_its_links() {
+        let email = email(BOOKING_CONFIRMATION_TEMPLATE, &invitee_payload("Nino"));
+        assert_eq!(
+            email.text,
+            "Hi Nino,\n\nYour call with Nino is booked.\n\nMonday, 12 October 2026\n09:00 to 09:30 (Europe/Paris)\nIntro call with Nino\n\nJoin the call: https://zoom.us/j/123?pwd=a&b=c\nAdd to Google Calendar: https://calendar.google.com/calendar/render?action=TEMPLATE&text=Intro%20call%20with%20Nino&dates=20261012T070000Z/20261012T073000Z&location=https%3A%2F%2Fzoom.us%2Fj%2F123%3Fpwd%3Da%26b%3Dc\n\nNeed to change it? Reschedule or cancel: https://cadence.example/booking/abc123\n\nCadence"
+        );
+        for part in [
+            "09:00 to 09:30 (Europe/Paris)",
+            r#"href="https://zoom.us/j/123?pwd=a&amp;b=c""#,
+            "Join the call</a>",
+            "Add to Google Calendar</a>",
+            r#"href="https://cadence.example/booking/abc123""#,
+            // 09:00 is morning.
+            DAWN,
+        ] {
+            assert!(email.html.contains(part), "{part}");
+        }
+        for template in INVITEE_TEMPLATES {
+            let html = self::email(template, &invitee_payload("Nino")).html;
+            let live = template != BOOKING_CANCELLED_TEMPLATE;
+            for part in [
+                "Join the call",
+                "Add to Google Calendar",
+                "Reschedule or cancel",
+            ] {
+                assert_eq!(html.contains(part), live, "{template}: {part}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_host_email_names_the_invitee_on_the_hosts_clock() {
+        for template in HOST_TEMPLATES {
+            let email = email(template, &host_payload("Mia Chen"));
+            for part in [
+                "Mia Chen (mia@example.com)",
+                "11:00 to 11:30 (Asia/Tbilisi)",
+                "https://cadence.example/dashboard/bookings",
+            ] {
+                assert!(email.text.contains(part), "{template}: {part}");
+                assert!(email.html.contains(part), "{template}: {part}");
+            }
+            assert!(email.text.starts_with("Hi Nino,"), "{template}");
+            assert!(email.html.contains("Open your bookings</a>"), "{template}");
+            assert!(!email.html.contains("Reschedule or cancel"), "{template}");
+        }
+    }
+
+    #[test]
+    fn a_payload_queued_before_the_new_fields_still_renders() {
         let payload = json!({
             "name": "Ada",
-            "slot_start": "2026-10-12T07:00:00Z",
+            "slot_start": "2026-10-12T16:00:00Z",
             "timezone": "Europe/Paris",
             "meeting_url": "https://zoom.us/j/123",
         });
-        for template in TEMPLATES {
+        for template in INVITEE_TEMPLATES {
+            let email = email(template, &payload);
+            assert!(email.subject.starts_with("Your call "), "{template}");
+            assert!(!email.subject.contains("with"), "{template}");
+            assert!(email.text.contains("18:00 (Europe/Paris)"), "{template}");
+            assert!(email.html.contains("18:00 (Europe/Paris)"), "{template}");
+            // 18:00 is evening; the length is unknown, so nothing to add to a calendar.
             assert!(
-                body(template, &payload).contains("Join the call: https://zoom.us/j/123"),
-                "{template}"
+                email
+                    .html
+                    .contains(&format!("border-left:4px solid {DUSK}"))
             );
+            assert!(!email.html.contains("Add to Google Calendar"), "{template}");
+            assert!(!email.html.contains("Reschedule or cancel"), "{template}");
         }
         assert_eq!(
-            body("booking_confirmation", &payload),
-            "Hi Ada,\n\nYour call is confirmed for Monday, 12 October 2026 at 09:00 (Europe/Paris).\n\nJoin the call: https://zoom.us/j/123\n\nCadence"
+            email(BOOKING_CONFIRMATION_TEMPLATE, &payload).text,
+            "Hi Ada,\n\nYour call is booked.\n\nMonday, 12 October 2026\n18:00 (Europe/Paris)\n\nJoin the call: https://zoom.us/j/123\n\nCadence"
         );
     }
 
     #[test]
     fn emails_queued_with_the_old_key_keep_their_link() {
         let payload = json!({ "meet_link": "https://meet.google.com/abc-defg-hij" });
-        assert!(body("reminder_2h", &payload).contains("https://meet.google.com/abc-defg-hij"));
+        let email = email(REMINDER_2H_TEMPLATE, &payload);
+        assert!(email.text.contains("https://meet.google.com/abc-defg-hij"));
+        assert!(email.html.contains("https://meet.google.com/abc-defg-hij"));
     }
 
     #[test]
     fn no_link_means_no_join_line() {
-        for payload in [json!({}), json!({ "meeting_url": null })] {
-            assert!(!body("booking_confirmation", &payload).contains("Join"));
+        for payload in [
+            json!({}),
+            json!({ "meeting_url": null }),
+            json!({ "meeting_url": "javascript:alert(1)" }),
+        ] {
+            let email = email(BOOKING_CONFIRMATION_TEMPLATE, &payload);
+            assert!(!email.text.contains("Join"));
+            assert!(!email.html.contains("Join"));
         }
     }
 
     #[test]
-    fn a_cancellation_names_the_call_and_has_no_link() {
-        let payload = json!({
-            "name": "Ada",
-            "slot_start": "2026-10-12T07:00:00Z",
-            "timezone": "Europe/Paris",
-            "meeting_url": "https://zoom.us/j/123",
-        });
-        let (subject, body) =
-            render(BOOKING_CANCELLED_TEMPLATE, Some(&payload)).expect("known template");
-        assert_eq!(subject, "Your Cadence call was cancelled");
+    fn time_is_shown_on_the_readers_clock() {
+        let at = |slot_start: &str, timezone: &str| {
+            let when = When::new(Some(slot_start), timezone, Some(45));
+            (when.date, when.time.unwrap_or_default(), when.accent)
+        };
+        let morning = "2026-10-12T07:00:00Z";
         assert_eq!(
-            body,
-            "Hi Ada,\n\nYour host cancelled the call booked for Monday, 12 October 2026 at 09:00 (Europe/Paris).\n\nCadence"
-        );
-    }
-
-    #[test]
-    fn time_is_shown_in_the_invitees_timezone() {
-        let at = |timezone: &str| local_time(Some("2026-10-12T07:00:00Z"), timezone);
-        assert_eq!(
-            at("Europe/Paris"),
-            "Monday, 12 October 2026 at 09:00 (Europe/Paris)"
+            at(morning, "Europe/Paris"),
+            (
+                "Monday, 12 October 2026".to_owned(),
+                "09:00 to 09:45 (Europe/Paris)".to_owned(),
+                DAWN
+            )
         );
         assert_eq!(
-            at("Asia/Tbilisi"),
-            "Monday, 12 October 2026 at 11:00 (Asia/Tbilisi)"
+            at(morning, "Asia/Tbilisi").1,
+            "11:00 to 11:45 (Asia/Tbilisi)"
         );
-        assert_eq!(at("Mars/Olympus"), "Monday, 12 October 2026 at 07:00 (UTC)");
+        assert_eq!(at(morning, "Mars/Olympus").1, "07:00 to 07:45 (UTC)");
+        assert_eq!(at("2026-10-12T10:00:00Z", "Europe/Paris").2, NOON);
+        assert_eq!(at("2026-10-12T14:59:00Z", "Europe/Paris").2, NOON);
+        assert_eq!(at("2026-10-12T15:00:00Z", "Europe/Paris").2, DUSK);
         // Chrono writes sub-second precision; it must still parse.
         assert_eq!(
-            local_time(Some("2026-10-12T22:30:00.123456Z"), "Asia/Tbilisi"),
-            "Tuesday, 13 October 2026 at 02:30 (Asia/Tbilisi)"
+            at("2026-10-12T22:30:00.123456Z", "Asia/Tbilisi"),
+            (
+                "Tuesday, 13 October 2026".to_owned(),
+                "02:30 to 03:15 (Asia/Tbilisi)".to_owned(),
+                DAWN
+            )
         );
+        assert!(When::new(Some("soon"), UTC, Some(30)).time.is_none());
     }
 
     #[test]
     fn unknown_template_is_not_rendered() {
         assert!(render("newsletter", None).is_none());
+    }
+
+    /// Writes one HTML file per template for looking at in a browser:
+    /// `CADENCE_EMAIL_PREVIEW_DIR=/some/dir cargo test -p cadence-backend --lib email_previews -- --ignored`
+    #[test]
+    #[ignore = "writes files; needs CADENCE_EMAIL_PREVIEW_DIR"]
+    fn email_previews() {
+        let directory = std::path::PathBuf::from(
+            std::env::var("CADENCE_EMAIL_PREVIEW_DIR").expect("CADENCE_EMAIL_PREVIEW_DIR is set"),
+        );
+        std::fs::create_dir_all(&directory).expect("preview directory can be created");
+        // Morning, afternoon and evening in Paris, so every accent shows.
+        let starts = [
+            "2026-10-12T07:00:00Z",
+            "2026-10-13T11:00:00Z",
+            "2026-10-14T16:30:00Z",
+        ];
+        let mut invitee = invitee_payload("Nino Beridze");
+        invitee["name"] = json!("Mia Chen");
+        let cases = INVITEE_TEMPLATES
+            .map(|template| (template, invitee.clone()))
+            .into_iter()
+            .chain(HOST_TEMPLATES.map(|template| (template, host_payload("Mia Chen"))));
+        for (index, (template, mut payload)) in cases.enumerate() {
+            payload["slot_start"] = json!(starts[index % starts.len()]);
+            std::fs::write(
+                directory.join(format!("{template}.html")),
+                email(template, &payload).html,
+            )
+            .expect("preview can be written");
+        }
     }
 }

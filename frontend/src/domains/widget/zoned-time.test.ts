@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { callEnd, clockLabel, dayPhase, zonedTime } from "./zoned-time";
+import { callEnd, clockLabel, dayPhase, phaseSpans, zonedTime } from "./zoned-time";
 
 describe("zonedTime", () => {
   it("reads an instant on the wall clock of a zone", () => {
@@ -53,5 +53,21 @@ describe("dayPhase", () => {
     expect(dayPhase(12)).toBe("Afternoon");
     expect(dayPhase(16)).toBe("Afternoon");
     expect(dayPhase(17)).toBe("Evening");
+  });
+});
+
+describe("phaseSpans", () => {
+  it("cuts a working day at noon and at five", () => {
+    expect(phaseSpans(9 * 60, 18 * 60)).toEqual([
+      { phase: "Morning", from: 540, to: 720 },
+      { phase: "Afternoon", from: 720, to: 1020 },
+      { phase: "Evening", from: 1020, to: 1080 },
+    ]);
+  });
+
+  it("keeps a stretch inside one part of the day whole", () => {
+    expect(phaseSpans(13 * 60, 15 * 60)).toEqual([
+      { phase: "Afternoon", from: 780, to: 900 },
+    ]);
   });
 });

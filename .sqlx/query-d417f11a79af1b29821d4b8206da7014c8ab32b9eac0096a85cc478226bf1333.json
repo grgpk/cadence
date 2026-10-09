@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bookings SET status = $3, cancelled_at = now(), updated_at = now()\n         WHERE host_unid = $1 AND unid = $2 AND status <> $3\n         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at",
+  "query": "UPDATE bookings SET slot_start = $2, updated_at = now()\n         WHERE unid = $1 AND status <> $3\n         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
   "describe": {
     "columns": [
       {
@@ -115,6 +115,17 @@
       },
       {
         "ordinal": 10,
+        "name": "manage_token",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "manage_token"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -128,7 +139,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid",
+        "Timestamptz",
         "Text"
       ]
     },
@@ -143,8 +154,9 @@
       false,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "542e75d14302ea5c67e31fb744c068e6c6b4e8be47291e622ac6adca047ccf10"
+  "hash": "d417f11a79af1b29821d4b8206da7014c8ab32b9eac0096a85cc478226bf1333"
 }

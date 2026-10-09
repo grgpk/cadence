@@ -25,6 +25,18 @@ pub async fn create(
         .map_err(Into::into)
 }
 
+pub async fn update(
+    pool: &PgPool,
+    host_unid: Uuid,
+    id: i64,
+    input: AvailabilityRuleInput,
+) -> AppResult<AvailabilityRule> {
+    validate(&input)?;
+    db::update(pool, host_unid, id, &input)
+        .await?
+        .ok_or(AppError::NotFound)
+}
+
 pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> AppResult<()> {
     if db::delete(pool, host_unid, id).await? {
         Ok(())
@@ -59,6 +71,13 @@ pub fn slots_between(
     slots.sort_by_key(|slot| slot.start);
     slots.dedup_by_key(|slot| slot.start);
     slots
+}
+
+/// How long the call starting at `start` runs, when the rules still open it.
+pub fn minutes_at(rules: &[AvailabilityRule], timezone: &str, start: DateTime<Utc>) -> Option<i32> {
+    slots_between(rules, timezone, start, start + Duration::seconds(1))
+        .first()
+        .map(|slot| slot.minutes)
 }
 
 fn rule_slots(date: NaiveDate, rule: &AvailabilityRule, timezone: &str) -> Vec<TimeSlot> {

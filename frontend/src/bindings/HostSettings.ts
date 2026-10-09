@@ -18,6 +18,6 @@ minimum_notice_hours: number,
  */
 booking_window_days: number, 
 /**
- * `false` pauses the page: its link looks unknown from outside.
+ * `false` pauses the page: it can still be read, but not booked.
  */
 is_active: boolean, };

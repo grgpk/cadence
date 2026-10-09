@@ -24,8 +24,10 @@ import {
   submitLead,
   updateCallingVisit,
 } from "./cadence-api";
+import { BookingSummary } from "./BookingSummary";
 import { DetailsStep } from "./DetailsStep";
 import { SlotStep, type CalendarView } from "./SlotStep";
+import { TimezoneCombobox } from "./TimezoneCombobox";
 import { zonedTime } from "./zoned-time";
 
 const HOUR12_KEY = "cadence-hour12";
@@ -173,6 +175,7 @@ function Booking({
           link: booking.meeting_url !== null,
           slug,
           host: page.host_name,
+          manage: booking.manage_token,
         },
       });
     },
@@ -198,9 +201,24 @@ function Booking({
     >
       <SlotStep
         slug={slug}
-        page={page}
-        timezone={timezone}
-        onTimezoneChange={setTimezone}
+        timeZone={timezone.iana}
+        emptyDescription={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
+        summary={(callMinutes) => (
+          <BookingSummary
+            page={page}
+            minutes={callMinutes}
+            timezone={
+              <TimezoneCombobox
+                selected={timezone}
+                hour12={hour12}
+                onSelect={(next) => {
+                  setTimezone(next);
+                  setView({ ...view, day: null });
+                }}
+              />
+            }
+          />
+        )}
         view={view}
         onViewChange={setView}
         hour12={hour12}

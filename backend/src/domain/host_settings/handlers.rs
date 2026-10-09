@@ -17,7 +17,7 @@ pub async fn public_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
 ) -> AppResult<Json<BookingPage>> {
-    Ok(Json(service::public_page(&state.pool, &slug).await?))
+    Ok(Json(service::display_page(&state.pool, &slug).await?))
 }
 
 pub async fn get(State(state): State<AppState>, user: AuthUser) -> AppResult<Json<HostSettings>> {

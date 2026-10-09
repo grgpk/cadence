@@ -1,7 +1,8 @@
 use std::time::Duration as StdDuration;
 
 use lettre::{
-    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor, message::Mailbox,
+    AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
+    message::{Mailbox, MultiPart},
     transport::smtp::authentication::Credentials,
 };
 use sqlx::PgPool;
@@ -38,7 +39,7 @@ async fn process_due(pool: &PgPool) {
     };
 
     for email in pending {
-        let Some((subject, body)) = service::render(&email.template, email.payload.as_ref()) else {
+        let Some(rendered) = service::render(&email.template, email.payload.as_ref()) else {
             tracing::warn!(template = %email.template, "unknown email template");
             continue;
         };
@@ -52,9 +53,11 @@ async fn process_due(pool: &PgPool) {
         let message = match Message::builder()
             .from(from.clone())
             .to(recipient)
-            .subject(subject)
-            .body(body)
-        {
+            .subject(rendered.subject)
+            .multipart(MultiPart::alternative_plain_html(
+                rendered.text,
+                rendered.html,
+            )) {
             Ok(value) => value,
             Err(error) => {
                 let _ = db::mark_failed(pool, email.id, &error.to_string()).await;

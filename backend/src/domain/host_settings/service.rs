@@ -72,10 +72,28 @@ pub async fn update(
     }
 }
 
-/// Resolves a public link to its booking page. Unknown, inactive and banned
-/// hosts all look the same from outside.
-pub async fn public_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
-    db::find_active_by_slug(pool, &slug.to_lowercase())
+/// Resolves a public link to its page for reading. A paused page is shown
+/// with `accepting_bookings` off; unknown and banned hosts look the same.
+pub async fn display_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
+    db::find_page(pool, Some(&slug.to_lowercase()), None)
+        .await?
+        .ok_or(AppError::NotFound)
+}
+
+/// Resolves a public link to a page that can be booked right now. A paused
+/// page looks unknown here.
+pub async fn bookable_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
+    let page = display_page(pool, slug).await?;
+    if page.accepting_bookings {
+        Ok(page)
+    } else {
+        Err(AppError::NotFound)
+    }
+}
+
+/// The page an existing call was booked through, paused or not.
+pub async fn page_of_host(pool: &PgPool, host_unid: Uuid) -> AppResult<BookingPage> {
+    db::find_page(pool, None, Some(host_unid))
         .await?
         .ok_or(AppError::NotFound)
 }

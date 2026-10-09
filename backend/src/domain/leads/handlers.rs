@@ -28,7 +28,7 @@ pub async fn save(
     Path((slug, lead_unid)): Path<(String, Uuid)>,
     Json(update): Json<LeadUpdate>,
 ) -> AppResult<Json<Lead>> {
-    let page = host_settings::public_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug).await?;
     Ok(Json(
         service::save(&state.pool, &page, lead_unid, update).await?,
     ))
@@ -39,7 +39,7 @@ pub async fn submit(
     Path((slug, lead_unid)): Path<(String, Uuid)>,
     Json(body): Json<SubmitLeadRequest>,
 ) -> AppResult<Json<Lead>> {
-    let page = host_settings::public_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug).await?;
     let lead = service::submit(
         &state.pool,
         page.host_unid,

@@ -59,7 +59,49 @@ pub struct Booking {
     #[serde(skip)]
     #[ts(skip)]
     pub google_event_id: Option<String>,
+    /// The invitee's secret. Hosts and admins never read it.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub manage_token: String,
     pub created_at: DateTime<Utc>,
+}
+
+/// What the invitee gets back after booking: the call and the secret that
+/// lets them change it later.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/CreatedBooking.ts")]
+pub struct CreatedBooking {
+    #[serde(flatten)]
+    pub booking: Booking,
+    pub manage_token: String,
+}
+
+/// A call as its invitee sees it through their manage link.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/ManagedBooking.ts")]
+pub struct ManagedBooking {
+    pub slot_start: DateTime<Utc>,
+    /// The invitee's own timezone.
+    pub timezone: String,
+    /// How long the call runs.
+    pub minutes: i32,
+    #[ts(as = "BookingStatus")]
+    pub status: String,
+    pub invitee_name: String,
+    pub meeting_url: Option<String>,
+    pub host_name: String,
+    /// The booking page's title.
+    pub title: String,
+    /// The host's public link, for finding another time.
+    pub slug: String,
+    /// `false` once the call is cancelled or has started.
+    pub can_change: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/RescheduleRequest.ts")]
+pub struct RescheduleRequest {
+    pub slot_start: DateTime<Utc>,
 }
 
 /// One call as its host sees it, with what the invitee answered on the form.

@@ -26,6 +26,7 @@ import { Route as AdminHostsRouteImport } from './routes/admin/hosts'
 import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
 import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccesses'
 import { Route as BookSlugRouteImport } from './routes/book/$slug'
+import { Route as BookingTokenRouteImport } from './routes/booking/$token'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
@@ -117,6 +118,11 @@ const BookSlugRoute = BookSlugRouteImport.update({
   path: '/book/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookingTokenRoute = BookingTokenRouteImport.update({
+  id: '/booking/$token',
+  path: '/booking/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -161,6 +167,7 @@ export interface FileRoutesByFullPath {
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
+  '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
@@ -183,6 +190,7 @@ export interface FileRoutesByTo {
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
+  '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
@@ -208,6 +216,7 @@ export interface FileRoutesById {
   '/admin/leads': typeof AdminLeadsRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
+  '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
@@ -234,6 +243,7 @@ export interface FileRouteTypes {
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
+    | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/settings'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
+    | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/settings'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/admin/leads'
     | '/admin/roleaccesses'
     | '/book/$slug'
+    | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
     | '/dashboard/settings'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   TermsRoute: typeof TermsRoute
   BookSlugRoute: typeof BookSlugRoute
+  BookingTokenRoute: typeof BookingTokenRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -421,6 +434,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/booking/$token': {
+      id: '/booking/$token'
+      path: '/booking/$token'
+      fullPath: '/booking/$token'
+      preLoaderRoute: typeof BookingTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/': {
       id: '/dashboard/'
       path: '/'
@@ -515,6 +535,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   TermsRoute: TermsRoute,
   BookSlugRoute: BookSlugRoute,
+  BookingTokenRoute: BookingTokenRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

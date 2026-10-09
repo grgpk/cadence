@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, u.full_name AS host_name, w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE w.public_slug = $1 AND w.is_active AND u.status = $2",
+  "query": "SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days, w.is_active AS accepting_bookings\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,28 @@
       },
       {
         "ordinal": 1,
+        "name": "host_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "public_slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "public_slug"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
         "name": "host_name",
         "type_info": "Text",
         "origin": {
@@ -26,7 +48,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 4,
         "name": "title",
         "type_info": "Text",
         "origin": {
@@ -37,7 +59,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 5,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -48,7 +70,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
@@ -59,7 +81,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 7,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +92,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +103,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 9,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +114,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -103,7 +125,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -114,13 +136,13 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "calendar_connected!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "meeting_link",
         "type_info": "Text",
         "origin": {
@@ -131,13 +153,13 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "has_meeting_link!",
         "type_info": "Bool",
         "origin": "Expression"
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "minimum_notice_hours",
         "type_info": "Int4",
         "origin": {
@@ -148,7 +170,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "booking_window_days",
         "type_info": "Int4",
         "origin": {
@@ -157,11 +179,23 @@
             "name": "booking_window_days"
           }
         }
+      },
+      {
+        "ordinal": 17,
+        "name": "accepting_bookings",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "is_active"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
         "Text",
+        "Uuid",
         "Text"
       ]
     },
@@ -176,12 +210,15 @@
       false,
       false,
       false,
+      false,
+      false,
       null,
       true,
       null,
       false,
+      false,
       false
     ]
   },
-  "hash": "83a9b8a276bb2fa538d7ac83cfa740c962d1ebb370e9990c69b1cee8604b5f4a"
+  "hash": "11621162666b1b9bc01aaa2b4e8ee5676058a39d71bbdf8fc1551cfada10bb0c"
 }

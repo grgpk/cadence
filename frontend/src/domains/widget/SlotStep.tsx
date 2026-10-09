@@ -1,21 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { CalendarDays } from "lucide-react";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
-import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { formatDay } from "../../lib/format";
 import { EmptyState } from "../shared/EmptyState";
 import { ErrorState } from "../shared/ErrorState";
-import type { CountryTimezone } from "../shared/phone/country";
 import { BookingCalendar } from "./BookingCalendar";
-import { BookingSummary } from "./BookingSummary";
 import { publicSlotsQuery } from "./cadence-api";
 import { shiftMonth } from "./calendar-grid";
-import { TimezoneCombobox } from "./TimezoneCombobox";
 import {
   clockLabel,
   DAY_PHASES,
@@ -153,36 +149,47 @@ function DayTimes({
   );
 }
 
+/**
+ * A calendar and the times of the chosen day, for a host's open slots. With a
+ * `summary` it is the first step of booking; without one, it picks a new time
+ * for a call that already exists.
+ */
 export function SlotStep({
   slug,
-  page,
-  timezone,
-  onTimezoneChange,
+  timeZone,
+  summary,
+  emptyDescription,
   view,
   onViewChange,
   hour12,
   onHour12Change,
   onPick,
+  pickKey = 0,
 }: {
   slug: string;
-  page: BookingPage;
-  timezone: CountryTimezone;
-  onTimezoneChange: (timezone: CountryTimezone) => void;
+  /** The IANA timezone the times are shown in. */
+  timeZone: string;
+  /** The column before the calendar, given the call length once it is known. */
+  summary?: (callMinutes: number | null) => ReactNode;
+  /** Said when the host has no open times at all. */
+  emptyDescription: string;
   view: CalendarView;
   onViewChange: (view: CalendarView) => void;
   hour12: boolean;
   onHour12Change: (hour12: boolean) => void;
   onPick: (slot: TimeSlot) => void;
+  /** Change it to let go of a picked time, when the pick did not go through. */
+  pickKey?: number;
 }) {
   const query = useQuery(publicSlotsQuery(slug));
   const timesRef = useRef<HTMLDivElement>(null);
   // +1 when the calendar last moved forward, -1 when it moved back.
   const [monthDirection, setMonthDirection] = useState(1);
 
-  const today = zonedTime(new Date(), timezone.iana);
+  const today = zonedTime(new Date(), timeZone);
   const slots: LocalSlot[] = (query.data ?? []).map((slot) => ({
     slot,
-    at: zonedTime(new Date(slot.start), timezone.iana),
+    at: zonedTime(new Date(slot.start), timeZone),
   }));
   const inMonth = slots.filter(({ at }) => isSameMonth(at, view));
   const availableDays = [...new Set(inMonth.map(({ at }) => at.day))];
@@ -221,23 +228,15 @@ export function SlotStep({
   }
 
   return (
-    <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_14rem] @[760px]:divide-x @[760px]:divide-y-0">
-      <div className="p-5 @[760px]:p-6">
-        <BookingSummary
-          page={page}
-          minutes={callMinutes}
-          timezone={
-            <TimezoneCombobox
-              selected={timezone}
-              hour12={hour12}
-              onSelect={(next) => {
-                onTimezoneChange(next);
-                onViewChange({ ...view, day: null });
-              }}
-            />
-          }
-        />
-      </div>
+    <div
+      className={cn(
+        "grid divide-y @[760px]:divide-x @[760px]:divide-y-0",
+        summary
+          ? "@[760px]:grid-cols-[15rem_minmax(0,1fr)_14rem]"
+          : "@[760px]:grid-cols-[minmax(0,1fr)_14rem]",
+      )}
+    >
+      {summary ? <div className="p-5 @[760px]:p-6">{summary(callMinutes)}</div> : null}
 
       <div className="p-5 @[760px]:p-6">
         <BookingCalendar
@@ -284,7 +283,7 @@ export function SlotStep({
               <EmptyState
                 icon={CalendarDays}
                 title="No open times"
-                description={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
+                description={emptyDescription}
               />
             ) : (
               <EmptyState icon={CalendarDays} title="Pick a day to see times" />
@@ -314,9 +313,9 @@ export function SlotStep({
               </div>
               <DayTimes
                 // A new day starts with nothing picked.
-                key={`${view.year}-${view.month}-${selectedDay}`}
+                key={`${view.year}-${view.month}-${selectedDay}-${pickKey}`}
                 slots={daySlots}
-                timezone={timezone.iana}
+                timezone={timeZone}
                 hour12={hour12}
                 onPick={onPick}
               />

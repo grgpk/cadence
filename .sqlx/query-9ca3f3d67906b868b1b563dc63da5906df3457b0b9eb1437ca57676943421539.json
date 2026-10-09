@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT template || ' -> ' || email AS \"line!\" FROM email_queue\n           WHERE booking_unid = $1 AND sent_at IS NULL ORDER BY template",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "line!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9ca3f3d67906b868b1b563dc63da5906df3457b0b9eb1437ca57676943421539"
+}

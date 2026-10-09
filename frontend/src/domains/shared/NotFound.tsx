@@ -6,24 +6,29 @@ import { reportError } from "../../lib/bug-report";
 import { errorMessage } from "../../lib/error-message";
 import { ROUTES } from "../../lib/routes";
 import { ErrorState } from "./ErrorState";
-import { Logo } from "./Logo";
+import { PublicLayout } from "./PublicLayout";
+
+const MESSAGE =
+  "mx-auto flex max-w-lg flex-col items-center gap-6 px-4 py-20 text-center sm:py-28";
 
 export function NotFound() {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">
-      <Logo />
-      <div>
-        <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
-          This page does not exist
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          The link may be old, or the address may have a typo.
-        </p>
-      </div>
-      <Button asChild>
-        <Link to={ROUTES.home}>Go to the home page</Link>
-      </Button>
-    </main>
+    <PublicLayout>
+      <section className={MESSAGE}>
+        <div>
+          <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
+            This page does not exist
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            The link may be old, or the address may have a typo. A booking link looks like
+            /book/a-name.
+          </p>
+        </div>
+        <Button asChild>
+          <Link to={ROUTES.home}>Go to the home page</Link>
+        </Button>
+      </section>
+    </PublicLayout>
   );
 }
 
@@ -43,20 +48,21 @@ function useRetry(error: unknown, reset: () => void) {
   };
 }
 
-/** A failed page with nothing around it: public pages, and failures of the shell itself. */
+/** A failed page outside the app shell: public pages, and failures of the shell itself. */
 export function RouteError({ error, reset }: RouteErrorProps) {
   const retry = useRetry(error, reset);
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">
-      <Logo />
-      <div>
-        <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
-          This page failed to load
-        </h1>
-        <p className="mt-2 text-muted-foreground">{errorMessage(error)}</p>
-      </div>
-      <Button onClick={retry}>Try again</Button>
-    </main>
+    <PublicLayout>
+      <section className={MESSAGE}>
+        <div>
+          <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
+            This page failed to load
+          </h1>
+          <p className="mt-2 text-muted-foreground">{errorMessage(error)}</p>
+        </div>
+        <Button onClick={retry}>Try again</Button>
+      </section>
+    </PublicLayout>
   );
 }
 

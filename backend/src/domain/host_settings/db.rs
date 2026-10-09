@@ -73,21 +73,26 @@ pub async fn update(
     .await
 }
 
-pub async fn find_active_by_slug(
+/// The page of an active host, found by its link or by its host; pass one of
+/// the two. A paused page is returned too.
+pub async fn find_page(
     pool: &PgPool,
-    public_slug: &str,
+    public_slug: Option<&str>,
+    host_unid: Option<Uuid>,
 ) -> Result<Option<BookingPage>, sqlx::Error> {
     sqlx::query_as!(
         BookingPage,
-        r#"SELECT w.host_unid, u.full_name AS host_name, w.title, w.description, w.timezone,
+        r#"SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,
+                  w.title, w.description, w.timezone,
                   w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,
                   w.ask_investment_comfort, w.ask_urgency_level,
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
                   w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
-                  w.minimum_notice_hours, w.booking_window_days
+                  w.minimum_notice_hours, w.booking_window_days, w.is_active AS accepting_bookings
            FROM widget_settings w JOIN users u ON u.unid = w.host_unid
-           WHERE w.public_slug = $1 AND w.is_active AND u.status = $2"#,
+           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3"#,
         public_slug,
+        host_unid,
         USER_STATUS_ACTIVE,
     )
     .fetch_optional(pool)

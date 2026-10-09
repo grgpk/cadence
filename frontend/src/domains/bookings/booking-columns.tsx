@@ -12,11 +12,7 @@ import { BOOKING_STATUS, StatusBadge } from "../shared/StatusBadge";
  * host timezone, as in the admin list of every host, each call is in the
  * invitee's.
  */
-export function bookingColumns(
-  hostTimezone?: string,
-  /** Makes each invitee's name a button, for a list that can show the call in full. */
-  onOpen?: (booking: Booking) => void,
-): Column<Booking>[] {
+export function bookingColumns(hostTimezone?: string): Column<Booking>[] {
   return [
     {
       header: "When",
@@ -42,22 +38,7 @@ export function bookingColumns(
     {
       header: "Invitee",
       cell: (booking) => (
-        <TwoLine
-          primary={
-            onOpen ? (
-              <button
-                type="button"
-                onClick={() => onOpen(booking)}
-                className="max-w-full truncate rounded-sm text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                {booking.invitee_name}
-              </button>
-            ) : (
-              booking.invitee_name
-            )
-          }
-          secondary={booking.invitee_email}
-        />
+        <TwoLine primary={booking.invitee_name} secondary={booking.invitee_email} />
       ),
     },
     {

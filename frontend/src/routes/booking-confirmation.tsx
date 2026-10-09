@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { cn } from "cn";
 import { CalendarPlus, CalendarX, Download, Video } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/PublicLayout";
-import { PHASE_STYLES } from "../domains/widget/SlotStep";
-import { callEnd, clockLabel, dayPhase, zonedTime } from "../domains/widget/zoned-time";
+import { BookedStrip } from "../domains/bookings/BookedStrip";
+import { callEnd, clockLabel } from "../domains/widget/zoned-time";
 import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
 import { zoneName } from "../lib/format";
@@ -14,9 +13,6 @@ import { searchInstant, searchMinutes, searchText, searchTimezone } from "../lib
 
 const MEET_ORIGIN = "https://meet.google.com/";
 const MAX_CALL_MINUTES = 240;
-/** The strip shows the hour before the call and the two after it starts. */
-const STRIP_HOURS = 4;
-const STRIP_MINUTES = STRIP_HOURS * 60;
 
 export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
@@ -38,67 +34,15 @@ export const Route = createFileRoute("/booking-confirmation")({
     slug: searchText(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
     // Shown as plain text only, so any short name is safe.
     host: searchText(search.host, /^.{1,120}$/),
+    // The private link to change or cancel this call.
+    manage: searchText(search.manage, /^[0-9a-f]{16,128}$/),
   }),
   head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }, NOINDEX_META] }),
   component: BookingConfirmationPage,
 });
 
-/** The booked call as a block on its stretch of the day. */
-function BookedStrip({
-  start,
-  minutes,
-  timeZone,
-  label,
-}: {
-  start: Date;
-  minutes: number;
-  timeZone: string;
-  /** The call's time range, printed under its block. */
-  label: string;
-}) {
-  const at = zonedTime(start, timeZone);
-  const firstHour = at.hour - 1;
-  const styles = PHASE_STYLES[dayPhase(at.hour)];
-  const left = ((60 + at.minute) / STRIP_MINUTES) * 100;
-  const width = Math.min((minutes / STRIP_MINUTES) * 100, 100 - left);
-
-  return (
-    <div aria-hidden="true" className="rounded-xl border bg-card px-4 pt-3 pb-4">
-      <div className="grid grid-cols-4">
-        {Array.from({ length: STRIP_HOURS }, (_, index) => (
-          <div key={index}>
-            <p className="text-clock text-sm font-medium text-muted-foreground">
-              {String((firstHour + index + 24) % 24).padStart(2, "0")}:00
-            </p>
-            <div className="relative mt-1 h-2.5 border-t border-foreground/25">
-              <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
-              <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="relative mt-2 h-9">
-        <span
-          style={{ left: `${left}%`, width: `${width}%` }}
-          className={cn(
-            "vt-booked-block absolute inset-y-0 min-w-6 rounded-md motion-safe:animate-block-drop",
-            styles.rail,
-          )}
-        />
-      </div>
-      {/* Follows the block, but never runs off the right edge. */}
-      <p
-        style={{ marginLeft: `min(${left}%, calc(100% - 9rem))` }}
-        className="mt-1.5 text-clock text-sm font-medium"
-      >
-        {label}
-      </p>
-    </div>
-  );
-}
-
 function BookingConfirmationPage() {
-  const { start, minutes, tz, h12, meet, link, slug, host } = Route.useSearch();
+  const { start, minutes, tz, h12, meet, link, slug, host, manage } = Route.useSearch();
 
   if (!start || !minutes || !tz) {
     return (
@@ -203,13 +147,29 @@ function BookingConfirmationPage() {
             </a>
           </Button>
         </div>
-        {slug ? (
-          <Button variant="link" className="mt-4 h-auto p-0" asChild>
-            <Link to={ROUTES.bookingPage} params={{ slug }}>
+        <p className="mt-6 text-sm text-muted-foreground">
+          {manage ? (
+            <>
+              Plans changed?{" "}
+              <Link
+                to={ROUTES.manageBooking}
+                params={{ token: manage }}
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Reschedule or cancel
+              </Link>
+              . The same link is in your email.
+            </>
+          ) : slug ? (
+            <Link
+              to={ROUTES.bookingPage}
+              params={{ slug }}
+              className="font-medium text-foreground underline underline-offset-4"
+            >
               Book another time
             </Link>
-          </Button>
-        ) : null}
+          ) : null}
+        </p>
       </section>
     </PublicLayout>
   );

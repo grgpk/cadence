@@ -1,18 +1,26 @@
 use chrono::{Duration, Utc};
 use serde_json::json;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use super::{
     db,
-    models::{Booking, BookingDetail, BookingStatus, CreateBookingRequest},
+    models::{
+        Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
+        ManagedBooking, RescheduleRequest,
+    },
 };
 use crate::{
     domain::{
         availability::{models::TimeSlot, service as availability},
-        emails::service::BOOKING_CANCELLED_TEMPLATE,
+        emails::service::{
+            self as emails, BOOKING_CANCELLED_TEMPLATE, BOOKING_CONFIRMATION_TEMPLATE,
+            BOOKING_RESCHEDULED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE,
+            HOST_BOOKING_RESCHEDULED_TEMPLATE, HOST_NEW_BOOKING_TEMPLATE, REMINDER_2H_TEMPLATE,
+            REMINDER_24H_TEMPLATE, REMINDER_30MIN_TEMPLATE,
+        },
         google_calendar::service as google_calendar,
-        host_settings::models::BookingPage,
+        host_settings::{models::BookingPage, service as host_settings},
         leads::service as leads,
     },
     error::{AppError, AppResult},
@@ -20,6 +28,9 @@ use crate::{
 
 const SLOT_TAKEN: &str = "this time is no longer available";
 const ALREADY_CANCELLED: &str = "this call is already cancelled";
+const ALREADY_STARTED: &str = "this call has already started";
+/// Used when the hours that opened a call have since been changed.
+const FALLBACK_MINUTES: i32 = 30;
 
 pub struct BookingsService;
 
@@ -56,7 +67,7 @@ pub async fn create(
     pool: &PgPool,
     page: &BookingPage,
     request: CreateBookingRequest,
-) -> AppResult<Booking> {
+) -> AppResult<CreatedBooking> {
     validate(&request)?;
     let host_unid = page.host_unid;
     let Some(slot) = public_slots(pool, page)
@@ -115,25 +126,60 @@ pub async fn create(
         Err(error) => return Err(AppError::Database(error)),
     };
 
-    let payload = email_payload(&booking);
+    queue_invitee_emails(
+        &mut transaction,
+        &booking,
+        page,
+        slot.minutes,
+        BOOKING_CONFIRMATION_TEMPLATE,
+    )
+    .await?;
     db::queue_email(
         &mut transaction,
         booking.unid,
-        &booking.invitee_email,
-        "booking_confirmation",
+        &page.host_email,
+        HOST_NEW_BOOKING_TEMPLATE,
         Utc::now(),
-        payload.clone(),
+        host_payload(&booking, page, slot.minutes),
     )
     .await?;
-    for (template, delay) in [
-        ("reminder_24h", Duration::hours(-24)),
-        ("reminder_2h", Duration::hours(-2)),
-        ("reminder_30min", Duration::minutes(-30)),
+    transaction.commit().await?;
+    let manage_token = booking.manage_token.clone();
+    Ok(CreatedBooking {
+        booking,
+        manage_token,
+    })
+}
+
+/// Queues the email that tells the invitee about their call now, and the
+/// reminders that are still ahead of it.
+async fn queue_invitee_emails(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    minutes: i32,
+    notice_template: &str,
+) -> Result<(), sqlx::Error> {
+    let payload = invitee_payload(booking, page, minutes);
+    let now = Utc::now();
+    for (template, send_at) in [
+        (notice_template, now),
+        (
+            REMINDER_24H_TEMPLATE,
+            booking.slot_start - Duration::hours(24),
+        ),
+        (
+            REMINDER_2H_TEMPLATE,
+            booking.slot_start - Duration::hours(2),
+        ),
+        (
+            REMINDER_30MIN_TEMPLATE,
+            booking.slot_start - Duration::minutes(30),
+        ),
     ] {
-        let send_at = booking.slot_start + delay;
-        if send_at > Utc::now() {
+        if send_at >= now {
             db::queue_email(
-                &mut transaction,
+                connection,
                 booking.unid,
                 &booking.invitee_email,
                 template,
@@ -143,8 +189,7 @@ pub async fn create(
             .await?;
         }
     }
-    transaction.commit().await?;
-    Ok(booking)
+    Ok(())
 }
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Booking>> {
@@ -164,53 +209,220 @@ pub async fn detail(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Boo
     Ok(BookingDetail { booking, lead })
 }
 
-/// Calls off a call that has not started: the slot opens again, waiting
-/// reminders are dropped and the invitee is told.
+/// Who called a call off decides who still has to hear about it.
+#[derive(Clone, Copy)]
+enum CancelledBy {
+    Host,
+    Invitee,
+}
+
+/// A host calls off their own call: the invitee is told.
 pub async fn cancel(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Booking> {
     let booking = db::find(pool, host_unid, unid)
         .await?
         .ok_or(AppError::NotFound)?;
-    if booking.status == BookingStatus::Cancelled.as_str() {
-        return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
-    }
-    if booking.slot_start <= Utc::now() {
-        return Err(AppError::Conflict(
-            "this call has already started".to_owned(),
-        ));
-    }
+    let page = host_settings::page_of_host(pool, host_unid).await?;
+    let minutes = minutes_of(pool, &booking, &page).await?;
+    cancel_call(pool, &booking, &page, minutes, CancelledBy::Host).await
+}
+
+/// Calls off a call that has not started: the slot opens again, waiting
+/// emails are dropped and the other side is told.
+async fn cancel_call(
+    pool: &PgPool,
+    booking: &Booking,
+    page: &BookingPage,
+    minutes: i32,
+    cancelled_by: CancelledBy,
+) -> AppResult<Booking> {
+    ensure_can_change(booking)?;
 
     let mut transaction = pool.begin().await?;
-    // Another request may have cancelled it since the read above.
-    let Some(booking) = db::cancel(&mut transaction, host_unid, unid).await? else {
+    // Another request may have cancelled it since it was read.
+    let Some(booking) = db::cancel(&mut transaction, booking.host_unid, booking.unid).await? else {
         return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
     };
     db::delete_unsent_emails(&mut transaction, booking.unid).await?;
+    let (email, template, payload) = match cancelled_by {
+        CancelledBy::Host => (
+            booking.invitee_email.as_str(),
+            BOOKING_CANCELLED_TEMPLATE,
+            invitee_payload(&booking, page, minutes),
+        ),
+        CancelledBy::Invitee => (
+            page.host_email.as_str(),
+            HOST_BOOKING_CANCELLED_TEMPLATE,
+            host_payload(&booking, page, minutes),
+        ),
+    };
     db::queue_email(
         &mut transaction,
         booking.unid,
-        &booking.invitee_email,
-        BOOKING_CANCELLED_TEMPLATE,
+        email,
+        template,
         Utc::now(),
-        email_payload(&booking),
+        payload,
     )
     .await?;
     transaction.commit().await?;
 
     // The call is cancelled either way; a stale calendar event must not undo that.
     if let Some(event_id) = &booking.google_event_id
-        && let Err(error) = google_calendar::delete_event(pool, host_unid, event_id).await
+        && let Err(error) = google_calendar::delete_event(pool, booking.host_unid, event_id).await
     {
         tracing::error!(%error, "calendar event was not deleted");
     }
     Ok(booking)
 }
 
-fn email_payload(booking: &Booking) -> serde_json::Value {
+/// The call behind an invitee's manage link. A wrong link looks unknown.
+pub async fn managed(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
+    let (booking, page, minutes) = find_managed(pool, token).await?;
+    Ok(managed_booking(booking, page, minutes))
+}
+
+/// The invitee calls off their own call: the host is told.
+pub async fn cancel_managed(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
+    let (booking, page, minutes) = find_managed(pool, token).await?;
+    let booking = cancel_call(pool, &booking, &page, minutes, CancelledBy::Invitee).await?;
+    Ok(managed_booking(booking, page, minutes))
+}
+
+/// The invitee moves their call to another open time. The call keeps its
+/// link; its waiting emails are replaced and both sides are told.
+pub async fn reschedule(
+    pool: &PgPool,
+    token: &str,
+    request: RescheduleRequest,
+) -> AppResult<ManagedBooking> {
+    let (booking, page, _) = find_managed(pool, token).await?;
+    ensure_can_change(&booking)?;
+    // A paused page offers nothing. The call's own time is taken, by itself.
+    let slot = if page.accepting_bookings {
+        public_slots(pool, &page)
+            .await?
+            .into_iter()
+            .find(|slot| slot.start == request.slot_start)
+    } else {
+        None
+    };
+    let Some(slot) = slot else {
+        return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
+    };
+
+    let mut transaction = pool.begin().await?;
+    let booking = match db::reschedule(&mut transaction, booking.unid, slot.start).await {
+        Ok(Some(value)) => value,
+        // Another request may have cancelled it since the read above.
+        Ok(None) => return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned())),
+        Err(error) if is_unique_violation(&error) => {
+            return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
+        }
+        Err(error) => return Err(AppError::Database(error)),
+    };
+    db::delete_unsent_emails(&mut transaction, booking.unid).await?;
+    queue_invitee_emails(
+        &mut transaction,
+        &booking,
+        &page,
+        slot.minutes,
+        BOOKING_RESCHEDULED_TEMPLATE,
+    )
+    .await?;
+    db::queue_email(
+        &mut transaction,
+        booking.unid,
+        &page.host_email,
+        HOST_BOOKING_RESCHEDULED_TEMPLATE,
+        Utc::now(),
+        host_payload(&booking, &page, slot.minutes),
+    )
+    .await?;
+    transaction.commit().await?;
+
+    // The call has moved either way; the calendar follows when it can.
+    if let Some(event_id) = &booking.google_event_id
+        && let Err(error) =
+            google_calendar::move_event(pool, booking.host_unid, event_id, slot.start, slot.minutes)
+                .await
+    {
+        tracing::error!(%error, "calendar event was not moved");
+    }
+    Ok(managed_booking(booking, page, slot.minutes))
+}
+
+async fn find_managed(pool: &PgPool, token: &str) -> AppResult<(Booking, BookingPage, i32)> {
+    let booking = db::find_by_token(pool, token)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let page = host_settings::page_of_host(pool, booking.host_unid).await?;
+    let minutes = minutes_of(pool, &booking, &page).await?;
+    Ok((booking, page, minutes))
+}
+
+/// How long a booked call runs, read from the hours that open its slot.
+async fn minutes_of(pool: &PgPool, booking: &Booking, page: &BookingPage) -> AppResult<i32> {
+    let rules = availability::list(pool, page.host_unid).await?;
+    Ok(
+        availability::minutes_at(&rules, &page.timezone, booking.slot_start)
+            .unwrap_or(FALLBACK_MINUTES),
+    )
+}
+
+fn can_change(booking: &Booking) -> bool {
+    booking.status != BookingStatus::Cancelled.as_str() && booking.slot_start > Utc::now()
+}
+
+fn ensure_can_change(booking: &Booking) -> AppResult<()> {
+    if booking.status == BookingStatus::Cancelled.as_str() {
+        return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
+    }
+    if !can_change(booking) {
+        return Err(AppError::Conflict(ALREADY_STARTED.to_owned()));
+    }
+    Ok(())
+}
+
+fn managed_booking(booking: Booking, page: BookingPage, minutes: i32) -> ManagedBooking {
+    ManagedBooking {
+        can_change: can_change(&booking),
+        slot_start: booking.slot_start,
+        timezone: booking.timezone,
+        minutes,
+        status: booking.status,
+        invitee_name: booking.invitee_name,
+        meeting_url: booking.meeting_url,
+        host_name: page.host_name,
+        title: page.title,
+        slug: page.public_slug,
+    }
+}
+
+/// What an email to the invitee says, in the invitee's own timezone.
+fn invitee_payload(booking: &Booking, page: &BookingPage, minutes: i32) -> serde_json::Value {
     json!({
         "name": booking.invitee_name,
         "slot_start": booking.slot_start,
         "timezone": booking.timezone,
         "meeting_url": booking.meeting_url,
+        "host_name": page.host_name,
+        "title": page.title,
+        "minutes": minutes,
+        "manage_url": emails::manage_url(&booking.manage_token),
+    })
+}
+
+/// What an email to the host says, in the host's own timezone.
+fn host_payload(booking: &Booking, page: &BookingPage, minutes: i32) -> serde_json::Value {
+    json!({
+        "name": booking.invitee_name,
+        "invitee_email": booking.invitee_email,
+        "slot_start": booking.slot_start,
+        "timezone": page.timezone,
+        "host_name": page.host_name,
+        "title": page.title,
+        "minutes": minutes,
+        "bookings_url": emails::host_bookings_url(),
     })
 }
 

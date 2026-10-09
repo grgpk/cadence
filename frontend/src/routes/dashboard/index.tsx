@@ -1,17 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, Video } from "lucide-react";
+import { CalendarDays, Copy } from "lucide-react";
 import { useState } from "react";
 
-import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
+import { Agenda } from "../../domains/bookings/Agenda";
 import { BookingDetailSheet } from "../../domains/bookings/BookingDetailSheet";
-import {
-  agendaDays,
-  bookingsQuery,
-  splitBookings,
-} from "../../domains/bookings/bookings";
+import { bookingsQuery, splitBookings } from "../../domains/bookings/bookings";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
 import { BookingPageStatus } from "../../domains/dashboard/BookingPageStatus";
 import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/host-api";
@@ -20,10 +16,7 @@ import { EmptyState } from "../../domains/shared/EmptyState";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
-import { PHASE_STYLES } from "../../domains/widget/SlotStep";
-import { dayPhase, zonedTime } from "../../domains/widget/zoned-time";
 import { APP_NAME } from "../../lib/config";
-import { formatTime } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/")({
@@ -32,50 +25,6 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 const NEXT_UP_LIMIT = 6;
-
-/** One call in the agenda, with the color of the part of the day it falls in. */
-function AgendaRow({
-  booking,
-  timeZone,
-  onOpen,
-}: {
-  booking: Booking;
-  timeZone: string;
-  onOpen: () => void;
-}) {
-  const { hour } = zonedTime(new Date(booking.slot_start), timeZone);
-  return (
-    <li className="flex items-center gap-4 px-5 py-3">
-      <span
-        aria-hidden="true"
-        className={`h-9 w-[3px] shrink-0 rounded-full ${PHASE_STYLES[dayPhase(hour)].rail}`}
-      />
-      <span className="w-20 shrink-0 text-clock text-lg font-medium">
-        {formatTime(booking.slot_start, timeZone)}
-      </span>
-      <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          onClick={onOpen}
-          className="block max-w-full truncate rounded-sm text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          {booking.invitee_name}
-        </button>
-        <p className="truncate text-sm text-muted-foreground">{booking.invitee_email}</p>
-      </div>
-      {booking.meeting_url ? (
-        <Button variant="outline" size="sm" asChild>
-          <a href={booking.meeting_url} target="_blank" rel="noreferrer">
-            <Video />
-            Join
-          </a>
-        </Button>
-      ) : (
-        <span className="text-sm text-muted-foreground">No link</span>
-      )}
-    </li>
-  );
-}
 
 function DashboardHome() {
   const { user } = Route.useRouteContext();
@@ -144,26 +93,11 @@ function DashboardHome() {
             }
           />
         ) : (
-          // Settings that failed to load fall back to each invitee's own timezone.
-          agendaDays(nextUp, timeZone ?? nextUp[0]?.timezone ?? "UTC", Date.now()).map(
-            (day) => (
-              <section key={day.key}>
-                <h3 className="border-b bg-muted/60 px-5 py-1.5 text-xs font-medium text-muted-foreground">
-                  {day.label}
-                </h3>
-                <ul className="divide-y border-b last:border-b-0">
-                  {day.bookings.map((booking) => (
-                    <AgendaRow
-                      key={booking.unid}
-                      booking={booking}
-                      timeZone={timeZone ?? booking.timezone}
-                      onOpen={() => setOpenUnid(booking.unid)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ),
-          )
+          <Agenda
+            bookings={nextUp}
+            timeZone={timeZone}
+            onOpen={(booking) => setOpenUnid(booking.unid)}
+          />
         )}
       </Card>
 

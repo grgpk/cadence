@@ -11,7 +11,7 @@ import { zonedTime } from "../widget/zoned-time";
 const CANCELLED: BookingStatus = "cancelled";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-export function isCancelled(booking: Booking): boolean {
+export function isCancelled(booking: Pick<Booking, "status">): boolean {
   return booking.status === CANCELLED;
 }
 
@@ -30,6 +30,16 @@ export const bookingDetailQuery = (unid: string) =>
 
 export function cancelBooking(unid: string): Promise<Booking> {
   return api<Booking>(`/api/bookings/${unid}/cancel`, { method: "POST" });
+}
+
+/** Whether a call's invitee matches what the host typed, by name or email. */
+export function matchesSearch(booking: Booking, search: string): boolean {
+  const wanted = search.trim().toLowerCase();
+  return (
+    wanted === "" ||
+    booking.invitee_name.toLowerCase().includes(wanted) ||
+    booking.invitee_email.toLowerCase().includes(wanted)
+  );
 }
 
 /**

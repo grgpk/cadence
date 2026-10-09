@@ -36,6 +36,16 @@ export function createAvailabilityRule(
   });
 }
 
+export function updateAvailabilityRule(
+  id: number,
+  input: AvailabilityRuleInput,
+): Promise<AvailabilityRule> {
+  return api<AvailabilityRule>(`${AVAILABILITY_PATH}/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
 export function removeAvailabilityRule(rule: AvailabilityRule): Promise<void> {
   return api<void>(`${AVAILABILITY_PATH}/${rule.id}`, { method: "DELETE" });
 }

@@ -1,11 +1,12 @@
 import { queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 
-import type { Booking } from "../../bindings/Booking";
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import type { CallingVisitRequest } from "../../bindings/CallingVisitRequest";
 import type { CreateBookingRequest } from "../../bindings/CreateBookingRequest";
+import type { CreatedBooking } from "../../bindings/CreatedBooking";
+import type { ManagedBooking } from "../../bindings/ManagedBooking";
 import type { Lead } from "../../bindings/Lead";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
 import type { TimeSlot } from "../../bindings/TimeSlot";
@@ -101,9 +102,32 @@ export function publicSlotsQuery(slug: string) {
 export function createBooking(
   slug: string,
   request: CreateBookingRequest,
-): Promise<Booking> {
-  return api<Booking>(`${hostPath(slug)}/bookings`, {
+): Promise<CreatedBooking> {
+  return api<CreatedBooking>(`${hostPath(slug)}/bookings`, {
     method: "POST",
     body: JSON.stringify(request),
+  });
+}
+
+const managePath = (token: string) => `/api/manage/${encodeURIComponent(token)}`;
+
+/** A call as the person who booked it sees it, found by their private link. */
+export const managedBookingQuery = (token: string) =>
+  queryOptions({
+    queryKey: QUERY_KEYS.managedBooking(token),
+    queryFn: () => api<ManagedBooking>(managePath(token)),
+  });
+
+export function cancelManagedBooking(token: string): Promise<ManagedBooking> {
+  return api<ManagedBooking>(`${managePath(token)}/cancel`, { method: "POST" });
+}
+
+export function rescheduleManagedBooking(
+  token: string,
+  slotStart: string,
+): Promise<ManagedBooking> {
+  return api<ManagedBooking>(`${managePath(token)}/reschedule`, {
+    method: "POST",
+    body: JSON.stringify({ slot_start: slotStart }),
   });
 }

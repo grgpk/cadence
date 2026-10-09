@@ -235,6 +235,46 @@ impl GoogleCalendarClient {
         }
     }
 
+    /// Move an event to a new time and tell its attendees.
+    pub async fn update_event_time(
+        &self,
+        event_id: &str,
+        start: chrono::DateTime<chrono::Utc>,
+        end: chrono::DateTime<chrono::Utc>,
+    ) -> Result<(), GoogleCalendarError> {
+        let url = format!(
+            "{}/calendars/{}/events/{}?sendUpdates=all",
+            Self::BASE_URL,
+            urlencoding::encode(&self.calendar_id),
+            urlencoding::encode(event_id)
+        );
+        let event_body = serde_json::json!({
+            "start": { "dateTime": start.to_rfc3339() },
+            "end": { "dateTime": end.to_rfc3339() },
+        });
+
+        let response = self
+            .client
+            .patch(&url)
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .header("Content-Type", "application/json")
+            .body(event_body.to_string())
+            .send()
+            .await?;
+
+        match response.status() {
+            reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
+            status if !status.is_success() => {
+                let body = response.text().await.unwrap_or_default();
+                tracing::error!("Update event failed: {}", body);
+                Err(GoogleCalendarError::Other(format!(
+                    "Update event failed: {status}"
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Create a numbered coaching-series event ("N. {name} <> Max") with Google Meet.
     /// Deferred call site (`book_mentorship_series`) — kept here so the port stays complete
     /// and callable, per `PLAN_SWITCH_BACKEND.md`.

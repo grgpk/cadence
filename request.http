@@ -2,6 +2,8 @@
 @slug = cadence-host
 @leadUnid = 00000000-0000-0000-0000-000000000001
 @bookingUnid = 00000000-0000-0000-0000-000000000002
+# The manage_token returned by "Book call".
+@manageToken = replace-with-a-manage-token
 
 ### Health
 GET {{baseUrl}}/health
@@ -30,6 +32,12 @@ Content-Type: application/json
 
 {"weekday":1,"start_time":"09:00:00","end_time":"17:00:00","slot_minutes":30}
 
+### Update availability rule
+PUT {{baseUrl}}/api/availability/1
+Content-Type: application/json
+
+{"weekday":1,"start_time":"10:00:00","end_time":"16:00:00","slot_minutes":30}
+
 ### Delete availability rule
 DELETE {{baseUrl}}/api/availability/1
 
@@ -42,7 +50,7 @@ Content-Type: application/json
 
 {"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"is_active":true}
 
-### Public booking page
+### Public booking page (accepting_bookings is false while paused)
 GET {{baseUrl}}/api/hosts/{{slug}}
 
 ### Public slots for the next 7 days
@@ -66,6 +74,18 @@ POST {{baseUrl}}/api/hosts/{{slug}}/bookings
 Content-Type: application/json
 
 {"lead_unid":"{{leadUnid}}","calling_visit_unid":null,"slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
+
+### Invitee: my call, through the manage link
+GET {{baseUrl}}/api/manage/{{manageToken}}
+
+### Invitee: move my call to another open time
+POST {{baseUrl}}/api/manage/{{manageToken}}/reschedule
+Content-Type: application/json
+
+{"slot_start":"2026-10-13T07:00:00Z"}
+
+### Invitee: cancel my call
+POST {{baseUrl}}/api/manage/{{manageToken}}/cancel
 
 ### My bookings
 GET {{baseUrl}}/api/bookings

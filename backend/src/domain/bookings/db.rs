@@ -24,7 +24,7 @@ pub async fn create(
         Booking,
         "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, timezone, invitee_name, invitee_email, google_event_id, google_meet_url)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         host_unid,
         lead_unid,
         calling_visit_unid,
@@ -61,7 +61,7 @@ pub async fn booked_starts(
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
          FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC",
         host_unid,
     )
@@ -76,12 +76,45 @@ pub async fn find(
 ) -> Result<Option<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
          FROM bookings WHERE host_unid = $1 AND unid = $2",
         host_unid,
         unid,
     )
     .fetch_optional(pool)
+    .await
+}
+
+pub async fn find_by_token(
+    pool: &PgPool,
+    manage_token: &str,
+) -> Result<Option<Booking>, sqlx::Error> {
+    sqlx::query_as!(
+        Booking,
+        "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
+         FROM bookings WHERE manage_token = $1",
+        manage_token,
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Moves a call that still holds its slot. Returns `None` when it is cancelled.
+pub async fn reschedule(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    slot_start: DateTime<Utc>,
+) -> Result<Option<Booking>, sqlx::Error> {
+    sqlx::query_as!(
+        Booking,
+        "UPDATE bookings SET slot_start = $2, updated_at = now()
+         WHERE unid = $1 AND status <> $3
+         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+        unid,
+        slot_start,
+        BookingStatus::Cancelled.as_str(),
+    )
+    .fetch_optional(connection)
     .await
 }
 
@@ -95,7 +128,7 @@ pub async fn cancel(
         Booking,
         "UPDATE bookings SET status = $3, cancelled_at = now(), updated_at = now()
          WHERE host_unid = $1 AND unid = $2 AND status <> $3
-         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         host_unid,
         unid,
         BookingStatus::Cancelled.as_str(),
@@ -108,7 +141,7 @@ impl BookingsDb {
     pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
         sqlx::query_as!(
             Booking,
-            "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, created_at
+            "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
              FROM bookings ORDER BY slot_start DESC",
         )
         .fetch_all(pool)

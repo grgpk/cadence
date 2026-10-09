@@ -26,7 +26,7 @@ pub struct HostSettings {
     pub minimum_notice_hours: i32,
     /// How many days ahead a visitor can book.
     pub booking_window_days: i32,
-    /// `false` pauses the page: its link looks unknown from outside.
+    /// `false` pauses the page: it can still be read, but not booked.
     pub is_active: bool,
 }
 
@@ -38,6 +38,13 @@ pub struct BookingPage {
     #[serde(skip)]
     #[ts(skip)]
     pub host_unid: Uuid,
+    /// Where the host is told about their calls.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub host_email: String,
+    #[serde(skip)]
+    #[ts(skip)]
+    pub public_slug: String,
     pub host_name: String,
     pub title: String,
     pub description: String,
@@ -58,6 +65,8 @@ pub struct BookingPage {
     #[ts(skip)]
     pub minimum_notice_hours: i32,
     pub booking_window_days: i32,
+    /// `false` while the host has paused the page.
+    pub accepting_bookings: bool,
 }
 
 /// One host as an admin sees them: who they are and how far their booking

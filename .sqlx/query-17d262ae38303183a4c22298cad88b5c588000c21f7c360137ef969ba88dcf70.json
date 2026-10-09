@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT count(*) FROM email_queue\n         WHERE booking_unid = $1 AND email = 'ada@example.com'\n           AND (payload->>'manage_url' NOT LIKE '%/booking/' || $2\n                OR payload->>'host_name' <> 'Nino Tbilisi' OR payload->>'minutes' <> '60')",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "17d262ae38303183a4c22298cad88b5c588000c21f7c360137ef969ba88dcf70"
+}

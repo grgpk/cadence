@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET status = 'Banned' FROM widget_settings w\n         WHERE w.host_unid = users.unid AND w.public_slug = $1 RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "66681a5995dcd597557dadb80c737bae251c3141f6bac6d13d40e2ecbf126dc8"
+}

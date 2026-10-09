@@ -27,6 +27,17 @@ pub async fn create(
     ))
 }
 
+pub async fn update(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<i64>,
+    Json(input): Json<AvailabilityRuleInput>,
+) -> AppResult<Json<AvailabilityRule>> {
+    Ok(Json(
+        service::update(&state.pool, user.user.unid, id, input).await?,
+    ))
+}
+
 pub async fn delete(
     State(state): State<AppState>,
     user: AuthUser,
