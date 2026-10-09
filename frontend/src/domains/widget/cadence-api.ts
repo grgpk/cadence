@@ -73,7 +73,7 @@ export function updateCallingVisit(
 
 /** A host's booking page, or `null` when the link is unknown or switched off. */
 export const getBookingPage = createServerFn({ method: "GET" })
-  .inputValidator((slug: string) => slug)
+  .validator((slug: string) => slug)
   .handler(async ({ data: slug }) => {
     const response = await fetch(
       `${SERVER_API_URL}/api/hosts/${encodeURIComponent(slug)}`,
