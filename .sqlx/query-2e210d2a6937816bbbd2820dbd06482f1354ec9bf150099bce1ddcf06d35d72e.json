@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT slot_start FROM bookings WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3",
+  "query": "SELECT slot_start FROM bookings\n         WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3 AND status <> $4",
   "describe": {
     "columns": [
       {
@@ -19,12 +19,13 @@
       "Left": [
         "Uuid",
         "Timestamptz",
-        "Timestamptz"
+        "Timestamptz",
+        "Text"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "28fabe8c815a7abe14d2c07ec770d11b10c58858ebde0050a04f2c58b3c78a1d"
+  "hash": "2e210d2a6937816bbbd2820dbd06482f1354ec9bf150099bce1ddcf06d35d72e"
 }

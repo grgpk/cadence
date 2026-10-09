@@ -1,12 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { BookingDetailSheet } from "../../domains/bookings/BookingDetailSheet";
 import { bookingColumns } from "../../domains/bookings/booking-columns";
 import { hostSettingsQuery } from "../../domains/dashboard/host-api";
 import { bookingsQuery, splitBookings } from "../../domains/bookings/bookings";
@@ -35,15 +36,23 @@ function BookingList({
   empty: React.ReactNode;
 }) {
   const settings = useQuery(hostSettingsQuery);
+  const [openUnid, setOpenUnid] = useState<string | null>(null);
   return (
     <Card className="gap-0 overflow-hidden py-0">
+      <BookingDetailSheet
+        unid={openUnid}
+        timeZone={settings.data?.timezone}
+        onClose={() => setOpenUnid(null)}
+      />
       {loading ? (
         <TableSkeleton />
       ) : bookings.length === 0 ? (
         empty
       ) : (
         <DataTable
-          columns={bookingColumns(settings.data?.timezone)}
+          columns={bookingColumns(settings.data?.timezone, (booking) =>
+            setOpenUnid(booking.unid),
+          )}
           rows={bookings}
           rowKey={(booking) => booking.unid}
         />

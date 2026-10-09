@@ -260,7 +260,7 @@ function DayRow({ weekday, rules }: { weekday: number; rules: AvailabilityRule[]
           const range = `${formatClock(rule.start_time, hour12)} to ${formatClock(rule.end_time, hour12)}`;
           return (
             <div key={rule.id} className="flex items-center gap-3 text-sm">
-              <span className="rounded-md border bg-card px-2.5 py-1 font-medium tabular-nums">
+              <span className="rounded-md border bg-card px-2.5 py-1 text-clock text-[0.9375rem] font-medium">
                 {range}
               </span>
               <span className="text-muted-foreground">{rule.slot_minutes} min calls</span>

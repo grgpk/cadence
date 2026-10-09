@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level",
+  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, is_active",
   "describe": {
     "columns": [
       {
@@ -112,6 +112,39 @@
             "name": "ask_urgency_level"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "minimum_notice_hours",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "minimum_notice_hours"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "booking_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "booking_window_days"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "is_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "is_active"
+          }
+        }
       }
     ],
     "parameters": {
@@ -131,8 +164,11 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "6fcb1e3063b4dc3ce61b6f4ff3c6a9a382650d50caa70509efae5d06204127b0"
+  "hash": "5f9d095b1e870cdcc37b8cf00205d4dddc2deb98548ee508354a8afb3778043e"
 }

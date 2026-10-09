@@ -2,6 +2,7 @@ import { Clock, Globe, Video } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
+import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 
 function GoogleMeetIcon() {
   return (
@@ -58,8 +59,15 @@ export function BookingSummary({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <p className="text-sm font-medium text-muted-foreground">{page.host_name}</p>
-        <h1 className="mt-1 font-display text-2xl leading-tight font-semibold tracking-tight">
+        <div className="flex items-center gap-2.5">
+          <Avatar aria-hidden="true">
+            <AvatarFallback className="bg-primary font-display font-semibold text-primary-foreground">
+              {page.host_name.trim().charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <p className="text-sm font-medium text-muted-foreground">{page.host_name}</p>
+        </div>
+        <h1 className="mt-3 font-display text-2xl leading-tight font-semibold tracking-tight">
           {page.title}
         </h1>
         {page.description ? (

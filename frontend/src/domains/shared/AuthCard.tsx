@@ -7,6 +7,7 @@ import { Input } from "../../components/ui/input";
 import { APP_NAME } from "../../lib/config";
 import { errorMessage } from "../../lib/error-message";
 import { ROUTES } from "../../lib/routes";
+import { DayTape } from "../landing/DayTape";
 import { Logo } from "./Logo";
 
 export function AuthCard({
@@ -28,25 +29,39 @@ export function AuthCard({
   footer: ReactNode;
 }) {
   return (
-    <main className="flex min-h-svh flex-col items-center justify-center gap-8 p-4 sm:p-6">
-      <Link to={ROUTES.home} aria-label={`${APP_NAME} home`}>
-        <Logo />
-      </Link>
-      <div className="w-full max-w-sm rounded-xl border bg-card p-6 sm:p-8">
-        <h1 className="font-display text-2xl font-semibold tracking-tight">{title}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-        <form onSubmit={onSubmit} className="mt-6 grid gap-4">
-          {error ? (
-            <Alert variant="destructive">
-              <CircleAlert className="size-4" />
-              <AlertDescription>{errorMessage(error, errorMessages)}</AlertDescription>
-            </Alert>
-          ) : null}
-          {children}
-        </form>
-      </div>
-      <p className="text-sm text-muted-foreground">{footer}</p>
-    </main>
+    <div className="grid min-h-svh lg:grid-cols-2">
+      <main className="flex flex-col gap-10 p-6 sm:p-10">
+        <Link to={ROUTES.home} aria-label={`${APP_NAME} home`} className="self-start">
+          <Logo />
+        </Link>
+        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
+          <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
+            {title}
+          </h1>
+          <p className="mt-1.5 text-muted-foreground">{description}</p>
+          <form onSubmit={onSubmit} className="mt-8 grid gap-4">
+            {error ? (
+              <Alert variant="destructive">
+                <CircleAlert className="size-4" />
+                <AlertDescription>{errorMessage(error, errorMessages)}</AlertDescription>
+              </Alert>
+            ) : null}
+            {children}
+          </form>
+          <p className="mt-6 text-sm text-muted-foreground">{footer}</p>
+        </div>
+      </main>
+      {/* Always the night side: a nested dark scope reuses the dark tokens. */}
+      <aside
+        aria-hidden="true"
+        className="dark hidden flex-col justify-center gap-12 overflow-hidden border-l bg-card py-10 text-foreground lg:flex"
+      >
+        <p className="max-w-md px-10 font-display font-wide text-4xl leading-[1.05] font-bold tracking-tight xl:text-5xl">
+          Set your hours once. Share one link.
+        </p>
+        <DayTape />
+      </aside>
+    </div>
   );
 }
 

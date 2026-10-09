@@ -5,7 +5,7 @@ use axum::{
 
 use super::service::BookingsService;
 use super::{
-    models::{Booking, CreateBookingRequest},
+    models::{Booking, BookingDetail, CreateBookingRequest},
     service,
 };
 use crate::{
@@ -15,6 +15,7 @@ use crate::{
     domain::host_settings::service as host_settings,
     error::AppResult,
 };
+use uuid::Uuid;
 
 pub async fn public_slots(
     State(state): State<AppState>,
@@ -38,6 +39,26 @@ pub async fn create(
 
 pub async fn list(State(state): State<AppState>, user: AuthUser) -> AppResult<Json<Vec<Booking>>> {
     Ok(Json(service::list(&state.pool, user.user.unid).await?))
+}
+
+pub async fn detail(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(unid): Path<Uuid>,
+) -> AppResult<Json<BookingDetail>> {
+    Ok(Json(
+        service::detail(&state.pool, user.user.unid, unid).await?,
+    ))
+}
+
+pub async fn cancel(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(unid): Path<Uuid>,
+) -> AppResult<Json<Booking>> {
+    Ok(Json(
+        service::cancel(&state.pool, user.user.unid, unid).await?,
+    ))
 }
 
 pub async fn list_all(

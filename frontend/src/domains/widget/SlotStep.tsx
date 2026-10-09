@@ -107,7 +107,7 @@ function DayTimes({
                       type="button"
                       variant="outline"
                       className={cn(
-                        "relative h-10 w-full overflow-hidden font-display font-narrow text-base tabular-nums hover:border-foreground",
+                        "relative h-10 w-full overflow-hidden text-clock text-base hover:border-foreground",
                         isPicked && styles.picked,
                       )}
                       onClick={() => pick(slot)}
@@ -264,7 +264,7 @@ export function SlotStep({
             <EmptyState
               icon={CalendarDays}
               title="No open times"
-              description={`${page.host_name} has no open times in the next 7 days. Check back later.`}
+              description={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
             />
           ) : (
             <EmptyState icon={CalendarDays} title="Pick a day to see times" />

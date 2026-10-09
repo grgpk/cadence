@@ -1,6 +1,7 @@
 @baseUrl = http://localhost:3001
 @slug = cadence-host
 @leadUnid = 00000000-0000-0000-0000-000000000001
+@bookingUnid = 00000000-0000-0000-0000-000000000002
 
 ### Health
 GET {{baseUrl}}/health
@@ -39,7 +40,7 @@ GET {{baseUrl}}/api/host/settings
 PUT {{baseUrl}}/api/host/settings
 Content-Type: application/json
 
-{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false}
+{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"is_active":true}
 
 ### Public booking page
 GET {{baseUrl}}/api/hosts/{{slug}}
@@ -68,6 +69,12 @@ Content-Type: application/json
 
 ### My bookings
 GET {{baseUrl}}/api/bookings
+
+### One of my bookings, with the invitee's answers
+GET {{baseUrl}}/api/bookings/{{bookingUnid}}
+
+### Cancel one of my bookings
+POST {{baseUrl}}/api/bookings/{{bookingUnid}}/cancel
 
 ### Admin leads
 GET {{baseUrl}}/api/admin/leads

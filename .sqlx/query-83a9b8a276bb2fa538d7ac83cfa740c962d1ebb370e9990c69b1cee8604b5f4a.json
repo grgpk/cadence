@@ -1,21 +1,32 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level\n         FROM widget_settings WHERE host_unid = $1",
+  "query": "SELECT w.host_unid, u.full_name AS host_name, w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE w.public_slug = $1 AND w.is_active AND u.status = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "public_slug",
-        "type_info": "Text",
+        "name": "host_unid",
+        "type_info": "Uuid",
         "origin": {
           "Table": {
             "table": "widget_settings",
-            "name": "public_slug"
+            "name": "host_unid"
           }
         }
       },
       {
         "ordinal": 1,
+        "name": "host_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "title",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -37,24 +48,13 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
           "Table": {
             "table": "widget_settings",
             "name": "timezone"
-          }
-        }
-      },
-      {
-        "ordinal": 4,
-        "name": "meeting_link",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "meeting_link"
           }
         }
       },
@@ -112,11 +112,57 @@
             "name": "ask_urgency_level"
           }
         }
+      },
+      {
+        "ordinal": 10,
+        "name": "calendar_connected!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 11,
+        "name": "meeting_link",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "meeting_link"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "has_meeting_link!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "minimum_notice_hours",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "minimum_notice_hours"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "booking_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "booking_window_days"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Text",
+        "Text"
       ]
     },
     "nullable": [
@@ -124,13 +170,18 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
       true,
-      false,
-      false,
-      false,
+      null,
       false,
       false
     ]
   },
-  "hash": "1c88f5a69116277a15c769eb4a965eecb1aff71b1f0cb6386c560c4174c90abe"
+  "hash": "83a9b8a276bb2fa538d7ac83cfa740c962d1ebb370e9990c69b1cee8604b5f4a"
 }

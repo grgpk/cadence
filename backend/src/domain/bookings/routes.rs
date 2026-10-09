@@ -15,5 +15,7 @@ pub fn public_routes() -> Router<AppState> {
 pub fn protected_routes() -> Router<AppState> {
     Router::new()
         .route("/api/bookings", get(handlers::list))
+        .route("/api/bookings/{unid}", get(handlers::detail))
+        .route("/api/bookings/{unid}/cancel", post(handlers::cancel))
         .route("/api/admin/bookings", get(handlers::list_all))
 }

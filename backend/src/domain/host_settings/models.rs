@@ -22,6 +22,12 @@ pub struct HostSettings {
     pub ask_what_stopping_you: bool,
     pub ask_investment_comfort: bool,
     pub ask_urgency_level: bool,
+    /// Shortest time between now and a call a visitor can book.
+    pub minimum_notice_hours: i32,
+    /// How many days ahead a visitor can book.
+    pub booking_window_days: i32,
+    /// `false` pauses the page: its link looks unknown from outside.
+    pub is_active: bool,
 }
 
 /// What a visitor's browser may know about a booking page.
@@ -47,6 +53,11 @@ pub struct BookingPage {
     #[ts(skip)]
     pub meeting_link: Option<String>,
     pub has_meeting_link: bool,
+    /// Slots are already cut to the notice period, so the page does not need it.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub minimum_notice_hours: i32,
+    pub booking_window_days: i32,
 }
 
 /// One host as an admin sees them: who they are and how far their booking

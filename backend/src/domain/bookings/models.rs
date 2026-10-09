@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::domain::leads::models::Lead;
+
 #[derive(Debug, Deserialize, Serialize, TS)]
 #[ts(
     export,
@@ -19,13 +21,24 @@ pub struct CreateBookingRequest {
 
 /// The values of the `bookings_status` check. `Booking.status` stays a string
 /// for sqlx; this gives the frontend the closed set.
-#[derive(Debug, Serialize, TS)]
+#[derive(Clone, Copy, Debug, Serialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export, export_to = "../../frontend/src/bindings/BookingStatus.ts")]
 pub enum BookingStatus {
     Pending,
     Confirmed,
     Cancelled,
+}
+
+impl BookingStatus {
+    /// The value as the `status` column stores it.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Pending => "pending",
+            Self::Confirmed => "confirmed",
+            Self::Cancelled => "cancelled",
+        }
+    }
 }
 
 #[derive(Debug, Serialize, TS, sqlx::FromRow)]
@@ -42,5 +55,18 @@ pub struct Booking {
     pub status: String,
     /// Where the call happens: the Google Meet link, or the host's own meeting link.
     pub meeting_url: Option<String>,
+    /// Only needed to take the event off the host's calendar.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub google_event_id: Option<String>,
     pub created_at: DateTime<Utc>,
+}
+
+/// One call as its host sees it, with what the invitee answered on the form.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/BookingDetail.ts")]
+pub struct BookingDetail {
+    pub booking: Booking,
+    /// `None` when the call was booked without the form.
+    pub lead: Option<Lead>,
 }

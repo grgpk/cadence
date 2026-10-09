@@ -172,6 +172,7 @@ function Booking({
           meet: booking.meeting_url ?? undefined,
           link: booking.meeting_url !== null,
           slug,
+          host: page.host_name,
         },
       });
     },

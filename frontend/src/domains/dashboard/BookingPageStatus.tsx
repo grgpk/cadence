@@ -119,7 +119,7 @@ export function BookingPageStatus() {
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <h2 className="border-b px-5 py-3 font-semibold">Your booking page</h2>
+      <h2 className="border-b px-5 py-3.5 font-semibold">Your booking page</h2>
       <dl className="divide-y">
         <Row label="Link" query={settings}>
           {() => ({

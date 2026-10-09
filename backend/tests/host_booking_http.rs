@@ -504,6 +504,269 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let mut rules = settings(&app, &host).await;
+    assert_eq!(rules["minimum_notice_hours"], 4);
+    assert_eq!(rules["booking_window_days"], 7);
+    assert_eq!(rules["is_active"], true);
+
+    for (field, bad) in [
+        ("minimum_notice_hours", -1),
+        ("minimum_notice_hours", 169),
+        ("booking_window_days", 0),
+        ("booking_window_days", 91),
+    ] {
+        let mut changed = rules.clone();
+        changed[field] = json!(bad);
+        let (status, _) = save_settings(&app, &host, &changed).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{field} = {bad}");
+    }
+
+    rules["booking_window_days"] = json!(2);
+    let (status, saved) = save_settings(&app, &host, &rules).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved, rules);
+    let near = slots(&app, &slug).await;
+    // One call a day, from 4 hours out to 2 days out.
+    assert!((1..=2).contains(&near.len()), "{} slots", near.len());
+    for start in &near {
+        assert!(*start < Utc::now() + chrono::Duration::days(2), "{start}");
+    }
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(page["booking_window_days"], 2);
+    assert!(page.get("minimum_notice_hours").is_none());
+
+    rules["booking_window_days"] = json!(7);
+    rules["minimum_notice_hours"] = json!(72);
+    let (status, _) = save_settings(&app, &host, &rules).await;
+    assert_eq!(status, StatusCode::OK);
+    let far = slots(&app, &slug).await;
+    assert!((3..=4).contains(&far.len()), "{} slots", far.len());
+    for start in &far {
+        assert!(*start > Utc::now() + chrono::Duration::hours(71), "{start}");
+        assert!(!near.contains(start), "{start}");
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_paused_page_cannot_be_seen_or_booked(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let start = slots(&app, &slug).await[0];
+    let mut paused = settings(&app, &host).await;
+    paused["is_active"] = json!(false);
+    let (status, saved) = save_settings(&app, &host, &paused).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["is_active"], false);
+
+    for path in ["", "/slots"] {
+        let (status, _) = get(&app, &format!("/api/hosts/{slug}{path}"), None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{path}");
+    }
+    let path = format!("/api/hosts/{slug}/bookings");
+    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // The host still sees their settings and can open the page again.
+    paused["is_active"] = json!(true);
+    let (status, _) = save_settings(&app, &host, &paused).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let other = register(&app, "Grace Hopper", "grace@example.com").await;
+    let mut asking = settings(&app, &host).await;
+    asking["ask_urgency_level"] = json!(true);
+    let (status, _) = save_settings(&app, &host, &asking).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let lead_unid = Uuid::new_v4();
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/leads/{lead_unid}"),
+        None,
+        Some(json!({
+            "first_name": "Ada",
+            "phone": "555 0100",
+            "country_code": "+995",
+            "urgency_level": "7-8 (High priority)",
+            "how_heard_about_us": "Google",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let open = slots(&app, &slug).await;
+    let path = format!("/api/hosts/{slug}/bookings");
+    let (status, with_lead) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(open[0], Some(lead_unid))),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let (status, without_lead) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(open[1], None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let detail_path = format!("/api/bookings/{}", with_lead["unid"].as_str().expect("id"));
+    let (status, detail) = get(&app, &detail_path, Some(&host.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["booking"], with_lead);
+    assert_eq!(detail["lead"]["phone"], "555 0100");
+    assert_eq!(detail["lead"]["country_code"], "+995");
+    assert_eq!(detail["lead"]["urgency_level"], "7-8 (High priority)");
+    assert_eq!(
+        detail["lead"]["how_heard_about_us"],
+        Value::Null,
+        "not asked"
+    );
+
+    let (status, detail) = get(
+        &app,
+        &format!(
+            "/api/bookings/{}",
+            without_lead["unid"].as_str().expect("id")
+        ),
+        Some(&host.cookie),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["lead"], Value::Null);
+
+    let (status, _) = get(&app, &detail_path, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = get(&app, &detail_path, Some(&other.cookie)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another host's call");
+    let unknown = format!("/api/bookings/{}", Uuid::new_v4());
+    let (status, _) = get(&app, &unknown, Some(&host.cookie)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_cancelled_call_frees_its_time_and_tells_the_invitee(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let other = register(&app, "Grace Hopper", "grace@example.com").await;
+    let book_path = format!("/api/hosts/{slug}/bookings");
+    let open = slots(&app, &slug).await;
+    // Far enough out that every reminder is queued.
+    let start = *open.last().expect("the host has open times");
+
+    let (status, booked) = send(
+        &app,
+        Method::POST,
+        &book_path,
+        None,
+        Some(booking(start, None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let unid: Uuid = serde_json::from_value(booked["unid"].clone()).expect("booking has an id");
+    let cancel_path = format!("/api/bookings/{unid}/cancel");
+    // The confirmation has gone out; the reminders are still waiting.
+    sqlx::query_scalar!(
+        "UPDATE email_queue SET sent_at = now()
+         WHERE booking_unid = $1 AND template = 'booking_confirmation' RETURNING 1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("confirmation is queued");
+
+    let (status, _) = send(&app, Method::POST, &cancel_path, None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = send(&app, Method::POST, &cancel_path, Some(&other.cookie), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another host's call");
+    assert!(!slots(&app, &slug).await.contains(&start));
+
+    let (status, cancelled) =
+        send(&app, Method::POST, &cancel_path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cancelled["unid"], booked["unid"]);
+    assert_eq!(cancelled["status"], "cancelled");
+    assert_eq!(slots(&app, &slug).await, open, "the time is open again");
+
+    // The sent confirmation stays; the waiting reminders are gone.
+    let waiting = sqlx::query_scalar!(
+        "SELECT template FROM email_queue WHERE booking_unid = $1 AND sent_at IS NULL AND send_at <= now()",
+        unid,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(waiting, ["booking_cancelled"]);
+    let all = sqlx::query_scalar!(
+        "SELECT count(*) FROM email_queue WHERE booking_unid = $1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(all, Some(2));
+
+    let (status, _) = send(&app, Method::POST, &cancel_path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "already cancelled");
+
+    let (status, again) = send(
+        &app,
+        Method::POST,
+        &book_path,
+        None,
+        Some(booking(start, None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "the freed time can be booked");
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &book_path,
+        None,
+        Some(booking(start, None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "but only once");
+    let (_, mine) = get(&app, "/api/bookings", Some(&host.cookie)).await;
+    assert_eq!(mine.as_array().map(Vec::len), Some(2));
+
+    // A call that has started can no longer be called off.
+    let again_unid: Uuid =
+        serde_json::from_value(again["unid"].clone()).expect("booking has an id");
+    sqlx::query_scalar!(
+        "UPDATE bookings SET slot_start = now() - interval '1 minute' WHERE unid = $1 RETURNING 1",
+        again_unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("booking exists");
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/bookings/{again_unid}/cancel"),
+        Some(&host.cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "already started");
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn calendar_and_old_public_routes_are_closed(pool: PgPool) {
     let app = app(&pool);
 

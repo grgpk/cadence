@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { CalendarX, Video } from "lucide-react";
+import { CalendarPlus, CalendarX, Download, Video } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/PublicLayout";
 import { PHASE_STYLES } from "../domains/widget/SlotStep";
 import { callEnd, clockLabel, dayPhase, zonedTime } from "../domains/widget/zoned-time";
+import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
 import { zoneName } from "../lib/format";
 import { ROUTES } from "../lib/routes";
@@ -35,6 +36,8 @@ export const Route = createFileRoute("/booking-confirmation")({
     // Whether the booking has a place to meet. A host's own link is only sent by email.
     link: search.link === true,
     slug: searchText(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
+    // Shown as plain text only, so any short name is safe.
+    host: searchText(search.host, /^.{1,120}$/),
   }),
   head: () => ({ meta: [{ title: `Booking confirmed | ${APP_NAME}` }, NOINDEX_META] }),
   component: BookingConfirmationPage,
@@ -45,10 +48,13 @@ function BookedStrip({
   start,
   minutes,
   timeZone,
+  label,
 }: {
   start: Date;
   minutes: number;
   timeZone: string;
+  /** The call's time range, printed under its block. */
+  label: string;
 }) {
   const at = zonedTime(start, timeZone);
   const firstHour = at.hour - 1;
@@ -61,7 +67,7 @@ function BookedStrip({
       <div className="grid grid-cols-4">
         {Array.from({ length: STRIP_HOURS }, (_, index) => (
           <div key={index}>
-            <p className="font-display font-narrow text-sm font-medium text-muted-foreground tabular-nums">
+            <p className="text-clock text-sm font-medium text-muted-foreground">
               {String((firstHour + index + 24) % 24).padStart(2, "0")}:00
             </p>
             <div className="relative mt-1 h-2.5 border-t border-foreground/25">
@@ -80,12 +86,19 @@ function BookedStrip({
           )}
         />
       </div>
+      {/* Follows the block, but never runs off the right edge. */}
+      <p
+        style={{ marginLeft: `min(${left}%, calc(100% - 9rem))` }}
+        className="mt-1.5 text-clock text-sm font-medium"
+      >
+        {label}
+      </p>
     </div>
   );
 }
 
 function BookingConfirmationPage() {
-  const { start, minutes, tz, h12, meet, link, slug } = Route.useSearch();
+  const { start, minutes, tz, h12, meet, link, slug, host } = Route.useSearch();
 
   if (!start || !minutes || !tz) {
     return (
@@ -115,6 +128,14 @@ function BookingConfirmationPage() {
     year: "numeric",
     timeZone: tz,
   }).format(startsAt);
+  const timeRange = `${clockLabel(startsAt, tz, h12)} to ${clockLabel(callEnd(start, minutes), tz, h12)}`;
+  const event: CalendarEvent = {
+    title: host ? `Call with ${host}` : `${APP_NAME} call`,
+    start: startsAt,
+    end: callEnd(start, minutes),
+    location: meet,
+    uid: `${start}-${slug ?? "call"}@cadence`,
+  };
 
   return (
     <PublicLayout accountLinks={false}>
@@ -129,19 +150,29 @@ function BookingConfirmationPage() {
         </p>
 
         <div className="mt-8">
-          <BookedStrip start={startsAt} minutes={minutes} timeZone={tz} />
+          <BookedStrip
+            start={startsAt}
+            minutes={minutes}
+            timeZone={tz}
+            label={timeRange}
+          />
         </div>
 
         <dl className="mt-4 divide-y rounded-xl border bg-card text-sm">
+          {host ? (
+            <div className="flex justify-between gap-4 px-4 py-3">
+              <dt className="text-muted-foreground">With</dt>
+              <dd className="text-right font-medium">{host}</dd>
+            </div>
+          ) : null}
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Date</dt>
             <dd className="text-right font-medium">{day}</dd>
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Time</dt>
-            <dd className="text-right font-medium tabular-nums">
-              {clockLabel(startsAt, tz, h12)} to{" "}
-              {clockLabel(callEnd(start, minutes), tz, h12)}
+            <dd className="text-right text-clock text-[0.9375rem] font-medium">
+              {timeRange}
             </dd>
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
@@ -159,14 +190,26 @@ function BookingConfirmationPage() {
               </a>
             </Button>
           ) : null}
-          {slug ? (
-            <Button variant="outline" asChild>
-              <Link to={ROUTES.bookingPage} params={{ slug }}>
-                Book another time
-              </Link>
-            </Button>
-          ) : null}
+          <Button variant={meet ? "outline" : "default"} asChild>
+            <a href={googleCalendarUrl(event)} target="_blank" rel="noreferrer">
+              <CalendarPlus />
+              Add to Google Calendar
+            </a>
+          </Button>
+          <Button variant="outline" asChild>
+            <a href={icsHref(event)} download="cadence-call.ics">
+              <Download />
+              Download .ics
+            </a>
+          </Button>
         </div>
+        {slug ? (
+          <Button variant="link" className="mt-4 h-auto p-0" asChild>
+            <Link to={ROUTES.bookingPage} params={{ slug }}>
+              Book another time
+            </Link>
+          </Button>
+        ) : null}
       </section>
     </PublicLayout>
   );

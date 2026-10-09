@@ -204,6 +204,37 @@ impl GoogleCalendarClient {
         }
     }
 
+    /// Delete an event and tell its attendees. An event that is already
+    /// gone counts as deleted.
+    pub async fn delete_event(&self, event_id: &str) -> Result<(), GoogleCalendarError> {
+        let url = format!(
+            "{}/calendars/{}/events/{}?sendUpdates=all",
+            Self::BASE_URL,
+            urlencoding::encode(&self.calendar_id),
+            urlencoding::encode(event_id)
+        );
+
+        let response = self
+            .client
+            .delete(&url)
+            .header("Authorization", format!("Bearer {}", self.access_token))
+            .send()
+            .await?;
+
+        match response.status() {
+            reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
+            reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::GONE => Ok(()),
+            status if !status.is_success() => {
+                let body = response.text().await.unwrap_or_default();
+                tracing::error!("Delete event failed: {}", body);
+                Err(GoogleCalendarError::Other(format!(
+                    "Delete event failed: {status}"
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
+
     /// Create a numbered coaching-series event ("N. {name} <> Max") with Google Meet.
     /// Deferred call site (`book_mentorship_series`) — kept here so the port stays complete
     /// and callable, per `PLAN_SWITCH_BACKEND.md`.

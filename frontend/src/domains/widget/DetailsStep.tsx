@@ -169,7 +169,7 @@ export function DetailsStep({
             <p className="text-sm font-semibold">
               {formatDay(slot.start, timezone.iana)}
             </p>
-            <p className="font-display font-narrow text-base tabular-nums">
+            <p className="text-clock text-base">
               {clockLabel(start, timezone.iana, hour12)} to{" "}
               {clockLabel(callEnd(slot.start, slot.minutes), timezone.iana, hour12)}
             </p>

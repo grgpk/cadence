@@ -10,8 +10,6 @@ use super::{
 };
 use crate::error::{AppError, AppResult};
 
-pub const MAX_PUBLIC_BOOKING_DAYS: i64 = 7;
-
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<AvailabilityRule>> {
     db::list(pool, host_unid).await.map_err(Into::into)
 }

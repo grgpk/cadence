@@ -6,13 +6,7 @@ import { toast } from "sonner";
 
 import type { HostSettings } from "../../bindings/HostSettings";
 import { Button } from "../../components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "../../components/ui/card";
+import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
@@ -44,27 +38,37 @@ export const Route = createFileRoute("/dashboard/settings")({
 });
 
 const ID = "settings";
+
+const SECTION_TITLES = {
+  [SETTINGS_SECTIONS.bookingPage]: "Booking page",
+  [SETTINGS_SECTIONS.time]: "Time",
+  [SETTINGS_SECTIONS.rules]: "Booking rules",
+  [SETTINGS_SECTIONS.calls]: "Where calls happen",
+  [SETTINGS_SECTIONS.questions]: "Questions to ask",
+} as const;
+type SectionId = keyof typeof SECTION_TITLES;
 const SECURE_LINK_PREFIX = "https://";
+/** The same limits the API enforces. */
+const NOTICE_HOURS = { min: 0, max: 168 };
+const WINDOW_DAYS = { min: 1, max: 90 };
 
 /** One group of settings. Other pages link to it by `id`. */
 function Section({
   id,
-  title,
   description,
   children,
 }: {
-  id: string;
-  title: string;
+  id: SectionId;
   description: string;
   children: ReactNode;
 }) {
   return (
-    <Card id={id} className="scroll-mt-16">
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-        <CardDescription>{description}</CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-5">{children}</CardContent>
+    <Card id={id} className="scroll-mt-16 gap-0 overflow-hidden py-0">
+      <div className="border-b px-5 py-3.5">
+        <h2 className="font-semibold">{SECTION_TITLES[id]}</h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+      </div>
+      <div className="grid gap-5 p-5">{children}</div>
     </Card>
   );
 }
@@ -127,7 +131,6 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
     >
       <Section
         id={SETTINGS_SECTIONS.bookingPage}
-        title="Booking page"
         description="The link you share and what people read when they open it."
       >
         <Field
@@ -194,7 +197,6 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
 
       <Section
         id={SETTINGS_SECTIONS.time}
-        title="Time"
         description="Your weekly hours are read in this timezone. Visitors see times in their own."
       >
         <Field id={`${ID}-timezone`} label="Timezone">
@@ -221,8 +223,77 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
       </Section>
 
       <Section
+        id={SETTINGS_SECTIONS.rules}
+        description="How soon and how far ahead people can book, and whether your page takes bookings at all."
+      >
+        <div className="grid items-start gap-5 sm:grid-cols-2">
+          <Field
+            id={`${ID}-notice`}
+            label="Minimum notice"
+            help="Hours between booking and the call. 0 allows any open time."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                id={`${ID}-notice`}
+                type="number"
+                inputMode="numeric"
+                required
+                min={NOTICE_HOURS.min}
+                max={NOTICE_HOURS.max}
+                value={values.minimum_notice_hours}
+                aria-describedby={fieldHelpId(`${ID}-notice`)}
+                onChange={(event) =>
+                  update({ minimum_notice_hours: event.target.valueAsNumber || 0 })
+                }
+                className="w-24 text-clock text-[0.9375rem]"
+              />
+              <span className="text-sm text-muted-foreground">hours</span>
+            </div>
+          </Field>
+          <Field
+            id={`${ID}-window`}
+            label="Booking window"
+            help="How many days ahead your page shows times."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                id={`${ID}-window`}
+                type="number"
+                inputMode="numeric"
+                required
+                min={WINDOW_DAYS.min}
+                max={WINDOW_DAYS.max}
+                value={values.booking_window_days}
+                aria-describedby={fieldHelpId(`${ID}-window`)}
+                onChange={(event) =>
+                  update({
+                    booking_window_days: event.target.valueAsNumber || WINDOW_DAYS.min,
+                  })
+                }
+                className="w-24 text-clock text-[0.9375rem]"
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+          </Field>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <Label htmlFor={`${ID}-active`}>Take bookings</Label>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Turn off to pause your page. Your link then shows as not found, and calls
+              already booked stay.
+            </p>
+          </div>
+          <Switch
+            id={`${ID}-active`}
+            checked={values.is_active}
+            onCheckedChange={(checked) => update({ is_active: checked })}
+          />
+        </div>
+      </Section>
+
+      <Section
         id={SETTINGS_SECTIONS.calls}
-        title="Where calls happen"
         description="People who book you are sent a link to join. Connect Google Calendar for a new Google Meet link per call, or give one link of your own."
       >
         <GoogleCalendarConnection slug={saved.public_slug} />
@@ -256,7 +327,6 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
 
       <Section
         id={SETTINGS_SECTIONS.questions}
-        title="Questions to ask"
         description="The form always asks for a name, email and phone number. Turn on anything else you want to know before a call."
       >
         <div className="grid gap-4">
@@ -323,7 +393,23 @@ function SettingsPage() {
           onRetry={() => void query.refetch()}
         />
       ) : (
-        <SettingsForm saved={query.data} />
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
+          <SettingsForm saved={query.data} />
+          <nav
+            aria-label="Settings sections"
+            className="sticky top-8 hidden gap-1 border-l pl-4 text-sm lg:grid"
+          >
+            {Object.entries(SECTION_TITLES).map(([id, title]) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className="rounded-sm py-1 text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                {title}
+              </a>
+            ))}
+          </nav>
+        </div>
       )}
     </>
   );

@@ -25,7 +25,7 @@ const DAY: { hour: number; block: Block | null }[] = [
   { hour: 19, block: null },
 ];
 
-const OPEN_STYLES: Record<DayPhase, string> = {
+export const OPEN_STYLES: Record<DayPhase, string> = {
   Morning: "border-dawn bg-dawn/35",
   Afternoon: "border-noon bg-noon/30",
   Evening: "border-dusk/60 bg-dusk/15",
@@ -109,7 +109,7 @@ export function DayTape() {
           {[0, 1].flatMap((copy) =>
             DAY.map(({ hour, block }) => (
               <div key={`${copy}-${hour}`} className="w-40 shrink-0 sm:w-48">
-                <p className="font-display font-narrow text-lg font-medium text-muted-foreground tabular-nums">
+                <p className="text-clock text-lg font-medium text-muted-foreground">
                   {String(hour).padStart(2, "0")}:00
                 </p>
                 {/* The ruler: a tall tick on the hour, a short one on the half. */}

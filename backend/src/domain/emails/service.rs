@@ -10,6 +10,8 @@ use super::{
 };
 use crate::error::AppResult;
 
+/// Sent when a host calls a booking off. Carries no join link.
+pub const BOOKING_CANCELLED_TEMPLATE: &str = "booking_cancelled";
 const UTC: &str = "UTC";
 /// The worker runs every minute, so anything this late is not being picked up.
 const OVERDUE_AFTER_MINUTES: i64 = 5;
@@ -69,6 +71,10 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<(String, String
             "Reminder: your Cadence call starts in 30 minutes",
             "Your Cadence call starts in 30 minutes:",
         ),
+        BOOKING_CANCELLED_TEMPLATE => (
+            "Your Cadence call was cancelled",
+            "Your host cancelled the call booked for",
+        ),
         _ => return None,
     };
     let text = |key: &str| {
@@ -81,6 +87,7 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<(String, String
     // Emails queued before the host's own link existed used `meet_link`.
     let join = text("meeting_url")
         .or_else(|| text("meet_link"))
+        .filter(|_| template != BOOKING_CANCELLED_TEMPLATE)
         .map(|url| format!("\n\nJoin the call: {url}"))
         .unwrap_or_default();
 
@@ -168,6 +175,23 @@ mod tests {
         for payload in [json!({}), json!({ "meeting_url": null })] {
             assert!(!body("booking_confirmation", &payload).contains("Join"));
         }
+    }
+
+    #[test]
+    fn a_cancellation_names_the_call_and_has_no_link() {
+        let payload = json!({
+            "name": "Ada",
+            "slot_start": "2026-10-12T07:00:00Z",
+            "timezone": "Europe/Paris",
+            "meeting_url": "https://zoom.us/j/123",
+        });
+        let (subject, body) =
+            render(BOOKING_CANCELLED_TEMPLATE, Some(&payload)).expect("known template");
+        assert_eq!(subject, "Your Cadence call was cancelled");
+        assert_eq!(
+            body,
+            "Hi Ada,\n\nYour host cancelled the call booked for Monday, 12 October 2026 at 09:00 (Europe/Paris).\n\nCadence"
+        );
     }
 
     #[test]

@@ -17,6 +17,8 @@ const SLUG_MAX: usize = 40;
 const TITLE_MAX: usize = 80;
 const DESCRIPTION_MAX: usize = 300;
 const MEETING_LINK_MAX: usize = 500;
+const NOTICE_HOURS_MAX: i32 = 168;
+const WINDOW_DAYS_MAX: i32 = 90;
 const SLUG_ATTEMPTS: usize = 5;
 const FALLBACK_SLUG: &str = "host";
 /// Hours saved before a host picked a timezone were entered as UTC.
@@ -106,6 +108,16 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
     {
         return Err(AppError::BadRequest(
             "meeting link must be an https URL".to_owned(),
+        ));
+    }
+    if !(0..=NOTICE_HOURS_MAX).contains(&settings.minimum_notice_hours) {
+        return Err(AppError::BadRequest(
+            "minimum notice must be 0 to 168 hours".to_owned(),
+        ));
+    }
+    if !(1..=WINDOW_DAYS_MAX).contains(&settings.booking_window_days) {
+        return Err(AppError::BadRequest(
+            "booking window must be 1 to 90 days".to_owned(),
         ));
     }
     Ok(())

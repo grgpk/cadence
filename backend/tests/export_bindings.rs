@@ -1,7 +1,7 @@
 use cadence_backend::domain::{
     auth::models::{LoginRequest, RegisterRequest, Role, SessionUser, UserStatus},
     availability::models::{AvailabilityRule, AvailabilityRuleInput, TimeSlot},
-    bookings::models::{Booking, BookingStatus, CreateBookingRequest},
+    bookings::models::{Booking, BookingDetail, BookingStatus, CreateBookingRequest},
     bug_reports::models::{AddBugReportRequest, AdminBugReport, AdminBugType},
     calling_visits::models::{
         CallingVisit, CallingVisitEngagement, CallingVisitRequest, VisitFunnel,
@@ -29,6 +29,7 @@ fn export_bindings() {
     assert!(CreateBookingRequest::export().is_ok());
     assert!(BookingStatus::export().is_ok());
     assert!(Booking::export().is_ok());
+    assert!(BookingDetail::export().is_ok());
     assert!(AdminBugType::export().is_ok());
     assert!(AddBugReportRequest::export().is_ok());
     assert!(AdminBugReport::export().is_ok());

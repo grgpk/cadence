@@ -5,11 +5,12 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{Booking, CreateBookingRequest},
+    models::{Booking, BookingDetail, BookingStatus, CreateBookingRequest},
 };
 use crate::{
     domain::{
         availability::{models::TimeSlot, service as availability},
+        emails::service::BOOKING_CANCELLED_TEMPLATE,
         google_calendar::service as google_calendar,
         host_settings::models::BookingPage,
         leads::service as leads,
@@ -17,18 +18,18 @@ use crate::{
     error::{AppError, AppResult},
 };
 
-/// Shortest time between now and a call a visitor can book.
-const MIN_NOTICE_HOURS: i64 = 4;
 const SLOT_TAKEN: &str = "this time is no longer available";
+const ALREADY_CANCELLED: &str = "this call is already cancelled";
 
 pub struct BookingsService;
 
-/// Times a visitor can still book: the host's hours, minus the notice
-/// period, minus calls already booked, minus busy time on a connected calendar.
+/// Times a visitor can still book: the host's hours inside their booking
+/// window, minus the notice period, minus calls already booked, minus busy
+/// time on a connected calendar.
 pub async fn public_slots(pool: &PgPool, page: &BookingPage) -> AppResult<Vec<TimeSlot>> {
     let now = Utc::now();
-    let from = now + Duration::hours(MIN_NOTICE_HOURS);
-    let to = now + Duration::days(availability::MAX_PUBLIC_BOOKING_DAYS);
+    let from = now + Duration::hours(i64::from(page.minimum_notice_hours));
+    let to = now + Duration::days(i64::from(page.booking_window_days));
     let rules = availability::list(pool, page.host_unid).await?;
     let mut slots = availability::slots_between(&rules, &page.timezone, from, to);
 
@@ -114,12 +115,7 @@ pub async fn create(
         Err(error) => return Err(AppError::Database(error)),
     };
 
-    let payload = json!({
-        "name": booking.invitee_name,
-        "slot_start": booking.slot_start,
-        "timezone": booking.timezone,
-        "meeting_url": booking.meeting_url,
-    });
+    let payload = email_payload(&booking);
     db::queue_email(
         &mut transaction,
         booking.unid,
@@ -153,6 +149,69 @@ pub async fn create(
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Booking>> {
     db::list_for_host(pool, host_unid).await.map_err(Into::into)
+}
+
+/// A host's own call with the invitee's form answers. Someone else's call
+/// looks unknown.
+pub async fn detail(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<BookingDetail> {
+    let booking = db::find(pool, host_unid, unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let lead = match booking.lead_unid {
+        Some(lead_unid) => leads::get(pool, host_unid, lead_unid).await?,
+        None => None,
+    };
+    Ok(BookingDetail { booking, lead })
+}
+
+/// Calls off a call that has not started: the slot opens again, waiting
+/// reminders are dropped and the invitee is told.
+pub async fn cancel(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Booking> {
+    let booking = db::find(pool, host_unid, unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if booking.status == BookingStatus::Cancelled.as_str() {
+        return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
+    }
+    if booking.slot_start <= Utc::now() {
+        return Err(AppError::Conflict(
+            "this call has already started".to_owned(),
+        ));
+    }
+
+    let mut transaction = pool.begin().await?;
+    // Another request may have cancelled it since the read above.
+    let Some(booking) = db::cancel(&mut transaction, host_unid, unid).await? else {
+        return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
+    };
+    db::delete_unsent_emails(&mut transaction, booking.unid).await?;
+    db::queue_email(
+        &mut transaction,
+        booking.unid,
+        &booking.invitee_email,
+        BOOKING_CANCELLED_TEMPLATE,
+        Utc::now(),
+        email_payload(&booking),
+    )
+    .await?;
+    transaction.commit().await?;
+
+    // The call is cancelled either way; a stale calendar event must not undo that.
+    if let Some(event_id) = &booking.google_event_id
+        && let Err(error) = google_calendar::delete_event(pool, host_unid, event_id).await
+    {
+        tracing::error!(%error, "calendar event was not deleted");
+    }
+    Ok(booking)
+}
+
+fn email_payload(booking: &Booking) -> serde_json::Value {
+    json!({
+        "name": booking.invitee_name,
+        "slot_start": booking.slot_start,
+        "timezone": booking.timezone,
+        "meeting_url": booking.meeting_url,
+    })
 }
 
 impl BookingsService {

@@ -1,6 +1,7 @@
 export const QUERY_KEYS = {
   adminData: (endpoint: string) => ["admin-data", endpoint] as const,
   bookings: ["bookings"] as const,
+  bookingDetail: (unid: string) => ["booking-detail", unid] as const,
   availability: ["availability"] as const,
   hostSettings: ["host-settings"] as const,
   bookingPage: (slug: string) => ["booking-page", slug] as const,

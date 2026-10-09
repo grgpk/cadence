@@ -18,6 +18,7 @@ export const DASHBOARD_NAV: NavSection[] = [
 export const SETTINGS_SECTIONS = {
   bookingPage: "booking-page",
   time: "time",
+  rules: "rules",
   calls: "calls",
   questions: "questions",
 } as const;

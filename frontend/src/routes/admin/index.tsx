@@ -118,7 +118,7 @@ function NeedsAttention() {
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <h2 className="border-b px-5 py-3 font-semibold">Needs attention</h2>
+      <h2 className="border-b px-5 py-3.5 font-semibold">Needs attention</h2>
       <ul className="divide-y">
         {failed.map(({ title, query }) => (
           <li key={title} className="flex items-center gap-3 px-5 py-3 text-sm">
@@ -176,7 +176,7 @@ function Funnel() {
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <h2 className="border-b px-5 py-3 font-semibold">Last 7 days</h2>
+      <h2 className="border-b px-5 py-3.5 font-semibold">Last 7 days</h2>
       {funnel.isError ? (
         <div className="flex items-center gap-3 px-5 py-3 text-sm">
           <span className="mr-auto text-destructive">Visits did not load</span>

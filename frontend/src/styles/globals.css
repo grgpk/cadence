@@ -222,6 +222,13 @@
   font-stretch: 82%;
 }
 
+/* A time as a clock shows it: the display face, narrow, digits in fixed columns. */
+@utility text-clock {
+  font-family: var(--font-display);
+  font-stretch: 82%;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The picked time and the block on the confirmation strip are one element
    across the page change. Only one of them may be on a page at a time. */
 @utility vt-booked-block {
