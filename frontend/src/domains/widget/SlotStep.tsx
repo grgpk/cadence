@@ -88,7 +88,7 @@ function DayTimes({
     // moves its scrollbar out to the card's edge, away from the buttons.
     <div
       className={cn(
-        "grid content-start gap-4 scroll-slim @[760px]:-mr-4 @[760px]:min-h-0 @[760px]:flex-1 @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pb-8",
+        "grid content-start gap-4 @[760px]:-mr-4 @[760px]:min-h-0 @[760px]:flex-1 @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pb-8",
         FADE_OUT,
       )}
     >

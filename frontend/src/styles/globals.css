@@ -229,16 +229,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A quiet scrollbar for a list inside a card; it darkens when the list is hovered. */
-@utility scroll-slim {
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
-
-  &:hover {
-    scrollbar-color: color-mix(in oklab, var(--foreground) 40%, transparent) transparent;
-  }
-}
-
 /* The picked time and the block on the confirmation strip are one element
    across the page change. Only one of them may be on a page at a time. */
 @utility vt-booked-block {
@@ -252,6 +242,14 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* One quiet scrollbar everywhere: thin, no track, in the ink color of the theme. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 20%, transparent) transparent;
+  }
+
+  /* It darkens while the pointer is over the thing that scrolls. */
+  *:hover {
+    scrollbar-color: color-mix(in oklab, var(--foreground) 42%, transparent) transparent;
   }
 
   body {
