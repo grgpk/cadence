@@ -263,7 +263,7 @@ export function BookingCard({
           <div
             role="status"
             aria-label="Loading booking"
-            className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_13rem] @[760px]:divide-x @[760px]:divide-y-0"
+            className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_14rem] @[760px]:divide-x @[760px]:divide-y-0"
           >
             <div className="grid content-start gap-3 p-5 @[760px]:p-6">
               <Skeleton className="h-4 w-24" />
@@ -275,9 +275,9 @@ export function BookingCard({
               <Skeleton className="aspect-[7/5] w-full" />
             </div>
             <div className="grid content-start gap-2 p-5 @[760px]:p-6">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
+              <Skeleton className="h-11 w-full" />
             </div>
           </div>
         )}

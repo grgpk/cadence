@@ -42,6 +42,10 @@ const STAGGER_MAX = 8;
 const PICK_MS = 170;
 
 /** Each part of the day has its own color, so a time reads as morning or evening at a glance. */
+/** Fades the last times out, so a list that runs on looks like it does. */
+const FADE_OUT =
+  "@[760px]:[mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]";
+
 export const PHASE_STYLES: Record<DayPhase, { rail: string; picked: string }> = {
   Morning: { rail: "bg-dawn", picked: "text-day-foreground" },
   Afternoon: { rail: "bg-noon", picked: "text-day-foreground" },
@@ -80,14 +84,28 @@ function DayTimes({
   let shown = 0;
 
   return (
-    <div className="grid gap-4 @[760px]:max-h-[22rem] @[760px]:overflow-y-auto @[760px]:pr-1">
+    // Beside the calendar the list scrolls inside the card; the negative margin
+    // moves its scrollbar out to the card's edge, away from the buttons.
+    <div
+      className={cn(
+        "grid content-start gap-4 scroll-slim @[760px]:-mr-4 @[760px]:min-h-0 @[760px]:flex-1 @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pb-8",
+        FADE_OUT,
+      )}
+    >
       {DAY_PHASES.map((phase) => {
         const inPhase = slots.filter(({ at }) => dayPhase(at.hour) === phase);
         if (inPhase.length === 0) return null;
         const styles = PHASE_STYLES[phase];
         return (
           <section key={phase}>
-            <h3 className="mb-2 text-xs font-medium text-muted-foreground">{phase}</h3>
+            <h3 className="sticky top-0 z-10 flex items-center gap-2 bg-card pb-2 text-xs font-medium text-muted-foreground">
+              <span
+                aria-hidden="true"
+                className={cn("size-2 rounded-full", styles.rail)}
+              />
+              {phase}
+              <span className="ml-auto tabular-nums">{inPhase.length}</span>
+            </h3>
             <ul className="grid grid-cols-3 gap-2 @[760px]:grid-cols-1">
               {inPhase.map(({ slot }) => {
                 const isPicked = picked === slot.start;
@@ -107,7 +125,7 @@ function DayTimes({
                       type="button"
                       variant="outline"
                       className={cn(
-                        "relative h-10 w-full overflow-hidden text-clock text-base hover:border-foreground",
+                        "group relative h-11 w-full overflow-hidden text-clock text-[1.0625rem] hover:border-foreground hover:bg-card",
                         isPicked && styles.picked,
                       )}
                       onClick={() => pick(slot)}
@@ -115,9 +133,9 @@ function DayTimes({
                       <span
                         aria-hidden="true"
                         className={cn(
-                          "absolute inset-y-0 left-0 w-[3px] transition-[width] duration-150 ease-out motion-reduce:transition-none",
+                          "absolute inset-y-0 left-0 transition-[width] duration-150 ease-out motion-reduce:transition-none",
                           styles.rail,
-                          isPicked && "w-full",
+                          isPicked ? "w-full" : "w-[3px] group-hover:w-2",
                         )}
                       />
                       <span className="relative">
@@ -203,7 +221,7 @@ export function SlotStep({
   }
 
   return (
-    <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_13rem] @[760px]:divide-x @[760px]:divide-y-0">
+    <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_14rem] @[760px]:divide-x @[760px]:divide-y-0">
       <div className="p-5 @[760px]:p-6">
         <BookingSummary
           page={page}
@@ -246,60 +264,65 @@ export function SlotStep({
         />
       </div>
 
-      <div ref={timesRef} className="p-5 @[760px]:p-6">
-        {query.isPending ? (
-          <div className="grid gap-2" role="status" aria-label="Loading times">
-            {LOADING_ROWS.map((row) => (
-              <Skeleton key={row} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : query.isError ? (
-          <ErrorState
-            title="The times did not load"
-            error={query.error}
-            onRetry={() => void query.refetch()}
-          />
-        ) : selectedDay === null || selectedDayLabel === null ? (
-          slots.length === 0 ? (
-            <EmptyState
-              icon={CalendarDays}
-              title="No open times"
-              description={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
-            />
-          ) : (
-            <EmptyState icon={CalendarDays} title="Pick a day to see times" />
-          )
-        ) : (
-          <>
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold">{selectedDayLabel}</h2>
-              <div className="flex rounded-md bg-muted p-0.5">
-                {CLOCKS.map((clock) => (
-                  <button
-                    key={clock.label}
-                    type="button"
-                    aria-pressed={hour12 === clock.hour12}
-                    onClick={() => onHour12Change(clock.hour12)}
-                    className={cn(
-                      "rounded-[5px] px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                      hour12 === clock.hour12 && "bg-card text-foreground shadow-xs",
-                    )}
-                  >
-                    {clock.label}
-                  </button>
-                ))}
-              </div>
+      {/* Beside the calendar this column takes the card's height instead of setting it. */}
+      <div ref={timesRef} className="@[760px]:relative @[760px]:min-h-[26rem]">
+        <div className="flex flex-col p-5 @[760px]:absolute @[760px]:inset-0 @[760px]:p-6">
+          {query.isPending ? (
+            <div className="grid gap-2" role="status" aria-label="Loading times">
+              {LOADING_ROWS.map((row) => (
+                <Skeleton key={row} className="h-11 w-full" />
+              ))}
             </div>
-            <DayTimes
-              // A new day starts with nothing picked.
-              key={`${view.year}-${view.month}-${selectedDay}`}
-              slots={daySlots}
-              timezone={timezone.iana}
-              hour12={hour12}
-              onPick={onPick}
+          ) : query.isError ? (
+            <ErrorState
+              title="The times did not load"
+              error={query.error}
+              onRetry={() => void query.refetch()}
             />
-          </>
-        )}
+          ) : selectedDay === null || selectedDayLabel === null ? (
+            slots.length === 0 ? (
+              <EmptyState
+                icon={CalendarDays}
+                title="No open times"
+                description={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
+              />
+            ) : (
+              <EmptyState icon={CalendarDays} title="Pick a day to see times" />
+            )
+          ) : (
+            <>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold whitespace-nowrap">
+                  {selectedDayLabel}
+                </h2>
+                <div className="flex rounded-md bg-muted p-0.5">
+                  {CLOCKS.map((clock) => (
+                    <button
+                      key={clock.label}
+                      type="button"
+                      aria-pressed={hour12 === clock.hour12}
+                      onClick={() => onHour12Change(clock.hour12)}
+                      className={cn(
+                        "rounded-[5px] px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                        hour12 === clock.hour12 && "bg-card text-foreground shadow-xs",
+                      )}
+                    >
+                      {clock.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <DayTimes
+                // A new day starts with nothing picked.
+                key={`${view.year}-${view.month}-${selectedDay}`}
+                slots={daySlots}
+                timezone={timezone.iana}
+                hour12={hour12}
+                onPick={onPick}
+              />
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
