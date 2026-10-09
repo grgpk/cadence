@@ -25,10 +25,10 @@ export function LandingPage() {
     <PublicLayout>
       <section className="pt-12 pb-14 sm:pt-20 sm:pb-20">
         <div className="mx-auto max-w-[82rem] px-4 sm:px-6">
-          <h1 className="max-w-4xl font-display font-wide text-5xl leading-[0.98] font-bold tracking-tight sm:text-7xl">
+          <h1 className="max-w-4xl motion-safe:animate-rise font-display font-wide text-5xl leading-[0.98] font-bold tracking-tight sm:text-7xl">
             Your week, open for booking.
           </h1>
-          <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-5">
+          <div className="mt-7 flex flex-wrap items-center gap-x-8 gap-y-5 motion-safe:animate-rise motion-safe:[animation-delay:150ms]">
             <p className="max-w-md text-lg text-muted-foreground">
               Set the hours you take calls and share one link. People pick a time, and it
               is on your calendar.
@@ -59,6 +59,17 @@ export function LandingPage() {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      <section className="border-t">
+        <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-5 px-4 py-12 sm:px-6 sm:py-16">
+          <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
+            Open your week in a few minutes.
+          </h2>
+          <Button size="lg" asChild>
+            <Link to={ROUTES.register}>Create your account</Link>
+          </Button>
         </div>
       </section>
     </PublicLayout>

@@ -198,10 +198,12 @@ function Funnel() {
                 aria-hidden="true"
                 className="h-1.5 overflow-hidden rounded-full bg-muted"
               >
-                <div
-                  className="h-full rounded-full bg-primary"
-                  style={{ width: `${visits ? (step.count / visits) * 100 : 0}%` }}
-                />
+                {funnel.isPending ? null : (
+                  <div
+                    className="h-full origin-left rounded-full bg-primary motion-safe:animate-bar-grow"
+                    style={{ width: `${visits ? (step.count / visits) * 100 : 0}%` }}
+                  />
+                )}
               </div>
             </div>
           ))}

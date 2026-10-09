@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { Copy } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -276,12 +276,13 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
       </Section>
 
       {unchanged ? null : (
-        <div className="sticky bottom-4 flex flex-wrap items-center gap-2 rounded-xl border bg-card py-2.5 pr-2.5 pl-4 shadow-lg">
+        <div className="sticky bottom-4 flex flex-wrap items-center gap-2 rounded-xl border bg-card py-2.5 pr-2.5 pl-4 shadow-lg motion-safe:animate-rise">
           <p className="mr-auto text-sm font-medium">Unsaved changes</p>
           <Button type="button" variant="ghost" onClick={() => setValues(saved)}>
             Discard
           </Button>
           <Button type="submit" disabled={save.isPending || meetingLinkInvalid}>
+            {save.isPending ? <Loader2 className="animate-spin" /> : null}
             {save.isPending ? "Saving" : "Save changes"}
           </Button>
         </div>
@@ -312,6 +313,7 @@ function SettingsPage() {
         <div className="grid max-w-2xl gap-6">
           <Skeleton className="h-80 w-full rounded-xl" />
           <Skeleton className="h-32 w-full rounded-xl" />
+          <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-64 w-full rounded-xl" />
         </div>
       ) : query.isError ? (

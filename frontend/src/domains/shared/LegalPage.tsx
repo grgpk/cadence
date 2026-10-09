@@ -14,7 +14,9 @@ export function LegalPage({
   return (
     <PublicLayout>
       <article className="mx-auto max-w-2xl px-4 py-12 sm:px-6 sm:py-16">
-        <h1 className="font-display text-4xl font-semibold tracking-tight">{title}</h1>
+        <h1 className="font-display font-wide text-4xl font-bold tracking-tight">
+          {title}
+        </h1>
         <p className="mt-3 text-sm text-muted-foreground">Last updated {updated}</p>
         <div className="mt-10 space-y-8">{children}</div>
       </article>

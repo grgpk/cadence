@@ -26,16 +26,20 @@ export const Route = createFileRoute("/dashboard/bookings")({
 const TABS = { UPCOMING: "upcoming", PAST: "past" } as const;
 
 function BookingList({
+  loading,
   bookings,
   empty,
 }: {
+  loading: boolean;
   bookings: Booking[];
   empty: React.ReactNode;
 }) {
   const settings = useQuery(hostSettingsQuery);
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      {bookings.length === 0 ? (
+      {loading ? (
+        <TableSkeleton />
+      ) : bookings.length === 0 ? (
         empty
       ) : (
         <DataTable
@@ -62,11 +66,7 @@ function BookingsPage() {
         title="Bookings"
         description="Calls people booked from your booking page."
       />
-      {query.isPending ? (
-        <Card className="gap-0 overflow-hidden py-0">
-          <TableSkeleton />
-        </Card>
-      ) : query.isError ? (
+      {query.isError ? (
         <ErrorState
           title="Bookings did not load"
           error={query.error}
@@ -77,17 +77,22 @@ function BookingsPage() {
           <TabsList>
             <TabsTrigger value={TABS.UPCOMING}>
               Upcoming
-              <span className="text-muted-foreground tabular-nums">
-                {upcoming.length}
-              </span>
+              {query.isPending ? null : (
+                <span className="text-muted-foreground tabular-nums">
+                  {upcoming.length}
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value={TABS.PAST}>
               Past
-              <span className="text-muted-foreground tabular-nums">{past.length}</span>
+              {query.isPending ? null : (
+                <span className="text-muted-foreground tabular-nums">{past.length}</span>
+              )}
             </TabsTrigger>
           </TabsList>
           <TabsContent value={TABS.UPCOMING}>
             <BookingList
+              loading={query.isPending}
               bookings={upcoming}
               empty={
                 <EmptyState
@@ -105,6 +110,7 @@ function BookingsPage() {
           </TabsContent>
           <TabsContent value={TABS.PAST}>
             <BookingList
+              loading={query.isPending}
               bookings={past}
               empty={
                 <EmptyState

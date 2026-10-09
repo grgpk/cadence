@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "cn";
 import { CalendarDays } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
@@ -33,6 +33,10 @@ const CLOCKS = [
 ] as const;
 
 const LOADING_ROWS = [0, 1, 2, 3];
+
+/** Times arrive one after another; past this many the rest come in together. */
+const STAGGER_MS = 25;
+const STAGGER_MAX = 8;
 
 /** Long enough to see the slot fill before the card moves on. */
 const PICK_MS = 170;
@@ -73,6 +77,8 @@ function DayTimes({
     window.setTimeout(() => onPick(slot), PICK_MS);
   }
 
+  let shown = 0;
+
   return (
     <div className="grid gap-4 @[760px]:max-h-[22rem] @[760px]:overflow-y-auto @[760px]:pr-1">
       {DAY_PHASES.map((phase) => {
@@ -85,8 +91,18 @@ function DayTimes({
             <ul className="grid grid-cols-3 gap-2 @[760px]:grid-cols-1">
               {inPhase.map(({ slot }) => {
                 const isPicked = picked === slot.start;
+                const delay = Math.min(shown++, STAGGER_MAX) * STAGGER_MS;
                 return (
-                  <li key={slot.start}>
+                  <li
+                    key={slot.start}
+                    style={
+                      {
+                        "--step-from": "0.5rem",
+                        animationDelay: `${delay}ms`,
+                      } as CSSProperties
+                    }
+                    className="motion-safe:animate-step-in"
+                  >
                     <Button
                       type="button"
                       variant="outline"
@@ -168,6 +184,18 @@ export function SlotStep({
           new Date(Date.UTC(view.year, view.month - 1, selectedDay)).toISOString(),
           "UTC",
         );
+
+  // The calendar opens on this month. If the first open time is in a later one,
+  // start there instead of on a month with nothing to pick.
+  const firstSlot = slots[0]?.at;
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || !firstSlot) return;
+    opened.current = true;
+    if (isLaterMonth(firstSlot, view)) {
+      onViewChange({ year: firstSlot.year, month: firstSlot.month, day: null });
+    }
+  });
 
   function moveMonth(offset: 1 | -1) {
     setMonthDirection(offset);
@@ -253,7 +281,7 @@ export function SlotStep({
                     aria-pressed={hour12 === clock.hour12}
                     onClick={() => onHour12Change(clock.hour12)}
                     className={cn(
-                      "rounded-[5px] px-2 py-0.5 text-xs font-medium text-muted-foreground outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      "rounded-[5px] px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                       hour12 === clock.hour12 && "bg-card text-foreground shadow-xs",
                     )}
                   >

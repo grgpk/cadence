@@ -164,7 +164,7 @@ export function DetailsStep({
           <div className="relative overflow-hidden rounded-lg border bg-muted py-3 pr-3 pl-4">
             <span
               aria-hidden="true"
-              className={`absolute inset-y-0 left-0 w-[3px] ${PHASE_STYLES[phase].rail}`}
+              className={`vt-booked-block absolute inset-y-0 left-0 w-[3px] ${PHASE_STYLES[phase].rail}`}
             />
             <p className="text-sm font-semibold">
               {formatDay(slot.start, timezone.iana)}

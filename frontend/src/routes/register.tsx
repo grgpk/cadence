@@ -1,5 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 
 import type { RegisterRequest } from "../bindings/RegisterRequest";
 import { Button } from "../components/ui/button";
@@ -91,6 +92,7 @@ function RegisterPage() {
         </p>
       </div>
       <Button className="mt-2 w-full" disabled={registerMutation.isPending}>
+        {registerMutation.isPending ? <Loader2 className="animate-spin" /> : null}
         {registerMutation.isPending ? "Creating account" : "Create account"}
       </Button>
     </AuthCard>

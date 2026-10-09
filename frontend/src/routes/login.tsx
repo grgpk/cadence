@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 
 import type { LoginRequest } from "../bindings/LoginRequest";
 import { Button } from "../components/ui/button";
@@ -88,6 +89,7 @@ function LoginPage() {
         />
       </div>
       <Button className="mt-2 w-full" disabled={loginMutation.isPending}>
+        {loginMutation.isPending ? <Loader2 className="animate-spin" /> : null}
         {loginMutation.isPending ? "Logging in" : "Log in"}
       </Button>
     </AuthCard>

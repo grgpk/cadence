@@ -75,7 +75,7 @@ function BookedStrip({
         <span
           style={{ left: `${left}%`, width: `${width}%` }}
           className={cn(
-            "absolute inset-y-0 min-w-6 rounded-md motion-safe:animate-block-drop",
+            "vt-booked-block absolute inset-y-0 min-w-6 rounded-md motion-safe:animate-block-drop",
             styles.rail,
           )}
         />
@@ -92,7 +92,7 @@ function BookingConfirmationPage() {
       <PublicLayout>
         <section className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-20 text-center">
           <CalendarX className="size-8 text-muted-foreground" />
-          <h1 className="font-display text-3xl font-semibold tracking-tight">
+          <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
             No booking to show
           </h1>
           <p className="text-muted-foreground">
@@ -117,7 +117,7 @@ function BookingConfirmationPage() {
   }).format(startsAt);
 
   return (
-    <PublicLayout>
+    <PublicLayout accountLinks={false}>
       <section className="mx-auto max-w-lg px-4 py-14 sm:py-20">
         <h1 className="font-display font-wide text-4xl leading-none font-bold tracking-tight sm:text-5xl">
           Your call is booked

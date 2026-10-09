@@ -13,7 +13,11 @@ export function ThemeToggle() {
       variant="ghost"
       size="icon-sm"
       aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
-      onClick={toggleTheme}
+      onClick={(event) => {
+        // The button's center, so a keyboard press opens from the same place.
+        const box = event.currentTarget.getBoundingClientRect();
+        toggleTheme({ x: box.left + box.width / 2, y: box.top + box.height / 2 });
+      }}
     >
       {isDark ? <Sun /> : <Moon />}
     </Button>

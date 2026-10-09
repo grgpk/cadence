@@ -13,7 +13,7 @@ export function NotFound() {
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">
       <Logo />
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
+        <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
           This page does not exist
         </h1>
         <p className="mt-2 text-muted-foreground">
@@ -50,7 +50,7 @@ export function RouteError({ error, reset }: RouteErrorProps) {
     <main className="flex min-h-svh flex-col items-center justify-center gap-6 p-6 text-center">
       <Logo />
       <div>
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
+        <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
           This page failed to load
         </h1>
         <p className="mt-2 text-muted-foreground">{errorMessage(error)}</p>

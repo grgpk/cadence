@@ -7,7 +7,14 @@ import { ROUTES } from "../../lib/routes";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
 
-export function PublicLayout({ children }: { children: ReactNode }) {
+export function PublicLayout({
+  children,
+  accountLinks = true,
+}: {
+  children: ReactNode;
+  /** Off on pages an invitee lands on: logging in is for hosts. */
+  accountLinks?: boolean;
+}) {
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur">
@@ -17,12 +24,16 @@ export function PublicLayout({ children }: { children: ReactNode }) {
           </Link>
           <nav className="flex items-center gap-1">
             <ThemeToggle />
-            <Button variant="ghost" size="sm" asChild>
-              <Link to={ROUTES.login}>Log in</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link to={ROUTES.register}>Sign up</Link>
-            </Button>
+            {accountLinks ? (
+              <>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to={ROUTES.login}>Log in</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link to={ROUTES.register}>Sign up</Link>
+                </Button>
+              </>
+            ) : null}
           </nav>
         </div>
       </header>

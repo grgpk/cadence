@@ -109,7 +109,7 @@ export function BookingCalendar({
               aria-label={`${dayLabel(year, month, day)}${available ? "" : ", unavailable"}`}
               onClick={() => onSelect(day)}
               className={cn(
-                "relative flex aspect-square w-full items-center justify-center rounded-md text-sm tabular-nums outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                "relative flex aspect-square w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                 available
                   ? "bg-muted font-semibold hover:bg-accent hover:ring-1 hover:ring-foreground/20"
                   : "text-muted-foreground/60",

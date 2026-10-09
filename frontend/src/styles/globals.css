@@ -135,6 +135,10 @@
   --animate-tape-book: tape-book 16s ease-in-out infinite;
   --animate-step-in: step-in 0.24s ease-out both;
   --animate-block-drop: block-drop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.15s both;
+  --animate-tape-spool: tape-spool 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+  --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-bar-grow: bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-nav-progress: nav-progress 4s cubic-bezier(0.1, 0.7, 0.1, 1) 0.15s both;
 
   /* The track holds the day twice, so half its width is one seamless loop. */
   @keyframes tape-drift {
@@ -176,6 +180,37 @@
       transform: translateY(-0.875rem);
     }
   }
+
+  /* The tape arrives fast and slows into its drift. */
+  @keyframes tape-spool {
+    from {
+      opacity: 0;
+      transform: translateX(40rem);
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+  }
+
+  @keyframes bar-grow {
+    from {
+      transform: scaleX(0);
+    }
+  }
+
+  /* Never reaches the end: the bar leaves when the page arrives. */
+  @keyframes nav-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(0.92);
+    }
+  }
 }
 
 /* Archivo's width axis: wide for headlines, narrow for clock times. */
@@ -185,6 +220,12 @@
 
 @utility font-narrow {
   font-stretch: 82%;
+}
+
+/* The picked time and the block on the confirmation strip are one element
+   across the page change. Only one of them may be on a page at a time. */
+@utility vt-booked-block {
+  view-transition-name: booked-block;
 }
 
 * {
@@ -231,6 +272,48 @@
   }
 }
 
+/* Page changes cross-fade; short, so the app never feels like it is waiting. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.15s;
+}
+
+::view-transition-group(booked-block) {
+  animation-duration: 0.5s;
+  animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+/* A thin rail becomes a wide block: stretch the color, do not letterbox it. */
+::view-transition-old(booked-block),
+::view-transition-new(booked-block) {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+}
+
+/* The block already travels there, so it does not also drop in. */
+:root:active-view-transition .vt-booked-block {
+  animation: none;
+}
+
+/* The theme toggle sets these: the new theme opens as a circle from the button. */
+:root[data-theme-switch]::view-transition-old(root) {
+  animation: none;
+}
+
+:root[data-theme-switch]::view-transition-new(root) {
+  animation: theme-reveal 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--reveal-x, 50%) var(--reveal-y, 0));
+  }
+  to {
+    clip-path: circle(var(--reveal-r, 150vmax) at var(--reveal-x, 50%) var(--reveal-y, 0));
+  }
+}
+
 /* The shadcn primitives animate without checking. Near-zero, not none: Radix
    waits for animationend before it unmounts a closing popover or sheet. */
 @media (prefers-reduced-motion: reduce) {
@@ -241,5 +324,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
   }
 }

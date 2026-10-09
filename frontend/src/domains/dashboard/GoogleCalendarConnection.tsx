@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -14,12 +14,6 @@ import {
   disconnectGoogleCalendar,
 } from "./host-api";
 
-function connect() {
-  void connectGoogleCalendar().catch(() =>
-    toast.error("Google sign-in could not be started. Try again."),
-  );
-}
-
 /** The host's Google Calendar link: its state and the one action that changes it. */
 export function GoogleCalendarConnection({ slug }: { slug: string }) {
   const queryClient = useQueryClient();
@@ -28,6 +22,12 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
   // The events call fails both when no calendar is connected and when Google
   // is unreachable. The booking page knows which, straight from our database.
   const page = useQuery(bookingPageQuery(slug));
+  // Pending until the browser leaves for Google's sign-in page.
+  const connect = useMutation({
+    mutationFn: connectGoogleCalendar,
+    onError: () => toast.error("Google sign-in could not be started. Try again."),
+  });
+  const connectIcon = connect.isPending ? <Loader2 className="animate-spin" /> : null;
   const disconnect = useMutation({
     mutationFn: disconnectGoogleCalendar,
     onSuccess: async () => {
@@ -49,6 +49,7 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
       onClick={() => setConfirming(true)}
       disabled={disconnect.isPending}
     >
+      {disconnect.isPending ? <Loader2 className="animate-spin" /> : null}
       {disconnect.isPending ? "Disconnecting" : "Disconnect"}
     </Button>
   );
@@ -76,14 +77,25 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
               <AlertTriangle className="size-4" />
               Connected, but Google did not answer
             </span>
-            <Button type="button" size="sm" onClick={connect}>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => connect.mutate()}
+              disabled={connect.isPending}
+            >
+              {connectIcon}
               Reconnect
             </Button>
             {disconnectButton}
           </>
         ) : (
           <>
-            <Button type="button" onClick={connect}>
+            <Button
+              type="button"
+              onClick={() => connect.mutate()}
+              disabled={connect.isPending}
+            >
+              {connectIcon}
               Connect Google Calendar
             </Button>
             <p className="text-sm text-muted-foreground">Not connected</p>

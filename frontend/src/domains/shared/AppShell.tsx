@@ -54,7 +54,7 @@ function AreaSwitch({ current }: { current: Area }) {
           key={area.to}
           to={area.to}
           aria-current={area.title === current ? "true" : undefined}
-          className="rounded-sm px-2.5 py-1 font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:bg-card aria-[current]:text-foreground aria-[current]:shadow-xs"
+          className="rounded-sm px-2.5 py-1 font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:bg-card aria-[current]:text-foreground aria-[current]:shadow-xs"
         >
           {area.title}
         </Link>

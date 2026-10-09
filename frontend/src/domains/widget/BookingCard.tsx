@@ -258,9 +258,26 @@ export function BookingCard({
         {mounted ? (
           <Booking slug={slug} page={page} countryVariant={countryVariant} />
         ) : (
-          <div className="grid gap-4 p-6" role="status" aria-label="Loading booking">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-72 w-full" />
+          // The same three columns as the times step, so the card keeps its shape.
+          <div
+            role="status"
+            aria-label="Loading booking"
+            className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)_13rem] @[760px]:divide-x @[760px]:divide-y-0"
+          >
+            <div className="grid content-start gap-3 p-5 @[760px]:p-6">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-7 w-40" />
+              <Skeleton className="h-4 w-32" />
+            </div>
+            <div className="grid gap-4 p-5 @[760px]:p-6">
+              <Skeleton className="h-7 w-32" />
+              <Skeleton className="aspect-[7/5] w-full" />
+            </div>
+            <div className="grid content-start gap-2 p-5 @[760px]:p-6">
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </div>
           </div>
         )}
       </div>

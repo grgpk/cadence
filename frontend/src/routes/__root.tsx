@@ -4,6 +4,7 @@ import {
   Outlet,
   Scripts,
   redirect,
+  useRouterState,
 } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { getSessionUser } from "../lib/auth";
@@ -47,6 +48,19 @@ export const Route = createRootRoute({
   errorComponent: RouteError,
 });
 
+/** A line across the top while the next page loads, so a slow one never looks stuck. */
+function NavigationProgress() {
+  const pending = useRouterState({ select: (state) => state.status === "pending" });
+  if (!pending) return null;
+  return (
+    <div
+      role="progressbar"
+      aria-label="Loading page"
+      className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left animate-nav-progress bg-dusk"
+    />
+  );
+}
+
 function RootDocument({ children }: { children: React.ReactNode }) {
   useEffect(watchErrors, []);
 
@@ -58,6 +72,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body>
+        <NavigationProgress />
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster position="bottom-right" />
         <Scripts />

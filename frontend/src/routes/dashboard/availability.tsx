@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -170,6 +170,7 @@ function AddHoursForm({ weekday, onDone }: { weekday: number; onDone: () => void
           Cancel
         </Button>
         <Button type="submit" disabled={addHours.isPending || !endsAfterStart}>
+          {addHours.isPending ? <Loader2 className="animate-spin" /> : null}
           {addHours.isPending ? "Adding" : "Add hours"}
         </Button>
       </div>
