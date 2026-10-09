@@ -27,11 +27,12 @@ export const LEAD_STATUS: Record<LeadQualification, Status> = {
   Disqualified: { label: "Disqualified", tone: "negative" },
 };
 
-/** Nothing fails for good: an email that will not send keeps retrying. */
+/** An email that will not send keeps retrying, then is given up on as failed. */
 export const EMAIL_STATUS: Record<EmailState, Status> = {
   Sent: { label: "Sent", tone: "positive" },
   Scheduled: { label: "Scheduled", tone: "neutral" },
-  Retrying: { label: "Retrying", tone: "negative" },
+  Retrying: { label: "Retrying", tone: "caution" },
+  Failed: { label: "Failed", tone: "negative" },
   Overdue: { label: "Overdue", tone: "caution" },
 };
 

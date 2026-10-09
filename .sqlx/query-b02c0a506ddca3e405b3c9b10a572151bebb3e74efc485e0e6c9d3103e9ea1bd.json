@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_queue (email, template, send_at, attempts, last_error)\n             VALUES ($1, 'booking_confirmation', now() - interval '1 hour', $2, '550 rejected')\n             RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b02c0a506ddca3e405b3c9b10a572151bebb3e74efc485e0e6c9d3103e9ea1bd"
+}

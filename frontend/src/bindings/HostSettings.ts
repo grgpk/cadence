@@ -18,6 +18,10 @@ minimum_notice_hours: number,
  */
 booking_window_days: number, 
 /**
+ * Free time kept before and after every booked call.
+ */
+buffer_minutes: number, 
+/**
  * `false` pauses the page: it can still be read, but not booked.
  */
 is_active: boolean, };

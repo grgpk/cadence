@@ -24,7 +24,8 @@ import {
   removeAvailabilityRule,
   updateAvailabilityRule,
 } from "../../domains/dashboard/host-api";
-import { weekHours } from "../../domains/dashboard/week-hours";
+import { weekHours, type WeekHours } from "../../domains/dashboard/week-hours";
+import { placeOnWeek, WeekRuler } from "../../domains/dashboard/WeekGrid";
 import { OPEN_STYLES } from "../../domains/landing/DayTape";
 import { phaseSpans } from "../../domains/widget/zoned-time";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
@@ -63,6 +64,9 @@ function hourAfter(time: string): string {
   const minutes = clockMinutes(time);
   return minutes >= LAST_HOUR * 60 ? LAST_TIME : clockTime(minutes + 60);
 }
+
+/** Day name, the week's ruler, the add button: the same columns in every row. */
+const WEEK_ROW = "grid gap-3 px-5 sm:grid-cols-[7rem_minmax(0,1fr)_7rem]";
 
 /** Adds hours to a day, or changes the hours in `rule`. */
 function HoursForm({
@@ -207,60 +211,6 @@ function HoursForm({
   );
 }
 
-const HOUR = 60;
-/** Day name, the week's ruler, the add button: the same columns in every row. */
-const ROW = "grid gap-3 px-5 sm:grid-cols-[7rem_minmax(0,1fr)_7rem]";
-/** Past this many hours the ruler labels every other one. */
-const DENSE_HOURS = 12;
-
-type WeekHours = { first: number; last: number };
-
-/** Where a stretch of the day sits on the week's ruler. */
-function place(week: WeekHours, from: number, to: number) {
-  const span = (week.last - week.first) * HOUR;
-  return {
-    left: `${((from - week.first * HOUR) / span) * 100}%`,
-    width: `${((to - from) / span) * 100}%`,
-  };
-}
-
-/** The hours every day of the week is drawn against. */
-function WeekRuler({ week }: { week: WeekHours }) {
-  const hours = Array.from(
-    { length: week.last - week.first },
-    (_, index) => week.first + index,
-  );
-  const step = hours.length > DENSE_HOURS ? 2 : 1;
-  return (
-    <div aria-hidden="true" className={cn(ROW, "border-b bg-muted/40 pt-3 pb-0")}>
-      <span className="hidden sm:block" />
-      <div
-        className="grid"
-        style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}
-      >
-        {hours.map((hour, index) => (
-          <div key={hour}>
-            <p className="h-5 text-clock text-sm font-medium text-muted-foreground">
-              {index % step === 0 ? (
-                // A phone has room for every other label.
-                <span
-                  className={index % (step * 2) === 0 ? undefined : "hidden sm:inline"}
-                >
-                  {String(hour).padStart(2, "0")}:00
-                </span>
-              ) : null}
-            </p>
-            <div className="relative mt-1 h-2.5 border-t border-foreground/25">
-              <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
-              <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function DayRow({
   weekday,
   rules,
@@ -311,7 +261,7 @@ function DayRow({
   const editing = rules.find((rule) => rule.id === form);
 
   return (
-    <div className={cn(ROW, "py-4 sm:items-start")}>
+    <div className={cn(WEEK_ROW, "py-4 sm:items-start")}>
       <h2 className="pt-2 text-sm font-semibold">{name}</h2>
       <div className="grid gap-2.5">
         {/* The same hours as the list under it, so the picture is left to sighted pointer users. */}
@@ -324,7 +274,7 @@ function DayRow({
                 key={rule.id}
                 type="button"
                 tabIndex={-1}
-                style={place(week, from, to)}
+                style={placeOnWeek(week, from, to)}
                 onClick={() => setForm(rule.id)}
                 className="absolute inset-y-0 flex items-center overflow-hidden rounded-md"
               >
@@ -432,7 +382,7 @@ function AvailabilityPage() {
             <TableSkeleton rows={7} />
           ) : (
             <>
-              <WeekRuler week={weekHours(query.data)} />
+              <WeekRuler week={weekHours(query.data)} row={WEEK_ROW} />
               {WEEKDAYS.map((weekday) => (
                 <DayRow
                   key={weekday}

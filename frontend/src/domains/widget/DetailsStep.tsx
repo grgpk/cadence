@@ -103,6 +103,8 @@ function RadioOptions({
   );
 }
 
+type ContactField = "firstName" | "lastName" | "email" | "phone";
+
 export function DetailsStep({
   page,
   slot,
@@ -131,8 +133,16 @@ export function DetailsStep({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [attempted, setAttempted] = useState(false);
+  // Fields the visitor has been in and left; each says what is wrong from then on.
+  const [left, setLeft] = useState<ContactField[]>([]);
   const allErrors = formErrors(values, page);
-  const errors = attempted ? allErrors : {};
+  const errors: typeof allErrors = attempted
+    ? allErrors
+    : Object.fromEntries(left.map((field) => [field, allErrors[field]]));
+  const leave = (field: ContactField) => {
+    if (!left.includes(field)) setLeft([...left, field]);
+    onSave(values);
+  };
   const country =
     getCountryByVariant(values.countryVariant) ??
     getCountryByVariant(DEFAULT_TIMEZONE.variant);
@@ -228,7 +238,7 @@ export function DetailsStep({
                 errors.firstName ? fieldHelpId(`${ID}-first-name`) : undefined
               }
               onChange={(event) => update({ firstName: event.target.value })}
-              onBlur={() => onSave(values)}
+              onBlur={() => leave("firstName")}
             />
           </Field>
           <Field
@@ -247,7 +257,7 @@ export function DetailsStep({
                 errors.lastName ? fieldHelpId(`${ID}-last-name`) : undefined
               }
               onChange={(event) => update({ lastName: event.target.value })}
-              onBlur={() => onSave(values)}
+              onBlur={() => leave("lastName")}
             />
           </Field>
           <Field
@@ -265,7 +275,7 @@ export function DetailsStep({
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? fieldHelpId(`${ID}-email`) : undefined}
               onChange={(event) => update({ email: event.target.value })}
-              onBlur={() => onSave(values)}
+              onBlur={() => leave("email")}
             />
           </Field>
           <Field
@@ -283,7 +293,7 @@ export function DetailsStep({
                   updateAndSave({ countryVariant: next.variant })
                 }
                 onDigitsChange={(digits) => update({ phone: digits })}
-                onBlur={() => onSave(values)}
+                onBlur={() => leave("phone")}
                 invalid={Boolean(errors.phone)}
                 describedBy={errors.phone ? fieldHelpId(`${ID}-phone`) : undefined}
               />

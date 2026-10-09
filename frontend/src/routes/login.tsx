@@ -80,7 +80,15 @@ function LoginPage() {
         <Input id="email" name="email" type="email" autoComplete="email" required />
       </div>
       <div className="grid gap-2">
-        <Label htmlFor="password">Password</Label>
+        <div className="flex items-baseline justify-between gap-2">
+          <Label htmlFor="password">Password</Label>
+          <Link
+            to={ROUTES.forgotPassword}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
         <PasswordInput
           id="password"
           name="password"

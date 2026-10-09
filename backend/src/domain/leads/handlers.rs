@@ -1,6 +1,7 @@
 use axum::{
     Json,
     extract::{Path, State},
+    http::HeaderMap,
 };
 use uuid::Uuid;
 
@@ -13,7 +14,9 @@ use crate::{
     app_state::AppState,
     domain::auth::middleware::AdminUser,
     domain::host_settings::service as host_settings,
+    domain::rate_limits::service as rate_limits,
     error::{AppError, AppResult},
+    tracking::client_address,
 };
 
 pub async fn list_all(
@@ -26,8 +29,15 @@ pub async fn list_all(
 pub async fn save(
     State(state): State<AppState>,
     Path((slug, lead_unid)): Path<(String, Uuid)>,
+    headers: HeaderMap,
     Json(update): Json<LeadUpdate>,
 ) -> AppResult<Json<Lead>> {
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::LEAD_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await?;
     let page = host_settings::bookable_page(&state.pool, &slug).await?;
     Ok(Json(
         service::save(&state.pool, &page, lead_unid, update).await?,
@@ -37,8 +47,15 @@ pub async fn save(
 pub async fn submit(
     State(state): State<AppState>,
     Path((slug, lead_unid)): Path<(String, Uuid)>,
+    headers: HeaderMap,
     Json(body): Json<SubmitLeadRequest>,
 ) -> AppResult<Json<Lead>> {
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::LEAD_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await?;
     let page = host_settings::bookable_page(&state.pool, &slug).await?;
     let lead = service::submit(
         &state.pool,

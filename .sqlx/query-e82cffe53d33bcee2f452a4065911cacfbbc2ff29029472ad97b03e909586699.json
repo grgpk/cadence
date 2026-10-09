@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO password_resets (token_hash, user_unid, expires_at)\n         VALUES (encode(digest($2::text, 'sha256'), 'hex'), $1, $3) RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e82cffe53d33bcee2f452a4065911cacfbbc2ff29029472ad97b03e909586699"
+}

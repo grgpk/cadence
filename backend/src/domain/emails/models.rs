@@ -3,7 +3,7 @@ use serde::Serialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
-/// The queue has no terminal failure: a failing email retries every minute.
+/// A failing email retries every minute until it has used up its attempts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/EmailState.ts")]
 pub enum EmailState {
@@ -13,6 +13,8 @@ pub enum EmailState {
     Retrying,
     /// Due a while ago and never attempted, so the worker is not picking it up.
     Overdue,
+    /// Out of attempts. The worker no longer picks it up.
+    Failed,
 }
 
 /// A queued email as an admin sees it. The payload stays out: it carries the

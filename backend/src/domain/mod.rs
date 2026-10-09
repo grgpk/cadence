@@ -7,4 +7,5 @@ pub mod emails;
 pub mod google_calendar;
 pub mod host_settings;
 pub mod leads;
+pub mod rate_limits;
 pub mod roleaccesses;

@@ -10,6 +10,10 @@ use super::{
 };
 use crate::error::{AppError, AppResult};
 
+pub const SLOT_MINUTES_MIN: i32 = 5;
+/// The longest call a rule can open.
+pub const SLOT_MINUTES_MAX: i32 = 240;
+
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<AvailabilityRule>> {
     db::list(pool, host_unid).await.map_err(Into::into)
 }
@@ -122,7 +126,7 @@ fn validate(input: &AvailabilityRuleInput) -> AppResult<()> {
             "availability rule is invalid".to_owned(),
         ));
     }
-    if !(5..=240).contains(&input.slot_minutes) {
+    if !(SLOT_MINUTES_MIN..=SLOT_MINUTES_MAX).contains(&input.slot_minutes) {
         return Err(AppError::BadRequest(
             "slot_minutes must be between 5 and 240".to_owned(),
         ));

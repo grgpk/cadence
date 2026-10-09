@@ -43,22 +43,46 @@ export function matchesSearch(booking: Booking, search: string): boolean {
 }
 
 /**
- * Calls still to come, soonest first, and everything else, most recent first.
- * A cancelled call is never to come, whatever its time.
+ * Calls still to come, soonest first; calls that have started, most recent
+ * first; and cancelled calls, most recent first, whatever their time.
  */
 export function splitBookings(
   bookings: Booking[],
   now: number,
-): { upcoming: Booking[]; past: Booking[] } {
+): { upcoming: Booking[]; past: Booking[]; cancelled: Booking[] } {
   const upcoming: Booking[] = [];
   const past: Booking[] = [];
+  const cancelled: Booking[] = [];
   for (const booking of bookings) {
-    const toCome = !isCancelled(booking) && new Date(booking.slot_start).getTime() >= now;
-    (toCome ? upcoming : past).push(booking);
+    if (isCancelled(booking)) cancelled.push(booking);
+    else if (new Date(booking.slot_start).getTime() >= now) upcoming.push(booking);
+    else past.push(booking);
   }
   upcoming.sort((a, b) => a.slot_start.localeCompare(b.slot_start));
   past.sort((a, b) => b.slot_start.localeCompare(a.slot_start));
-  return { upcoming, past };
+  cancelled.sort((a, b) => b.slot_start.localeCompare(a.slot_start));
+  return { upcoming, past, cancelled };
+}
+
+export type WeekDay = { year: number; month: number; day: number };
+
+/**
+ * The seven days, Monday first, of the week `offset` weeks from the one `now`
+ * falls in, on the clock of `timeZone`.
+ */
+export function weekDays(now: number, timeZone: string, offset: number): WeekDay[] {
+  const today = zonedTime(new Date(now), timeZone);
+  // Calendar days as UTC midnights, so adding days never meets a clock change.
+  const midnight = Date.UTC(today.year, today.month - 1, today.day);
+  const sinceMonday = (new Date(midnight).getUTCDay() + 6) % 7;
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(midnight + (index - sinceMonday + offset * 7) * DAY_MS);
+    return {
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+    };
+  });
 }
 
 type AgendaDay = { key: string; label: string; bookings: Booking[] };

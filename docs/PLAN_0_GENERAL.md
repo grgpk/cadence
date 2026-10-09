@@ -98,6 +98,7 @@ cadence/
 | 12 | `PLAN_12_MOTION_POLISH.md` | view transitions, landing entrance, theme reveal, pending states, booking and loading fixes | 🔄 in progress |
 | 13 | `PLAN_13_DAY_IN_APP.md` | day tape in the dashboard and sign-in, type scale, add to calendar, booking rules, booking details, cancel | 🔄 in progress |
 | 14 | `PLAN_14_INVITEE_CONTROL.md` | invitee reschedule and cancel link, host emails, HTML emails, availability week view, bookings agenda, paused page | 🔄 in progress |
+| 15 | `PLAN_15_ACCOUNT_SAFETY.md` | password reset and account, rate limits, gap between calls, bookings week view, admin on phones, link previews | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

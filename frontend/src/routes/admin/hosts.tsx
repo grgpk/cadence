@@ -68,7 +68,7 @@ const COLUMNS: Column<AdminHost>[] = [
   },
   {
     header: "Joined",
-    className: "text-muted-foreground tabular-nums",
+    className: "text-muted-foreground text-clock text-[0.9375rem]",
     cell: (host) => formatDateTime(host.created_at),
   },
 ];

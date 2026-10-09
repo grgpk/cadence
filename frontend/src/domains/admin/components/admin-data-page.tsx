@@ -63,7 +63,7 @@ export function AdminDataPage<T>({
               </p>
             ) : null}
             {searchText ? (
-              <div className="relative">
+              <div className="relative w-full sm:w-auto">
                 <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   type="search"
@@ -71,7 +71,7 @@ export function AdminDataPage<T>({
                   placeholder="Search"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  className="w-56 bg-card pl-8"
+                  className="w-full bg-card pl-8 sm:w-56"
                 />
               </div>
             ) : null}

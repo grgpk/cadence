@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
-use serde_json::Value;
-use sqlx::PgPool;
+use serde_json::{Value, json};
+use sqlx::{PgConnection, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::format_description};
 use time_tz::{OffsetDateTimeExt, timezones};
 
@@ -22,11 +22,14 @@ pub const BOOKING_RESCHEDULED_TEMPLATE: &str = "booking_rescheduled";
 pub const HOST_NEW_BOOKING_TEMPLATE: &str = "host_new_booking";
 pub const HOST_BOOKING_CANCELLED_TEMPLATE: &str = "host_booking_cancelled";
 pub const HOST_BOOKING_RESCHEDULED_TEMPLATE: &str = "host_booking_rescheduled";
+/// The only email that is not about a call.
+pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
 
 const DEFAULT_APP_URL: &str = "http://localhost:3000";
 /// Frontend routes the emails link to.
 const MANAGE_PATH: &str = "/booking";
 const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
+const RESET_PASSWORD_PATH: &str = "/reset-password";
 /// The calendar entry's name when the page title and host are unknown.
 const CALENDAR_TITLE: &str = "Cadence call";
 const UTC: &str = "UTC";
@@ -73,6 +76,8 @@ fn state_of(
 ) -> EmailState {
     if sent_at.is_some() {
         EmailState::Sent
+    } else if attempts >= db::MAX_ATTEMPTS {
+        EmailState::Failed
     } else if attempts > 0 {
         EmailState::Retrying
     } else if send_at < now - Duration::minutes(OVERDUE_AFTER_MINUTES) {
@@ -105,6 +110,28 @@ pub fn host_bookings_url() -> String {
     format!("{}{HOST_BOOKINGS_PATH}", app_url())
 }
 
+/// Where an account owner chooses a new password. The token is hex.
+fn reset_password_url(token: &str) -> String {
+    format!("{}{RESET_PASSWORD_PATH}?token={token}", app_url())
+}
+
+/// Queues the link that lets an account owner choose a new password.
+pub async fn queue_password_reset(
+    connection: &mut PgConnection,
+    email: &str,
+    full_name: &str,
+    token: &str,
+) -> AppResult<()> {
+    db::queue(
+        connection,
+        email,
+        PASSWORD_RESET_TEMPLATE,
+        json!({ "name": full_name, "reset_url": reset_password_url(token) }),
+    )
+    .await
+    .map_err(Into::into)
+}
+
 pub struct RenderedEmail {
     pub subject: String,
     pub text: String,
@@ -115,12 +142,15 @@ pub struct RenderedEmail {
 struct Content {
     headline: String,
     greeting: String,
-    when: When,
+    /// `None` for an email that is not about a call.
+    when: Option<When>,
     /// Who and what the call is, under its time.
     details: Vec<String>,
     /// Label and link, in order.
     buttons: Vec<(&'static str, String)>,
     manage_url: Option<String>,
+    /// A quiet last line inside the card.
+    note: Option<&'static str>,
     footer: &'static str,
 }
 
@@ -137,6 +167,23 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
     let link = |key: &str| {
         text(key).filter(|url| url.starts_with("https://") || url.starts_with("http://"))
     };
+    if template == PASSWORD_RESET_TEMPLATE {
+        return Some(rendered(Content {
+            headline: "Reset your Cadence password".to_owned(),
+            greeting: greeting(text("name")),
+            when: None,
+            details: vec!["This link works for one hour and can be used once.".to_owned()],
+            buttons: link("reset_url")
+                .map(|url| ("Choose a new password", url.to_owned()))
+                .into_iter()
+                .collect(),
+            manage_url: None,
+            note: Some(
+                "If you did not ask for this, ignore this email; your password stays the same.",
+            ),
+            footer: "You are getting this because a password reset was requested for your Cadence account.",
+        }));
+    }
     let host = text("host_name");
     let with_host = host.map(|name| format!(" with {name}")).unwrap_or_default();
     let invitee = text("name");
@@ -178,9 +225,10 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
                 .into_iter()
                 .collect(),
             manage_url: None,
+            note: None,
             footer: "You are getting this because someone used your Cadence booking page.",
             headline,
-            when,
+            when: Some(when),
         }
     } else {
         let call = match (title, host) {
@@ -212,18 +260,23 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
             .flatten()
             .collect(),
             manage_url: link("manage_url").filter(|_| live).map(str::to_owned),
+            note: None,
             footer: "You are getting this because a call was booked with your email address.",
             details: call.into_iter().collect(),
             headline,
-            when,
+            when: Some(when),
         }
     };
 
-    Some(RenderedEmail {
+    Some(rendered(content))
+}
+
+fn rendered(content: Content) -> RenderedEmail {
+    RenderedEmail {
         text: text_body(&content),
         html: html_body(&content),
         subject: content.headline,
-    })
+    }
 }
 
 fn greeting(name: Option<&str>) -> String {
@@ -311,8 +364,10 @@ fn google_calendar_url(title: &str, dates: &str, location: Option<&str>) -> Stri
 }
 
 fn text_body(content: &Content) -> String {
-    let call = std::iter::once(content.when.date.as_str())
-        .chain(content.when.time.as_deref())
+    let call = content
+        .when
+        .iter()
+        .flat_map(|when| std::iter::once(when.date.as_str()).chain(when.time.as_deref()))
         .chain(content.details.iter().map(String::as_str))
         .collect::<Vec<_>>()
         .join("\n");
@@ -332,6 +387,7 @@ fn text_body(content: &Content) -> String {
         Some(call),
         Some(buttons).filter(|buttons| !buttons.is_empty()),
         manage,
+        content.note.map(str::to_owned),
         Some("Cadence".to_owned()),
     ]
     .into_iter()
@@ -344,12 +400,18 @@ fn text_body(content: &Content) -> String {
 /// clients cope. Every value is escaped on its way in.
 fn html_body(content: &Content) -> String {
     let headline = escape(&content.headline);
-    let date = escape(&content.when.date);
-    let accent = content.when.accent;
-    let time = content.when.time.as_deref().map(|time| {
+    let call = content.when.as_ref().map(|when| {
+        let time = when.time.as_deref().map(|time| {
+            format!(
+                r#"<div style="font-size:16px;line-height:24px;color:{INK};">{}</div>"#,
+                escape(time)
+            )
+        });
         format!(
-            r#"<div style="font-size:16px;line-height:24px;color:{INK};">{}</div>"#,
-            escape(time)
+            r#"<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-left:4px solid {accent};padding:6px 0 6px 16px;"><div style="font-size:16px;line-height:24px;font-weight:600;color:{INK};">{date}</div>{time}</td></tr></table></td></tr>"#,
+            accent = when.accent,
+            date = escape(&when.date),
+            time = time.unwrap_or_default(),
         )
     });
     let details = content.details.iter().map(|line| {
@@ -375,8 +437,18 @@ fn html_body(content: &Content) -> String {
             r#"<td valign="bottom" style="padding:0 3px 0 0;"><div style="width:4px;height:{height}px;background-color:{colour};border-radius:2px;font-size:0;line-height:0;">&nbsp;</div></td>"#
         )
     };
-    let time = time.unwrap_or_default();
-    let rows: String = details.chain(buttons).chain(manage).collect();
+    let note = content.note.map(|note| {
+        format!(
+            r#"<tr><td style="padding:24px 0 0;font-size:14px;line-height:20px;color:{MUTED};">{note}</td></tr>"#
+        )
+    });
+    let rows: String = call
+        .into_iter()
+        .chain(details)
+        .chain(buttons)
+        .chain(manage)
+        .chain(note)
+        .collect();
     format!(
         r#"<!doctype html>
 <html lang="en">
@@ -393,7 +465,6 @@ fn html_body(content: &Content) -> String {
 <tr><td bgcolor="{CARD}" style="background-color:{CARD};border:1px solid {BORDER};border-radius:12px;padding:32px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td style="padding:0 0 20px;font-size:22px;line-height:30px;font-weight:700;color:{INK};">{headline}</td></tr>
-<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-left:4px solid {accent};padding:6px 0 6px 16px;"><div style="font-size:16px;line-height:24px;font-weight:600;color:{INK};">{date}</div>{time}</td></tr></table></td></tr>
 {rows}
 </table>
 </td></tr>
@@ -427,8 +498,6 @@ fn escape(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
-
     use super::*;
 
     #[test]
@@ -437,6 +506,14 @@ mod tests {
         let late = now - Duration::minutes(OVERDUE_AFTER_MINUTES + 1);
         assert_eq!(state_of(Some(now), 3, late, now), EmailState::Sent);
         assert_eq!(state_of(None, 1, late, now), EmailState::Retrying);
+        assert_eq!(
+            state_of(None, db::MAX_ATTEMPTS - 1, late, now),
+            EmailState::Retrying
+        );
+        assert_eq!(
+            state_of(None, db::MAX_ATTEMPTS, late, now),
+            EmailState::Failed
+        );
         assert_eq!(state_of(None, 0, late, now), EmailState::Overdue);
         assert_eq!(state_of(None, 0, now, now), EmailState::Scheduled);
     }
@@ -489,8 +566,16 @@ mod tests {
         })
     }
 
+    fn reset_payload(name: &str) -> Value {
+        json!({
+            "name": name,
+            "reset_url": "https://cadence.example/reset-password?token=abc&x=1",
+        })
+    }
+
     fn headline(template: &str, name: &str) -> String {
         match template {
+            PASSWORD_RESET_TEMPLATE => "Reset your Cadence password".to_owned(),
             BOOKING_CONFIRMATION_TEMPLATE => format!("Your call with {name} is booked"),
             REMINDER_24H_TEMPLATE => format!("Your call with {name} is tomorrow"),
             REMINDER_2H_TEMPLATE => format!("Your call with {name} starts in 2 hours"),
@@ -509,7 +594,8 @@ mod tests {
         let cases = INVITEE_TEMPLATES
             .map(|template| (template, invitee_payload(HOSTILE)))
             .into_iter()
-            .chain(HOST_TEMPLATES.map(|template| (template, host_payload(HOSTILE))));
+            .chain(HOST_TEMPLATES.map(|template| (template, host_payload(HOSTILE))))
+            .chain([(PASSWORD_RESET_TEMPLATE, reset_payload(HOSTILE))]);
         for (template, payload) in cases {
             let email = email(template, &payload);
             assert_eq!(email.subject, headline(template, HOSTILE), "{template}");
@@ -570,6 +656,39 @@ mod tests {
             assert!(email.html.contains("Open your bookings</a>"), "{template}");
             assert!(!email.html.contains("Reschedule or cancel"), "{template}");
         }
+    }
+
+    #[test]
+    fn a_password_reset_email_has_one_link_and_no_call() {
+        let email = email(PASSWORD_RESET_TEMPLATE, &reset_payload("Nino"));
+        assert_eq!(email.subject, "Reset your Cadence password");
+        assert_eq!(
+            email.text,
+            "Hi Nino,\n\nReset your Cadence password.\n\nThis link works for one hour and can be used once.\n\nChoose a new password: https://cadence.example/reset-password?token=abc&x=1\n\nIf you did not ask for this, ignore this email; your password stays the same.\n\nCadence"
+        );
+        for part in [
+            "This link works for one hour and can be used once.",
+            r#"href="https://cadence.example/reset-password?token=abc&amp;x=1""#,
+            "Choose a new password</a>",
+            "If you did not ask for this, ignore this email; your password stays the same.",
+        ] {
+            assert!(email.html.contains(part), "{part}");
+        }
+        assert_eq!(email.html.matches("<a ").count(), 1);
+        for part in [
+            "border-left:4px solid",
+            "Join the call",
+            "Reschedule or cancel",
+        ] {
+            assert!(!email.html.contains(part), "{part}");
+        }
+        // A link that is not a web address is left out, like every other link.
+        let unsafe_link = json!({ "reset_url": "javascript:alert(1)" });
+        assert!(
+            !self::email(PASSWORD_RESET_TEMPLATE, &unsafe_link)
+                .html
+                .contains("<a ")
+        );
     }
 
     #[test]
@@ -682,7 +801,8 @@ mod tests {
         let cases = INVITEE_TEMPLATES
             .map(|template| (template, invitee.clone()))
             .into_iter()
-            .chain(HOST_TEMPLATES.map(|template| (template, host_payload("Mia Chen"))));
+            .chain(HOST_TEMPLATES.map(|template| (template, host_payload("Mia Chen"))))
+            .chain([(PASSWORD_RESET_TEMPLATE, reset_payload("Nino Beridze"))]);
         for (index, (template, mut payload)) in cases.enumerate() {
             payload["slot_start"] = json!(starts[index % starts.len()]);
             std::fs::write(

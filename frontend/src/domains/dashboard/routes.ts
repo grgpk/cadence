@@ -21,4 +21,5 @@ export const SETTINGS_SECTIONS = {
   rules: "rules",
   calls: "calls",
   questions: "questions",
+  account: "account",
 } as const;

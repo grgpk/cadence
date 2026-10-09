@@ -12,6 +12,7 @@ import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
+import { AccountSection } from "../../domains/dashboard/AccountSection";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
 import { GoogleCalendarConnection } from "../../domains/dashboard/GoogleCalendarConnection";
 import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
@@ -45,12 +46,14 @@ const SECTION_TITLES = {
   [SETTINGS_SECTIONS.rules]: "Booking rules",
   [SETTINGS_SECTIONS.calls]: "Where calls happen",
   [SETTINGS_SECTIONS.questions]: "Questions to ask",
+  [SETTINGS_SECTIONS.account]: "Account",
 } as const;
 type SectionId = keyof typeof SECTION_TITLES;
 const SECURE_LINK_PREFIX = "https://";
 /** The same limits the API enforces. */
 const NOTICE_HOURS = { min: 0, max: 168 };
 const WINDOW_DAYS = { min: 1, max: 90 };
+const BUFFER_MINUTES = { min: 0, max: 120 };
 
 /** One group of settings. Other pages link to it by `id`. */
 function Section({
@@ -122,7 +125,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
 
   return (
     <form
-      className="grid max-w-2xl gap-6"
+      className="grid gap-6"
       onSubmit={(event) => {
         event.preventDefault();
         if (linkChanged) setConfirmingLink(true);
@@ -226,11 +229,11 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
         id={SETTINGS_SECTIONS.rules}
         description="How soon and how far ahead people can book, and whether your page takes bookings at all."
       >
-        <div className="grid items-start gap-5 sm:grid-cols-2">
+        <div className="grid items-start gap-5 sm:grid-cols-3">
           <Field
             id={`${ID}-notice`}
             label="Minimum notice"
-            help="Hours between booking and the call. 0 allows any open time."
+            help="Between booking and the call. 0 allows any open time."
           >
             <div className="flex items-center gap-2">
               <Input
@@ -253,7 +256,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
           <Field
             id={`${ID}-window`}
             label="Booking window"
-            help="How many days ahead your page shows times."
+            help="How far ahead your page shows times."
           >
             <div className="flex items-center gap-2">
               <Input
@@ -273,6 +276,30 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
                 className="w-24 text-clock text-[0.9375rem]"
               />
               <span className="text-sm text-muted-foreground">days</span>
+            </div>
+          </Field>
+          <Field
+            id={`${ID}-buffer`}
+            label="Gap between calls"
+            help="Kept free before and after each call. 0 allows back to back."
+          >
+            <div className="flex items-center gap-2">
+              <Input
+                id={`${ID}-buffer`}
+                type="number"
+                inputMode="numeric"
+                required
+                min={BUFFER_MINUTES.min}
+                max={BUFFER_MINUTES.max}
+                step={5}
+                value={values.buffer_minutes}
+                aria-describedby={fieldHelpId(`${ID}-buffer`)}
+                onChange={(event) =>
+                  update({ buffer_minutes: event.target.valueAsNumber || 0 })
+                }
+                className="w-24 text-clock text-[0.9375rem]"
+              />
+              <span className="text-sm text-muted-foreground">minutes</span>
             </div>
           </Field>
         </div>
@@ -371,6 +398,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
 }
 
 function SettingsPage() {
+  const { user } = Route.useRouteContext();
   const query = useQuery(hostSettingsQuery);
 
   return (
@@ -380,7 +408,7 @@ function SettingsPage() {
         description="Your booking page, where calls happen and what the form asks."
       />
       {query.isPending ? (
-        <div className="grid max-w-2xl gap-6">
+        <div className="grid gap-6">
           <Skeleton className="h-80 w-full rounded-xl" />
           <Skeleton className="h-32 w-full rounded-xl" />
           <Skeleton className="h-40 w-full rounded-xl" />
@@ -394,7 +422,17 @@ function SettingsPage() {
         />
       ) : (
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
-          <SettingsForm saved={query.data} />
+          <div className="grid gap-6">
+            <SettingsForm saved={query.data} />
+            {user ? (
+              <Section
+                id={SETTINGS_SECTIONS.account}
+                description="Your own name and password. These save on their own."
+              >
+                <AccountSection user={user} />
+              </Section>
+            ) : null}
+          </div>
           <nav
             aria-label="Settings sections"
             className="sticky top-8 hidden gap-1 border-l pl-4 text-sm lg:grid"

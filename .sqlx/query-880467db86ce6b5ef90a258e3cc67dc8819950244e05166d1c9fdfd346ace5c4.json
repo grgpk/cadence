@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rate_limits (action, subject, window_start)\n             VALUES ('login_address', 'unknown', now() - make_interval(hours => $1)) RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "880467db86ce6b5ef90a258e3cc67dc8819950244e05166d1c9fdfd346ace5c4"
+}

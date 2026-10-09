@@ -25,6 +25,46 @@ export function DataTable<T>({
   rows: T[];
   rowKey: (row: T) => string;
 }) {
+  const [title, ...details] = columns;
+  return (
+    <>
+      {/* A phone has no room for columns: each row becomes its own short list. */}
+      <ul className="divide-y sm:hidden">
+        {rows.map((row) => (
+          <li key={rowKey(row)} className="grid gap-2 px-5 py-3.5 text-sm">
+            {title ? <div className="min-w-0">{title.cell(row)}</div> : null}
+            <dl className="grid gap-1.5">
+              {details.map((column) => (
+                <div
+                  key={column.header}
+                  className="flex items-center justify-between gap-4"
+                >
+                  <dt className="shrink-0 text-xs text-muted-foreground">
+                    {column.header}
+                  </dt>
+                  <dd className="min-w-0 text-right">{column.cell(row)}</dd>
+                </div>
+              ))}
+            </dl>
+          </li>
+        ))}
+      </ul>
+      <div className="hidden sm:block">
+        <DesktopTable columns={columns} rows={rows} rowKey={rowKey} />
+      </div>
+    </>
+  );
+}
+
+function DesktopTable<T>({
+  columns,
+  rows,
+  rowKey,
+}: {
+  columns: Column<T>[];
+  rows: T[];
+  rowKey: (row: T) => string;
+}) {
   return (
     <Table>
       <TableHeader>

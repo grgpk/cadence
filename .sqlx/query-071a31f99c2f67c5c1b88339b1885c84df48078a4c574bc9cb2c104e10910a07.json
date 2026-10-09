@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rate_limits (action, subject, window_start)\n         VALUES ($1, $2, date_bin(make_interval(secs => $3), now(), 'epoch'::timestamptz))\n         ON CONFLICT (action, subject, window_start)\n         DO UPDATE SET request_count = rate_limits.request_count + 1\n         RETURNING request_count",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "request_count",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rate_limits",
+            "name": "request_count"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Float8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "071a31f99c2f67c5c1b88339b1885c84df48078a4c574bc9cb2c104e10910a07"
+}

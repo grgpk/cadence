@@ -8,6 +8,7 @@ const BY_STATUS: Partial<Record<number, string>> = {
   403: "You do not have access to this.",
   404: "This could not be found.",
   409: "That conflicts with something that already exists.",
+  429: "Too many attempts. Try again in a few minutes.",
 };
 
 /**

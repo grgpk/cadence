@@ -23,6 +23,30 @@ Content-Type: application/json
 ### Current session
 GET {{baseUrl}}/api/auth/me
 
+### Change my name
+PUT {{baseUrl}}/api/auth/me
+Content-Type: application/json
+
+{"full_name":"Cadence Host"}
+
+### Change my password (400 when the current one is wrong)
+POST {{baseUrl}}/api/auth/password
+Content-Type: application/json
+
+{"current_password":"password123","new_password":"password456"}
+
+### Forgot password (always 200; queues a real email for a known address)
+POST {{baseUrl}}/api/auth/forgot-password
+Content-Type: application/json
+
+{"email":"host@example.com"}
+
+### Reset password with the token from the emailed link
+POST {{baseUrl}}/api/auth/reset-password
+Content-Type: application/json
+
+{"token":"replace-with-the-token-from-the-email","password":"password456"}
+
 ### Availability
 GET {{baseUrl}}/api/availability
 
@@ -48,7 +72,7 @@ GET {{baseUrl}}/api/host/settings
 PUT {{baseUrl}}/api/host/settings
 Content-Type: application/json
 
-{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"is_active":true}
+{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"buffer_minutes":0,"is_active":true}
 
 ### Public booking page (accepting_bookings is false while paused)
 GET {{baseUrl}}/api/hosts/{{slug}}

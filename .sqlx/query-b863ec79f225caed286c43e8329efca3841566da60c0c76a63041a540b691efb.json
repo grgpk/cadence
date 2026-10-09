@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, is_active",
+  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
   "describe": {
     "columns": [
       {
@@ -137,6 +137,17 @@
       },
       {
         "ordinal": 12,
+        "name": "buffer_minutes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "buffer_minutes"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
         "name": "is_active",
         "type_info": "Bool",
         "origin": {
@@ -167,8 +178,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "5f9d095b1e870cdcc37b8cf00205d4dddc2deb98548ee508354a8afb3778043e"
+  "hash": "b863ec79f225caed286c43e8329efca3841566da60c0c76a63041a540b691efb"
 }

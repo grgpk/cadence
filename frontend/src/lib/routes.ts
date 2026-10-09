@@ -6,6 +6,8 @@ export const ROUTES = {
   manageBooking: "/booking/$token",
   login: "/login",
   register: "/register",
+  forgotPassword: "/forgot-password",
+  resetPassword: "/reset-password",
   terms: "/terms",
   privacy: "/privacy-policy",
   dashboard: "/dashboard",

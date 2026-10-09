@@ -8,11 +8,16 @@ use lettre::{
 use sqlx::PgPool;
 
 use super::{db, service};
+use crate::domain::rate_limits::service as rate_limits;
 
 pub fn start(pool: PgPool) {
     tokio::spawn(async move {
         loop {
             process_due(&pool).await;
+            // The one loop that already runs every minute also sweeps old rate limit windows.
+            if let Err(error) = rate_limits::forget_old(&pool).await {
+                tracing::error!(%error, "old rate limit windows were not removed");
+            }
             tokio::time::sleep(StdDuration::from_secs(60)).await;
         }
     });

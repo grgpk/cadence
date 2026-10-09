@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM rate_limits WHERE window_start < now() - interval '1 day' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "aa0b4d2a11b9bd1d34347f48a7dbc9e7fe402d5c855b7b54a488cd2fbeae7a37"
+}

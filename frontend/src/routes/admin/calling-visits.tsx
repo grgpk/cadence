@@ -21,7 +21,7 @@ const COLUMNS: Column<CallingVisit>[] = [
   },
   {
     header: "Visited",
-    className: "text-right text-muted-foreground tabular-nums",
+    className: "text-right text-muted-foreground text-clock text-[0.9375rem]",
     cell: (visit) => formatDateTime(visit.created_at),
   },
 ];

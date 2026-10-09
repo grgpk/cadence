@@ -12,10 +12,13 @@ import { watchErrors } from "../lib/bug-report";
 import { APP_DESCRIPTION, APP_NAME } from "../lib/config";
 import { isProtectedPath, ROUTES } from "../lib/routes";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
+import { getSiteOrigin } from "../lib/visitor";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
 import { NotFound, RouteError } from "../domains/shared/NotFound";
 import "../styles/globals.css";
+
+const PREVIEW_IMAGE = "/og.png";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -26,9 +29,12 @@ export const Route = createRootRoute({
     }
     return { user };
   },
+  // Asked once per visit: the address does not change while someone browses.
+  loader: async () => ({ origin: await getSiteOrigin() }),
+  staleTime: Number.POSITIVE_INFINITY,
   pendingMs: 0,
   pendingComponent: () => null,
-  head: () => ({
+  head: ({ loaderData }) => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
@@ -38,9 +44,18 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { property: "og:title", content: APP_NAME },
       { property: "og:description", content: APP_DESCRIPTION },
-      { name: "twitter:card", content: "summary" },
+      // The card shown when a link to any page is pasted into a chat.
+      { property: "og:image", content: `${loaderData?.origin ?? ""}${PREVIEW_IMAGE}` },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "theme-color", content: "#151b3d" },
     ],
-    links: [{ rel: "icon", href: "/favicon.svg" }],
+    links: [
+      { rel: "icon", href: "/favicon.svg" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+    ],
   }),
   shellComponent: RootDocument,
   component: () => <Outlet />,

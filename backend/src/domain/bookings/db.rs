@@ -39,20 +39,24 @@ pub async fn create(
     .await
 }
 
-/// Start times of calls that still hold their slot.
+/// Start times of calls that still hold their slot. `except` leaves one call
+/// out: the one being moved does not stand in its own way.
 pub async fn booked_starts(
     pool: &PgPool,
     host_unid: Uuid,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
+    except: Option<Uuid>,
 ) -> Result<Vec<DateTime<Utc>>, sqlx::Error> {
     sqlx::query_scalar!(
         "SELECT slot_start FROM bookings
-         WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3 AND status <> $4",
+         WHERE host_unid = $1 AND slot_start >= $2 AND slot_start < $3 AND status <> $4
+           AND ($5::uuid IS NULL OR unid <> $5)",
         host_unid,
         from,
         to,
         BookingStatus::Cancelled.as_str(),
+        except,
     )
     .fetch_all(pool)
     .await

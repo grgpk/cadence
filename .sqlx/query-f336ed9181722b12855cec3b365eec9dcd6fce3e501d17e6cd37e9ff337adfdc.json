@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE password_resets SET used_at = now()\n         WHERE token_hash = encode(digest($1::text, 'sha256'), 'hex')\n           AND used_at IS NULL AND expires_at > now()\n         RETURNING user_unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "password_resets",
+            "name": "user_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f336ed9181722b12855cec3b365eec9dcd6fce3e501d17e6cd37e9ff337adfdc"
+}

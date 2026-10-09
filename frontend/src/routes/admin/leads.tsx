@@ -81,7 +81,7 @@ const COLUMNS: Column<Lead>[] = [
   },
   {
     header: "Form sent",
-    className: "tabular-nums",
+    className: "text-clock text-[0.9375rem]",
     cell: (lead) =>
       lead.form_submitted_at ? (
         formatDateTime(lead.form_submitted_at)
@@ -91,7 +91,7 @@ const COLUMNS: Column<Lead>[] = [
   },
   {
     header: "Created",
-    className: "text-muted-foreground tabular-nums",
+    className: "text-muted-foreground text-clock text-[0.9375rem]",
     cell: (lead) => formatDateTime(lead.created_at),
   },
 ];

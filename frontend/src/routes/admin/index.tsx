@@ -29,6 +29,7 @@ export const Route = createFileRoute("/admin/")({
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE: UserStatus = "Active";
+const FAILED: EmailState = "Failed";
 const RETRYING: EmailState = "Retrying";
 const OVERDUE: EmailState = "Overdue";
 
@@ -71,6 +72,15 @@ function NeedsAttention() {
 
   const since = Date.now() - DAY_MS;
   const items: Attention[] = [
+    {
+      key: "failed",
+      count: emailsIn(emails.data ?? [], FAILED),
+      one: "email was given up on after repeated failures",
+      many: "emails were given up on after repeated failures",
+      urgent: true,
+      to: ADMIN_PAGES.emails.to,
+      search: FAILED,
+    },
     {
       key: "retrying",
       count: emailsIn(emails.data ?? [], RETRYING),
@@ -186,10 +196,18 @@ function Funnel() {
         </div>
       ) : (
         <dl className="grid gap-4 px-5 py-4">
-          {steps.map((step) => (
+          {steps.map((step, index) => (
             <div key={step.label} className="grid gap-1.5">
               <div className="flex items-baseline justify-between gap-3 text-sm">
-                <dt className="text-muted-foreground">{step.label}</dt>
+                <dt className="text-muted-foreground">
+                  {step.label}
+                  {/* How many of the people who came got this far. */}
+                  {index > 0 && visits > 0 ? (
+                    <span className="ml-2 tabular-nums">
+                      {Math.round((step.count / visits) * 100)}% of visits
+                    </span>
+                  ) : null}
+                </dt>
                 <dd className="font-display text-lg font-semibold tabular-nums">
                   {funnel.isPending ? <Skeleton className="h-6 w-10" /> : step.count}
                 </dd>

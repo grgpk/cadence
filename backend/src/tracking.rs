@@ -1,5 +1,7 @@
 use axum::http::HeaderMap;
 
+const UNKNOWN_CLIENT: &str = "unknown";
+
 pub fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
     header_value(headers, "cf-connecting-ip")
         .or_else(|| {
@@ -10,6 +12,12 @@ pub fn extract_client_ip(headers: &HeaderMap) -> Option<String> {
         .or_else(|| header_value(headers, "x-real-ip"))
         .filter(|value| !value.is_empty())
         .map(ToOwned::to_owned)
+}
+
+/// The client's address as a rate limit subject. Requests without one share
+/// a single subject, so the limit still applies to them.
+pub fn client_address(headers: &HeaderMap) -> String {
+    extract_client_ip(headers).unwrap_or_else(|| UNKNOWN_CLIENT.to_owned())
 }
 
 pub fn header_value<'a>(headers: &'a HeaderMap, name: &str) -> Option<&'a str> {

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days, w.is_active AS accepting_bookings\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3",
+  "query": "SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,\n                  w.is_active AS accepting_bookings\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3",
   "describe": {
     "columns": [
       {
@@ -182,6 +182,17 @@
       },
       {
         "ordinal": 17,
+        "name": "buffer_minutes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "buffer_minutes"
+          }
+        }
+      },
+      {
+        "ordinal": 18,
         "name": "accepting_bookings",
         "type_info": "Bool",
         "origin": {
@@ -217,8 +228,9 @@
       null,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "11621162666b1b9bc01aaa2b4e8ee5676058a39d71bbdf8fc1551cfada10bb0c"
+  "hash": "14a6f7a3ef595f2e8f1ac5010df3494f922402114da211fa417edf0baa87623b"
 }

@@ -12,7 +12,7 @@ use axum::{
 use cadence_backend::{
     app_state::AppState,
     build_app,
-    domain::{auth::service::make_token, leads},
+    domain::{auth::service::make_token, emails, leads},
 };
 use chrono::{DateTime, Timelike, Utc};
 use serde_json::{Value, json};
@@ -1247,6 +1247,13 @@ async fn admin_emails_show_state_without_the_payload(pool: PgPool) {
         ("retrying@example.com", 0, false, 2),
         ("overdue@example.com", -60, false, 0),
         ("scheduled@example.com", 60, false, 0),
+        (
+            "last-try@example.com",
+            -60,
+            false,
+            emails::db::MAX_ATTEMPTS - 1,
+        ),
+        ("failed@example.com", -60, false, emails::db::MAX_ATTEMPTS),
     ] {
         sqlx::query_scalar!(
             r#"INSERT INTO email_queue (email, template, send_at, sent_at, attempts, payload)
@@ -1272,6 +1279,8 @@ async fn admin_emails_show_state_without_the_payload(pool: PgPool) {
         ("retrying@example.com", "Retrying"),
         ("overdue@example.com", "Overdue"),
         ("scheduled@example.com", "Scheduled"),
+        ("last-try@example.com", "Retrying"),
+        ("failed@example.com", "Failed"),
     ] {
         let row = emails
             .iter()
@@ -1280,4 +1289,166 @@ async fn admin_emails_show_state_without_the_payload(pool: PgPool) {
         assert_eq!(row["state"], json!(state), "{email}");
         assert!(row.get("payload").is_none());
     }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_email_out_of_attempts_is_left_alone_and_a_sent_one_forgets_its_error(pool: PgPool) {
+    for (email, attempts) in [
+        ("last-try@example.com", emails::db::MAX_ATTEMPTS - 1),
+        ("failed@example.com", emails::db::MAX_ATTEMPTS),
+    ] {
+        sqlx::query_scalar!(
+            "INSERT INTO email_queue (email, template, send_at, attempts, last_error)
+             VALUES ($1, 'booking_confirmation', now() - interval '1 hour', $2, '550 rejected')
+             RETURNING 1",
+            email,
+            attempts,
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("email is queued");
+    }
+
+    // The development seed has due emails of its own.
+    let due = emails::db::pending(&pool).await.expect("queue is readable");
+    assert!(due.iter().all(|row| row.email != "failed@example.com"));
+    let last_try = due
+        .iter()
+        .find(|row| row.email == "last-try@example.com")
+        .expect("an email with one attempt left is still due");
+
+    emails::db::mark_sent(&pool, last_try.id)
+        .await
+        .expect("row is marked");
+    let clean = sqlx::query_scalar!(
+        r#"SELECT sent_at IS NOT NULL AND last_error IS NULL AS "clean!"
+           FROM email_queue WHERE id = $1"#,
+        last_try.id,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("row is readable");
+    assert!(clean, "sent, and the old error is gone");
+    let due = emails::db::pending(&pool).await.expect("queue is readable");
+    assert!(due.iter().all(|row| row.email != "last-try@example.com"));
+}
+
+/// The open times of a host with half-hour calls, as "HH:MM" on the host's
+/// clock in Tbilisi (UTC+4) for the day `day` falls on.
+async fn half_hours_on(app: &Router, slug: &str, day: DateTime<Utc>) -> Vec<String> {
+    let (status, slots) = get(app, &format!("/api/hosts/{slug}/slots"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    slots
+        .as_array()
+        .expect("slots are a list")
+        .iter()
+        .map(|slot| {
+            serde_json::from_value::<DateTime<Utc>>(slot["start"].clone())
+                .expect("slot has a start")
+        })
+        .filter(|start| start.date_naive() == day.date_naive())
+        .map(|start| {
+            (start + chrono::Duration::hours(4))
+                .format("%H:%M")
+                .to_string()
+        })
+        .collect()
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_buffer_keeps_time_free_around_every_booked_call(pool: PgPool) {
+    let app = app(&pool);
+    let host = register(&app, "Nino Tbilisi", "nino@example.com").await;
+    let mut host_settings = settings(&app, &host).await;
+    assert_eq!(host_settings["buffer_minutes"], 0, "no buffer until chosen");
+    host_settings["timezone"] = json!("Asia/Tbilisi");
+    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    assert_eq!(status, StatusCode::OK);
+    for weekday in 0..7 {
+        let (status, _) = send(
+            &app,
+            Method::POST,
+            "/api/availability",
+            Some(&host.cookie),
+            Some(json!({
+                "weekday": weekday,
+                "start_time": "09:00:00",
+                "end_time": "12:00:00",
+                "slot_minutes": 30,
+            })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+    }
+    let slug = slug(&host_settings).to_owned();
+    let path = format!("/api/hosts/{slug}/bookings");
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert!(page.get("buffer_minutes").is_none());
+
+    // 10:00 in Tbilisi, three days out: a whole day inside the window.
+    let ten = (Utc::now() + chrono::Duration::days(3))
+        .date_naive()
+        .and_hms_opt(6, 0, 0)
+        .expect("06:00 exists")
+        .and_utc();
+    let half_hour = chrono::Duration::minutes(30);
+    let all = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30"];
+    assert_eq!(half_hours_on(&app, &slug, ten).await, all);
+
+    let (_, token) = book(&app, &slug, ten).await;
+    assert_eq!(
+        half_hours_on(&app, &slug, ten).await,
+        ["09:00", "09:30", "10:30", "11:00", "11:30"],
+        "without a buffer only the booked time closes"
+    );
+
+    for bad in [-1, 121] {
+        host_settings["buffer_minutes"] = json!(bad);
+        let (status, _) = save_settings(&app, &host, &host_settings).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+    }
+    host_settings["buffer_minutes"] = json!(15);
+    let (status, saved) = save_settings(&app, &host, &host_settings).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["buffer_minutes"], 15);
+    assert_eq!(
+        half_hours_on(&app, &slug, ten).await,
+        ["09:00", "11:00", "11:30"],
+        "the calls right before and after would leave no gap"
+    );
+    for start in [ten - half_hour, ten + half_hour] {
+        let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+        assert_eq!(status, StatusCode::CONFLICT, "{start}");
+    }
+
+    // The call's own time does not stop it from moving half an hour.
+    let (status, moved) = send(
+        &app,
+        Method::POST,
+        &format!("/api/manage/{token}/reschedule"),
+        None,
+        Some(json!({ "slot_start": ten + half_hour })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(moved["slot_start"], json!(ten + half_hour));
+    assert_eq!(
+        half_hours_on(&app, &slug, ten).await,
+        ["09:00", "09:30", "11:30"]
+    );
+
+    // A second call still has to keep the gap from the first.
+    let (other, other_token) = book(&app, &slug, ten - half_hour).await;
+    assert_eq!(half_hours_on(&app, &slug, ten).await, ["11:30"]);
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/manage/{other_token}/reschedule"),
+        None,
+        Some(json!({ "slot_start": ten })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "too close to the other call");
+    let (_, mine) = get(&app, &format!("/api/bookings/{other}"), Some(&host.cookie)).await;
+    assert_eq!(mine["booking"]["slot_start"], json!(ten - half_hour));
 }

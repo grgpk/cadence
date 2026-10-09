@@ -1,5 +1,8 @@
 use cadence_backend::domain::{
-    auth::models::{LoginRequest, RegisterRequest, Role, SessionUser, UserStatus},
+    auth::models::{
+        ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, RegisterRequest,
+        ResetPasswordRequest, Role, SessionUser, UpdateProfileRequest, UserStatus,
+    },
     availability::models::{AvailabilityRule, AvailabilityRuleInput, TimeSlot},
     bookings::models::{
         Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
@@ -24,6 +27,10 @@ fn export_bindings() {
     assert!(RegisterRequest::export().is_ok());
     assert!(LoginRequest::export().is_ok());
     assert!(SessionUser::export().is_ok());
+    assert!(ForgotPasswordRequest::export().is_ok());
+    assert!(ResetPasswordRequest::export().is_ok());
+    assert!(UpdateProfileRequest::export().is_ok());
+    assert!(ChangePasswordRequest::export().is_ok());
     assert!(AvailabilityRuleInput::export().is_ok());
     assert!(AvailabilityRule::export().is_ok());
     assert!(TimeSlot::export().is_ok());

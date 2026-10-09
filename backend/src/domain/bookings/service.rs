@@ -1,4 +1,4 @@
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::json;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -37,30 +37,75 @@ pub struct BookingsService;
 /// Times a visitor can still book: the host's hours inside their booking
 /// window, minus the notice period, minus calls already booked, minus busy
 /// time on a connected calendar.
+///
+/// The host's buffer keeps that much time free around both.
 pub async fn public_slots(pool: &PgPool, page: &BookingPage) -> AppResult<Vec<TimeSlot>> {
+    open_slots(pool, page, None).await
+}
+
+/// `moving` is the call being rescheduled: its own time does not close the
+/// times next to it.
+async fn open_slots(
+    pool: &PgPool,
+    page: &BookingPage,
+    moving: Option<Uuid>,
+) -> AppResult<Vec<TimeSlot>> {
     let now = Utc::now();
     let from = now + Duration::hours(i64::from(page.minimum_notice_hours));
     let to = now + Duration::days(i64::from(page.booking_window_days));
+    let buffer = Duration::minutes(i64::from(page.buffer_minutes));
     let rules = availability::list(pool, page.host_unid).await?;
     let mut slots = availability::slots_between(&rules, &page.timezone, from, to);
 
-    let booked = db::booked_starts(pool, page.host_unid, from, to).await?;
-    slots.retain(|slot| !booked.contains(&slot.start));
+    // A call just outside the window still closes the times next to it.
+    let reach = buffer + Duration::minutes(i64::from(availability::SLOT_MINUTES_MAX));
+    let booked: Vec<_> = db::booked_starts(pool, page.host_unid, from - reach, to + reach, moving)
+        .await?
+        .into_iter()
+        .map(|start| {
+            let minutes =
+                availability::minutes_at(&rules, &page.timezone, start).unwrap_or(FALLBACK_MINUTES);
+            (start, start + Duration::minutes(i64::from(minutes)))
+        })
+        .collect();
+    slots.retain(|slot| {
+        !booked.iter().any(|(start, end)| {
+            // Without a buffer only the same start is taken, as it always was.
+            slot.start == *start || (!buffer.is_zero() && too_close(slot, *start, *end, buffer))
+        })
+    });
 
     if page.calendar_connected {
         // A broken calendar connection must not take the booking page down.
         match google_calendar::busy_intervals(pool, page.host_unid, &page.timezone, from, to).await
         {
-            Ok(busy) => slots.retain(|slot| {
-                let end = slot.start + Duration::minutes(i64::from(slot.minutes));
-                !busy
-                    .iter()
-                    .any(|(busy_start, busy_end)| slot.start < *busy_end && end > *busy_start)
-            }),
+            Ok(busy) => {
+                // Calendar events arrive with their own fixed buffer; the
+                // host's buffer only adds what that leaves missing.
+                let extra = (buffer - Duration::minutes(google_calendar::EVENT_BUFFER_MINUTES))
+                    .max(Duration::zero());
+                slots.retain(|slot| {
+                    !busy.iter().any(|(busy_start, busy_end)| {
+                        too_close(slot, *busy_start, *busy_end, extra)
+                    })
+                });
+            }
             Err(error) => tracing::error!(%error, "calendar busy times were not loaded"),
         }
     }
     Ok(slots)
+}
+
+/// Whether a call in `slot` would leave less than `buffer` free before or
+/// after something that runs from `busy_start` to `busy_end`.
+fn too_close(
+    slot: &TimeSlot,
+    busy_start: DateTime<Utc>,
+    busy_end: DateTime<Utc>,
+    buffer: Duration,
+) -> bool {
+    let end = slot.start + Duration::minutes(i64::from(slot.minutes));
+    slot.start < busy_end + buffer && end > busy_start - buffer
 }
 
 pub async fn create(
@@ -297,9 +342,10 @@ pub async fn reschedule(
 ) -> AppResult<ManagedBooking> {
     let (booking, page, _) = find_managed(pool, token).await?;
     ensure_can_change(&booking)?;
-    // A paused page offers nothing. The call's own time is taken, by itself.
-    let slot = if page.accepting_bookings {
-        public_slots(pool, &page)
+    // A paused page offers nothing. The call does not close the times next
+    // to it, but its own time is not another time.
+    let slot = if page.accepting_bookings && request.slot_start != booking.slot_start {
+        open_slots(pool, &page, Some(booking.unid))
             .await?
             .into_iter()
             .find(|slot| slot.start == request.slot_start)

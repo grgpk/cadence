@@ -78,6 +78,45 @@ pub struct LoginRequest {
     pub password: String,
 }
 
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/ForgotPasswordRequest.ts"
+)]
+pub struct ForgotPasswordRequest {
+    pub email: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/ResetPasswordRequest.ts"
+)]
+pub struct ResetPasswordRequest {
+    /// The token from the emailed link.
+    pub token: String,
+    pub password: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/UpdateProfileRequest.ts"
+)]
+pub struct UpdateProfileRequest {
+    pub full_name: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/ChangePasswordRequest.ts"
+)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/SessionUser.ts")]
 pub struct SessionUser {

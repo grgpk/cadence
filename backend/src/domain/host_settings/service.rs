@@ -19,6 +19,7 @@ const DESCRIPTION_MAX: usize = 300;
 const MEETING_LINK_MAX: usize = 500;
 const NOTICE_HOURS_MAX: i32 = 168;
 const WINDOW_DAYS_MAX: i32 = 90;
+const BUFFER_MINUTES_MAX: i32 = 120;
 const SLUG_ATTEMPTS: usize = 5;
 const FALLBACK_SLUG: &str = "host";
 /// Hours saved before a host picked a timezone were entered as UTC.
@@ -136,6 +137,11 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
     if !(1..=WINDOW_DAYS_MAX).contains(&settings.booking_window_days) {
         return Err(AppError::BadRequest(
             "booking window must be 1 to 90 days".to_owned(),
+        ));
+    }
+    if !(0..=BUFFER_MINUTES_MAX).contains(&settings.buffer_minutes) {
+        return Err(AppError::BadRequest(
+            "buffer must be 0 to 120 minutes".to_owned(),
         ));
     }
     Ok(())

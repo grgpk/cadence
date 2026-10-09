@@ -1,4 +1,5 @@
-use sqlx::{PgPool, Postgres, Transaction};
+use chrono::{DateTime, Utc};
+use sqlx::{PgConnection, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 use super::models::{Role, UserRecord};
@@ -99,4 +100,83 @@ pub async fn create_host(
     transaction.commit().await?;
 
     assemble(pool, user).await
+}
+
+pub async fn update_full_name(
+    pool: &PgPool,
+    unid: Uuid,
+    full_name: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE users SET full_name = $2, updated_at = now() WHERE unid = $1 RETURNING 1",
+        unid,
+        full_name,
+    )
+    .fetch_one(pool)
+    .await
+    .map(|_| ())
+}
+
+pub async fn set_password(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    password_hash: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE users SET password_hash = $2, updated_at = now() WHERE unid = $1 RETURNING 1",
+        unid,
+        password_hash,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Keeps the SHA-256 of a reset token, never the token.
+pub async fn create_reset(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    token: &str,
+    expires_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO password_resets (token_hash, user_unid, expires_at)
+         VALUES (encode(digest($2::text, 'sha256'), 'hex'), $1, $3) RETURNING 1",
+        user_unid,
+        token,
+        expires_at,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Spends a reset token and returns whose it was. `None` when it is unknown,
+/// expired or already used.
+pub async fn use_reset(
+    connection: &mut PgConnection,
+    token: &str,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE password_resets SET used_at = now()
+         WHERE token_hash = encode(digest($1::text, 'sha256'), 'hex')
+           AND used_at IS NULL AND expires_at > now()
+         RETURNING user_unid",
+        token,
+    )
+    .fetch_optional(connection)
+    .await
+}
+
+pub async fn delete_unused_resets(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM password_resets WHERE user_unid = $1 AND used_at IS NULL RETURNING 1",
+        user_unid,
+    )
+    .fetch_all(connection)
+    .await
+    .map(|_| ())
 }

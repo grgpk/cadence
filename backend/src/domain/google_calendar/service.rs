@@ -11,7 +11,7 @@ use crate::domain::google_calendar::models::{
 };
 
 /// Free time kept on both sides of a calendar event.
-const EVENT_BUFFER_MINUTES: i64 = 15;
+pub const EVENT_BUFFER_MINUTES: i64 = 15;
 /// Google returns event times with their own offsets; the query window is UTC.
 const QUERY_TIMEZONE: &str = "UTC";
 

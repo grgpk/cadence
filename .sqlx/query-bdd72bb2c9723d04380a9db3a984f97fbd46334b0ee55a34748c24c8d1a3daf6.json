@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, email, template, payload FROM email_queue\n         WHERE sent_at IS NULL AND send_at <= now()\n         ORDER BY send_at ASC LIMIT 50",
+  "query": "SELECT id, email, template, payload FROM email_queue\n         WHERE sent_at IS NULL AND send_at <= now() AND attempts < $1\n         ORDER BY send_at ASC LIMIT 50",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,9 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Int4"
+      ]
     },
     "nullable": [
       false,
@@ -58,5 +60,5 @@
       true
     ]
   },
-  "hash": "43cb202df1675375d15bd910579ae53b6cff42201b30614da4180fc141d16edc"
+  "hash": "bdd72bb2c9723d04380a9db3a984f97fbd46334b0ee55a34748c24c8d1a3daf6"
 }

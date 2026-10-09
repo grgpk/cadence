@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, Copy, Search } from "lucide-react";
+import { cn } from "cn";
+import { CalendarDays, CalendarRange, Copy, List, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Booking } from "../../bindings/Booking";
@@ -9,6 +10,7 @@ import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { Agenda } from "../../domains/bookings/Agenda";
+import { WeekView } from "../../domains/bookings/WeekView";
 import { BookingDetailSheet } from "../../domains/bookings/BookingDetailSheet";
 import {
   bookingsQuery,
@@ -16,7 +18,7 @@ import {
   splitBookings,
 } from "../../domains/bookings/bookings";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
-import { hostSettingsQuery } from "../../domains/dashboard/host-api";
+import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/host-api";
 import { EmptyState } from "../../domains/shared/EmptyState";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
@@ -28,7 +30,12 @@ export const Route = createFileRoute("/dashboard/bookings")({
   component: BookingsPage,
 });
 
-const TABS = { UPCOMING: "upcoming", PAST: "past" } as const;
+const TABS = { UPCOMING: "upcoming", PAST: "past", CANCELLED: "cancelled" } as const;
+const VIEWS = [
+  { value: "list", label: "List", icon: List },
+  { value: "week", label: "Week", icon: CalendarRange },
+] as const;
+type View = (typeof VIEWS)[number]["value"];
 
 function BookingList({
   loading,
@@ -68,12 +75,14 @@ function BookingList({
 function BookingsPage() {
   const query = useQuery(bookingsQuery);
   const settings = useQuery(hostSettingsQuery);
+  const availability = useQuery(availabilityQuery);
   const [search, setSearch] = useState("");
+  const [view, setView] = useState<View>("list");
   const [openUnid, setOpenUnid] = useState<string | null>(null);
   const slug = settings.data?.public_slug;
   const timeZone = settings.data?.timezone;
 
-  const { upcoming, past } = useMemo(
+  const { upcoming, past, cancelled } = useMemo(
     () =>
       splitBookings(
         (query.data ?? []).filter((booking) => matchesSearch(booking, search)),
@@ -90,6 +99,25 @@ function BookingsPage() {
       <PageHeader
         title="Bookings"
         description="Calls people booked from your booking page."
+        actions={
+          <div className="flex rounded-md bg-muted p-0.5">
+            {VIEWS.map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={view === value}
+                onClick={() => setView(value)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  view === value && "bg-card text-foreground shadow-xs",
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        }
       />
       {query.isError ? (
         <ErrorState
@@ -97,6 +125,19 @@ function BookingsPage() {
           error={query.error}
           onRetry={() => void query.refetch()}
         />
+      ) : view === "week" ? (
+        loading || availability.isPending ? (
+          <Card className="gap-0 overflow-hidden py-0">
+            <TableSkeleton rows={7} />
+          </Card>
+        ) : (
+          <WeekView
+            bookings={query.data ?? []}
+            rules={availability.data ?? []}
+            timeZone={timeZone ?? "UTC"}
+            onOpen={open}
+          />
+        )
       ) : (
         <Tabs defaultValue={TABS.UPCOMING}>
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -114,6 +155,14 @@ function BookingsPage() {
                 {loading ? null : (
                   <span className="text-muted-foreground tabular-nums">
                     {past.length}
+                  </span>
+                )}
+              </TabsTrigger>
+              <TabsTrigger value={TABS.CANCELLED}>
+                Cancelled
+                {loading ? null : (
+                  <span className="text-muted-foreground tabular-nums">
+                    {cancelled.length}
                   </span>
                 )}
               </TabsTrigger>
@@ -168,7 +217,23 @@ function BookingsPage() {
                 <EmptyState
                   icon={CalendarDays}
                   title="No past calls"
-                  description="Calls move here once they have started, and cancelled calls are kept here too."
+                  description="Calls move here once they have started."
+                />
+              }
+            />
+          </TabsContent>
+          <TabsContent value={TABS.CANCELLED}>
+            <BookingList
+              loading={loading}
+              bookings={cancelled}
+              timeZone={timeZone}
+              search={search}
+              onOpen={open}
+              empty={
+                <EmptyState
+                  icon={CalendarDays}
+                  title="No cancelled calls"
+                  description="A call you or the person who booked it cancels is kept here."
                 />
               }
             />

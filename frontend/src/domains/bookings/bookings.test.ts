@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Booking } from "../../bindings/Booking";
-import { agendaDays, matchesSearch, splitBookings } from "./bookings";
+import { agendaDays, matchesSearch, splitBookings, weekDays } from "./bookings";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
 
@@ -37,10 +37,11 @@ describe("splitBookings", () => {
     expect(ids(splitBookings(all, NOW).upcoming)).toEqual(["soon", "later"]);
   });
 
-  it("keeps a cancelled call out of what is coming", () => {
-    const { upcoming, past } = splitBookings(all, NOW);
+  it("keeps a cancelled call in its own list, whatever its time", () => {
+    const { upcoming, past, cancelled } = splitBookings(all, NOW);
     expect(ids(upcoming)).not.toContain("called-off");
-    expect(ids(past)).toEqual(["called-off", "yesterday", "old"]);
+    expect(ids(past)).toEqual(["yesterday", "old"]);
+    expect(ids(cancelled)).toEqual(["called-off"]);
   });
 
   it("counts a call that starts now as coming", () => {
@@ -83,5 +84,25 @@ describe("matchesSearch", () => {
   it("keeps everything when nothing is typed and drops what does not match", () => {
     expect(matchesSearch(ana, "  ")).toBe(true);
     expect(matchesSearch(ana, "leo")).toBe(false);
+  });
+});
+
+describe("weekDays", () => {
+  // NOW is Wednesday 14 October 2026.
+  it("gives the week around today, Monday first", () => {
+    const days = weekDays(NOW, "UTC", 0);
+    expect(days.map((day) => day.day)).toEqual([12, 13, 14, 15, 16, 17, 18]);
+  });
+
+  it("moves by whole weeks and crosses into the next month", () => {
+    expect(weekDays(NOW, "UTC", -1)[0]).toEqual({ year: 2026, month: 10, day: 5 });
+    expect(weekDays(NOW, "UTC", 3).at(-1)).toEqual({ year: 2026, month: 11, day: 8 });
+  });
+
+  it("starts from the day it is in the given timezone", () => {
+    // Sunday 23:30 UTC is already Monday in Tokyo.
+    const sundayNight = Date.parse("2026-10-18T23:30:00Z");
+    expect(weekDays(sundayNight, "UTC", 0)[0]?.day).toBe(12);
+    expect(weekDays(sundayNight, "Asia/Tokyo", 0)[0]?.day).toBe(19);
   });
 });

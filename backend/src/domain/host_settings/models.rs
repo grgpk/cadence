@@ -26,6 +26,8 @@ pub struct HostSettings {
     pub minimum_notice_hours: i32,
     /// How many days ahead a visitor can book.
     pub booking_window_days: i32,
+    /// Free time kept before and after every booked call.
+    pub buffer_minutes: i32,
     /// `false` pauses the page: it can still be read, but not booked.
     pub is_active: bool,
 }
@@ -65,6 +67,10 @@ pub struct BookingPage {
     #[ts(skip)]
     pub minimum_notice_hours: i32,
     pub booking_window_days: i32,
+    /// Slots are already cut to the buffer, so the page does not need it.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub buffer_minutes: i32,
     /// `false` while the host has paused the page.
     pub accepting_bookings: bool,
 }
