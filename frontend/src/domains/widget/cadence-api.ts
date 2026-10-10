@@ -91,7 +91,7 @@ export function bookingPageQuery(slug: string) {
   });
 }
 
-/** Every time the host can still be booked in the coming week. */
+/** Every time the host can still be booked inside their booking window. */
 export function publicSlotsQuery(slug: string) {
   return queryOptions({
     queryKey: QUERY_KEYS.publicSlots(slug),

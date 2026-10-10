@@ -9,7 +9,6 @@ use serde_json::{Value, json};
 use time::Duration;
 
 use super::{
-    db,
     middleware::AuthUser,
     models::{
         ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, RegisterRequest,
@@ -18,11 +17,26 @@ use super::{
     service,
 };
 use crate::{
-    app_state::AppState,
-    domain::rate_limits::service as rate_limits,
-    error::{AppError, AppResult},
-    tracking::client_address,
+    app_state::AppState, domain::rate_limits::service as rate_limits, error::AppResult,
+    tracking::client_address, validation::normalize_email,
 };
+
+const SESSION_COOKIE: &str = "session";
+/// The only `APP_ENV` served over plain HTTP.
+const LOCAL_ENV: &str = "local";
+
+/// The session cookie is `Secure` everywhere except local development, so a
+/// deployment that forgets `APP_ENV` still gets the safe setting.
+fn session_cookie(token: String) -> Cookie<'static> {
+    let secure = !std::env::var("APP_ENV").is_ok_and(|value| value == LOCAL_ENV);
+    Cookie::build((SESSION_COOKIE, token))
+        .http_only(true)
+        .secure(secure)
+        .same_site(SameSite::Lax)
+        .path("/")
+        .max_age(Duration::days(30))
+        .build()
+}
 
 pub async fn register(
     State(state): State<AppState>,
@@ -35,13 +49,7 @@ pub async fn register(
         &client_address(&headers),
     )
     .await?;
-    service::validate_credentials(&body.email, &body.password, Some(&body.full_name))?;
-    let email = body.email.trim().to_lowercase();
-    if db::find_by_email(&state.pool, &email).await?.is_some() {
-        return Err(AppError::Conflict("email already registered".to_owned()));
-    }
-    let password_hash = service::hash_password(&body.password)?;
-    let user = db::create_host(&state.pool, &email, &password_hash, body.full_name.trim()).await?;
+    let user = service::register(&state.pool, &body.email, &body.password, &body.full_name).await?;
     Ok((StatusCode::CREATED, Json(SessionUser::from(&user))))
 }
 
@@ -51,35 +59,27 @@ pub async fn login(
     jar: CookieJar,
     Json(body): Json<LoginRequest>,
 ) -> AppResult<(CookieJar, Json<SessionUser>)> {
-    let email = body.email.trim().to_lowercase();
+    let email = normalize_email(&body.email);
+    let address = client_address(&headers);
+    rate_limits::check(&state.pool, &rate_limits::LOGIN_PER_ADDRESS, &address).await?;
+    // The address comes first: subjects are cut to a fixed length, and a
+    // long email must not push the address out of the key.
     rate_limits::check(
         &state.pool,
-        &rate_limits::LOGIN_PER_ADDRESS,
-        &client_address(&headers),
+        &rate_limits::LOGIN_PER_EMAIL_AND_ADDRESS,
+        &format!("{address}|{email}"),
     )
     .await?;
-    rate_limits::check(&state.pool, &rate_limits::LOGIN_PER_EMAIL, &email).await?;
-    service::validate_credentials(&body.email, &body.password, None)?;
-    let user = db::find_by_email(&state.pool, &email)
-        .await?
-        .ok_or(AppError::Unauthorized)?;
-    if !service::verify_password(&body.password, &user.password_hash) {
-        return Err(AppError::Unauthorized);
-    }
-    let token = service::make_token(user.unid)?;
-    let secure = std::env::var("APP_ENV").is_ok_and(|value| value == "production");
-    let cookie = Cookie::build(("session", token))
-        .http_only(true)
-        .secure(secure)
-        .same_site(SameSite::Lax)
-        .path("/")
-        .max_age(Duration::days(30))
-        .build();
-    Ok((jar.add(cookie), Json(SessionUser::from(&user))))
+    let user = service::authenticate(&state.pool, &email, &body.password).await?;
+    let token = service::make_token(user.unid, user.session_version)?;
+    Ok((
+        jar.add(session_cookie(token)),
+        Json(SessionUser::from(&user)),
+    ))
 }
 
 pub async fn logout(jar: CookieJar) -> impl IntoResponse {
-    let cookie = Cookie::build(("session", ""))
+    let cookie = Cookie::build((SESSION_COOKIE, ""))
         .http_only(true)
         .path("/")
         .max_age(Duration::seconds(0))
@@ -97,7 +97,7 @@ pub async fn forgot_password(
     headers: HeaderMap,
     Json(body): Json<ForgotPasswordRequest>,
 ) -> AppResult<Json<Value>> {
-    let email = body.email.trim().to_lowercase();
+    let email = normalize_email(&body.email);
     rate_limits::check(
         &state.pool,
         &rate_limits::FORGOT_PASSWORD_PER_ADDRESS,
@@ -111,8 +111,15 @@ pub async fn forgot_password(
 
 pub async fn reset_password(
     State(state): State<AppState>,
+    headers: HeaderMap,
     Json(body): Json<ResetPasswordRequest>,
 ) -> AppResult<Json<Value>> {
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::RESET_PASSWORD_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await?;
     service::reset_password(&state.pool, &body.token, &body.password).await?;
     Ok(Json(json!({"ok": true})))
 }
@@ -126,17 +133,20 @@ pub async fn update_me(
     Ok(Json(SessionUser::from(&user)))
 }
 
+/// Every other session of the account is signed out. This one gets a new
+/// cookie and stays in.
 pub async fn change_password(
     State(state): State<AppState>,
     user: AuthUser,
+    jar: CookieJar,
     Json(body): Json<ChangePasswordRequest>,
-) -> AppResult<Json<Value>> {
-    service::change_password(
+) -> AppResult<(CookieJar, Json<Value>)> {
+    let token = service::change_password(
         &state.pool,
         &user.user,
         &body.current_password,
         &body.new_password,
     )
     .await?;
-    Ok(Json(json!({"ok": true})))
+    Ok((jar.add(session_cookie(token)), Json(json!({"ok": true}))))
 }

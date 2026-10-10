@@ -23,8 +23,8 @@ admin ────▶ /admin ─────▶ leads, bookings, visits, roles, 
 - `frontend/`: TanStack Start/Vite, TanStack Router, TanStack Query,
   shadcn, Radix, Tailwind v4, Lucide, Biome, and Knip.
 - `migrations/`: shared SQLx migrations. One schema concern per file,
-  `0001_XXXX.sql` names, development seed reserved as
-  `9999____seed_data.sql`.
+  `0001_XXXX.sql` names. The development seed is `seeds/dev_seed.sql`,
+  applied by `reset_db.sh` or `scripts/seed-dev.sh` and never by the server.
 - `request.http`: API smoke requests. Root `pnpm run dev` starts backend and
   frontend together.
 
@@ -75,7 +75,8 @@ cadence/
       domains/widget/          public booking card
       routes/admin/            protected /admin pages
       routes/dashboard/        protected /dashboard pages
-  migrations/                  SQLx schema and development seed
+  migrations/                  SQLx schema
+  seeds/                       development seed, local databases only
   docs/                        living plan files
 ```
 
@@ -99,6 +100,7 @@ cadence/
 | 13 | `PLAN_13_DAY_IN_APP.md` | day tape in the dashboard and sign-in, type scale, add to calendar, booking rules, booking details, cancel | 🔄 in progress |
 | 14 | `PLAN_14_INVITEE_CONTROL.md` | invitee reschedule and cancel link, host emails, HTML emails, availability week view, bookings agenda, paused page | 🔄 in progress |
 | 15 | `PLAN_15_ACCOUNT_SAFETY.md` | password reset and account, rate limits, gap between calls, bookings week view, admin on phones, link previews | 🔄 in progress |
+| 16 | `PLAN_16_HARDENING.md` | seed out of production, stored call length and overlap lock, session versions, email worker claiming, Google timeouts, frontend bug and accessibility fixes | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

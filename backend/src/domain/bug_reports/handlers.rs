@@ -9,12 +9,23 @@ use crate::domain::bug_reports::models::{
     AddBugReportRequest, AddBugReportResponse, AdminBugReport,
 };
 use crate::domain::bug_reports::service::{BugReportsService, NewBugReport};
+use crate::domain::rate_limits::service as rate_limits;
+use crate::tracking::client_address;
 
 pub async fn add_bug_report(
     State(app_state): State<AppState>,
     headers: HeaderMap,
     Json(payload): Json<AddBugReportRequest>,
 ) -> impl IntoResponse {
+    if let Err(error) = rate_limits::check(
+        &app_state.pool,
+        &rate_limits::BUG_REPORT_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await
+    {
+        return error.into_response();
+    }
     let user_login = payload.user_login;
     let report = NewBugReport {
         bug_type: payload.bug_type,

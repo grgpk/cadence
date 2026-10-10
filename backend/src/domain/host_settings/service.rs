@@ -119,7 +119,7 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
             "description must be at most 300 characters".to_owned(),
         ));
     }
-    if timezones::get_by_name(&settings.timezone).is_none() {
+    if !is_known_timezone(&settings.timezone) {
         return Err(AppError::BadRequest("timezone is invalid".to_owned()));
     }
     if let Some(link) = &settings.meeting_link
@@ -145,6 +145,11 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+/// Whether `name` is an IANA timezone this server can compute with.
+pub fn is_known_timezone(name: &str) -> bool {
+    timezones::get_by_name(name).is_some()
 }
 
 fn is_valid_meeting_link(link: &str) -> bool {
@@ -208,6 +213,7 @@ mod tests {
             password_hash: String::new(),
             full_name: full_name.to_owned(),
             status: String::new(),
+            session_version: 0,
             roles: Vec::new(),
         }
     }

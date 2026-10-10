@@ -8,6 +8,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "../../../components/ui/sheet";
+import { NAME_LINK } from "../../shared/link-styles";
 
 type DetailField = { label: string; value: ReactNode };
 
@@ -27,9 +28,7 @@ export function DetailSheet({
 }) {
   return (
     <Sheet>
-      <SheetTrigger className="max-w-full truncate rounded-sm text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        {trigger}
-      </SheetTrigger>
+      <SheetTrigger className={NAME_LINK}>{trigger}</SheetTrigger>
       <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
         <SheetHeader className="border-b">
           <SheetTitle className="pr-8 break-words">{title}</SheetTitle>

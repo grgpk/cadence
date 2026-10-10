@@ -27,7 +27,8 @@
   --input: oklch(0.87 0.015 268);
   --ring: oklch(0.48 0.21 280);
   /* The "now" playhead and the logo's middle beat. Nothing else. */
-  --signal: oklch(0.628 0.245 27);
+  /* Dark enough for white text on the "now" pill. */
+  --signal: oklch(0.58 0.24 27);
   --signal-foreground: oklch(1 0 0);
   /* The day: morning, afternoon, evening. Dusk also marks what is selected. */
   --dawn: oklch(0.87 0.085 55);
@@ -68,10 +69,10 @@
   --input: oklch(1 0 0 / 16%);
   --ring: oklch(0.7 0.16 282);
   --signal: oklch(0.68 0.22 27);
-  --signal-foreground: oklch(1 0 0);
+  --signal-foreground: oklch(0.225 0.045 272);
   --dawn: oklch(0.84 0.09 55);
   --noon: oklch(0.82 0.15 80);
-  --dusk: oklch(0.6 0.2 282);
+  --dusk: oklch(0.55 0.2 282);
   --day-foreground: oklch(0.225 0.045 272);
   --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.75 0.15 152);
@@ -216,10 +217,6 @@
 /* Archivo's width axis: wide for headlines, narrow for clock times. */
 @utility font-wide {
   font-stretch: 112%;
-}
-
-@utility font-narrow {
-  font-stretch: 82%;
 }
 
 /* A time as a clock shows it: the display face, narrow, digits in fixed columns. */

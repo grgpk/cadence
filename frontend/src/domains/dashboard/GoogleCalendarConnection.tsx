@@ -67,7 +67,8 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
               Connected
             </span>
             <span className="text-sm text-muted-foreground tabular-nums">
-              {events.data.length} events in the next 7 days
+              {events.data.length} {events.data.length === 1 ? "event" : "events"} in the
+              next 7 days
             </span>
             {disconnectButton}
           </>

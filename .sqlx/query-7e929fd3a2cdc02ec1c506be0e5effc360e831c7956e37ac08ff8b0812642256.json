@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE email_queue SET sent_at = now(), last_error = NULL WHERE id = $1 RETURNING 1",
+  "query": "DELETE FROM email_queue WHERE sent_at < now() - interval '90 days' RETURNING 1",
   "describe": {
     "columns": [
       {
@@ -11,13 +11,11 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       null
     ]
   },
-  "hash": "cc85973a55d51df1e2c1f4cdee1183dfef10677d561e60bd1337ecbde90b4af6"
+  "hash": "7e929fd3a2cdc02ec1c506be0e5effc360e831c7956e37ac08ff8b0812642256"
 }

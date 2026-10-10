@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_queue SET send_at = now() - interval '1 minute'\n         WHERE booking_unid = $1 AND sent_at IS NULL RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "dbf7ca03b8bf6b00b530981305c85bd011db4f32cc77acf4371595fd067b5ac6"
+}

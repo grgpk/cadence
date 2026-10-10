@@ -1,5 +1,7 @@
 //! Mirrors `app_crates/domain_google/src/api/google_calendar_client.rs`.
 
+use std::{sync::LazyLock, time::Duration};
+
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -22,6 +24,25 @@ pub enum GoogleCalendarError {
     Other(String),
 }
 
+/// How long Google gets to answer before a request is given up.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// A calendar with more pages than this in one booking window is not read to the end.
+const EVENT_PAGES_MAX: usize = 20;
+
+/// The one HTTP client every Google request shares, so none of them can hang
+/// a booking and connections are reused.
+pub fn http_client() -> reqwest::Client {
+    static CLIENT: LazyLock<reqwest::Client> = LazyLock::new(|| {
+        reqwest::Client::builder()
+            .timeout(REQUEST_TIMEOUT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .build()
+            .unwrap_or_default()
+    });
+    CLIENT.clone()
+}
+
 pub struct GoogleCalendarClient {
     client: reqwest::Client,
     access_token: String,
@@ -37,7 +58,7 @@ impl GoogleCalendarClient {
         let calendar_id =
             std::env::var("GOOGLE_CALENDAR_ID").unwrap_or_else(|_| "primary".to_owned());
         Self {
-            client: reqwest::Client::new(),
+            client: http_client(),
             access_token,
             calendar_id,
         }
@@ -99,31 +120,44 @@ impl GoogleCalendarClient {
         self.fetch_events(&url).await
     }
 
+    /// Reads every page of an event list.
     async fn fetch_events(&self, url: &str) -> Result<Vec<CalendarEvent>, GoogleCalendarError> {
-        let response = self
-            .client
-            .get(url)
-            .header("Authorization", format!("Bearer {}", self.access_token))
-            .send()
-            .await?;
+        let mut events = Vec::new();
+        let mut page_token: Option<String> = None;
+        for _ in 0..EVENT_PAGES_MAX {
+            let page_url = match &page_token {
+                Some(token) => format!("{url}&pageToken={}", urlencoding::encode(token)),
+                None => url.to_owned(),
+            };
+            let response = self
+                .client
+                .get(&page_url)
+                .header("Authorization", format!("Bearer {}", self.access_token))
+                .send()
+                .await?;
 
-        match response.status() {
-            reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
-            reqwest::StatusCode::BAD_REQUEST => {
-                let body = response.text().await.unwrap_or_default();
-                tracing::error!("Calendar API bad request: {}", body);
-                Err(GoogleCalendarError::BadRequest(body))
-            }
-            status if !status.is_success() => {
-                let body = response.text().await.unwrap_or_default();
-                tracing::error!("Calendar API error {}: {}", status, body);
-                Err(GoogleCalendarError::Other(format!("API error: {status}")))
-            }
-            _ => {
-                let data: CalendarEventsResponse = response.json().await?;
-                Ok(data.items.unwrap_or_default())
+            let data: CalendarEventsResponse = match response.status() {
+                reqwest::StatusCode::UNAUTHORIZED => return Err(GoogleCalendarError::Unauthorized),
+                reqwest::StatusCode::BAD_REQUEST => {
+                    let body = response.text().await.unwrap_or_default();
+                    tracing::error!("Calendar API bad request: {}", body);
+                    return Err(GoogleCalendarError::BadRequest(body));
+                }
+                status if !status.is_success() => {
+                    let body = response.text().await.unwrap_or_default();
+                    tracing::error!("Calendar API error {}: {}", status, body);
+                    return Err(GoogleCalendarError::Other(format!("API error: {status}")));
+                }
+                _ => response.json().await?,
+            };
+            events.extend(data.items.unwrap_or_default());
+            page_token = data.next_page_token;
+            if page_token.is_none() {
+                return Ok(events);
             }
         }
+        tracing::warn!("calendar has more events than are read for one window");
+        Ok(events)
     }
 
     /// Create an event with Google Meet
@@ -192,8 +226,6 @@ impl GoogleCalendarClient {
                             .find(|ep| ep.entry_point_type.as_deref() == Some("video"))
                     })
                     .and_then(|ep| ep.uri);
-
-                tracing::info!("Created event {} with Meet: {:?}", created.id, meet_link);
 
                 Ok(BookingResult {
                     event_id: created.id,
@@ -272,93 +304,6 @@ impl GoogleCalendarClient {
                 )))
             }
             _ => Ok(()),
-        }
-    }
-
-    /// Create a numbered coaching-series event ("N. {name} <> Max") with Google Meet.
-    /// Deferred call site (`book_mentorship_series`) — kept here so the port stays complete
-    /// and callable, per `PLAN_SWITCH_BACKEND.md`.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create_mentorship_session_event(
-        &self,
-        date: &str,
-        time: &str,
-        duration_minutes: i64,
-        timezone: &str,
-        summary: &str,
-        description: &str,
-        attendee_email: &str,
-        attendee_name: &str,
-        send_updates: bool,
-    ) -> Result<BookingResult, GoogleCalendarError> {
-        let start_datetime = format!("{date}T{time}:00");
-        let end_datetime = calculate_end_time(time, duration_minutes, date);
-
-        let event_body = serde_json::json!({
-            "summary": summary,
-            "description": description,
-            "start": { "dateTime": start_datetime, "timeZone": timezone },
-            "end": { "dateTime": end_datetime, "timeZone": timezone },
-            "attendees": [
-                { "email": attendee_email, "displayName": attendee_name }
-            ],
-            "conferenceData": {
-                "createRequest": {
-                    "requestId": uuid::Uuid::new_v4().to_string(),
-                    "conferenceSolutionKey": { "type": "hangoutsMeet" }
-                }
-            }
-        });
-
-        let send_updates_value = if send_updates { "all" } else { "none" };
-        let url = format!(
-            "{}/calendars/{}/events?conferenceDataVersion=1&sendUpdates={}",
-            Self::BASE_URL,
-            urlencoding::encode(&self.calendar_id),
-            send_updates_value
-        );
-
-        let response = self
-            .client
-            .post(&url)
-            .header("Authorization", format!("Bearer {}", self.access_token))
-            .header("Content-Type", "application/json")
-            .body(event_body.to_string())
-            .send()
-            .await?;
-
-        match response.status() {
-            reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
-            status if !status.is_success() => {
-                let body = response.text().await.unwrap_or_default();
-                tracing::error!("Create coaching session event failed: {}", body);
-                Err(GoogleCalendarError::Other(format!(
-                    "Create event failed: {status}"
-                )))
-            }
-            _ => {
-                let created: CreatedEventResponse = response.json().await?;
-                let meet_link = created
-                    .conference_data
-                    .and_then(|cd| cd.entry_points)
-                    .and_then(|eps| {
-                        eps.into_iter()
-                            .find(|ep| ep.entry_point_type.as_deref() == Some("video"))
-                    })
-                    .and_then(|ep| ep.uri);
-
-                tracing::info!(
-                    "Created coaching session event {} with Meet: {:?}",
-                    created.id,
-                    meet_link
-                );
-
-                Ok(BookingResult {
-                    event_id: created.id,
-                    meet_link,
-                    html_link: created.html_link,
-                })
-            }
         }
     }
 }

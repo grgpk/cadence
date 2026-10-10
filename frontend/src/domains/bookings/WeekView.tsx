@@ -10,14 +10,20 @@ import { clockMinutes, formatTime, weekdayName } from "../../lib/format";
 import { weekHours } from "../dashboard/week-hours";
 import { placeOnWeek, WeekRuler } from "../dashboard/WeekGrid";
 import { OPEN_STYLES } from "../landing/DayTape";
+import { useNow } from "../../lib/use-now";
 import { phaseSpans, zonedTime } from "../widget/zoned-time";
-import { isCancelled, weekDays, type WeekDay } from "./bookings";
+import {
+  dayCall,
+  firstName,
+  isCancelled,
+  sameDay,
+  weekDays,
+  type WeekDay,
+} from "./bookings";
 
 const HOUR = 60;
-/** A booking does not carry its length; used when no rule covers its start. */
-const DEFAULT_CALL_MINUTES = 30;
 /** Day name and the week's ruler: the same two columns in every row. */
-const ROW = "grid gap-x-3 gap-y-1.5 px-5 sm:grid-cols-[5.5rem_minmax(0,1fr)]";
+const ROW = "grid gap-x-3 gap-y-1.5 px-5 sm:grid-cols-[7.5rem_minmax(0,1fr)]";
 
 const MONTH = new Intl.DateTimeFormat("en", { month: "long", timeZone: "UTC" });
 
@@ -51,30 +57,16 @@ export function WeekView({
   onOpen: (booking: Booking) => void;
 }) {
   const [offset, setOffset] = useState(0);
-  const now = Date.now();
+  // Each minute, so the line at "now" and what counts as past keep up.
+  const now = useNow()?.getTime() ?? Date.now();
   const today = zonedTime(new Date(now), timeZone);
   const days = weekDays(now, timeZone, offset);
 
   const calls = bookings
     .filter((booking) => !isCancelled(booking))
     .map((booking) => {
-      const at = zonedTime(new Date(booking.slot_start), timeZone);
-      const from = at.hour * HOUR + at.minute;
-      const weekday = days.findIndex(
-        (day) => day.year === at.year && day.month === at.month && day.day === at.day,
-      );
-      const rule = rules.find(
-        (hours) =>
-          hours.weekday === weekday &&
-          from >= clockMinutes(hours.start_time) &&
-          from < clockMinutes(hours.end_time),
-      );
-      return {
-        booking,
-        weekday,
-        from,
-        to: from + (rule?.slot_minutes ?? DEFAULT_CALL_MINUTES),
-      };
+      const call = dayCall(booking, timeZone);
+      return { ...call, weekday: days.findIndex((day) => sameDay(day, call.day)) };
     })
     .filter((call) => call.weekday >= 0);
 
@@ -119,8 +111,7 @@ export function WeekView({
       <WeekRuler week={week} row={ROW} />
       <ul className="divide-y">
         {days.map((day, weekday) => {
-          const isToday =
-            day.year === today.year && day.month === today.month && day.day === today.day;
+          const isToday = sameDay(day, today);
           const dayCalls = calls.filter((call) => call.weekday === weekday);
           return (
             <li key={day.day} className={cn(ROW, "py-2.5 sm:items-center")}>
@@ -132,6 +123,11 @@ export function WeekView({
               >
                 {weekdayName(weekday).slice(0, 3)}{" "}
                 <span className="text-clock text-[0.9375rem]">{day.day}</span>
+                {isToday ? (
+                  <span className="ml-1.5 rounded-full bg-signal px-1.5 py-px text-xs font-semibold text-signal-foreground">
+                    today
+                  </span>
+                ) : null}
               </p>
               <div className="relative h-10 rounded-md bg-muted/70">
                 {rules
@@ -161,13 +157,14 @@ export function WeekView({
                     aria-label={`${booking.invitee_name}, ${formatTime(booking.slot_start, timeZone)}`}
                     title={`${booking.invitee_name}, ${formatTime(booking.slot_start, timeZone)}`}
                     className={cn(
-                      "absolute inset-y-0 flex min-w-1.5 items-center overflow-hidden rounded-md bg-primary px-1.5 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/85 focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                      new Date(booking.slot_start).getTime() < now && "opacity-45",
+                      "absolute inset-y-0 flex min-w-1.5 items-center overflow-hidden rounded-md px-1.5 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                      // A call that is over is an outline; one to come is solid ink.
+                      new Date(booking.slot_start).getTime() < now
+                        ? "border border-foreground/40 bg-card text-muted-foreground hover:bg-muted"
+                        : "bg-primary text-primary-foreground hover:bg-primary/85",
                     )}
                   >
-                    <span className="truncate">
-                      {booking.invitee_name.trim().split(/\s+/)[0]}
-                    </span>
+                    <span className="truncate">{firstName(booking.invitee_name)}</span>
                   </button>
                 ))}
                 {isToday &&
@@ -180,6 +177,25 @@ export function WeekView({
                   />
                 ) : null}
               </div>
+              {/* On a phone the blocks are too narrow to read, so the calls are also listed. */}
+              {dayCalls.length === 0 ? null : (
+                <ul className="flex flex-wrap gap-1.5 sm:hidden">
+                  {dayCalls.map(({ booking }) => (
+                    <li key={booking.unid}>
+                      <button
+                        type="button"
+                        onClick={() => onOpen(booking)}
+                        className="rounded-md border bg-card px-2 py-1 text-sm outline-none hover:border-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      >
+                        <span className="text-clock text-[0.9375rem] font-medium">
+                          {formatTime(booking.slot_start, timeZone)}
+                        </span>{" "}
+                        {booking.invitee_name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}

@@ -15,22 +15,12 @@ struct OkResponse {
     ok: bool,
 }
 
-#[derive(Debug, Serialize)]
-pub struct GoogleOAuthConfigResponse {
-    client_id: String,
-    redirect_uri: String,
-}
-
-pub async fn get_oauth_config(_user: AuthUser) -> impl IntoResponse {
-    match service::google_oauth_config() {
-        Ok((client_id, redirect_uri)) => (
-            StatusCode::OK,
-            Json(GoogleOAuthConfigResponse {
-                client_id,
-                redirect_uri,
-            }),
-        )
-            .into_response(),
+pub async fn get_oauth_config(
+    State(state): State<AppState>,
+    AuthUser { user }: AuthUser,
+) -> impl IntoResponse {
+    match service::start_oauth(&state.pool, user.unid).await {
+        Ok(config) => (StatusCode::OK, Json(config)).into_response(),
         Err(error) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({ "error": error.to_string() })),
@@ -44,7 +34,9 @@ pub async fn google_calendar_login(
     AuthUser { user }: AuthUser,
     Json(payload): Json<GoogleCalendarLoginRequest>,
 ) -> impl IntoResponse {
-    match service::google_calendar_login(&state.pool, user.unid, &payload.code).await {
+    match service::google_calendar_login(&state.pool, user.unid, &payload.code, &payload.state)
+        .await
+    {
         Ok(()) => (StatusCode::OK, Json(OkResponse { ok: true })).into_response(),
         Err(error) => (
             StatusCode::BAD_REQUEST,

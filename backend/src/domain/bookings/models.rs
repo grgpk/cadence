@@ -48,6 +48,8 @@ pub struct Booking {
     pub host_unid: Uuid,
     pub lead_unid: Option<Uuid>,
     pub slot_start: DateTime<Utc>,
+    /// How long the call runs. Kept from the day it was booked.
+    pub minutes: i32,
     pub timezone: String,
     pub invitee_name: String,
     pub invitee_email: String,

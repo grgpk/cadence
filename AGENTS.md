@@ -6,7 +6,8 @@
 - Never edit generated `frontend/src/bindings/` files by hand. Change Rust,
   run the export test, then commit the generated TypeScript.
 - Keep migration filenames numeric and descriptive: `0001_XXXX.sql`. The
-  development seed is the reserved exception `9999____seed_data.sql`.
+  development seed is not a migration: it lives in `seeds/dev_seed.sql` and is
+  applied by `reset_db.sh` or `scripts/seed-dev.sh`, never in production.
 
 ## Before writing code
 

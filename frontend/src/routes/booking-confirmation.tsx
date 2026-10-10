@@ -7,7 +7,7 @@ import { BookedStrip } from "../domains/bookings/BookedStrip";
 import { callEnd, clockLabel } from "../domains/widget/zoned-time";
 import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
-import { zoneName } from "../lib/format";
+import { formatLongDay, zoneName } from "../lib/format";
 import { ROUTES } from "../lib/routes";
 import { searchInstant, searchMinutes, searchText, searchTimezone } from "../lib/search";
 
@@ -65,13 +65,7 @@ function BookingConfirmationPage() {
   }
 
   const startsAt = new Date(start);
-  const day = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: tz,
-  }).format(startsAt);
+  const day = formatLongDay(startsAt, tz);
   const timeRange = `${clockLabel(startsAt, tz, h12)} to ${clockLabel(callEnd(start, minutes), tz, h12)}`;
   const event: CalendarEvent = {
     title: host ? `Call with ${host}` : `${APP_NAME} call`,
@@ -98,6 +92,7 @@ function BookingConfirmationPage() {
             start={startsAt}
             minutes={minutes}
             timeZone={tz}
+            hour12={h12}
             label={timeRange}
           />
         </div>
@@ -106,7 +101,7 @@ function BookingConfirmationPage() {
           {host ? (
             <div className="flex justify-between gap-4 px-4 py-3">
               <dt className="text-muted-foreground">With</dt>
-              <dd className="text-right font-medium">{host}</dd>
+              <dd className="min-w-0 text-right font-medium break-words">{host}</dd>
             </div>
           ) : null}
           <div className="flex justify-between gap-4 px-4 py-3">
@@ -130,7 +125,7 @@ function BookingConfirmationPage() {
             <Button asChild>
               <a href={meet} target="_blank" rel="noreferrer">
                 <Video />
-                Open Google Meet
+                Join call
               </a>
             </Button>
           ) : null}

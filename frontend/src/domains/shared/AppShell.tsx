@@ -23,6 +23,7 @@ import { hasAdminAccess } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 import { LogoMark } from "./Logo";
+import { SEGMENT, SEGMENT_ON, SEGMENT_TRACK } from "./SegmentedControl";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserMenu } from "./UserMenu";
 
@@ -48,13 +49,13 @@ const CONTENT_ID = "content";
 
 function AreaSwitch({ current }: { current: Area }) {
   return (
-    <div className="flex shrink-0 rounded-md bg-muted p-0.5">
+    <div className={SEGMENT_TRACK}>
       {AREAS.map((area) => (
         <Link
           key={area.to}
           to={area.to}
           aria-current={area.title === current ? "true" : undefined}
-          className="rounded-sm px-2.5 py-1 font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current]:bg-card aria-[current]:text-foreground aria-[current]:shadow-xs"
+          className={cn(SEGMENT, "px-2.5 py-1", area.title === current && SEGMENT_ON)}
         >
           {area.title}
         </Link>

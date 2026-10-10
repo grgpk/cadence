@@ -4,16 +4,12 @@ import type { CSSProperties } from "react";
 
 import { Button } from "../../components/ui/button";
 import { calendarWeeks, monthLabel } from "./calendar-grid";
+import { formatLongDay } from "../../lib/format";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 function dayLabel(year: number, month: number, day: number): string {
-  return new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
+  return formatLongDay(new Date(Date.UTC(year, month - 1, day)), "UTC", false);
 }
 
 export function BookingCalendar({

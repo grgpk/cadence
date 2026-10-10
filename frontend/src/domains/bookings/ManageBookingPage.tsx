@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { CalendarX, Loader2, Video } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { ManagedBooking } from "../../bindings/ManagedBooking";
@@ -10,7 +10,7 @@ import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { ApiError } from "../../lib/api";
 import { errorMessage } from "../../lib/error-message";
-import { formatDay, prefersHour12, zoneName } from "../../lib/format";
+import { formatDay, formatLongDay, prefersHour12, zoneName } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 import { ConfirmDialog } from "../shared/ConfirmDialog";
@@ -26,8 +26,6 @@ import { callEnd, clockLabel, zonedTime } from "../widget/zoned-time";
 import { BookedStrip } from "./BookedStrip";
 import { isCancelled } from "./bookings";
 
-const NOT_FOUND = 404;
-
 function headline(booking: ManagedBooking): string {
   if (isCancelled(booking)) return "This call is cancelled";
   return booking.can_change
@@ -35,7 +33,7 @@ function headline(booking: ManagedBooking): string {
     : `Your call with ${booking.host_name} has started`;
 }
 
-/** The calendar and times for moving a call, and the question before it moves. */
+/** The calendar and times for rescheduling a call, and the question before it moves. */
 function Reschedule({
   token,
   booking,
@@ -64,7 +62,7 @@ function Reschedule({
       await queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.publicSlots(booking.slug),
       });
-      toast.success("Call moved");
+      toast.success("Call rescheduled");
       onDone();
     },
     onError: async (error) => {
@@ -76,7 +74,7 @@ function Reschedule({
       toast.error(
         error instanceof ApiError && error.isConflict
           ? "That time was just taken. Pick another one."
-          : `The call was not moved. ${errorMessage(error)}`,
+          : `The call was not rescheduled. ${errorMessage(error)}`,
       );
     },
   });
@@ -88,11 +86,17 @@ function Reschedule({
 
   return (
     <div ref={bringIntoView} className="@container mt-6 scroll-mb-6">
-      <div className="overflow-hidden rounded-2xl border bg-card">
+      {/* No second time can be picked while the first is being saved. */}
+      <div
+        inert={move.isPending}
+        aria-busy={move.isPending}
+        className="overflow-hidden rounded-2xl border bg-card"
+      >
         <SlotStep
           slug={booking.slug}
           timeZone={booking.timezone}
           emptyDescription={`${booking.host_name} has no other open times right now. Your call stays where it is.`}
+          pausedDescription={`${booking.host_name} is not taking new times right now. Your call stays where it is.`}
           view={view}
           onViewChange={setView}
           hour12={clock12}
@@ -108,13 +112,14 @@ function Reschedule({
           setPicked(null);
           setPickKey((key) => key + 1);
         }}
-        title="Move your call?"
+        title="Reschedule your call?"
         description={
           picked
             ? `New time: ${formatDay(picked.start, booking.timezone)}, ${clockLabel(new Date(picked.start), booking.timezone, clock12)} (${zoneName(booking.timezone)}). ${booking.host_name} is told about the change.`
             : ""
         }
-        confirmLabel="Move call"
+        confirmLabel="Reschedule"
+        dismissLabel="Keep looking"
         onConfirm={() => picked && move.mutate(picked)}
       />
       {move.isPending ? (
@@ -123,7 +128,7 @@ function Reschedule({
           className="mt-3 flex items-center gap-2 text-sm text-muted-foreground"
         >
           <Loader2 className="size-4 animate-spin" />
-          Moving your call
+          Rescheduling your call
         </p>
       ) : null}
     </div>
@@ -140,19 +145,34 @@ export function ManageBookingPage({ token }: { token: string }) {
   });
   const [rescheduling, setRescheduling] = useState(false);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  // After a call is rescheduled or cancelled the button that did it is gone,
+  // so the heading, which now says what happened, takes the focus.
+  const heading = useRef<HTMLHeadingElement>(null);
+  const settled = `${query.data?.slot_start}|${query.data?.status}`;
+  const lastSettled = useRef<string | null>(null);
+  useEffect(() => {
+    if (!query.data) return;
+    if (lastSettled.current !== null && lastSettled.current !== settled) {
+      heading.current?.focus();
+    }
+    lastSettled.current = settled;
+  }, [query.data, settled]);
   // The device's clock style is only known in the browser.
   const [hour12, setHour12] = useState(false);
   useEffect(() => setHour12(prefersHour12()), []);
 
   const cancel = useMutation({
     mutationFn: () => cancelManagedBooking(token),
-    onSuccess: (cancelled) => {
+    onSuccess: async (cancelled) => {
       queryClient.setQueryData(QUERY_KEYS.managedBooking(token), cancelled);
       setRescheduling(false);
-      toast.success("Booking cancelled");
+      toast.success("Call cancelled");
+      // The time it held is open again.
+      await queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.publicSlots(cancelled.slug),
+      });
     },
-    onError: (error) =>
-      toast.error(`The booking was not cancelled. ${errorMessage(error)}`),
+    onError: (error) => toast.error(`The call was not cancelled. ${errorMessage(error)}`),
   });
 
   if (query.isPending) {
@@ -172,7 +192,7 @@ export function ManageBookingPage({ token }: { token: string }) {
   }
 
   if (query.isError) {
-    const unknown = query.error instanceof ApiError && query.error.status === NOT_FOUND;
+    const unknown = query.error instanceof ApiError && query.error.isNotFound;
     return (
       <PublicLayout accountLinks={false}>
         <section className="mx-auto flex max-w-lg flex-col items-center gap-4 px-4 py-20 text-center">
@@ -205,20 +225,18 @@ export function ManageBookingPage({ token }: { token: string }) {
   const startsAt = new Date(booking.slot_start);
   const cancelled = isCancelled(booking);
   const timeRange = `${clockLabel(startsAt, booking.timezone, hour12)} to ${clockLabel(callEnd(booking.slot_start, booking.minutes), booking.timezone, hour12)}`;
-  const day = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-    timeZone: booking.timezone,
-  }).format(startsAt);
+  const day = formatLongDay(startsAt, booking.timezone);
 
   return (
     <PublicLayout accountLinks={false}>
       <section
-        className={`mx-auto px-4 py-14 sm:py-20 ${rescheduling ? "max-w-3xl" : "max-w-lg"}`}
+        className={`mx-auto px-4 py-14 sm:py-20 ${rescheduling ? "max-w-4xl" : "max-w-lg"}`}
       >
-        <h1 className="font-display font-wide text-4xl leading-none font-bold tracking-tight sm:text-5xl">
+        <h1
+          ref={heading}
+          tabIndex={-1}
+          className="font-display font-wide text-4xl leading-none font-bold tracking-tight outline-none sm:text-5xl"
+        >
           {headline(booking)}
         </h1>
         <p className="mt-4 text-muted-foreground">
@@ -235,6 +253,7 @@ export function ManageBookingPage({ token }: { token: string }) {
               start={startsAt}
               minutes={booking.minutes}
               timeZone={booking.timezone}
+              hour12={hour12}
               label={timeRange}
             />
           </div>
@@ -266,7 +285,7 @@ export function ManageBookingPage({ token }: { token: string }) {
             <Button asChild>
               <a href={booking.meeting_url} target="_blank" rel="noreferrer">
                 <Video />
-                Join the call
+                Join call
               </a>
             </Button>
           ) : null}
@@ -288,7 +307,7 @@ export function ManageBookingPage({ token }: { token: string }) {
                 onClick={() => setConfirmingCancel(true)}
               >
                 {cancel.isPending ? <Loader2 className="animate-spin" /> : null}
-                {cancel.isPending ? "Cancelling" : "Cancel booking"}
+                {cancel.isPending ? "Cancelling" : "Cancel call"}
               </Button>
             </>
           ) : (
@@ -312,9 +331,10 @@ export function ManageBookingPage({ token }: { token: string }) {
         <ConfirmDialog
           open={confirmingCancel}
           onOpenChange={setConfirmingCancel}
-          title="Cancel this booking?"
+          title="Cancel this call?"
           description={`${booking.host_name} is told the call is off and the time opens up for someone else.`}
-          confirmLabel="Cancel booking"
+          confirmLabel="Cancel call"
+          dismissLabel="Keep call"
           destructive
           onConfirm={() => cancel.mutate()}
         />

@@ -1,4 +1,4 @@
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 
@@ -29,6 +29,7 @@ export const Route = createFileRoute("/register")({
 
 function RegisterPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const registerMutation = useMutation({
     mutationFn: (request: RegisterRequest) =>
       api<void>("/api/auth/register", {
@@ -36,6 +37,8 @@ function RegisterPage() {
         body: JSON.stringify(request),
       }),
     onSuccess: () => {
+      // Anything cached belongs to whoever used this tab before.
+      queryClient.clear();
       void navigate({ to: ROUTES.dashboard });
     },
   });

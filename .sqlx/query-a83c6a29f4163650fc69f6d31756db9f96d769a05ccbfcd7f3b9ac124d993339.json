@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM password_resets WHERE created_at < now() - interval '1 day' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a83c6a29f4163650fc69f6d31756db9f96d769a05ccbfcd7f3b9ac124d993339"
+}

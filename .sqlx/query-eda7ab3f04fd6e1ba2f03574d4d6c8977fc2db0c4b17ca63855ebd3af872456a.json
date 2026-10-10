@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT email || ' ' || status AS \"line!\" FROM users ORDER BY email",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "line!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "eda7ab3f04fd6e1ba2f03574d4d6c8977fc2db0c4b17ca63855ebd3af872456a"
+}

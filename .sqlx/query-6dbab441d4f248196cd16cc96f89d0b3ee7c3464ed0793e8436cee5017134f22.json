@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT template || ' sent=' || (sent_at IS NOT NULL)::text AS \"row!\"\n           FROM email_queue ORDER BY template",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "row!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6dbab441d4f248196cd16cc96f89d0b3ee7c3464ed0793e8436cee5017134f22"
+}

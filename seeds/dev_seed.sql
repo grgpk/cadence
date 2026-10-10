@@ -1,6 +1,9 @@
--- Development seed data for the complete Cadence flow.
+-- Development seed data for the complete Cadence flow. Never a migration:
+-- `reset_db.sh` and `scripts/seed-dev.sh` apply it to a local database.
 -- Login password for all seeded users: password
 -- IDs stay fixed so local resets produce stable API fixtures.
+-- Safe to run again: seeded logins are switched back on with the seed
+-- password, every other row is left as it is.
 
 -- Users and access grants.
 INSERT INTO users (unid, email, password_hash, full_name, status) VALUES
@@ -25,7 +28,9 @@ INSERT INTO users (unid, email, password_hash, full_name, status) VALUES
         'Cadence Host',
         'Active'
     )
-ON CONFLICT DO NOTHING;
+ON CONFLICT (unid) DO UPDATE SET
+    status = 'Active',
+    password_hash = EXCLUDED.password_hash;
 
 INSERT INTO roleaccesses (unid, created_at, role, grantedto_unid) VALUES
     (
@@ -316,6 +321,7 @@ INSERT INTO bookings (
     lead_unid,
     calling_visit_unid,
     slot_start,
+    slot_end,
     timezone,
     invitee_name,
     invitee_email,
@@ -332,6 +338,7 @@ INSERT INTO bookings (
         '30000000-0000-4000-8000-000000000001',
         '20000000-0000-4000-8000-000000000001',
         date_trunc('day', now()) + interval '2 days 10 hours',
+        date_trunc('day', now()) + interval '2 days 10 hours 30 minutes',
         'America/New_York',
         'Maya Chen',
         'maya.chen@example.com',
@@ -348,6 +355,7 @@ INSERT INTO bookings (
         '30000000-0000-4000-8000-000000000002',
         '20000000-0000-4000-8000-000000000002',
         date_trunc('day', now()) + interval '4 days 14 hours',
+        date_trunc('day', now()) + interval '4 days 14 hours 30 minutes',
         'Europe/London',
         'Oliver Grant',
         'oliver.grant@example.com',
@@ -364,6 +372,7 @@ INSERT INTO bookings (
         '30000000-0000-4000-8000-000000000003',
         NULL,
         date_trunc('day', now()) + interval '6 days 11 hours',
+        date_trunc('day', now()) + interval '6 days 11 hours 30 minutes',
         'Europe/Paris',
         'Sofia Martin',
         'sofia.martin@example.com',
@@ -589,10 +598,18 @@ INSERT INTO audit_logs (
 ON CONFLICT DO NOTHING;
 
 -- Rate-limit fixtures: one active window and one older window.
-INSERT INTO rate_limits (action, subject, window_start, request_count) VALUES
+-- Windows start "now", so the key alone would add three more on every run.
+INSERT INTO rate_limits (action, subject, window_start, request_count)
+SELECT fixture.action, fixture.subject, fixture.window_start, fixture.request_count
+FROM (VALUES
     ('login', '127.0.0.1', date_trunc('minute', now()), 2),
     ('calling_visit', '203.0.113.10', date_trunc('minute', now()), 1),
     ('login', '198.51.100.20', date_trunc('minute', now() - interval '2 hours'), 5)
+) AS fixture (action, subject, window_start, request_count)
+WHERE NOT EXISTS (
+    SELECT 1 FROM rate_limits
+    WHERE rate_limits.action = fixture.action AND rate_limits.subject = fixture.subject
+)
 ON CONFLICT DO NOTHING;
 
 -- Keep serial generators ahead of explicit fixture IDs for later local inserts.

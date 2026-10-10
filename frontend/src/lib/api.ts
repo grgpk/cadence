@@ -1,6 +1,7 @@
 import { API_URL } from "./config";
 
 export const UNAUTHORIZED = 401;
+const NOT_FOUND = 404;
 const CONFLICT = 409;
 
 /** A failed API call. Keeps the status so callers can tell a conflict from a bad request. */
@@ -10,6 +11,11 @@ export class ApiError extends Error {
     readonly status: number,
   ) {
     super(message);
+  }
+
+  /** The thing asked for is not there, or not there any more. */
+  get isNotFound(): boolean {
+    return this.status === NOT_FOUND;
   }
 
   get isConflict(): boolean {

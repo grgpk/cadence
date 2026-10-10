@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT email || ' sent=' || (sent_at IS NOT NULL)::text || ' error=' || COALESCE(last_error, '-') AS \"row!\"\n           FROM email_queue ORDER BY email",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "row!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6dc9fe50a9746bea2648535c177ffb34e9cac96fd15ceace65fbf22035cc7226"
+}

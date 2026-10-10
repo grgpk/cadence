@@ -10,9 +10,12 @@ import { ErrorState } from "./ErrorState";
 /** Finishes the Google sign-in round trip, then returns to the page that started it. */
 export function GoogleCalendarCallback({
   code,
+  state,
   returnTo,
 }: {
   code: string;
+  /** What Google handed back to prove the sign-in started in this app. */
+  state: string;
   returnTo: LinkProps["to"] & string;
 }) {
   const navigate = useNavigate();
@@ -25,8 +28,8 @@ export function GoogleCalendarCallback({
   useEffect(() => {
     if (!code || submitted.current) return;
     submitted.current = true;
-    connect.mutate(code);
-  }, [code, connect]);
+    connect.mutate({ code, state });
+  }, [code, state, connect]);
 
   return (
     <section className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center gap-4">

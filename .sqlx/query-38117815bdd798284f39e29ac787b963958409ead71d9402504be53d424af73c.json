@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid FROM users WHERE email = 'ada@example.com'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "38117815bdd798284f39e29ac787b963958409ead71d9402504be53d424af73c"
+}

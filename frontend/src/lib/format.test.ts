@@ -6,7 +6,9 @@ import {
   formatClock,
   formatDateTime,
   formatDay,
+  formatLongDay,
   formatTime,
+  hourLabel,
   weekdayName,
   zoneName,
 } from "./format";
@@ -72,5 +74,29 @@ describe("weekdayName", () => {
     expect(weekdayName(0)).toBe("Monday");
     expect(weekdayName(6)).toBe("Sunday");
     expect(weekdayName(9)).toBe("Day 9");
+  });
+});
+
+describe("hourLabel", () => {
+  it("writes a ruler hour in either clock style", () => {
+    expect(hourLabel(14, false)).toBe("14:00");
+    expect(hourLabel(14, true)).toBe("2 PM");
+    expect(hourLabel(0, true)).toBe("12 AM");
+    expect(hourLabel(12, true)).toBe("12 PM");
+  });
+
+  it("wraps around midnight", () => {
+    expect(hourLabel(24, false)).toBe("00:00");
+    expect(hourLabel(-1, false)).toBe("23:00");
+  });
+});
+
+describe("formatLongDay", () => {
+  it("writes the day in full, in the asked zone", () => {
+    expect(formatLongDay(INSTANT, "UTC")).toBe("Wednesday, October 14, 2026");
+    expect(formatLongDay(INSTANT, "UTC", false)).toBe("Wednesday, October 14");
+    expect(formatLongDay("2026-10-14T23:30:00Z", "Asia/Tokyo")).toBe(
+      "Thursday, October 15, 2026",
+    );
   });
 });

@@ -1,37 +1,25 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
-import { clockMinutes } from "../../lib/format";
+import { clockMinutes, formatLongDay, prefersHour12 } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
-import { isCancelled } from "../bookings/bookings";
+import { useNow } from "../../lib/use-now";
+import { dayCall, firstName, isCancelled, sameDay } from "../bookings/bookings";
 import { OPEN_STYLES } from "../landing/DayTape";
+import { HourMark } from "../shared/HourMark";
 import { phaseSpans, zonedTime } from "../widget/zoned-time";
 
 const HOUR = 60;
-const MINUTE_MS = 60_000;
-/** A booking does not carry its length; used when no rule covers its start. */
-const DEFAULT_CALL_MINUTES = 30;
 /** Wide enough for a first name inside a half-hour call. */
 const HOUR_WIDTH_REM = 7;
 /** Where "now" sits in the strip when it first scrolls into view. */
 const NOW_AT = 0.3;
-
-/** The current time, refreshed each minute. `null` until the browser has mounted. */
-function useNow(): Date | null {
-  const [now, setNow] = useState<Date | null>(null);
-  useEffect(() => {
-    setNow(new Date());
-    const timer = window.setInterval(() => setNow(new Date()), MINUTE_MS);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
 
 /**
  * Today on the host's own clock: open hours, booked calls and a line at "now".
@@ -75,6 +63,7 @@ export function TodayTape({
     );
   }
 
+  const hour12 = prefersHour12();
   const today = zonedTime(now, timeZone);
   // The API counts weekdays from Monday.
   const weekday =
@@ -85,32 +74,15 @@ export function TodayTape({
       id: rule.id,
       from: clockMinutes(rule.start_time),
       to: clockMinutes(rule.end_time),
-      slotMinutes: rule.slot_minutes,
     }));
   const calls = bookings
     .filter((booking) => !isCancelled(booking))
-    .map((booking) => ({
-      booking,
-      at: zonedTime(new Date(booking.slot_start), timeZone),
-    }))
-    .filter(
-      ({ at }) =>
-        at.year === today.year && at.month === today.month && at.day === today.day,
-    )
-    .map(({ booking, at }) => {
-      const from = at.hour * HOUR + at.minute;
-      const rule = open.find((hours) => from >= hours.from && from < hours.to);
-      return { booking, from, to: from + (rule?.slotMinutes ?? DEFAULT_CALL_MINUTES) };
-    });
+    .map((booking) => dayCall(booking, timeZone))
+    .filter((call) => sameDay(call.day, today));
   const nowMinutes = today.hour * HOUR + today.minute;
   const callsLeft = calls.filter((call) => call.from >= nowMinutes).length;
 
-  const dateLabel = new Intl.DateTimeFormat("en", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-    timeZone,
-  }).format(now);
+  const dateLabel = formatLongDay(now, timeZone, false);
 
   const spans = [...open, ...calls];
   const firstHour = Math.floor(Math.min(...spans.map((span) => span.from)) / HOUR);
@@ -139,7 +111,7 @@ export function TodayTape({
       {spans.length === 0 ? (
         <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
           <p className="text-sm text-muted-foreground">
-            You take no calls today, so your link offers no times for it.
+            You take no calls today, so your link offers no times for today.
           </p>
           <Button variant="outline" size="sm" asChild>
             <Link to={ROUTES.dashboardAvailability}>Edit hours</Link>
@@ -159,15 +131,7 @@ export function TodayTape({
                 style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}
               >
                 {hours.map((hour) => (
-                  <div key={hour}>
-                    <p className="text-clock text-sm font-medium text-muted-foreground">
-                      {String(hour).padStart(2, "0")}:00
-                    </p>
-                    <div className="relative mt-1 h-2.5 border-t border-foreground/25">
-                      <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
-                      <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-                    </div>
-                  </div>
+                  <HourMark key={hour} hour={hour} hour12={hour12} />
                 ))}
               </div>
               <div className="relative mt-2 h-12">
@@ -185,13 +149,14 @@ export function TodayTape({
                     key={booking.unid}
                     style={place(from, to)}
                     className={cn(
-                      "absolute inset-y-0 flex min-w-0 items-center rounded-md bg-primary px-1.5 text-sm font-medium text-primary-foreground",
-                      to <= nowMinutes && "opacity-45",
+                      "absolute inset-y-0 flex min-w-0 items-center rounded-md px-1.5 text-sm font-medium",
+                      // A call that is over is an outline; one to come is solid ink.
+                      to <= nowMinutes
+                        ? "border border-foreground/40 bg-card text-muted-foreground"
+                        : "bg-primary text-primary-foreground",
                     )}
                   >
-                    <span className="truncate">
-                      {booking.invitee_name.trim().split(/\s+/)[0]}
-                    </span>
+                    <span className="truncate">{firstName(booking.invitee_name)}</span>
                   </span>
                 ))}
               </div>

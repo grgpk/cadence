@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oauth_states WHERE expires_at < now() - interval '1 day' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "acdeb8efe83e071a964a9e6e5ca9aa9924aea1d314397c79e54dd392c85ec688"
+}

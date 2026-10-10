@@ -11,6 +11,7 @@ struct UserBase {
     password_hash: String,
     full_name: String,
     status: String,
+    session_version: i32,
 }
 
 #[derive(sqlx::FromRow)]
@@ -41,13 +42,16 @@ async fn assemble(pool: &PgPool, base: UserBase) -> Result<UserRecord, sqlx::Err
         password_hash: base.password_hash,
         full_name: base.full_name,
         status: base.status,
+        session_version: base.session_version,
     })
 }
 
+/// `email` is compared in lower case: rows written before emails were
+/// normalised may still hold capitals.
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRecord>, sqlx::Error> {
     let base = sqlx::query_as!(
         UserBase,
-        "SELECT unid, email, password_hash, full_name, status FROM users WHERE lower(email) = lower($1)",
+        "SELECT unid, email, password_hash, full_name, status, session_version FROM users WHERE lower(email) = lower($1)",
         email,
     )
     .fetch_optional(pool)
@@ -62,7 +66,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserReco
 pub async fn find_by_unid(pool: &PgPool, unid: Uuid) -> Result<Option<UserRecord>, sqlx::Error> {
     let base = sqlx::query_as!(
         UserBase,
-        "SELECT unid, email, password_hash, full_name, status FROM users WHERE unid = $1",
+        "SELECT unid, email, password_hash, full_name, status, session_version FROM users WHERE unid = $1",
         unid,
     )
     .fetch_optional(pool)
@@ -83,7 +87,7 @@ pub async fn create_host(
     let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
     let user = sqlx::query_as!(
         UserBase,
-        "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status",
+        "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status, session_version",
         email,
         password_hash,
         full_name,
@@ -117,19 +121,21 @@ pub async fn update_full_name(
     .map(|_| ())
 }
 
+/// Stores a new password and signs out every session issued before it.
+/// Returns the session version that is valid from now on.
 pub async fn set_password(
     connection: &mut PgConnection,
     unid: Uuid,
     password_hash: &str,
-) -> Result<(), sqlx::Error> {
+) -> Result<i32, sqlx::Error> {
     sqlx::query_scalar!(
-        "UPDATE users SET password_hash = $2, updated_at = now() WHERE unid = $1 RETURNING 1",
+        "UPDATE users SET password_hash = $2, session_version = session_version + 1, updated_at = now()
+         WHERE unid = $1 RETURNING session_version",
         unid,
         password_hash,
     )
     .fetch_one(connection)
     .await
-    .map(|_| ())
 }
 
 /// Keeps the SHA-256 of a reset token, never the token.
@@ -177,6 +183,16 @@ pub async fn delete_unused_resets(
         user_unid,
     )
     .fetch_all(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Drops reset rows long after their link stopped working.
+pub async fn delete_old_resets(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM password_resets WHERE created_at < now() - interval '1 day' RETURNING 1",
+    )
+    .fetch_all(pool)
     .await
     .map(|_| ())
 }

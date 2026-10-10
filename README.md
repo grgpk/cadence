@@ -38,6 +38,8 @@ pnpm run dev
 
 After running `./reset_db.sh --yes`, development users are available at `http://localhost:3000/login`.
 
+The users come from `seeds/dev_seed.sql`, which is not a migration and never runs in production. `reset_db.sh` applies it after the migrations. To put the seed back into a local database without resetting it, run `./scripts/seed-dev.sh`: it switches the seeded logins back on with the seed password and leaves every other row alone.
+
 All seeded users use password `password`:
 
 | Role | Email | Password | Access |
@@ -76,3 +78,4 @@ pnpm run check:quality
 - `migrations/`: one SQL table or extension per migration, numbered `0001_XXXX`
 - `ARCHITECTURE_DECISIONS.md`: only deliberate divergences from reference projects
 - `reset_db.sh`: local database reset and migration runner
+- `seeds/dev_seed.sql`: development users and fixtures, applied by `reset_db.sh` and `scripts/seed-dev.sh`

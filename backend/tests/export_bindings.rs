@@ -13,7 +13,9 @@ use cadence_backend::domain::{
         CallingVisit, CallingVisitEngagement, CallingVisitRequest, VisitFunnel,
     },
     emails::models::{AdminEmail, EmailState},
-    google_calendar::models::{CalendarEvent, EventDateTime},
+    google_calendar::models::{
+        CalendarEvent, EventDateTime, GoogleCalendarLoginRequest, GoogleOAuthConfigResponse,
+    },
     host_settings::models::{AdminHost, BookingPage, HostSettings},
     leads::models::{Lead, LeadQualification, LeadUpdate, SubmitLeadRequest},
     roleaccesses::models::{AdminRoleAccess, RoleAccess},
@@ -36,6 +38,8 @@ fn export_bindings() {
     assert!(TimeSlot::export().is_ok());
     assert!(CalendarEvent::export().is_ok());
     assert!(EventDateTime::export().is_ok());
+    assert!(GoogleOAuthConfigResponse::export().is_ok());
+    assert!(GoogleCalendarLoginRequest::export().is_ok());
     assert!(CreateBookingRequest::export().is_ok());
     assert!(BookingStatus::export().is_ok());
     assert!(Booking::export().is_ok());

@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT subject FROM rate_limits WHERE action = 'login_email_address' ORDER BY subject",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "subject",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rate_limits",
+            "name": "subject"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "07fce10ddd4f4bc514080575b9cefe9cd458f7a342dcb517d2e0e1851f846311"
+}

@@ -16,6 +16,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  dismissLabel = "Cancel",
   destructive = false,
   onConfirm,
 }: {
@@ -24,6 +25,8 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel: string;
+  /** The way out. Name it when "Cancel" could be read as the action itself. */
+  dismissLabel?: string;
   destructive?: boolean;
   onConfirm: () => void;
 }) {
@@ -35,7 +38,7 @@ export function ConfirmDialog({
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogCancel>{dismissLabel}</AlertDialogCancel>
           <AlertDialogAction
             variant={destructive ? "destructive" : "default"}
             onClick={onConfirm}

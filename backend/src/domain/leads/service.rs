@@ -8,7 +8,13 @@ use super::{
 use crate::{
     domain::host_settings::models::BookingPage,
     error::{AppError, AppResult},
+    validation::{is_too_long, is_valid_email},
 };
+
+/// Names, picked answers and campaign tags.
+const SHORT_TEXT_MAX: usize = 200;
+/// Answers the visitor writes in their own words, and page addresses.
+const LONG_TEXT_MAX: usize = 2000;
 
 pub struct LeadsService;
 
@@ -66,6 +72,9 @@ pub async fn submit(
     unid: Uuid,
     source_page: Option<&str>,
 ) -> AppResult<Lead> {
+    if is_too_long(source_page, LONG_TEXT_MAX) {
+        return Err(AppError::BadRequest("source_page is too long".to_owned()));
+    }
     db::mark_submitted(pool, host_unid, unid, source_page)
         .await
         .map_err(|error| match error {
@@ -76,9 +85,44 @@ pub async fn submit(
 
 fn validate(update: &LeadUpdate) -> AppResult<()> {
     if let Some(email) = &update.email
-        && (!email.contains('@') || email.len() > 254)
+        && !is_valid_email(email)
     {
         return Err(AppError::BadRequest("email is invalid".to_owned()));
+    }
+    for (field, value, max) in [
+        ("first_name", &update.first_name, SHORT_TEXT_MAX),
+        ("last_name", &update.last_name, SHORT_TEXT_MAX),
+        ("phone", &update.phone, SHORT_TEXT_MAX),
+        ("country_code", &update.country_code, SHORT_TEXT_MAX),
+        (
+            "investment_comfort",
+            &update.investment_comfort,
+            SHORT_TEXT_MAX,
+        ),
+        (
+            "how_heard_about_us",
+            &update.how_heard_about_us,
+            SHORT_TEXT_MAX,
+        ),
+        ("urgency_level", &update.urgency_level, SHORT_TEXT_MAX),
+        ("utm_source", &update.utm_source, SHORT_TEXT_MAX),
+        ("utm_medium", &update.utm_medium, SHORT_TEXT_MAX),
+        ("utm_campaign", &update.utm_campaign, SHORT_TEXT_MAX),
+        (
+            "what_stopping_you",
+            &update.what_stopping_you,
+            LONG_TEXT_MAX,
+        ),
+        (
+            "currently_working_on",
+            &update.currently_working_on,
+            LONG_TEXT_MAX,
+        ),
+        ("source_page", &update.source_page, LONG_TEXT_MAX),
+    ] {
+        if is_too_long(value.as_deref(), max) {
+            return Err(AppError::BadRequest(format!("{field} is too long")));
+        }
     }
     if let Some(status) = &update.qualification_status
         && !matches!(status.as_str(), "Qualified" | "NotSure" | "Disqualified")

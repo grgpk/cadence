@@ -4,6 +4,7 @@ import { Video } from "lucide-react";
 import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { formatTime } from "../../lib/format";
+import { NAME_LINK } from "../shared/link-styles";
 import { BOOKING_STATUS, StatusBadge } from "../shared/StatusBadge";
 import { PHASE_STYLES } from "../widget/SlotStep";
 import { dayPhase, zonedTime } from "../widget/zoned-time";
@@ -46,7 +47,8 @@ function AgendaRow({
           type="button"
           onClick={onOpen}
           className={cn(
-            "block max-w-full truncate rounded-sm text-left font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            "block",
+            NAME_LINK,
             cancelled && "text-muted-foreground line-through",
           )}
         >
@@ -60,11 +62,11 @@ function AgendaRow({
         <Button variant="outline" size="sm" asChild>
           <a href={booking.meeting_url} target="_blank" rel="noreferrer">
             <Video />
-            Join
+            Join call
           </a>
         </Button>
       ) : (
-        <span className="text-sm text-muted-foreground">No link</span>
+        <span className="text-sm text-muted-foreground">No call link</span>
       )}
     </li>
   );
@@ -78,18 +80,21 @@ export function Agenda({
   bookings,
   timeZone,
   onOpen,
+  heading: Heading = "h3",
 }: {
   bookings: Booking[];
   timeZone?: string;
   onOpen: (booking: Booking) => void;
+  /** `h2` where the list sits straight under the page title. */
+  heading?: "h2" | "h3";
 }) {
   const now = Date.now();
   return agendaDays(bookings, timeZone ?? bookings[0]?.timezone ?? "UTC", now).map(
     (day) => (
       <section key={day.key}>
-        <h3 className="border-b bg-muted/60 px-5 py-1.5 text-xs font-medium text-muted-foreground">
+        <Heading className="border-b bg-muted/60 px-5 py-1.5 text-xs font-medium text-muted-foreground">
           {day.label}
-        </h3>
+        </Heading>
         <ul className="divide-y border-b last:border-b-0">
           {day.bookings.map((booking) => (
             <AgendaRow

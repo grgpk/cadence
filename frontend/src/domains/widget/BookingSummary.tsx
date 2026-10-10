@@ -65,9 +65,11 @@ export function BookingSummary({
               {page.host_name.trim().charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <p className="text-sm font-medium text-muted-foreground">{page.host_name}</p>
+          <p className="min-w-0 text-sm font-medium break-words text-muted-foreground">
+            {page.host_name}
+          </p>
         </div>
-        <h1 className="mt-3 font-display text-2xl leading-tight font-semibold tracking-tight">
+        <h1 className="mt-3 font-display text-2xl leading-tight font-semibold tracking-tight break-words">
           {page.title}
         </h1>
         {page.description ? (

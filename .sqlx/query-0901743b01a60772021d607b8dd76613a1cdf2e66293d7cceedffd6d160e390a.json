@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO email_queue (email, template, send_at, sent_at)\n             VALUES ($1, 'booking_confirmation', now() - make_interval(days => $2),\n                     now() - make_interval(days => $2))\n             RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0901743b01a60772021d607b8dd76613a1cdf2e66293d7cceedffd6d160e390a"
+}

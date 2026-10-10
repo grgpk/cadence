@@ -1,5 +1,7 @@
 import { cn } from "cn";
 
+import { prefersHour12 } from "../../lib/format";
+import { HourMark } from "../shared/HourMark";
 import type { WeekHours } from "./week-hours";
 
 const HOUR = 60;
@@ -24,31 +26,28 @@ export function WeekRuler({ week, row }: { week: WeekHours; row: string }) {
     { length: week.last - week.first },
     (_, index) => week.first + index,
   );
+  const hour12 = prefersHour12();
+  // "10 AM" is narrower than "10:00", but a long day still needs every other label.
   const step = hours.length > DENSE_HOURS ? 2 : 1;
   return (
-    <div aria-hidden="true" className={cn(row, "border-b bg-muted/40 pt-3 pb-0")}>
+    <div
+      aria-hidden="true"
+      className={cn(row, "@container border-b bg-muted/40 pt-3 pb-0")}
+    >
       <span className="hidden sm:block" />
       <div
         className="grid"
         style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}
       >
         {hours.map((hour, index) => (
-          <div key={hour}>
-            <p className="h-5 text-clock text-sm font-medium text-muted-foreground">
-              {index % step === 0 ? (
-                // A phone has room for every other label.
-                <span
-                  className={index % (step * 2) === 0 ? undefined : "hidden sm:inline"}
-                >
-                  {String(hour).padStart(2, "0")}:00
-                </span>
-              ) : null}
-            </p>
-            <div className="relative mt-1 h-2.5 border-t border-foreground/25">
-              <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
-              <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-            </div>
-          </div>
+          <HourMark
+            key={hour}
+            hour={hour}
+            hour12={hour12}
+            label={index % step === 0}
+            // A narrow card has room for every other label that is left.
+            labelClassName={index % (step * 2) === 0 ? undefined : "hidden @2xl:inline"}
+          />
         ))}
       </div>
     </div>

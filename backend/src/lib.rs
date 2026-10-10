@@ -4,11 +4,15 @@ pub mod error;
 pub mod tracing_bugreport_layer;
 pub mod tracing_setup;
 pub mod tracking;
+pub mod validation;
 
-use axum::{Router, middleware, routing::get};
+use axum::{Router, extract::DefaultBodyLimit, middleware, routing::get};
 
 use crate::app_state::AppState;
 use crate::domain::auth::middleware::require_auth;
+
+/// Every request is small JSON. Routes that need more set their own limit.
+const BODY_MAX_BYTES: usize = 64 * 1024;
 
 pub fn build_app(state: AppState) -> Router {
     let protected = Router::new()
@@ -36,6 +40,7 @@ pub fn build_app(state: AppState) -> Router {
     Router::new()
         .merge(protected)
         .merge(public)
+        .layer(DefaultBodyLimit::max(BODY_MAX_BYTES))
         .with_state(state)
 }
 

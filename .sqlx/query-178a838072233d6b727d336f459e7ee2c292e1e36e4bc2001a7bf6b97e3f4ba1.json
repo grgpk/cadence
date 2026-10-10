@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, host_unid, lead_unid, slot_start, timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at\n         FROM bookings WHERE host_unid = $1 AND unid = $2",
+  "query": "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at\n             FROM bookings ORDER BY slot_start DESC LIMIT $1",
   "describe": {
     "columns": [
       {
@@ -49,6 +49,12 @@
       },
       {
         "ordinal": 4,
+        "name": "minutes!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
@@ -59,7 +65,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 6,
         "name": "invitee_name",
         "type_info": "Text",
         "origin": {
@@ -70,7 +76,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "invitee_email",
         "type_info": "Text",
         "origin": {
@@ -81,7 +87,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "status",
         "type_info": "Text",
         "origin": {
@@ -92,7 +98,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "meeting_url",
         "type_info": "Text",
         "origin": {
@@ -103,7 +109,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "google_event_id",
         "type_info": "Text",
         "origin": {
@@ -114,7 +120,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "manage_token",
         "type_info": "Text",
         "origin": {
@@ -125,7 +131,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -138,8 +144,7 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid"
+        "Int8"
       ]
     },
     "nullable": [
@@ -147,6 +152,7 @@
       false,
       true,
       false,
+      null,
       false,
       false,
       false,
@@ -157,5 +163,5 @@
       false
     ]
   },
-  "hash": "6c091660e80dd65c63066571672c3bbdf542aebd69852d9b9ab6d8af88c9a1d4"
+  "hash": "178a838072233d6b727d336f459e7ee2c292e1e36e4bc2001a7bf6b97e3f4ba1"
 }

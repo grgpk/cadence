@@ -27,3 +27,6 @@ psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$POSTGRES_USER" -d postgres \
 
 export DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@127.0.0.1/${POSTGRES_DATABASE}"
 sqlx migrate run --source migrations
+# Development fixtures and logins. Not a migration, so production never gets them.
+psql -v ON_ERROR_STOP=1 --single-transaction -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DATABASE" \
+    -f seeds/dev_seed.sql

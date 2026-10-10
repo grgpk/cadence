@@ -26,7 +26,14 @@ use uuid::Uuid;
 pub async fn public_slots(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+    headers: HeaderMap,
 ) -> AppResult<Json<Vec<TimeSlot>>> {
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::SLOTS_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await?;
     let page = host_settings::bookable_page(&state.pool, &slug).await?;
     Ok(Json(service::public_slots(&state.pool, &page).await?))
 }

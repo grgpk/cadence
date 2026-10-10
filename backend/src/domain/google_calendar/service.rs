@@ -3,17 +3,20 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::availability::service::local_to_utc;
-use crate::domain::google_calendar::client::GoogleCalendarClient;
+use crate::domain::google_calendar::client::{GoogleCalendarClient, http_client};
 use crate::domain::google_calendar::db::GoogleCalendarDb;
 use crate::domain::google_calendar::environment::Environment;
 use crate::domain::google_calendar::models::{
-    BookingResult, CalendarEvent, EventDateTime, GoogleTokenResponse,
+    BookingResult, CalendarEvent, EventDateTime, GoogleOAuthConfigResponse, GoogleTokenResponse,
 };
 
 /// Free time kept on both sides of a calendar event.
 pub const EVENT_BUFFER_MINUTES: i64 = 15;
 /// Google returns event times with their own offsets; the query window is UTC.
 const QUERY_TIMEZONE: &str = "UTC";
+/// How long a host has to come back from Google's consent screen.
+const OAUTH_STATE_MINUTES: i64 = 10;
+const OAUTH_STATE_REFUSED: &str = "this Google sign-in has expired, connect Google Calendar again";
 
 pub fn google_oauth_config() -> Result<(String, String), anyhow::Error> {
     Ok((
@@ -49,14 +52,49 @@ fn first_env(names: &[&str]) -> Result<String, anyhow::Error> {
         .ok_or_else(|| anyhow::anyhow!("missing Google Calendar environment variable"))
 }
 
+/// Starts connecting a calendar: what the browser needs for Google's consent
+/// screen, with a fresh `state` that ties the answer to this host.
+pub async fn start_oauth(
+    pool: &PgPool,
+    host_unid: Uuid,
+) -> Result<GoogleOAuthConfigResponse, anyhow::Error> {
+    let (client_id, redirect_uri) = google_oauth_config()?;
+    // 244 random bits from two v4 UUIDs.
+    let state = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    GoogleCalendarDb::create_state(
+        pool,
+        &state,
+        host_unid,
+        &redirect_uri,
+        Utc::now() + Duration::minutes(OAUTH_STATE_MINUTES),
+    )
+    .await?;
+    Ok(GoogleOAuthConfigResponse {
+        client_id,
+        redirect_uri,
+        state,
+    })
+}
+
+pub async fn forget_old_states(pool: &PgPool) -> Result<(), anyhow::Error> {
+    GoogleCalendarDb::delete_old_states(pool).await?;
+    Ok(())
+}
+
 pub async fn google_calendar_login(
     pool: &PgPool,
     host_unid: Uuid,
     code: &str,
+    state: &str,
 ) -> Result<(), anyhow::Error> {
-    let (client_id, redirect_uri) = google_oauth_config()?;
+    // Before anything goes to Google: a code that did not come from a flow
+    // this host started here is someone else's calendar being attached.
+    let redirect_uri = GoogleCalendarDb::consume_state(pool, state, host_unid)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!(OAUTH_STATE_REFUSED))?;
+    let (client_id, _) = google_oauth_config()?;
     let client_secret = google_client_secret()?;
-    let response = reqwest::Client::new()
+    let response = http_client()
         .post("https://oauth2.googleapis.com/token")
         .form(&[
             ("client_id", client_id.as_str()),
@@ -120,7 +158,7 @@ pub async fn get_google_access_token(
 
     let (client_id, _) = google_oauth_config()?;
     let client_secret = google_client_secret()?;
-    let response = reqwest::Client::new()
+    let response = http_client()
         .post("https://oauth2.googleapis.com/token")
         .form(&[
             ("client_id", client_id.as_str()),
@@ -169,12 +207,16 @@ pub async fn get_calendar_events(
 
 /// Busy time on the host's Google Calendar between two instants, padded by
 /// the event buffer. All-day events block the whole day in `timezone`.
+///
+/// `own_events` are the ids of events Cadence made for its own calls. They
+/// are left out: those calls already close their times by the host's rule.
 pub async fn busy_intervals(
     pool: &PgPool,
     host_unid: Uuid,
     timezone: &str,
     from: DateTime<Utc>,
     to: DateTime<Utc>,
+    own_events: &[&str],
 ) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>, anyhow::Error> {
     let access_token = get_google_access_token(pool, host_unid).await?;
     // One day of slack on each side so all-day events in any timezone are included.
@@ -187,6 +229,7 @@ pub async fn busy_intervals(
     let buffer = Duration::minutes(EVENT_BUFFER_MINUTES);
     Ok(events
         .iter()
+        .filter(|event| !own_events.contains(&event.id.as_str()))
         .filter_map(|event| {
             let start = event_instant(event.start.as_ref()?, timezone)?;
             let end = event_instant(event.end.as_ref()?, timezone)?;

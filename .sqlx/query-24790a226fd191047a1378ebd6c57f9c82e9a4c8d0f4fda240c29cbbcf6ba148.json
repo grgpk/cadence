@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO oauth_states (state, user_unid, provider, redirect_uri, expires_at)\n             VALUES ($1, $2, $3, $4, $5) RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "24790a226fd191047a1378ebd6c57f9c82e9a4c8d0f4fda240c29cbbcf6ba148"
+}

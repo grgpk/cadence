@@ -47,7 +47,10 @@ export function BookingDetailSheet({
 }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
-  const query = useQuery({ ...bookingDetailQuery(unid ?? ""), enabled: unid !== null });
+  // The sheet slides out after `unid` is cleared; keep showing the call it had.
+  const [shown, setShown] = useState(unid);
+  if (unid !== null && unid !== shown) setShown(unid);
+  const query = useQuery({ ...bookingDetailQuery(shown ?? ""), enabled: shown !== null });
   const cancel = useMutation({
     mutationFn: cancelBooking,
     onSuccess: async (booking) => {
@@ -57,10 +60,9 @@ export function BookingDetailSheet({
           queryKey: QUERY_KEYS.bookingDetail(booking.unid),
         }),
       ]);
-      toast.success("Booking cancelled");
+      toast.success("Call cancelled");
     },
-    onError: (error) =>
-      toast.error(`The booking was not cancelled. ${errorMessage(error)}`),
+    onError: (error) => toast.error(`The call was not cancelled. ${errorMessage(error)}`),
   });
 
   const booking = query.data?.booking;
@@ -80,7 +82,7 @@ export function BookingDetailSheet({
       <SheetContent className="w-full gap-0 overflow-y-auto sm:max-w-lg">
         <SheetHeader className="border-b">
           <SheetTitle className="pr-8 break-words">
-            {booking ? booking.invitee_name : "Booking"}
+            {booking ? booking.invitee_name : "Call"}
           </SheetTitle>
           <SheetDescription>
             {booking && zone ? (
@@ -95,7 +97,7 @@ export function BookingDetailSheet({
         </SheetHeader>
 
         {query.isPending ? (
-          <div className="grid gap-4 p-4" role="status" aria-label="Loading booking">
+          <div className="grid gap-4 p-4" role="status" aria-label="Loading call">
             <Skeleton className="h-5 w-48" />
             <Skeleton className="h-5 w-64" />
             <Skeleton className="h-24 w-full" />
@@ -103,7 +105,7 @@ export function BookingDetailSheet({
         ) : query.isError ? (
           <div className="p-4">
             <ErrorState
-              title="This booking did not load"
+              title="This call did not load"
               error={query.error}
               onRetry={() => void query.refetch()}
             />
@@ -170,7 +172,7 @@ export function BookingDetailSheet({
                 <Button asChild>
                   <a href={booking.meeting_url} target="_blank" rel="noreferrer">
                     <Video />
-                    Join
+                    Join call
                   </a>
                 </Button>
               ) : null}
@@ -183,7 +185,7 @@ export function BookingDetailSheet({
                   onClick={() => setConfirming(true)}
                 >
                   {cancel.isPending ? <Loader2 className="animate-spin" /> : null}
-                  {cancel.isPending ? "Cancelling" : "Cancel booking"}
+                  {cancel.isPending ? "Cancelling" : "Cancel call"}
                 </Button>
               ) : null}
             </div>
@@ -191,9 +193,10 @@ export function BookingDetailSheet({
             <ConfirmDialog
               open={confirming}
               onOpenChange={setConfirming}
-              title="Cancel this booking?"
+              title="Cancel this call?"
               description={`${booking.invitee_name} gets an email saying the call is off, and the time opens up on your booking page again.`}
-              confirmLabel="Cancel booking"
+              confirmLabel="Cancel call"
+              dismissLabel="Keep call"
               destructive
               onConfirm={() => cancel.mutate(booking.unid)}
             />

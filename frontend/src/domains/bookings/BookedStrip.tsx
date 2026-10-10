@@ -1,5 +1,6 @@
 import { cn } from "cn";
 
+import { HourMark } from "../shared/HourMark";
 import { PHASE_STYLES } from "../widget/SlotStep";
 import { dayPhase, zonedTime } from "../widget/zoned-time";
 
@@ -12,11 +13,14 @@ export function BookedStrip({
   start,
   minutes,
   timeZone,
+  hour12,
   label,
 }: {
   start: Date;
   minutes: number;
   timeZone: string;
+  /** The clock style the visitor chose, so the ruler matches the label. */
+  hour12: boolean;
   /** The call's time range, printed under its block. */
   label: string;
 }) {
@@ -30,15 +34,7 @@ export function BookedStrip({
     <div aria-hidden="true" className="rounded-xl border bg-card px-4 pt-3 pb-4">
       <div className="grid grid-cols-4">
         {Array.from({ length: STRIP_HOURS }, (_, index) => (
-          <div key={index}>
-            <p className="text-clock text-sm font-medium text-muted-foreground">
-              {String((firstHour + index + 24) % 24).padStart(2, "0")}:00
-            </p>
-            <div className="relative mt-1 h-2.5 border-t border-foreground/25">
-              <span className="absolute top-0 left-0 h-2.5 w-px bg-foreground/40" />
-              <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-            </div>
-          </div>
+          <HourMark key={index} hour={firstHour + index} hour12={hour12} />
         ))}
       </div>
       <div className="relative mt-2 h-9">

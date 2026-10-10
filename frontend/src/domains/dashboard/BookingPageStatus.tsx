@@ -3,48 +3,16 @@ import { Link } from "@tanstack/react-router";
 import { AlertTriangle, Copy, ExternalLink } from "lucide-react";
 import type { ReactNode } from "react";
 
-import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
-import { weekdayName, zoneName } from "../../lib/format";
+import { zoneName } from "../../lib/format";
 import { bookingPath, ROUTES } from "../../lib/routes";
 import { bookingPageQuery } from "../widget/cadence-api";
 import { copyBookingLink } from "./booking-link";
 import { availabilityQuery, hostSettingsQuery } from "./host-api";
+import { callLengthLabel, daysLabel } from "./hours-labels";
 import { SETTINGS_SECTIONS } from "./routes";
-
-const WEEK_DAYS = 7;
-
-const shortDay = (weekday: number) => weekdayName(weekday).slice(0, 3);
-
-/** "Mon to Fri, Sun" for the weekdays that have hours. */
-function daysLabel(rules: AvailabilityRule[]): string {
-  const days = [...new Set(rules.map((rule) => rule.weekday))].sort((a, b) => a - b);
-  if (days.length === WEEK_DAYS) return "Every day";
-  const runs: number[][] = [];
-  for (const day of days) {
-    const run = runs.at(-1);
-    if (run && run.at(-1) === day - 1) run.push(day);
-    else runs.push([day]);
-  }
-  return runs
-    .map((run) => {
-      const [first = 0] = run;
-      const last = run.at(-1) ?? first;
-      if (first === last) return shortDay(first);
-      return `${shortDay(first)}${run.length === 2 ? ", " : " to "}${shortDay(last)}`;
-    })
-    .join(", ");
-}
-
-/** "30 min calls", or "20 and 30 min calls" when the days differ. */
-function callLengthLabel(rules: AvailabilityRule[]): string {
-  const lengths = [...new Set(rules.map((rule) => rule.slot_minutes))].sort(
-    (a, b) => a - b,
-  );
-  return `${lengths.join(" and ")} min calls`;
-}
 
 function Row({
   label,
@@ -113,6 +81,7 @@ export function BookingPageStatus() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const slug = settings.data?.public_slug;
+  const paused = settings.data?.is_active === false;
   const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
   // Where calls happen needs both the saved link and the calendar state.
   const calls = settings.isError ? settings : page;
@@ -123,9 +92,21 @@ export function BookingPageStatus() {
       <dl className="divide-y">
         <Row label="Link" query={settings}>
           {() => ({
-            value: `${window.location.host}${bookingPath(slug ?? "")}`,
+            problem: paused,
+            value: paused
+              ? "Paused: your link says you are not taking bookings"
+              : `${window.location.host}${bookingPath(slug ?? "")}`,
             actions: (
               <>
+                {paused ? (
+                  <FixLink
+                    to={ROUTES.dashboardSettings}
+                    hash={SETTINGS_SECTIONS.rules}
+                    primary
+                  >
+                    Take bookings again
+                  </FixLink>
+                ) : null}
                 <Button
                   variant="outline"
                   size="sm"

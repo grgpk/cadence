@@ -12,16 +12,25 @@ use axum::{
 use cadence_backend::{
     app_state::AppState,
     build_app,
-    domain::{auth::service::make_token, emails, leads},
+    domain::{
+        auth::service::make_token,
+        emails::{
+            self,
+            service::RenderedEmail,
+            worker::{self, Mailer},
+        },
+        google_calendar::db::GoogleCalendarDb,
+        leads,
+    },
 };
-use chrono::{DateTime, Timelike, Utc};
+use chrono::{DateTime, Duration, Timelike, Utc};
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-/// Created by the development seed.
-const SEED_SLUG: &str = "cadence-host";
+/// The link `cadence_host` gets: its name as a slug.
+const HOST_SLUG: &str = "cadence-host";
 const QUESTION_FLAGS: [&str; 5] = [
     "ask_currently_working_on",
     "ask_how_heard_about_us",
@@ -85,11 +94,18 @@ async fn register(app: &Router, full_name: &str, email: &str) -> Host {
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let unid: Uuid = serde_json::from_value(user["unid"].clone()).expect("user has an id");
-    let token = make_token(unid).expect("JWT_SECRET is set for tests");
+    let token = make_token(unid, 0).expect("JWT_SECRET is set for tests");
     Host {
         unid,
         cookie: format!("session={token}"),
     }
+}
+
+/// A host whose page is at `HOST_SLUG`.
+async fn cadence_host(app: &Router) -> Host {
+    let host = register(app, "Cadence Host", "host@example.com").await;
+    assert_eq!(slug(&settings(app, &host).await), HOST_SLUG);
+    host
 }
 
 /// The host's settings, created on first read.
@@ -203,8 +219,9 @@ async fn waiting_emails(pool: &PgPool, booking_unid: Uuid) -> Vec<String> {
 #[sqlx::test(migrations = "../migrations")]
 async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
     let app = app(&pool);
+    cadence_host(&app).await;
 
-    let (status, page) = get(&app, &format!("/api/hosts/{SEED_SLUG}"), None).await;
+    let (status, page) = get(&app, &format!("/api/hosts/{HOST_SLUG}"), None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(page.get("host_unid").is_none());
     assert!(page.get("email").is_none());
@@ -222,17 +239,18 @@ async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
 #[sqlx::test(migrations = "../migrations")]
 async fn a_switched_off_page_is_readable_and_a_banned_host_is_not(pool: PgPool) {
     let app = app(&pool);
-    let page_path = format!("/api/hosts/{SEED_SLUG}");
+    cadence_host(&app).await;
+    let page_path = format!("/api/hosts/{HOST_SLUG}");
     let (_, page) = get(&app, &page_path, None).await;
     assert_eq!(page["accepting_bookings"], true);
 
     sqlx::query_scalar!(
         "UPDATE widget_settings SET is_active = false WHERE public_slug = $1 RETURNING 1",
-        SEED_SLUG,
+        HOST_SLUG,
     )
     .fetch_one(&pool)
     .await
-    .expect("seed host exists");
+    .expect("the host exists");
     let (status, page) = get(&app, &page_path, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["accepting_bookings"], false);
@@ -243,11 +261,11 @@ async fn a_switched_off_page_is_readable_and_a_banned_host_is_not(pool: PgPool) 
     sqlx::query_scalar!(
         "UPDATE users SET status = 'Banned' FROM widget_settings w
          WHERE w.host_unid = users.unid AND w.public_slug = $1 RETURNING 1",
-        SEED_SLUG,
+        HOST_SLUG,
     )
     .fetch_one(&pool)
     .await
-    .expect("seed host exists");
+    .expect("the host exists");
     let (status, _) = get(&app, &page_path, None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
@@ -436,7 +454,7 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
         Method::POST,
         &path,
         None,
-        Some(booking(start + chrono::Duration::minutes(7), None)),
+        Some(booking(start + Duration::minutes(7), None)),
     )
     .await;
     assert_eq!(
@@ -580,7 +598,7 @@ async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
     // One call a day, from 4 hours out to 2 days out.
     assert!((1..=2).contains(&near.len()), "{} slots", near.len());
     for start in &near {
-        assert!(*start < Utc::now() + chrono::Duration::days(2), "{start}");
+        assert!(*start < Utc::now() + Duration::days(2), "{start}");
     }
     let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
     assert_eq!(page["booking_window_days"], 2);
@@ -593,7 +611,7 @@ async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
     let far = slots(&app, &slug).await;
     assert!((3..=4).contains(&far.len()), "{} slots", far.len());
     for start in &far {
-        assert!(*start > Utc::now() + chrono::Duration::hours(71), "{start}");
+        assert!(*start > Utc::now() + Duration::hours(71), "{start}");
         assert!(!near.contains(start), "{start}");
     }
 }
@@ -1048,7 +1066,7 @@ async fn an_invitee_moves_their_call_to_another_open_time(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     for (start, why) in [
-        (new + chrono::Duration::minutes(7), "never offered"),
+        (new + Duration::minutes(7), "never offered"),
         (taken, "someone else's call"),
         (old, "its own time"),
     ] {
@@ -1092,7 +1110,7 @@ async fn an_invitee_moves_their_call_to_another_open_time(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .expect("queue is readable");
-    assert_eq!(reminder, new - chrono::Duration::minutes(30));
+    assert_eq!(reminder, new - Duration::minutes(30));
     let stale = sqlx::query_scalar!(
         "SELECT count(*) FROM email_queue
          WHERE booking_unid = $1 AND (payload->>'slot_start')::timestamptz <> $2",
@@ -1198,6 +1216,7 @@ async fn admin_sees_hosts_roles_and_the_funnel(pool: PgPool) {
     grant_admin(&pool, &admin).await;
     // Never opened their dashboard, so they have no settings row.
     let fresh = register(&app, "Fresh Host", "fresh@example.com").await;
+    let (_, slug_with_hours) = host_with_hours(&app, "nino@example.com").await;
 
     let (status, hosts) = get(&app, "/api/admin/hosts", Some(&admin.cookie)).await;
     assert_eq!(status, StatusCode::OK);
@@ -1209,11 +1228,11 @@ async fn admin_sees_hosts_roles_and_the_funnel(pool: PgPool) {
     assert_eq!(fresh_row["public_slug"], Value::Null);
     assert_eq!(fresh_row["has_hours"], json!(false));
     assert_eq!(fresh_row["has_meeting_link"], json!(false));
-    let seeded = hosts
+    let with_hours = hosts
         .iter()
-        .find(|host| host["public_slug"] == json!(SEED_SLUG))
-        .expect("the seeded host is listed");
-    assert_eq!(seeded["has_hours"], json!(true));
+        .find(|host| host["public_slug"] == json!(slug_with_hours))
+        .expect("the host with hours is listed");
+    assert_eq!(with_hours["has_hours"], json!(true));
 
     let (status, roles) = get(&app, "/api/admin/roleaccesses", Some(&admin.cookie)).await;
     assert_eq!(status, StatusCode::OK);
@@ -1291,6 +1310,73 @@ async fn admin_emails_show_state_without_the_payload(pool: PgPool) {
     }
 }
 
+/// Stands in for SMTP: remembers who was written to.
+#[derive(Default)]
+struct Outbox {
+    sent: std::sync::Mutex<Vec<String>>,
+    /// Sends started so far, counted across the outboxes that share it.
+    started: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+    /// A send waits until this many have started, so workers that share
+    /// `started` are in the middle of a send at the same time.
+    wait_for: usize,
+}
+
+impl Outbox {
+    /// Everything sent so far as "subject -> recipient", sorted.
+    fn sent(&self) -> Vec<String> {
+        let mut sent = self.sent.lock().expect("outbox is not poisoned").clone();
+        sent.sort();
+        sent
+    }
+}
+
+impl Mailer for Outbox {
+    async fn send(&self, recipient: &str, email: RenderedEmail) -> Result<(), String> {
+        use std::sync::atomic::Ordering;
+        self.started.fetch_add(1, Ordering::SeqCst);
+        // Gives up after five seconds, so a worker that never gets a row
+        // fails the test instead of hanging it.
+        for _ in 0..2500 {
+            if self.started.load(Ordering::SeqCst) >= self.wait_for {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(2)).await;
+        }
+        self.sent
+            .lock()
+            .expect("outbox is not poisoned")
+            .push(format!("{} -> {recipient}", email.subject));
+        Ok(())
+    }
+}
+
+/// Queues an email about no call, due `minutes_ago`.
+async fn queue_email(pool: &PgPool, email: &str, template: &str, minutes_ago: i32) {
+    sqlx::query_scalar!(
+        r#"INSERT INTO email_queue (email, template, send_at, payload)
+           VALUES ($1, $2, now() - make_interval(mins => $3), '{"name":"Ada"}')
+           RETURNING 1"#,
+        email,
+        template,
+        minutes_ago,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("email is queued");
+}
+
+/// Makes every waiting email of a call due now.
+async fn make_due(pool: &PgPool, booking_unid: Uuid) {
+    sqlx::query_scalar!(
+        "UPDATE email_queue SET send_at = now() - interval '1 minute'
+         WHERE booking_unid = $1 AND sent_at IS NULL RETURNING 1",
+        booking_unid,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("queue is writable");
+}
+
 #[sqlx::test(migrations = "../migrations")]
 async fn an_email_out_of_attempts_is_left_alone_and_a_sent_one_forgets_its_error(pool: PgPool) {
     for (email, attempts) in [
@@ -1309,28 +1395,320 @@ async fn an_email_out_of_attempts_is_left_alone_and_a_sent_one_forgets_its_error
         .expect("email is queued");
     }
 
-    // The development seed has due emails of its own.
-    let due = emails::db::pending(&pool).await.expect("queue is readable");
-    assert!(due.iter().all(|row| row.email != "failed@example.com"));
-    let last_try = due
-        .iter()
-        .find(|row| row.email == "last-try@example.com")
-        .expect("an email with one attempt left is still due");
+    let outbox = Outbox::default();
+    worker::process_due(&pool, &outbox).await;
+    assert_eq!(
+        outbox.sent(),
+        ["Your call is booked -> last-try@example.com"]
+    );
+    let rows = sqlx::query_scalar!(
+        r#"SELECT email || ' sent=' || (sent_at IS NOT NULL)::text || ' error=' || COALESCE(last_error, '-') AS "row!"
+           FROM email_queue ORDER BY email"#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(
+        rows,
+        [
+            "failed@example.com sent=false error=550 rejected",
+            "last-try@example.com sent=true error=-",
+        ],
+        "sent, and the old error is gone"
+    );
 
-    emails::db::mark_sent(&pool, last_try.id)
+    worker::process_due(&pool, &outbox).await;
+    assert_eq!(outbox.sent().len(), 1, "nothing is sent twice");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn two_workers_send_every_due_email_once(pool: PgPool) {
+    let recipients: Vec<String> = (0..8).map(|n| format!("invitee{n}@example.com")).collect();
+    for recipient in &recipients {
+        queue_email(&pool, recipient, "booking_confirmation", 1).await;
+    }
+    queue_email(&pool, "later@example.com", "booking_confirmation", -60).await;
+
+    // Each worker holds its first email until the other has one too.
+    let started = std::sync::Arc::default();
+    let worker = || Outbox {
+        started: std::sync::Arc::clone(&started),
+        wait_for: 2,
+        ..Outbox::default()
+    };
+    let (first, second) = (worker(), worker());
+    tokio::join!(
+        worker::process_due(&pool, &first),
+        worker::process_due(&pool, &second),
+    );
+    let mut sent = first.sent();
+    sent.extend(second.sent());
+    sent.sort();
+    let expected: Vec<String> = recipients
+        .iter()
+        .map(|recipient| format!("Your call is booked -> {recipient}"))
+        .collect();
+    assert_eq!(sent, expected);
+    assert!(
+        !first.sent().is_empty() && !second.sent().is_empty(),
+        "both workers took a share"
+    );
+    let waiting = sqlx::query_scalar!("SELECT email FROM email_queue WHERE sent_at IS NULL")
+        .fetch_all(&pool)
         .await
-        .expect("row is marked");
-    let clean = sqlx::query_scalar!(
-        r#"SELECT sent_at IS NOT NULL AND last_error IS NULL AS "clean!"
-           FROM email_queue WHERE id = $1"#,
-        last_try.id,
+        .expect("queue is readable");
+    assert_eq!(waiting, ["later@example.com"], "not due yet");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_unknown_template_fails_without_holding_up_the_queue(pool: PgPool) {
+    let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
+    // The oldest row is the one no template renders.
+    queue_email(&pool, "first@example.com", "newsletter", 30).await;
+    queue_email(&pool, "second@example.com", "booking_confirmation", 1).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/auth/forgot-password",
+        None,
+        Some(json!({ "email": "ada@example.com" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let outbox = Outbox::default();
+    worker::process_due(&pool, &outbox).await;
+    assert_eq!(
+        outbox.sent(),
+        [
+            "Reset your Cadence password -> ada@example.com",
+            "Your call is booked -> second@example.com",
+        ]
+    );
+    let rows = sqlx::query_scalar!(
+        r#"SELECT template || ' sent=' || (sent_at IS NOT NULL)::text
+                  || ' attempts=' || attempts::text
+                  || ' later=' || (send_at > now())::text
+                  || ' error=' || COALESCE(last_error, '-')
+                  || ' payload=' || (payload IS NOT NULL)::text AS "row!"
+           FROM email_queue ORDER BY template"#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(
+        rows,
+        [
+            "booking_confirmation sent=true attempts=0 later=false error=- payload=true",
+            "newsletter sent=false attempts=1 later=true error=unknown email template payload=true",
+            // The reset link is a password in waiting; it does not stay in the table.
+            "password_reset sent=true attempts=0 later=false error=- payload=false",
+        ]
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn emails_about_a_started_or_cancelled_call_are_dropped(pool: PgPool) {
+    let app = app(&pool);
+    let (_, slug) = host_with_hours(&app, "nino@example.com").await;
+    let open = slots(&app, &slug).await;
+    let [.., started_at, cancelled_at] = open[..] else {
+        panic!("the host has at least two open times");
+    };
+
+    // The worker was down past the start of this call.
+    let (started, _) = book(&app, &slug, started_at).await;
+    make_due(&pool, started).await;
+    sqlx::query_scalar!(
+        "UPDATE bookings SET slot_start = now() - interval '1 minute' WHERE unid = $1 RETURNING 1",
+        started,
     )
     .fetch_one(&pool)
     .await
-    .expect("row is readable");
-    assert!(clean, "sent, and the old error is gone");
-    let due = emails::db::pending(&pool).await.expect("queue is readable");
-    assert!(due.iter().all(|row| row.email != "last-try@example.com"));
+    .expect("booking exists");
+
+    // This call was cancelled with its emails still waiting.
+    let (cancelled, _) = book(&app, &slug, cancelled_at).await;
+    make_due(&pool, cancelled).await;
+    sqlx::query_scalar!(
+        "UPDATE bookings SET status = 'cancelled', cancelled_at = now() WHERE unid = $1 RETURNING 1",
+        cancelled,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("booking exists");
+    sqlx::query_scalar!(
+        r#"INSERT INTO email_queue (booking_unid, email, template, send_at, payload)
+           VALUES ($1, 'ada@example.com', 'booking_cancelled', now(), '{"name":"Ada"}')
+           RETURNING 1"#,
+        cancelled,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("email is queued");
+
+    let outbox = Outbox::default();
+    worker::process_due(&pool, &outbox).await;
+    assert_eq!(
+        outbox.sent(),
+        [
+            // A late "you booked" still says something true; a late reminder does not.
+            "Ada Lovelace booked a call -> nino@example.com",
+            "Your call was cancelled -> ada@example.com",
+            "Your call with Nino Tbilisi is booked -> ada@example.com",
+        ]
+    );
+    // What was not sent is gone, so no list shows it as sent or waiting.
+    let left = sqlx::query_scalar!(
+        r#"SELECT template || ' sent=' || (sent_at IS NOT NULL)::text AS "row!"
+           FROM email_queue ORDER BY template"#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(
+        left,
+        [
+            "booking_cancelled sent=true",
+            "booking_confirmation sent=true",
+            "host_new_booking sent=true",
+        ]
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_sweep_removes_what_nothing_reads_any_more(pool: PgPool) {
+    let app = app(&pool);
+    let host = register(&app, "Ada Lovelace", "ada@example.com").await;
+    for (email, sent_days_ago) in [("old@example.com", 91), ("recent@example.com", 89)] {
+        sqlx::query_scalar!(
+            "INSERT INTO email_queue (email, template, send_at, sent_at)
+             VALUES ($1, 'booking_confirmation', now() - make_interval(days => $2),
+                     now() - make_interval(days => $2))
+             RETURNING 1",
+            email,
+            sent_days_ago,
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("email is queued");
+    }
+    queue_email(
+        &pool,
+        "waiting@example.com",
+        "booking_confirmation",
+        200_000,
+    )
+    .await;
+    for (token_hash, hours_ago) in [("old", 25), ("recent", 23)] {
+        sqlx::query_scalar!(
+            "INSERT INTO password_resets (token_hash, user_unid, expires_at, created_at)
+             VALUES ($1, $2, now(), now() - make_interval(hours => $3)) RETURNING 1",
+            token_hash,
+            host.unid,
+            hours_ago,
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("reset is stored");
+    }
+    for (state, expired_hours_ago) in [("old", 25), ("recent", 23)] {
+        GoogleCalendarDb::create_state(
+            &pool,
+            state,
+            host.unid,
+            "http://localhost:3000/callback",
+            Utc::now() - Duration::hours(expired_hours_ago),
+        )
+        .await
+        .expect("state is stored");
+    }
+
+    worker::sweep(&pool).await;
+
+    let emails = sqlx::query_scalar!("SELECT email FROM email_queue ORDER BY email")
+        .fetch_all(&pool)
+        .await
+        .expect("queue is readable");
+    assert_eq!(
+        emails,
+        ["recent@example.com", "waiting@example.com"],
+        "an unsent email is kept however old it is"
+    );
+    let resets = sqlx::query_scalar!("SELECT token_hash FROM password_resets")
+        .fetch_all(&pool)
+        .await
+        .expect("resets are readable");
+    assert_eq!(resets, ["recent"]);
+    let states = sqlx::query_scalar!("SELECT state FROM oauth_states")
+        .fetch_all(&pool)
+        .await
+        .expect("states are readable");
+    assert_eq!(states, ["recent"]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_calendar_is_connected_only_with_the_state_its_host_was_given(pool: PgPool) {
+    let app = app(&pool);
+    let ada = register(&app, "Ada Lovelace", "ada@example.com").await;
+    let grace = register(&app, "Grace Hopper", "grace@example.com").await;
+    let in_ten_minutes = Utc::now() + Duration::minutes(10);
+    for (state, expires_at) in [
+        ("adas-state", in_ten_minutes),
+        ("adas-used-state", in_ten_minutes),
+        ("adas-expired-state", Utc::now() - Duration::minutes(1)),
+    ] {
+        GoogleCalendarDb::create_state(&pool, state, ada.unid, "http://localhost/cb", expires_at)
+            .await
+            .expect("state is stored");
+    }
+    // A state works once.
+    let spend = |state: &'static str| GoogleCalendarDb::consume_state(&pool, state, ada.unid);
+    assert!(spend("adas-used-state").await.expect("readable").is_some());
+    assert!(spend("adas-used-state").await.expect("readable").is_none());
+
+    // Every refusal below happens before anything is sent to Google.
+    let login = |host: &Host, body: Value| {
+        let (app, cookie) = (app.clone(), host.cookie.clone());
+        async move {
+            send(
+                &app,
+                Method::POST,
+                "/api/google-calendar/login",
+                Some(&cookie),
+                Some(body),
+            )
+            .await
+        }
+    };
+    let (status, _) = login(&ada, json!({ "code": "x" })).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "no state");
+    for (host, state, why) in [
+        (&ada, "", "empty"),
+        (&ada, "never-issued", "unknown"),
+        (&ada, "adas-used-state", "already used"),
+        (&ada, "adas-expired-state", "expired"),
+        (&grace, "adas-state", "another host's"),
+    ] {
+        let (status, body) = login(host, json!({ "code": "x", "state": state })).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{why}");
+        assert_eq!(
+            body,
+            json!({
+                "ok": false,
+                "error": "this Google sign-in has expired, connect Google Calendar again",
+            }),
+            "{why}"
+        );
+    }
+    let connected = sqlx::query_scalar!("SELECT count(*) FROM google_calendar_config")
+        .fetch_one(&pool)
+        .await
+        .expect("config is readable");
+    assert_eq!(connected, Some(0));
+    // Someone else trying Ada's state did not spend it for her.
+    assert!(spend("adas-state").await.expect("readable").is_some());
 }
 
 /// The open times of a host with half-hour calls, as "HH:MM" on the host's
@@ -1347,11 +1725,7 @@ async fn half_hours_on(app: &Router, slug: &str, day: DateTime<Utc>) -> Vec<Stri
                 .expect("slot has a start")
         })
         .filter(|start| start.date_naive() == day.date_naive())
-        .map(|start| {
-            (start + chrono::Duration::hours(4))
-                .format("%H:%M")
-                .to_string()
-        })
+        .map(|start| (start + Duration::hours(4)).format("%H:%M").to_string())
         .collect()
 }
 
@@ -1386,12 +1760,12 @@ async fn a_buffer_keeps_time_free_around_every_booked_call(pool: PgPool) {
     assert!(page.get("buffer_minutes").is_none());
 
     // 10:00 in Tbilisi, three days out: a whole day inside the window.
-    let ten = (Utc::now() + chrono::Duration::days(3))
+    let ten = (Utc::now() + Duration::days(3))
         .date_naive()
         .and_hms_opt(6, 0, 0)
         .expect("06:00 exists")
         .and_utc();
-    let half_hour = chrono::Duration::minutes(30);
+    let half_hour = Duration::minutes(30);
     let all = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30"];
     assert_eq!(half_hours_on(&app, &slug, ten).await, all);
 
@@ -1451,4 +1825,453 @@ async fn a_buffer_keeps_time_free_around_every_booked_call(pool: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT, "too close to the other call");
     let (_, mine) = get(&app, &format!("/api/bookings/{other}"), Some(&host.cookie)).await;
     assert_eq!(mine["booking"]["slot_start"], json!(ten - half_hour));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_booking_with_bad_details_is_refused_and_takes_no_time(pool: PgPool) {
+    let app = app(&pool);
+    let (_, slug) = host_with_hours(&app, "nino@example.com").await;
+    let open = slots(&app, &slug).await;
+    let start = open[0];
+    let bookings_path = format!("/api/hosts/{slug}/bookings");
+    let try_booking = |field: &'static str, value: Value| {
+        let mut body = booking(start, None);
+        body[field] = value;
+        send(&app, Method::POST, &bookings_path, None, Some(body))
+    };
+
+    for (field, value, error) in [
+        ("invitee_email", json!("ada"), "invitee_email is invalid"),
+        (
+            "invitee_email",
+            json!("ada@example"),
+            "invitee_email is invalid",
+        ),
+        (
+            "invitee_email",
+            json!("ada lovelace@example.com"),
+            "invitee_email is invalid",
+        ),
+        (
+            "invitee_name",
+            json!("   "),
+            "invitee_name must be 1 to 120 characters",
+        ),
+        (
+            "invitee_name",
+            json!("a".repeat(121)),
+            "invitee_name must be 1 to 120 characters",
+        ),
+        ("timezone", json!("Mars/Olympus"), "timezone is invalid"),
+    ] {
+        let (status, body) = try_booking(field, value.clone()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{field} {value}");
+        assert_eq!(body["error"], format!("invalid input: {error}"));
+    }
+
+    // A visit that was never recorded is bad input, not a server failure.
+    let (status, body) = try_booking("calling_visit_unid", json!(Uuid::new_v4())).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid input: booking data is invalid");
+
+    assert_eq!(slots(&app, &slug).await, open, "nothing was booked");
+    let (status, _) = try_booking("invitee_name", json!("a".repeat(120))).await;
+    assert_eq!(status, StatusCode::CREATED);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_cancelled_call_no_longer_shows_where_to_join(pool: PgPool) {
+    const LINK: &str = "https://zoom.us/j/123456789";
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let mut host_settings = settings(&app, &host).await;
+    host_settings["meeting_link"] = json!(LINK);
+    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    assert_eq!(status, StatusCode::OK);
+    let start = slots(&app, &slug).await[0];
+    let (_, token) = book(&app, &slug, start).await;
+    let manage_path = format!("/api/manage/{token}");
+
+    let (status, call) = get(&app, &manage_path, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(call["meeting_url"], LINK);
+
+    let (status, cancelled) = send(
+        &app,
+        Method::POST,
+        &format!("{manage_path}/cancel"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cancelled["status"], "cancelled");
+    assert_eq!(cancelled["meeting_url"], Value::Null);
+    let (status, call) = get(&app, &manage_path, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(call["status"], "cancelled");
+    assert_eq!(call["meeting_url"], Value::Null);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn reading_open_times_is_limited(pool: PgPool) {
+    const LIMIT: usize = 120;
+    let app = app(&pool);
+    let (_, slug) = host_with_hours(&app, "nino@example.com").await;
+    let path = format!("/api/hosts/{slug}/slots");
+
+    for attempt in 0..LIMIT {
+        let (status, _) = get(&app, &path, None).await;
+        assert_eq!(status, StatusCode::OK, "attempt {attempt}");
+    }
+    // A fixed window can roll over in the middle of the test, so the refusal
+    // is one of the next requests, not exactly the next one.
+    let mut refused = false;
+    for _ in LIMIT..=LIMIT * 2 {
+        let (status, error) = get(&app, &path, None).await;
+        if status == StatusCode::TOO_MANY_REQUESTS {
+            assert_eq!(
+                error["error"],
+                "too many attempts, try again in a few minutes"
+            );
+            refused = true;
+            break;
+        }
+    }
+    assert!(refused, "{path} was never limited");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_oversized_request_is_refused_before_it_is_read(pool: PgPool) {
+    let app = app(&pool);
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/calling-visits",
+        None,
+        Some(json!({ "source_page": "a".repeat(70 * 1024) })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+
+    // Within the size limit, the field's own limit answers.
+    for (field, length) in [
+        ("source_page", 2001),
+        ("user_agent", 501),
+        ("utm_source", 201),
+    ] {
+        let (status, error) = send(
+            &app,
+            Method::POST,
+            "/api/calling-visits",
+            None,
+            Some(json!({ field: "a".repeat(length) })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{field}");
+        assert_eq!(
+            error["error"],
+            format!("invalid input: {field} is too long")
+        );
+    }
+
+    // A bug report with a long stack trace still fits.
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/bug-reports",
+        None,
+        Some(json!({
+            "bug_type": "JsError",
+            "message": "TypeError: x is undefined",
+            "stack_trace": "a".repeat(100 * 1024),
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// A host in Tbilisi (UTC+4) with the same hours every day, each given as
+/// start, end and call length, and `buffer` minutes kept between calls.
+async fn host_in_tbilisi(app: &Router, buffer: i32, hours: &[(&str, &str, i32)]) -> (Host, String) {
+    let host = register(app, "Nino Tbilisi", "nino@example.com").await;
+    let mut settings = settings(app, &host).await;
+    settings["timezone"] = json!("Asia/Tbilisi");
+    settings["buffer_minutes"] = json!(buffer);
+    let (status, settings) = save_settings(app, &host, &settings).await;
+    assert_eq!(status, StatusCode::OK);
+    for weekday in 0..7 {
+        for (start_time, end_time, slot_minutes) in hours {
+            let (status, _) = send(
+                app,
+                Method::POST,
+                "/api/availability",
+                Some(&host.cookie),
+                Some(json!({
+                    "weekday": weekday,
+                    "start_time": start_time,
+                    "end_time": end_time,
+                    "slot_minutes": slot_minutes,
+                })),
+            )
+            .await;
+            assert_eq!(status, StatusCode::CREATED);
+        }
+    }
+    let slug = slug(&settings).to_owned();
+    (host, slug)
+}
+
+/// A time on the host's clock in Tbilisi, `days` days from today: far enough
+/// out to be past the notice period and inside the booking window.
+fn tbilisi(days: i64, hour: u32, minute: u32) -> DateTime<Utc> {
+    (Utc::now() + Duration::days(days))
+        .date_naive()
+        .and_hms_opt(hour, minute, 0)
+        .expect("the time exists")
+        .and_utc()
+        - Duration::hours(4)
+}
+
+/// The open times on the day `day` falls on, as "HH:MM/length" on the host's
+/// clock in Tbilisi.
+async fn open_on(app: &Router, slug: &str, day: DateTime<Utc>) -> Vec<String> {
+    let (status, slots) = get(app, &format!("/api/hosts/{slug}/slots"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    slots
+        .as_array()
+        .expect("slots are a list")
+        .iter()
+        .map(|slot| {
+            let start: DateTime<Utc> =
+                serde_json::from_value(slot["start"].clone()).expect("slot has a start");
+            (start, slot["minutes"].as_i64().expect("slot has a length"))
+        })
+        .filter(|(start, _)| start.date_naive() == day.date_naive())
+        .map(|(start, minutes)| {
+            format!("{}/{minutes}", (start + Duration::hours(4)).format("%H:%M"))
+        })
+        .collect()
+}
+
+async fn try_to_book(app: &Router, slug: &str, start: DateTime<Utc>) -> StatusCode {
+    send(
+        app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/bookings"),
+        None,
+        Some(booking(start, None)),
+    )
+    .await
+    .0
+}
+
+async fn try_to_move(app: &Router, token: &str, start: DateTime<Utc>) -> StatusCode {
+    send(
+        app,
+        Method::POST,
+        &format!("/api/manage/{token}/reschedule"),
+        None,
+        Some(json!({ "slot_start": start })),
+    )
+    .await
+    .0
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn hours_that_overlap_never_open_two_calls_at_once(pool: PgPool) {
+    let app = app(&pool);
+    let hours = [("09:00:00", "11:00:00", 60), ("09:30:00", "10:30:00", 30)];
+    let (_, slug) = host_in_tbilisi(&app, 0, &hours).await;
+    let nine = tbilisi(3, 9, 0);
+    let half_hour = Duration::minutes(30);
+    // 10:00 is opened by both sets of hours; the earlier one names its length.
+    assert_eq!(
+        open_on(&app, &slug, nine).await,
+        ["09:00/60", "09:30/30", "10:00/60"]
+    );
+
+    book(&app, &slug, nine).await;
+    assert_eq!(open_on(&app, &slug, nine).await, ["10:00/60"]);
+    assert_eq!(
+        try_to_book(&app, &slug, nine + half_hour).await,
+        StatusCode::CONFLICT,
+        "09:30 is inside the 09:00 call"
+    );
+    // A call may start the minute another ends.
+    book(&app, &slug, nine + half_hour * 2).await;
+    assert!(open_on(&app, &slug, nine).await.is_empty());
+
+    // The other way round: the half hour in the middle closes the hour around it.
+    let next_nine = tbilisi(4, 9, 0);
+    book(&app, &slug, next_nine + half_hour).await;
+    assert_eq!(open_on(&app, &slug, next_nine).await, ["10:00/60"]);
+    assert_eq!(
+        try_to_book(&app, &slug, next_nine).await,
+        StatusCode::CONFLICT,
+        "09:00 to 10:00 would run over the 09:30 call"
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn two_visitors_booking_at_once_cannot_both_win(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_in_tbilisi(&app, 15, &[("09:00:00", "12:00:00", 30)]).await;
+    let ten = tbilisi(3, 10, 0);
+    let half_hour = Duration::minutes(30);
+    // Both requests find a connection waiting; otherwise the one that has to
+    // open its own falls behind and they never overlap.
+    let warm = tokio::join!(
+        pool.acquire(),
+        pool.acquire(),
+        pool.acquire(),
+        pool.acquire()
+    );
+    drop(warm);
+
+    // Neighbouring starts: each is free on its own, together they leave no gap.
+    let mut neighbours: [StatusCode; 2] = tokio::join!(
+        try_to_book(&app, &slug, ten),
+        try_to_book(&app, &slug, ten + half_hour),
+    )
+    .into();
+    neighbours.sort();
+    assert_eq!(neighbours, [StatusCode::CREATED, StatusCode::CONFLICT]);
+
+    // The very same start, on another day.
+    let next_ten = tbilisi(4, 10, 0);
+    let mut same: [StatusCode; 2] = tokio::join!(
+        try_to_book(&app, &slug, next_ten),
+        try_to_book(&app, &slug, next_ten),
+    )
+    .into();
+    same.sort();
+    assert_eq!(same, [StatusCode::CREATED, StatusCode::CONFLICT]);
+
+    let (_, mine) = get(&app, "/api/bookings", Some(&host.cookie)).await;
+    assert_eq!(mine.as_array().map(Vec::len), Some(2));
+    // Only the calls that were booked have emails waiting.
+    let with_emails = sqlx::query_scalar!("SELECT count(DISTINCT booking_unid) FROM email_queue")
+        .fetch_one(&pool)
+        .await
+        .expect("queue is readable");
+    assert_eq!(with_emails, Some(2));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_call_keeps_its_length_when_the_hours_change(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_in_tbilisi(&app, 0, &[("09:00:00", "10:00:00", 60)]).await;
+    let nine = tbilisi(3, 9, 0);
+    let (unid, token) = book(&app, &slug, nine).await;
+
+    // The host now takes half-hour calls in the same hour, then none at all.
+    let (_, rules) = get(&app, "/api/availability", Some(&host.cookie)).await;
+    let rules = rules.as_array().expect("rules are a list").clone();
+    for rule in &rules {
+        let mut shorter = rule.clone();
+        shorter["slot_minutes"] = json!(30);
+        let (status, _) = send(
+            &app,
+            Method::PUT,
+            &format!("/api/availability/{}", rule["id"]),
+            Some(&host.cookie),
+            Some(shorter),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    assert_eq!(
+        open_on(&app, &slug, tbilisi(4, 9, 0)).await,
+        ["09:00/30", "09:30/30"]
+    );
+    assert!(
+        open_on(&app, &slug, nine).await.is_empty(),
+        "both half hours are inside the hour-long call"
+    );
+    assert_eq!(
+        try_to_book(&app, &slug, nine + Duration::minutes(30)).await,
+        StatusCode::CONFLICT
+    );
+
+    let still_an_hour = || async {
+        let (_, mine) = get(&app, "/api/bookings", Some(&host.cookie)).await;
+        assert_eq!(mine[0]["minutes"], 60);
+        let (_, detail) = get(&app, &format!("/api/bookings/{unid}"), Some(&host.cookie)).await;
+        assert_eq!(detail["booking"]["minutes"], 60);
+        let (_, call) = get(&app, &format!("/api/manage/{token}"), None).await;
+        assert_eq!(call["minutes"], 60);
+    };
+    still_an_hour().await;
+    for rule in &rules {
+        let (status, _) = send(
+            &app,
+            Method::DELETE,
+            &format!("/api/availability/{}", rule["id"]),
+            Some(&host.cookie),
+            None,
+        )
+        .await;
+        assert!(status.is_success(), "{status}");
+    }
+    still_an_hour().await;
+
+    // Emails queued from here on say an hour too, as the earlier ones did.
+    let (status, cancelled) = send(
+        &app,
+        Method::POST,
+        &format!("/api/bookings/{unid}/cancel"),
+        Some(&host.cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(cancelled["minutes"], 60);
+    let lengths = sqlx::query_scalar!(
+        r#"SELECT DISTINCT payload->>'minutes' AS "minutes!" FROM email_queue WHERE booking_unid = $1"#,
+        unid,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(lengths, ["60"]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_call_can_move_onto_its_own_time_but_not_onto_anothers(pool: PgPool) {
+    let app = app(&pool);
+    // Hour-long calls starting every half hour from 09:00 to 11:00.
+    let hours = [("09:00:00", "12:00:00", 60), ("09:30:00", "11:30:00", 60)];
+    let (host, slug) = host_in_tbilisi(&app, 0, &hours).await;
+    let at = |hour, minute| tbilisi(3, hour, minute);
+    let (_, token) = book(&app, &slug, at(10, 0)).await;
+    book(&app, &slug, at(9, 0)).await;
+    assert_eq!(open_on(&app, &slug, at(9, 0)).await, ["11:00/60"]);
+
+    // 10:30 to 11:30 runs over the call's own 10:00 to 11:00 and nothing else.
+    assert_eq!(try_to_move(&app, &token, at(10, 30)).await, StatusCode::OK);
+    assert_eq!(
+        try_to_move(&app, &token, at(9, 30)).await,
+        StatusCode::CONFLICT,
+        "runs over the 09:00 call"
+    );
+    assert_eq!(try_to_move(&app, &token, at(10, 0)).await, StatusCode::OK);
+
+    // With a gap, the call's own time still does not count against it...
+    let mut with_gap = settings(&app, &host).await;
+    with_gap["buffer_minutes"] = json!(30);
+    let (status, _) = save_settings(&app, &host, &with_gap).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(open_on(&app, &slug, at(9, 0)).await, Vec::<String>::new());
+    assert_eq!(try_to_move(&app, &token, at(11, 0)).await, StatusCode::OK);
+    assert_eq!(try_to_move(&app, &token, at(10, 30)).await, StatusCode::OK);
+    // ...and the other call's time does.
+    assert_eq!(
+        try_to_move(&app, &token, at(10, 0)).await,
+        StatusCode::CONFLICT,
+        "starts the minute the 09:00 call ends"
+    );
+    let (_, call) = get(&app, &format!("/api/manage/{token}"), None).await;
+    assert_eq!(call["slot_start"], json!(at(10, 30)));
+    assert_eq!(call["minutes"], 60);
 }

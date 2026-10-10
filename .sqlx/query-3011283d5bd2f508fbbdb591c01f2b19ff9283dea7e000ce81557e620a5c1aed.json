@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE users SET password_hash = $2, updated_at = now() WHERE unid = $1 RETURNING 1",
+  "query": "DELETE FROM email_queue WHERE id = $1 RETURNING 1",
   "describe": {
     "columns": [
       {
@@ -12,13 +12,12 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "71db95a79b8512a96dcb6f18f00f4e591ffe68bcfcc26c95fedb7896f824a9f0"
+  "hash": "3011283d5bd2f508fbbdb591c01f2b19ff9283dea7e000ce81557e620a5c1aed"
 }

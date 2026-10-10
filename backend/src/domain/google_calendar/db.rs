@@ -4,6 +4,9 @@ use uuid::Uuid;
 
 use crate::domain::google_calendar::models::GoogleCalendarConfig;
 
+/// The `provider` of the states made for connecting a calendar.
+const OAUTH_PROVIDER: &str = "google_calendar";
+
 pub struct GoogleCalendarDb;
 
 impl GoogleCalendarDb {
@@ -74,6 +77,58 @@ impl GoogleCalendarDb {
             host_unid
         )
         .fetch_optional(pool)
+        .await
+        .map(|_| ())
+    }
+
+    /// Remembers the `state` a host takes to Google's consent screen.
+    pub async fn create_state(
+        pool: &PgPool,
+        state: &str,
+        host_unid: Uuid,
+        redirect_uri: &str,
+        expires_at: DateTime<Utc>,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query_scalar!(
+            "INSERT INTO oauth_states (state, user_unid, provider, redirect_uri, expires_at)
+             VALUES ($1, $2, $3, $4, $5) RETURNING 1",
+            state,
+            host_unid,
+            OAUTH_PROVIDER,
+            redirect_uri,
+            expires_at,
+        )
+        .fetch_one(pool)
+        .await
+        .map(|_| ())
+    }
+
+    /// Spends a `state` and returns the redirect it was made for. `None`
+    /// when it is unknown, expired, already used or another host's.
+    pub async fn consume_state(
+        pool: &PgPool,
+        state: &str,
+        host_unid: Uuid,
+    ) -> Result<Option<String>, sqlx::Error> {
+        sqlx::query_scalar!(
+            "UPDATE oauth_states SET consumed_at = now()
+             WHERE state = $1 AND user_unid = $2 AND provider = $3
+               AND consumed_at IS NULL AND expires_at > now()
+             RETURNING redirect_uri",
+            state,
+            host_unid,
+            OAUTH_PROVIDER,
+        )
+        .fetch_optional(pool)
+        .await
+    }
+
+    /// Drops states that stopped working a day ago or more.
+    pub async fn delete_old_states(pool: &PgPool) -> Result<(), sqlx::Error> {
+        sqlx::query_scalar!(
+            "DELETE FROM oauth_states WHERE expires_at < now() - interval '1 day' RETURNING 1",
+        )
+        .fetch_all(pool)
         .await
         .map(|_| ())
     }

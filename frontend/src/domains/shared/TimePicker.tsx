@@ -34,6 +34,7 @@ export function TimePicker({
   value,
   onChange,
   after,
+  before,
   invalid = false,
 }: {
   id: string;
@@ -41,12 +42,18 @@ export function TimePicker({
   onChange: (time: string) => void;
   /** Offer only later times, each with how long after this one it is. */
   after?: string;
+  /** Offer only earlier times, so a later one always remains for an end. */
+  before?: string;
   invalid?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const hour12 = prefersHour12();
   const floor = after === undefined ? -1 : clockMinutes(after);
-  const times = TIMES.filter((time) => clockMinutes(time) > floor);
+  const ceiling = before === undefined ? DAY_MINUTES : clockMinutes(before);
+  const times = TIMES.filter((time) => {
+    const minutes = clockMinutes(time);
+    return minutes > floor && minutes < ceiling;
+  });
   // Both spellings, so "17", "5:30" and "5 pm" all find the same time.
   const searchValue = (time: string) =>
     `${formatClock(time, true)} ${formatClock(time, false)}`;
@@ -70,9 +77,9 @@ export function TimePicker({
       <PopoverContent align="start" className="w-60 p-0">
         {/* Starting on the current time also scrolls the list to it. */}
         <Command defaultValue={searchValue(value)}>
-          <CommandInput placeholder="Type a time" />
+          <CommandInput aria-label="Find a time" placeholder="Type a time" />
           <CommandList className="max-h-64">
-            <CommandEmpty>No time like that.</CommandEmpty>
+            <CommandEmpty>No matching time. Try 9:30 or 5 pm.</CommandEmpty>
             <CommandGroup>
               {times.map((time) => (
                 <CommandItem

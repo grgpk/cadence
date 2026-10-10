@@ -37,6 +37,9 @@ pub struct EventDateTime {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CalendarEventsResponse {
     pub items: Option<Vec<CalendarEvent>>,
+    /// Present while the list has more pages.
+    #[serde(rename = "nextPageToken")]
+    pub next_page_token: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,7 +58,27 @@ pub struct GoogleCalendarConfig {
     pub calendar_id: String,
 }
 
-#[derive(Debug, Deserialize)]
+/// What the browser needs to send a host to Google's consent screen.
+#[derive(Debug, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/GoogleOAuthConfigResponse.ts"
+)]
+pub struct GoogleOAuthConfigResponse {
+    pub client_id: String,
+    pub redirect_uri: String,
+    /// Goes to Google as `state` and must come back with the code. Works
+    /// once, for a few minutes, for the host it was made for.
+    pub state: String,
+}
+
+#[derive(Debug, Deserialize, Serialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/GoogleCalendarLoginRequest.ts"
+)]
 pub struct GoogleCalendarLoginRequest {
     pub code: String,
+    /// The `state` Google sent back to the callback.
+    pub state: String,
 }

@@ -49,9 +49,12 @@ export function TimezoneCombobox({
         </button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-[320px] p-0">
+      <PopoverContent align="start" className="w-[min(320px,calc(100vw-2rem))] p-0">
         <Command>
-          <CommandInput placeholder="Search country or timezone..." />
+          <CommandInput
+            aria-label="Search country or timezone"
+            placeholder="Search country or timezone..."
+          />
           <CommandList className="min-h-0">
             <CommandEmpty>No timezone found.</CommandEmpty>
             <CommandGroup>

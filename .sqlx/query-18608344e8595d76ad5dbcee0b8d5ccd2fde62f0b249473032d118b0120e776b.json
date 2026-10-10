@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT DISTINCT payload->>'minutes' AS \"minutes!\" FROM email_queue WHERE booking_unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "minutes!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "18608344e8595d76ad5dbcee0b8d5ccd2fde62f0b249473032d118b0120e776b"
+}

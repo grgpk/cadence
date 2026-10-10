@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
+import { HourMark } from "../shared/HourMark";
 import { dayPhase, type DayPhase } from "../widget/zoned-time";
 
 type Block =
@@ -109,14 +110,8 @@ export function DayTape() {
           {[0, 1].flatMap((copy) =>
             DAY.map(({ hour, block }) => (
               <div key={`${copy}-${hour}`} className="w-40 shrink-0 sm:w-48">
-                <p className="text-clock text-lg font-medium text-muted-foreground">
-                  {String(hour).padStart(2, "0")}:00
-                </p>
-                {/* The ruler: a tall tick on the hour, a short one on the half. */}
-                <div className="relative mt-1 h-3 border-t border-foreground/25">
-                  <span className="absolute top-0 left-0 h-3 w-px bg-foreground/40" />
-                  <span className="absolute top-0 left-1/2 h-1.5 w-px bg-foreground/25" />
-                </div>
+                {/* A sample day, rendered on the server: always the 24 hour clock. */}
+                <HourMark hour={hour} hour12={false} size="lg" />
                 <div className="mt-3 h-12">
                   {block ? <TapeBlock hour={hour} block={block} /> : null}
                 </div>

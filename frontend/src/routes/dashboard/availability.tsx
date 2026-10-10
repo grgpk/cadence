@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import { Loader2, Plus, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
@@ -98,14 +98,27 @@ function HoursForm({
     slot_minutes: slotMinutes,
   });
 
+  // Days already saved with these exact hours. A retry after one day failed
+  // must not add the others a second time.
+  const savedDays = useRef(new Set<number>());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: different hours are a different save
+  useEffect(() => savedDays.current.clear(), [start, end, slotMinutes]);
+  const formRef = useRef<HTMLFormElement>(null);
+  // The form replaces the control that opened it, so it takes the focus.
+  useEffect(() => formRef.current?.querySelector("button")?.focus(), []);
+
   const saveHours = useMutation({
     mutationFn: () =>
-      Promise.all([
-        rule
-          ? updateAvailabilityRule(rule.id, hours(weekday))
-          : createAvailabilityRule(hours(weekday)),
-        ...otherDays.map((day) => createAvailabilityRule(hours(day))),
-      ]),
+      Promise.all(
+        [weekday, ...otherDays]
+          .filter((day) => !savedDays.current.has(day))
+          .map(async (day) => {
+            if (rule && day === weekday)
+              await updateAvailabilityRule(rule.id, hours(day));
+            else await createAvailabilityRule(hours(day));
+            savedDays.current.add(day);
+          }),
+      ),
     onSuccess: () => {
       toast.success(rule ? "Hours saved" : "Hours added");
       onDone();
@@ -129,6 +142,7 @@ function HoursForm({
 
   return (
     <form
+      ref={formRef}
       className="grid gap-3 rounded-lg border bg-muted p-3"
       onSubmit={(event) => {
         event.preventDefault();
@@ -140,6 +154,7 @@ function HoursForm({
           <TimePicker
             id={`${id}-start`}
             value={start}
+            before={LAST_TIME}
             onChange={(time) => {
               setStart(time);
               if (time >= end) setEnd(hourAfter(time));
@@ -211,6 +226,9 @@ function HoursForm({
   );
 }
 
+/** The id of the chip for one range, so focus can return to it. */
+const chipId = (id: number) => `hours-chip-${id}`;
+
 function DayRow({
   weekday,
   rules,
@@ -224,6 +242,19 @@ function DayRow({
   // The form in this row: adding hours, or changing the rule with this id.
   const [form, setForm] = useState<"add" | number | null>(null);
   const name = weekdayName(weekday);
+  const addId = `hours-add-${weekday}`;
+  // When the form closes, focus goes back to what opened it, or to "Add hours"
+  // when that range is gone.
+  const opener = useRef<string | null>(null);
+  useEffect(() => {
+    if (form !== null) {
+      opener.current = form === "add" ? addId : chipId(form);
+      return;
+    }
+    if (opener.current === null) return;
+    (document.getElementById(opener.current) ?? document.getElementById(addId))?.focus();
+    opener.current = null;
+  }, [form, addId]);
 
   const refresh = () =>
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
@@ -302,6 +333,7 @@ function DayRow({
           rule.id === form ? null : (
             <div key={rule.id} className="flex items-center gap-3 text-sm">
               <button
+                id={chipId(rule.id)}
                 type="button"
                 aria-label={`Edit ${name} ${range(rule)}`}
                 onClick={() => setForm(rule.id)}
@@ -335,6 +367,7 @@ function DayRow({
       </div>
       {form === null ? (
         <Button
+          id={addId}
           type="button"
           variant="ghost"
           size="sm"

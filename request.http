@@ -120,6 +120,15 @@ GET {{baseUrl}}/api/bookings/{{bookingUnid}}
 ### Cancel one of my bookings
 POST {{baseUrl}}/api/bookings/{{bookingUnid}}/cancel
 
+### Start connecting Google Calendar (returns client_id, redirect_uri and a one-time state for the Google URL)
+GET {{baseUrl}}/api/google-calendar/oauth-config
+
+### Finish connecting Google Calendar (400 unless state is the one Google sent back, unused and under 10 minutes old)
+POST {{baseUrl}}/api/google-calendar/login
+Content-Type: application/json
+
+{"code":"replace-with-the-code-from-google","state":"replace-with-the-state-from-google"}
+
 ### Admin leads
 GET {{baseUrl}}/api/admin/leads
 

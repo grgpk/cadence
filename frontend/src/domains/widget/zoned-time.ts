@@ -1,4 +1,4 @@
-import { formatClock } from "../../lib/format";
+import { dateFormatter, formatClock } from "../../lib/format";
 
 export type ZonedTime = {
   year: number;
@@ -11,7 +11,7 @@ export type ZonedTime = {
 
 /** Wall-clock reading of an instant in an IANA timezone. */
 export function zonedTime(instant: Date, timeZone: string): ZonedTime {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const parts = dateFormatter("en-CA", {
     timeZone,
     year: "numeric",
     month: "2-digit",

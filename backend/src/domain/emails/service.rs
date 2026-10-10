@@ -5,10 +5,10 @@ use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::form
 use time_tz::{OffsetDateTimeExt, timezones};
 
 use super::{
-    db,
+    db::{self, PendingEmail},
     models::{AdminEmail, EmailState},
 };
-use crate::error::AppResult;
+use crate::{domain::bookings::models::BookingStatus, error::AppResult};
 
 pub const BOOKING_CONFIRMATION_TEMPLATE: &str = "booking_confirmation";
 pub const REMINDER_24H_TEMPLATE: &str = "reminder_24h";
@@ -130,6 +130,43 @@ pub async fn queue_password_reset(
     )
     .await
     .map_err(Into::into)
+}
+
+pub async fn forget_old_sent(pool: &PgPool) -> AppResult<()> {
+    db::delete_old_sent(pool).await.map_err(Into::into)
+}
+
+/// What the worker does with an email that has come due.
+pub enum Delivery {
+    Send(RenderedEmail),
+    /// The call it is about was cancelled or has started; saying so now
+    /// would only confuse.
+    Drop,
+    UnknownTemplate,
+}
+
+pub fn delivery(email: &PendingEmail, now: DateTime<Utc>) -> Delivery {
+    let template = email.template.as_str();
+    let is_reminder = [
+        REMINDER_24H_TEMPLATE,
+        REMINDER_2H_TEMPLATE,
+        REMINDER_30MIN_TEMPLATE,
+    ]
+    .contains(&template);
+    let is_cancellation =
+        [BOOKING_CANCELLED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE].contains(&template);
+    let call_cancelled = email.call_status.as_deref() == Some(BookingStatus::Cancelled.as_str());
+    let call_started = email.call_start.is_some_and(|start| start <= now);
+    if (call_cancelled && !is_cancellation) || (call_started && is_reminder) {
+        return Delivery::Drop;
+    }
+    render(template, email.payload.as_ref()).map_or(Delivery::UnknownTemplate, Delivery::Send)
+}
+
+/// A reset link is a password in waiting: once the email is out, the queue
+/// forgets it.
+pub fn forgets_payload(template: &str) -> bool {
+    template == PASSWORD_RESET_TEMPLATE
 }
 
 pub struct RenderedEmail {
@@ -400,6 +437,7 @@ fn text_body(content: &Content) -> String {
 /// clients cope. Every value is escaped on its way in.
 fn html_body(content: &Content) -> String {
     let headline = escape(&content.headline);
+    let greeting = escape(&content.greeting);
     let call = content.when.as_ref().map(|when| {
         let time = when.time.as_deref().map(|time| {
             format!(
@@ -464,6 +502,7 @@ fn html_body(content: &Content) -> String {
 <tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>{bars}<td valign="bottom" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
 <tr><td bgcolor="{CARD}" style="background-color:{CARD};border:1px solid {BORDER};border-radius:12px;padding:32px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tr><td style="padding:0 0 8px;font-size:15px;line-height:22px;color:{MUTED};">{greeting}</td></tr>
 <tr><td style="padding:0 0 20px;font-size:22px;line-height:30px;font-weight:700;color:{INK};">{headline}</td></tr>
 {rows}
 </table>
@@ -604,6 +643,12 @@ mod tests {
                 email.html.contains(&headline(template, HOSTILE_ESCAPED)),
                 "{template}"
             );
+            // Host emails greet the host; every other one greets `name`.
+            assert_eq!(
+                email.html.contains(&format!(">Hi {HOSTILE_ESCAPED},</td>")),
+                !HOST_TEMPLATES.contains(&template),
+                "{template}"
+            );
             assert!(!email.html.contains("<b>"), "{template}");
             assert!(!email.html.contains("& co"), "{template}");
         }
@@ -653,6 +698,7 @@ mod tests {
                 assert!(email.html.contains(part), "{template}: {part}");
             }
             assert!(email.text.starts_with("Hi Nino,"), "{template}");
+            assert!(email.html.contains(">Hi Nino,</td>"), "{template}");
             assert!(email.html.contains("Open your bookings</a>"), "{template}");
             assert!(!email.html.contains("Reschedule or cancel"), "{template}");
         }

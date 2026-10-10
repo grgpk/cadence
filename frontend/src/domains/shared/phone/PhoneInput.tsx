@@ -92,7 +92,7 @@ export function PhoneInput({
 
         <PopoverContent align="start" className="w-[280px] p-0">
           <Command>
-            <CommandInput placeholder="Search country..." />
+            <CommandInput aria-label="Search country" placeholder="Search country..." />
             <CommandList className="max-h-[280px] min-h-0">
               <CommandEmpty>No country found.</CommandEmpty>
               <CommandGroup>

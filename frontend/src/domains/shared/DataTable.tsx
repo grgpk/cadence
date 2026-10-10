@@ -1,4 +1,6 @@
 import { cn } from "cn";
+
+import { useIsMobile } from "../../hooks/use-mobile";
 import type { ReactNode } from "react";
 
 import {
@@ -25,11 +27,14 @@ export function DataTable<T>({
   rows: T[];
   rowKey: (row: T) => string;
 }) {
+  const stacked = useIsMobile();
   const [title, ...details] = columns;
+  // One layout at a time, so a cell that opens a panel mounts it once.
+  if (!stacked) return <DesktopTable columns={columns} rows={rows} rowKey={rowKey} />;
   return (
     <>
       {/* A phone has no room for columns: each row becomes its own short list. */}
-      <ul className="divide-y sm:hidden">
+      <ul className="divide-y">
         {rows.map((row) => (
           <li key={rowKey(row)} className="grid gap-2 px-5 py-3.5 text-sm">
             {title ? <div className="min-w-0">{title.cell(row)}</div> : null}
@@ -49,9 +54,6 @@ export function DataTable<T>({
           </li>
         ))}
       </ul>
-      <div className="hidden sm:block">
-        <DesktopTable columns={columns} rows={rows} rowKey={rowKey} />
-      </div>
     </>
   );
 }

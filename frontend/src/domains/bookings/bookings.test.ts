@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { Booking } from "../../bindings/Booking";
-import { agendaDays, matchesSearch, splitBookings, weekDays } from "./bookings";
+import {
+  agendaDays,
+  dayCall,
+  firstName,
+  matchesSearch,
+  splitBookings,
+  weekDays,
+} from "./bookings";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
 
@@ -15,6 +22,7 @@ function booking(unid: string, slotStart: string, status: Booking["status"]): Bo
     invitee_name: "Ana Kovac",
     invitee_email: "ana@example.com",
     status,
+    minutes: 30,
     meeting_url: null,
     created_at: "2026-10-01T00:00:00Z",
   };
@@ -104,5 +112,52 @@ describe("weekDays", () => {
     const sundayNight = Date.parse("2026-10-18T23:30:00Z");
     expect(weekDays(sundayNight, "UTC", 0)[0]?.day).toBe(12);
     expect(weekDays(sundayNight, "Asia/Tokyo", 0)[0]?.day).toBe(19);
+  });
+});
+
+describe("agendaDays across a clock change", () => {
+  // Clocks go back in Paris on 25 October 2026, so that day lasts 25 hours.
+  const lateOnTheLongDay = Date.parse("2026-10-24T22:30:00Z"); // 00:30 on the 25th
+  const stillTheLongDay = [booking("same", "2026-10-25T22:30:00Z", "confirmed")]; // 23:30 on the 25th
+  const nextDay = [booking("next", "2026-10-26T08:00:00Z", "confirmed")];
+
+  it("keeps a call 24 hours later on the same day as today", () => {
+    expect(agendaDays(stillTheLongDay, "Europe/Paris", lateOnTheLongDay)[0]?.label).toBe(
+      "Today",
+    );
+  });
+
+  it("calls the next calendar day tomorrow", () => {
+    expect(agendaDays(nextDay, "Europe/Paris", lateOnTheLongDay)[0]?.label).toBe(
+      "Tomorrow",
+    );
+  });
+});
+
+describe("dayCall", () => {
+  it("places a call on its day and clock in the given timezone", () => {
+    const call = { ...booking("late", "2026-10-14T22:30:00Z", "confirmed"), minutes: 45 };
+    expect(dayCall(call, "UTC")).toMatchObject({
+      day: { year: 2026, month: 10, day: 14 },
+      from: 22 * 60 + 30,
+      to: 22 * 60 + 30 + 45,
+    });
+    // 07:30 the next morning in Tokyo.
+    expect(dayCall(call, "Asia/Tokyo")).toMatchObject({
+      day: { year: 2026, month: 10, day: 15 },
+      from: 7 * 60 + 30,
+    });
+  });
+
+  it("uses the call's own length, not the hours it was booked from", () => {
+    const hour = { ...booking("long", "2026-10-14T09:00:00Z", "confirmed"), minutes: 60 };
+    expect(dayCall(hour, "UTC").to - dayCall(hour, "UTC").from).toBe(60);
+  });
+});
+
+describe("firstName", () => {
+  it("takes the first word of a name", () => {
+    expect(firstName("  Mia  Chen ")).toBe("Mia");
+    expect(firstName("Noor")).toBe("Noor");
   });
 });

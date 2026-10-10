@@ -39,6 +39,10 @@ impl FromRequestParts<AppState> for AuthUser {
         if user.status != USER_STATUS_ACTIVE {
             return Err(unauthorized("user is not active"));
         }
+        // The password was changed or reset after this session was issued.
+        if claims.ver != user.session_version {
+            return Err(unauthorized("invalid session"));
+        }
         Ok(Self { user })
     }
 }

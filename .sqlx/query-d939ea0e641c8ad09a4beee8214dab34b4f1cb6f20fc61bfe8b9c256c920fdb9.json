@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE oauth_states SET consumed_at = now()\n             WHERE state = $1 AND user_unid = $2 AND provider = $3\n               AND consumed_at IS NULL AND expires_at > now()\n             RETURNING redirect_uri",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "redirect_uri",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "oauth_states",
+            "name": "redirect_uri"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d939ea0e641c8ad09a4beee8214dab34b4f1cb6f20fc61bfe8b9c256c920fdb9"
+}

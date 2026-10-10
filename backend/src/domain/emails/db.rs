@@ -31,31 +31,54 @@ pub struct PendingEmail {
     pub email: String,
     pub template: String,
     pub payload: Option<Value>,
+    /// `None` for an email that is not about a call.
+    pub call_start: Option<DateTime<Utc>>,
+    pub call_status: Option<String>,
 }
 
-pub async fn pending(pool: &PgPool) -> Result<Vec<PendingEmail>, sqlx::Error> {
+/// The next due email, locked until the transaction ends. Rows another
+/// worker holds are passed over, so no email is picked up twice.
+pub async fn claim_next(
+    connection: &mut PgConnection,
+) -> Result<Option<PendingEmail>, sqlx::Error> {
     sqlx::query_as!(
         PendingEmail,
-        "SELECT id, email, template, payload FROM email_queue
-         WHERE sent_at IS NULL AND send_at <= now() AND attempts < $1
-         ORDER BY send_at ASC LIMIT 50",
+        r#"SELECT e.id, e.email, e.template, e.payload,
+                  b.slot_start AS "call_start?", b.status AS "call_status?"
+           FROM email_queue e LEFT JOIN bookings b ON b.unid = e.booking_unid
+           WHERE e.sent_at IS NULL AND e.send_at <= now() AND e.attempts < $1
+           ORDER BY e.send_at ASC LIMIT 1
+           FOR UPDATE OF e SKIP LOCKED"#,
         MAX_ATTEMPTS,
     )
-    .fetch_all(pool)
+    .fetch_optional(connection)
     .await
 }
 
-pub async fn mark_sent(pool: &PgPool, id: Uuid) -> Result<(), sqlx::Error> {
+/// `forget_payload` empties what the email said once it is out.
+pub async fn mark_sent(
+    connection: &mut PgConnection,
+    id: Uuid,
+    forget_payload: bool,
+) -> Result<(), sqlx::Error> {
     sqlx::query_scalar!(
-        "UPDATE email_queue SET sent_at = now(), last_error = NULL WHERE id = $1 RETURNING 1",
+        "UPDATE email_queue
+         SET sent_at = now(), last_error = NULL,
+             payload = CASE WHEN $2 THEN NULL ELSE payload END
+         WHERE id = $1 RETURNING 1",
         id,
+        forget_payload,
     )
-    .fetch_optional(pool)
+    .fetch_optional(connection)
     .await
     .map(|_| ())
 }
 
-pub async fn mark_failed(pool: &PgPool, id: Uuid, error: &str) -> Result<(), sqlx::Error> {
+pub async fn mark_failed(
+    connection: &mut PgConnection,
+    id: Uuid,
+    error: &str,
+) -> Result<(), sqlx::Error> {
     let retry_at = Utc::now() + Duration::minutes(1);
     sqlx::query_scalar!(
         "UPDATE email_queue SET attempts = attempts + 1, last_error = $2, send_at = $3 WHERE id = $1 RETURNING 1",
@@ -63,7 +86,24 @@ pub async fn mark_failed(pool: &PgPool, id: Uuid, error: &str) -> Result<(), sql
         error,
         retry_at,
     )
-    .fetch_optional(pool)
+    .fetch_optional(connection)
+    .await
+    .map(|_| ())
+}
+
+pub async fn delete(connection: &mut PgConnection, id: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!("DELETE FROM email_queue WHERE id = $1 RETURNING 1", id)
+        .fetch_optional(connection)
+        .await
+        .map(|_| ())
+}
+
+/// Drops emails that went out long ago.
+pub async fn delete_old_sent(pool: &PgPool) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM email_queue WHERE sent_at < now() - interval '90 days' RETURNING 1",
+    )
+    .fetch_all(pool)
     .await
     .map(|_| ())
 }

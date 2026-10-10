@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { cn } from "cn";
 import { CalendarDays, CalendarRange, Copy, List, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -22,8 +21,10 @@ import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/ho
 import { EmptyState } from "../../domains/shared/EmptyState";
 import { ErrorState } from "../../domains/shared/ErrorState";
 import { PageHeader } from "../../domains/shared/PageHeader";
+import { SegmentedControl } from "../../domains/shared/SegmentedControl";
 import { TableSkeleton } from "../../domains/shared/TableSkeleton";
 import { APP_NAME } from "../../lib/config";
+import { useNow } from "../../lib/use-now";
 
 export const Route = createFileRoute("/dashboard/bookings")({
   head: () => ({ meta: [{ title: `Bookings | ${APP_NAME}` }] }),
@@ -58,7 +59,7 @@ function BookingList({
       {loading ? (
         <TableSkeleton />
       ) : bookings.length > 0 ? (
-        <Agenda bookings={bookings} timeZone={timeZone} onOpen={onOpen} />
+        <Agenda bookings={bookings} timeZone={timeZone} onOpen={onOpen} heading="h2" />
       ) : search.trim() ? (
         <EmptyState
           icon={Search}
@@ -82,13 +83,15 @@ function BookingsPage() {
   const slug = settings.data?.public_slug;
   const timeZone = settings.data?.timezone;
 
+  // Each minute, so a call that starts moves out of Upcoming on its own.
+  const now = useNow()?.getTime();
   const { upcoming, past, cancelled } = useMemo(
     () =>
       splitBookings(
         (query.data ?? []).filter((booking) => matchesSearch(booking, search)),
-        Date.now(),
+        now ?? Date.now(),
       ),
-    [query.data, search],
+    [query.data, search, now],
   );
   // The agenda needs the host's timezone before it can group calls by day.
   const loading = query.isPending || settings.isPending;
@@ -100,23 +103,12 @@ function BookingsPage() {
         title="Bookings"
         description="Calls people booked from your booking page."
         actions={
-          <div className="flex rounded-md bg-muted p-0.5">
-            {VIEWS.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={view === value}
-                onClick={() => setView(value)}
-                className={cn(
-                  "flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  view === value && "bg-card text-foreground shadow-xs",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            label="Show calls as"
+            value={view}
+            options={VIEWS}
+            onChange={setView}
+          />
         }
       />
       {query.isError ? (
@@ -124,6 +116,13 @@ function BookingsPage() {
           title="Bookings did not load"
           error={query.error}
           onRetry={() => void query.refetch()}
+        />
+      ) : settings.isError ? (
+        // Without the host's timezone every time on this page would be a guess.
+        <ErrorState
+          title="Your timezone did not load"
+          error={settings.error}
+          onRetry={() => void settings.refetch()}
         />
       ) : view === "week" ? (
         loading || availability.isPending ? (

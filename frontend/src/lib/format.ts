@@ -23,13 +23,32 @@ export function prefersHour12(): boolean {
   );
 }
 
+const FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * One formatter per locale and set of options. Building one is slow, and a
+ * list of times asks for the same one for every row.
+ */
+export function dateFormatter(
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): Intl.DateTimeFormat {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let formatter = FORMATTERS.get(key);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat(locale, options);
+    FORMATTERS.set(key, formatter);
+  }
+  return formatter;
+}
+
 /** "Oct 14, 2026, 9:30 AM", or "Oct 14, 2026, 09:30" on a 24 hour device. */
 export function formatDateTime(
   value: string,
   timeZone?: string,
   hour12 = prefersHour12(),
 ): string {
-  return new Intl.DateTimeFormat(LOCALE, {
+  return dateFormatter(LOCALE, {
     dateStyle: "medium",
     timeStyle: "short",
     hourCycle: hour12 ? "h12" : "h23",
@@ -39,10 +58,25 @@ export function formatDateTime(
 
 /** "Wed, Oct 14" */
 export function formatDay(value: string, timeZone?: string): string {
-  return new Intl.DateTimeFormat(LOCALE, {
+  return dateFormatter(LOCALE, {
     weekday: "short",
     day: "numeric",
     month: "short",
+    timeZone,
+  }).format(new Date(value));
+}
+
+/** "Wednesday, October 14, 2026", or without the year: "Wednesday, October 14". */
+export function formatLongDay(
+  value: string | Date,
+  timeZone?: string,
+  year = true,
+): string {
+  return dateFormatter(LOCALE, {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: year ? "numeric" : undefined,
     timeZone,
   }).format(new Date(value));
 }
@@ -53,7 +87,7 @@ export function formatTime(
   timeZone?: string,
   hour12 = prefersHour12(),
 ): string {
-  return new Intl.DateTimeFormat(LOCALE, {
+  return dateFormatter(LOCALE, {
     hour: hour12 ? "numeric" : "2-digit",
     minute: "2-digit",
     hourCycle: hour12 ? "h12" : "h23",
@@ -79,6 +113,15 @@ export function formatClock(time: string, hour12: boolean): string {
   const hours = Math.floor(total / 60);
   const period = hours < 12 ? "AM" : "PM";
   return `${hours % 12 || 12}:${String(total % 60).padStart(2, "0")} ${period}`;
+}
+
+const DAY_HOURS = 24;
+
+/** An hour on a ruler: "14:00", or "2 PM" for someone on a 12 hour clock. */
+export function hourLabel(hour: number, hour12: boolean): string {
+  const inDay = ((hour % DAY_HOURS) + DAY_HOURS) % DAY_HOURS;
+  if (!hour12) return `${String(inDay).padStart(2, "0")}:00`;
+  return `${inDay % 12 || 12} ${inDay < 12 ? "AM" : "PM"}`;
 }
 
 /** An IANA timezone name as people read it: "America/New York". */

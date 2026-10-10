@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (SELECT count(*) FROM users) + (SELECT count(*) FROM roleaccesses)\n              + (SELECT count(*) FROM widget_settings) + (SELECT count(*) FROM availability)\n              + (SELECT count(*) FROM calling_visits) + (SELECT count(*) FROM leads)\n              + (SELECT count(*) FROM bookings) + (SELECT count(*) FROM email_queue)\n              + (SELECT count(*) FROM google_calendar_config) + (SELECT count(*) FROM oauth_states)\n              + (SELECT count(*) FROM bug_reports) + (SELECT count(*) FROM audit_logs)\n              + (SELECT count(*) FROM rate_limits WHERE action IN ('login', 'calling_visit'))",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "c3f15ee4aee888f25b173eb0aa53a5f82478122a6eb4e231d468c88a2d776d93"
+}

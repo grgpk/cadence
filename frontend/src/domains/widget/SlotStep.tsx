@@ -6,9 +6,11 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
+import { ApiError } from "../../lib/api";
 import { formatDay } from "../../lib/format";
 import { EmptyState } from "../shared/EmptyState";
 import { ErrorState } from "../shared/ErrorState";
+import { SegmentedControl } from "../shared/SegmentedControl";
 import { BookingCalendar } from "./BookingCalendar";
 import { publicSlotsQuery } from "./cadence-api";
 import { shiftMonth } from "./calendar-grid";
@@ -24,8 +26,8 @@ import {
 export type CalendarView = { year: number; month: number; day: number | null };
 
 const CLOCKS = [
-  { hour12: true, label: "12h" },
-  { hour12: false, label: "24h" },
+  { value: true, label: "12h" },
+  { value: false, label: "24h" },
 ] as const;
 
 const LOADING_ROWS = [0, 1, 2, 3];
@@ -37,11 +39,11 @@ const STAGGER_MAX = 8;
 /** Long enough to see the slot fill before the card moves on. */
 const PICK_MS = 170;
 
-/** Each part of the day has its own color, so a time reads as morning or evening at a glance. */
 /** Fades the last times out, so a list that runs on looks like it does. */
 const FADE_OUT =
   "@[760px]:[mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]";
 
+/** Each part of the day has its own color, so a time reads as morning or evening at a glance. */
 export const PHASE_STYLES: Record<DayPhase, { rail: string; picked: string }> = {
   Morning: { rail: "bg-dawn", picked: "text-day-foreground" },
   Afternoon: { rail: "bg-noon", picked: "text-day-foreground" },
@@ -63,18 +65,26 @@ function DayTimes({
   timezone,
   hour12,
   onPick,
+  resetKey,
 }: {
   slots: LocalSlot[];
   timezone: string;
   hour12: boolean;
   onPick: (slot: TimeSlot) => void;
+  /** Changes when a picked time did not go through, to let go of it. */
+  resetKey: number;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  // A day that is left before the fill finishes must not report its pick.
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the signal, not a value read here
+  useEffect(() => setPicked(null), [resetKey]);
 
   function pick(slot: TimeSlot) {
     if (picked !== null) return;
     setPicked(slot.start);
-    window.setTimeout(() => onPick(slot), PICK_MS);
+    timer.current = window.setTimeout(() => onPick(slot), PICK_MS);
   }
 
   let shown = 0;
@@ -102,7 +112,7 @@ function DayTimes({
               {phase}
               <span className="ml-auto tabular-nums">{inPhase.length}</span>
             </h3>
-            <ul className="grid grid-cols-3 gap-2 @[760px]:grid-cols-1">
+            <ul className="grid grid-cols-2 gap-2 min-[400px]:grid-cols-3 @[760px]:grid-cols-1">
               {inPhase.map(({ slot }) => {
                 const isPicked = picked === slot.start;
                 const delay = Math.min(shown++, STAGGER_MAX) * STAGGER_MS;
@@ -159,6 +169,7 @@ export function SlotStep({
   timeZone,
   summary,
   emptyDescription,
+  pausedDescription,
   view,
   onViewChange,
   hour12,
@@ -173,6 +184,8 @@ export function SlotStep({
   summary?: (callMinutes: number | null) => ReactNode;
   /** Said when the host has no open times at all. */
   emptyDescription: string;
+  /** Said when the host's page stopped taking bookings; defaults to the above. */
+  pausedDescription?: string;
   view: CalendarView;
   onViewChange: (view: CalendarView) => void;
   hour12: boolean;
@@ -238,7 +251,8 @@ export function SlotStep({
     >
       {summary ? <div className="p-5 @[760px]:p-6">{summary(callMinutes)}</div> : null}
 
-      <div className="p-5 @[760px]:p-6">
+      {/* Without the summary column the calendar would stretch; keep its days a sensible size. */}
+      <div className={cn("p-5 @[760px]:p-6", !summary && "mx-auto w-full max-w-md")}>
         <BookingCalendar
           year={view.year}
           month={view.month}
@@ -246,9 +260,9 @@ export function SlotStep({
           availableDays={availableDays}
           selectedDay={selectedDay}
           todayDay={isSameMonth(today, view) ? today.day : null}
-          canGoPrev={isLaterMonth(
-            { ...today, year: view.year, month: view.month },
-            today,
+          // Only back to a month that has times; earlier ones have nothing to pick.
+          canGoPrev={slots.some(({ at }) =>
+            isLaterMonth({ ...at, year: view.year, month: view.month }, at),
           )}
           canGoNext={slots.some(({ at }) => isLaterMonth(at, view))}
           onPrev={() => moveMonth(-1)}
@@ -272,6 +286,13 @@ export function SlotStep({
                 <Skeleton key={row} className="h-11 w-full" />
               ))}
             </div>
+          ) : query.error instanceof ApiError && query.error.isNotFound ? (
+            // The page was paused after this call was booked.
+            <EmptyState
+              icon={CalendarDays}
+              title="No open times"
+              description={pausedDescription ?? emptyDescription}
+            />
           ) : query.isError ? (
             <ErrorState
               title="The times did not load"
@@ -291,29 +312,24 @@ export function SlotStep({
           ) : (
             <>
               <div className="mb-4 flex items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold whitespace-nowrap">
+                <h2
+                  aria-live="polite"
+                  className="text-sm font-semibold whitespace-nowrap"
+                >
                   {selectedDayLabel}
                 </h2>
-                <div className="flex rounded-md bg-muted p-0.5">
-                  {CLOCKS.map((clock) => (
-                    <button
-                      key={clock.label}
-                      type="button"
-                      aria-pressed={hour12 === clock.hour12}
-                      onClick={() => onHour12Change(clock.hour12)}
-                      className={cn(
-                        "rounded-[5px] px-2 py-0.5 text-xs font-medium text-muted-foreground transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                        hour12 === clock.hour12 && "bg-card text-foreground shadow-xs",
-                      )}
-                    >
-                      {clock.label}
-                    </button>
-                  ))}
-                </div>
+                <SegmentedControl
+                  label="Clock"
+                  size="sm"
+                  value={hour12}
+                  options={CLOCKS}
+                  onChange={onHour12Change}
+                />
               </div>
               <DayTimes
                 // A new day starts with nothing picked.
-                key={`${view.year}-${view.month}-${selectedDay}-${pickKey}`}
+                key={`${view.year}-${view.month}-${selectedDay}`}
+                resetKey={pickKey}
                 slots={daySlots}
                 timezone={timeZone}
                 hour12={hour12}

@@ -102,7 +102,10 @@ export function agendaDays(
   now: number,
 ): AgendaDay[] {
   const today = dayKey(new Date(now), timeZone);
-  const tomorrow = dayKey(new Date(now + DAY_MS), timeZone);
+  // The next calendar day, which is not always 24 hours away.
+  const { year, month, day } = zonedTime(new Date(now), timeZone);
+  const next = new Date(Date.UTC(year, month - 1, day + 1));
+  const tomorrow = `${next.getUTCFullYear()}-${next.getUTCMonth() + 1}-${next.getUTCDate()}`;
   const days: AgendaDay[] = [];
   for (const booking of bookings) {
     const key = dayKey(new Date(booking.slot_start), timeZone);
@@ -120,4 +123,31 @@ export function agendaDays(
     days.push({ key, label, bookings: [booking] });
   }
   return days;
+}
+
+const HOUR_MINUTES = 60;
+
+/**
+ * A call as a stretch of one day on the clock of `timeZone`: the day it starts
+ * on, and its start and end in minutes since that day's midnight.
+ */
+export function dayCall(
+  booking: Booking,
+  timeZone: string,
+): { booking: Booking; day: WeekDay; from: number; to: number } {
+  const { year, month, day, hour, minute } = zonedTime(
+    new Date(booking.slot_start),
+    timeZone,
+  );
+  const from = hour * HOUR_MINUTES + minute;
+  return { booking, day: { year, month, day }, from, to: from + booking.minutes };
+}
+
+export function sameDay(a: WeekDay, b: WeekDay): boolean {
+  return a.year === b.year && a.month === b.month && a.day === b.day;
+}
+
+/** "Mia" for "Mia Chen": what fits in a block on a ruler. */
+export function firstName(fullName: string): string {
+  return fullName.trim().split(/\s+/)[0] ?? "";
 }

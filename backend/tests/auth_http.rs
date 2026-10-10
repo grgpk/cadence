@@ -1,5 +1,6 @@
 //! Accounts over HTTP: password reset by email, profile and password changes,
-//! and the limits that slow down guessing and spam.
+//! sessions that end when the password changes, the limits that slow down
+//! guessing and spam, and the development seed staying out of production.
 
 // Clippy's test escapes cover `#[test]` functions only; the helpers here are test code too.
 #![allow(clippy::expect_used, clippy::indexing_slicing)]
@@ -8,6 +9,7 @@ use axum::{
     Router,
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode, header},
+    response::Response,
 };
 use cadence_backend::{
     app_state::AppState,
@@ -35,14 +37,14 @@ fn app(pool: &PgPool) -> Router {
 
 /// `address` is sent as `x-forwarded-for`; without it the request has no
 /// client address at all.
-async fn send(
+async fn respond(
     app: &Router,
     method: Method,
     path: &str,
     cookie: Option<&str>,
     address: Option<&str>,
     body: Option<Value>,
-) -> (StatusCode, Value) {
+) -> Response {
     let mut request = Request::builder().method(method).uri(path);
     if let Some(cookie) = cookie {
         request = request.header(header::COOKIE, cookie);
@@ -57,7 +59,18 @@ async fn send(
         None => request.body(Body::empty()),
     }
     .expect("request is well formed");
-    let response = app.clone().oneshot(request).await.expect("router responds");
+    app.clone().oneshot(request).await.expect("router responds")
+}
+
+async fn send(
+    app: &Router,
+    method: Method,
+    path: &str,
+    cookie: Option<&str>,
+    address: Option<&str>,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let response = respond(app, method, path, cookie, address, body).await;
     let status = response.status();
     let bytes = to_bytes(response.into_body(), usize::MAX)
         .await
@@ -82,8 +95,39 @@ async fn register(app: &Router, full_name: &str, email: &str) -> String {
     .await;
     assert_eq!(status, StatusCode::CREATED);
     let unid: Uuid = serde_json::from_value(user["unid"].clone()).expect("user has an id");
-    let token = make_token(unid).expect("JWT_SECRET is set for tests");
+    let token = make_token(unid, 0).expect("JWT_SECRET is set for tests");
     format!("session={token}")
+}
+
+/// The session cookie a response sets, as a browser would send it back.
+fn session_cookie(response: &Response) -> String {
+    response
+        .headers()
+        .get(header::SET_COOKIE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .filter(|pair| pair.starts_with("session="))
+        .expect("the response sets a session cookie")
+        .to_owned()
+}
+
+/// Logs in through the endpoint, as another device would.
+async fn login_session(app: &Router, email: &str, password: &str) -> String {
+    let response = respond(
+        app,
+        Method::POST,
+        LOGIN,
+        None,
+        None,
+        Some(json!({ "email": email, "password": password })),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    session_cookie(&response)
+}
+
+async fn me_status(app: &Router, cookie: &str) -> StatusCode {
+    send(app, Method::GET, ME, Some(cookie), None, None).await.0
 }
 
 async fn login(app: &Router, email: &str, password: &str) -> StatusCode {
@@ -355,26 +399,42 @@ async fn a_user_changes_their_password_with_the_current_one(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
-async fn logins_are_limited_per_email_and_per_address(pool: PgPool) {
+async fn logins_are_limited_per_address_without_locking_the_owner_out(pool: PgPool) {
     let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
     let wrong = |email: &str| json!({ "email": email, "password": "not-my-password" });
 
-    // One email tried from many addresses.
-    assert_limited(&app, LOGIN, 10, StatusCode::UNAUTHORIZED, |attempt| {
-        (format!("198.51.100.{attempt}"), wrong("Ada@example.com"))
+    // Someone guessing one account's password from one address.
+    // Five tries, so this stops them before the address limit of ten would.
+    assert_limited(&app, LOGIN, 5, StatusCode::UNAUTHORIZED, |_| {
+        ("198.51.100.1".to_owned(), wrong("Ada@example.com"))
     })
     .await;
-    // Someone else, somewhere else, is not held up by it.
+    // The account's owner, somewhere else, still gets in.
     let (status, _) = send(
         &app,
         Method::POST,
         LOGIN,
         None,
         Some("203.0.113.1"),
-        Some(wrong("grace@example.com")),
+        Some(json!({ "email": "ada@example.com", "password": PASSWORD })),
     )
     .await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(status, StatusCode::OK);
+    // The limit counts the email and the address together, never the email alone.
+    let subjects = sqlx::query_scalar!(
+        "SELECT DISTINCT subject FROM rate_limits WHERE action = 'login_email_address' ORDER BY subject"
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("windows are readable");
+    assert_eq!(
+        subjects,
+        [
+            "198.51.100.1|ada@example.com",
+            "203.0.113.1|ada@example.com"
+        ]
+    );
 
     // One address trying many emails.
     assert_limited(&app, LOGIN, 10, StatusCode::UNAUTHORIZED, |attempt| {
@@ -404,6 +464,15 @@ async fn reset_emails_and_sign_ups_are_limited(pool: PgPool) {
         (
             "203.0.113.3".to_owned(),
             json!({ "email": format!("user{attempt}@example.com") }),
+        )
+    })
+    .await;
+
+    // Guessing reset tokens from one address.
+    assert_limited(&app, RESET, 10, StatusCode::BAD_REQUEST, |attempt| {
+        (
+            "203.0.113.5".to_owned(),
+            json!({ "token": format!("guess-{attempt}"), "password": NEW_PASSWORD }),
         )
     })
     .await;
@@ -442,10 +511,316 @@ async fn old_rate_limit_windows_are_forgotten(pool: PgPool) {
     rate_limits::forget_old(&pool)
         .await
         .expect("old windows are removed");
-    // The development seed has windows of its own.
     let left = sqlx::query_scalar!("SELECT count(*) FROM rate_limits WHERE subject = 'unknown'")
         .fetch_one(&pool)
         .await
         .expect("windows are readable");
     assert_eq!(left, Some(1));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_password_change_signs_out_other_devices_and_keeps_this_one(pool: PgPool) {
+    let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
+    let this_device = login_session(&app, "ada@example.com", PASSWORD).await;
+    let other_device = login_session(&app, "ada@example.com", PASSWORD).await;
+    assert_eq!(me_status(&app, &other_device).await, StatusCode::OK);
+
+    let response = respond(
+        &app,
+        Method::POST,
+        CHANGE_PASSWORD,
+        Some(&this_device),
+        None,
+        Some(json!({ "current_password": PASSWORD, "new_password": NEW_PASSWORD })),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    let renewed = session_cookie(&response);
+    assert_ne!(renewed, this_device);
+
+    assert_eq!(me_status(&app, &renewed).await, StatusCode::OK);
+    for (old, which) in [
+        (&other_device, "other device"),
+        (&this_device, "old cookie"),
+    ] {
+        let (status, error) = send(&app, Method::GET, ME, Some(old), None, None).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{which}");
+        assert_eq!(error["error"], "invalid session", "{which}");
+    }
+    // A new login starts from the new version.
+    let fresh = login_session(&app, "ada@example.com", NEW_PASSWORD).await;
+    assert_eq!(me_status(&app, &fresh).await, StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_password_reset_signs_out_every_session(pool: PgPool) {
+    let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
+    let session = login_session(&app, "ada@example.com", PASSWORD).await;
+    assert_eq!(me_status(&app, &session).await, StatusCode::OK);
+
+    post(&app, FORGOT, json!({ "email": "ada@example.com" })).await;
+    let token = reset_tokens(&pool, "ada@example.com").await.remove(0);
+    let response = respond(
+        &app,
+        Method::POST,
+        RESET,
+        None,
+        None,
+        Some(json!({ "token": token, "password": NEW_PASSWORD })),
+    )
+    .await;
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().get(header::SET_COOKIE).is_none(),
+        "a reset does not log in"
+    );
+
+    assert_eq!(me_status(&app, &session).await, StatusCode::UNAUTHORIZED);
+    let fresh = login_session(&app, "ada@example.com", NEW_PASSWORD).await;
+    assert_eq!(me_status(&app, &fresh).await, StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_session_from_before_versions_works_until_the_password_changes(pool: PgPool) {
+    let app = app(&pool);
+    let cookie = register(&app, "Ada Lovelace", "ada@example.com").await;
+    let unid = sqlx::query_scalar!("SELECT unid FROM users WHERE email = 'ada@example.com'")
+        .fetch_one(&pool)
+        .await
+        .expect("the user exists");
+    // A token as it was issued before the version claim existed.
+    let secret = std::env::var("JWT_SECRET").expect("JWT_SECRET is set for tests");
+    let token = jsonwebtoken::encode(
+        &jsonwebtoken::Header::default(),
+        &json!({ "sub": unid, "exp": chrono::Utc::now().timestamp() + 3600 }),
+        &jsonwebtoken::EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .expect("token is signed");
+    let old_session = format!("session={token}");
+    assert_eq!(me_status(&app, &old_session).await, StatusCode::OK);
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHANGE_PASSWORD,
+        Some(&cookie),
+        None,
+        Some(json!({ "current_password": PASSWORD, "new_password": NEW_PASSWORD })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        me_status(&app, &old_session).await,
+        StatusCode::UNAUTHORIZED
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_banned_user_is_refused_like_a_wrong_password(pool: PgPool) {
+    let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
+    let attempt = |password: &'static str| {
+        post(
+            &app,
+            LOGIN,
+            json!({ "email": "ada@example.com", "password": password }),
+        )
+    };
+    let wrong = attempt("not-my-password").await;
+    assert_eq!(wrong.0, StatusCode::UNAUTHORIZED);
+
+    sqlx::query_scalar!(
+        "UPDATE users SET status = 'Banned' WHERE email = 'ada@example.com' RETURNING 1"
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the user exists");
+    assert_eq!(attempt(PASSWORD).await, wrong);
+    // An address without an account answers the same too.
+    let unknown = post(
+        &app,
+        LOGIN,
+        json!({ "email": "nobody@example.com", "password": PASSWORD }),
+    )
+    .await;
+    assert_eq!(unknown, wrong);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn one_email_registers_once_in_any_letter_case(pool: PgPool) {
+    let app = app(&pool);
+    let sign_up = |email: &'static str| {
+        post(
+            &app,
+            "/api/auth/register",
+            json!({ "email": email, "password": PASSWORD, "full_name": "Ada Lovelace" }),
+        )
+    };
+
+    // Two sign-ups at once: both pass the "is it taken" read, one insert wins.
+    let (first, second) = tokio::join!(sign_up("ada@example.com"), sign_up(" Ada@Example.com "));
+    let mut statuses = [first.0, second.0];
+    statuses.sort();
+    assert_eq!(statuses, [StatusCode::CREATED, StatusCode::CONFLICT]);
+    let refused = if first.0 == StatusCode::CONFLICT {
+        first.1
+    } else {
+        second.1
+    };
+    assert_eq!(refused["error"], "conflict: email already registered");
+
+    let (status, _) = sign_up("ADA@EXAMPLE.COM").await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let stored = sqlx::query_scalar!("SELECT email FROM users")
+        .fetch_all(&pool)
+        .await
+        .expect("users are readable");
+    assert_eq!(stored, ["ada@example.com"]);
+
+    // From another address, so the sign-up limit above stays out of the way.
+    for bad in ["ada", "ada@example", "ada @example.com", "@example.com"] {
+        let (status, error) = send(
+            &app,
+            Method::POST,
+            "/api/auth/register",
+            None,
+            Some("203.0.113.6"),
+            Some(json!({ "email": bad, "password": PASSWORD, "full_name": "Ada Lovelace" })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+        assert_eq!(error["error"], "invalid input: valid email required");
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn login_ignores_the_letter_case_of_the_email(pool: PgPool) {
+    let app = app(&pool);
+    register(&app, "Ada Lovelace", "ada@example.com").await;
+    assert_eq!(
+        login(&app, " ADA@Example.com ", PASSWORD).await,
+        StatusCode::OK
+    );
+
+    // A row written before emails were stored in lower case.
+    sqlx::query_scalar!("UPDATE users SET email = 'Ada@Example.com' RETURNING 1")
+        .fetch_one(&pool)
+        .await
+        .expect("the user exists");
+    assert_eq!(
+        login(&app, "ada@example.com", PASSWORD).await,
+        StatusCode::OK
+    );
+}
+
+const SEED: &str = include_str!("../../seeds/dev_seed.sql");
+const BAN_SEED_LOGINS: &str = include_str!("../../migrations/0024_ban_seed_logins.sql");
+
+#[test]
+fn the_development_seed_is_not_a_migration() {
+    let migrations = concat!(env!("CARGO_MANIFEST_DIR"), "/../migrations");
+    let names: Vec<String> = std::fs::read_dir(migrations)
+        .expect("migrations are readable")
+        .map(|entry| {
+            entry
+                .expect("entry is readable")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert!(names.len() > 20, "{names:?}");
+    for name in &names {
+        assert!(!name.starts_with("9999"), "{name}");
+        assert!(!name.contains("seed_data"), "{name}");
+    }
+}
+
+/// Seeded logins as "email status", and how many rows the seeded tables hold.
+async fn seed_state(pool: &PgPool) -> (Vec<String>, Option<i64>) {
+    let logins = sqlx::query_scalar!(
+        r#"SELECT email || ' ' || status AS "line!" FROM users ORDER BY email"#
+    )
+    .fetch_all(pool)
+    .await
+    .expect("users are readable");
+    let rows = sqlx::query_scalar!(
+        "SELECT (SELECT count(*) FROM users) + (SELECT count(*) FROM roleaccesses)
+              + (SELECT count(*) FROM widget_settings) + (SELECT count(*) FROM availability)
+              + (SELECT count(*) FROM calling_visits) + (SELECT count(*) FROM leads)
+              + (SELECT count(*) FROM bookings) + (SELECT count(*) FROM email_queue)
+              + (SELECT count(*) FROM google_calendar_config) + (SELECT count(*) FROM oauth_states)
+              + (SELECT count(*) FROM bug_reports) + (SELECT count(*) FROM audit_logs)
+              + (SELECT count(*) FROM rate_limits WHERE action IN ('login', 'calling_visit'))"
+    )
+    .fetch_one(pool)
+    .await
+    .expect("tables are readable");
+    (logins, rows)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn seed_logins_are_banned_unless_their_password_was_changed(pool: PgPool) {
+    let app = app(&pool);
+    let seed = || async {
+        sqlx::raw_sql(SEED)
+            .execute(&pool)
+            .await
+            .expect("the seed applies");
+    };
+    let active = [
+        "admin@example.com Active",
+        "host@example.com Active",
+        "root@example.com Active",
+    ];
+
+    assert_eq!(
+        seed_state(&pool).await.0,
+        [""; 0],
+        "no seed after migrations"
+    );
+    seed().await;
+    let seeded = seed_state(&pool).await;
+    assert_eq!(seeded.0, active);
+    assert_eq!(
+        login(&app, "root@example.com", "password").await,
+        StatusCode::OK
+    );
+    // Running it again adds nothing.
+    seed().await;
+    assert_eq!(seed_state(&pool).await, seeded);
+
+    // What the migration does to a database that got the seed as a migration.
+    sqlx::query_scalar!(
+        "UPDATE users SET password_hash = 'changed' WHERE email = 'admin@example.com' RETURNING 1"
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the admin exists");
+    sqlx::raw_sql(BAN_SEED_LOGINS)
+        .execute(&pool)
+        .await
+        .expect("the migration applies");
+    assert_eq!(
+        seed_state(&pool).await.0,
+        [
+            "admin@example.com Active",
+            "host@example.com Banned",
+            "root@example.com Banned",
+        ]
+    );
+    assert_eq!(
+        login(&app, "root@example.com", "password").await,
+        StatusCode::UNAUTHORIZED
+    );
+
+    // Locally, the seed switches its logins back on.
+    seed().await;
+    assert_eq!(seed_state(&pool).await, seeded);
+    assert_eq!(
+        login(&app, "root@example.com", "password").await,
+        StatusCode::OK
+    );
 }

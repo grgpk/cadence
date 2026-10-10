@@ -5,7 +5,11 @@ import type { BookingStatus } from "./BookingStatus";
  * What the invitee gets back after booking: the call and the secret that
  * lets them change it later.
  */
-export type CreatedBooking = { manage_token: string, unid: string, host_unid: string, lead_unid: string | null, slot_start: string, timezone: string, invitee_name: string, invitee_email: string, status: BookingStatus, 
+export type CreatedBooking = { manage_token: string, unid: string, host_unid: string, lead_unid: string | null, slot_start: string, 
+/**
+ * How long the call runs. Kept from the day it was booked.
+ */
+minutes: number, timezone: string, invitee_name: string, invitee_email: string, status: BookingStatus, 
 /**
  * Where the call happens: the Google Meet link, or the host's own meeting link.
  */

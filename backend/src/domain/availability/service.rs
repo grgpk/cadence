@@ -77,13 +77,6 @@ pub fn slots_between(
     slots
 }
 
-/// How long the call starting at `start` runs, when the rules still open it.
-pub fn minutes_at(rules: &[AvailabilityRule], timezone: &str, start: DateTime<Utc>) -> Option<i32> {
-    slots_between(rules, timezone, start, start + Duration::seconds(1))
-        .first()
-        .map(|slot| slot.minutes)
-}
-
 fn rule_slots(date: NaiveDate, rule: &AvailabilityRule, timezone: &str) -> Vec<TimeSlot> {
     let step = Duration::minutes(i64::from(rule.slot_minutes));
     let end = date.and_time(rule.end_time);

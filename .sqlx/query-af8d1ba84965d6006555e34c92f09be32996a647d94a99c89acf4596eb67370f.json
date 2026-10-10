@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_queue\n         SET sent_at = now(), last_error = NULL,\n             payload = CASE WHEN $2 THEN NULL ELSE payload END\n         WHERE id = $1 RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "af8d1ba84965d6006555e34c92f09be32996a647d94a99c89acf4596eb67370f"
+}

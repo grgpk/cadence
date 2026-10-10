@@ -87,16 +87,13 @@ A row that sends clears its earlier error.
 
 ## Known limits
 
-- Sessions are stateless tokens, so a password change does not sign out other
-  devices.
+Plan 16 closed four limits first listed here: a password change now signs out
+other devices, the reset link is cleared from the queue once sent, the proxy
+overwrites `X-Forwarded-For`, and a call's own calendar event no longer blocks
+moving it. Plan 16 also changed the login limit to 5 per 10 minutes per email
+and address together.
+
 - The email address cannot be changed.
-- The reset link sits in `email_queue.payload` until the row is removed. The
-  admin list does not show payloads.
-- Per-address limits trust `X-Forwarded-For`; `nginx.prod.conf` appends to the
-  client's own header, so the first entry can be forged. Per-email limits are
-  not affected. The proxy should overwrite the header.
-- A host with Google Calendar connected cannot move a call to a time next to
-  itself, because its own calendar event still counts as busy.
 - One preview image for every page. An image per host needs an image
   rendering dependency.
 

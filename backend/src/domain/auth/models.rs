@@ -60,6 +60,8 @@ pub struct UserRecord {
     pub password_hash: String,
     pub full_name: String,
     pub status: String,
+    /// Sessions issued under an older version no longer work.
+    pub session_version: i32,
     pub roles: Vec<Role>,
 }
 
@@ -141,4 +143,8 @@ impl From<&UserRecord> for SessionUser {
 pub struct Claims {
     pub sub: Uuid,
     pub exp: usize,
+    /// The user's `session_version` when the token was issued. Tokens from
+    /// before the claim existed count as version 0.
+    #[serde(default)]
+    pub ver: i32,
 }

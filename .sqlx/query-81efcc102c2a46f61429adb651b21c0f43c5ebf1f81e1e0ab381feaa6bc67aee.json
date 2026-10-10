@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, email, password_hash, full_name, status FROM users WHERE lower(email) = lower($1)",
+  "query": "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status, session_version",
   "describe": {
     "columns": [
       {
@@ -57,10 +57,23 @@
             "name": "status"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "session_version",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "session_version"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
+        "Text",
+        "Text",
         "Text"
       ]
     },
@@ -69,8 +82,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "d24e30dc72a48fd2a99335f5f8716d61ba0bfd2c29ecc79e829d964f45da22c4"
+  "hash": "81efcc102c2a46f61429adb651b21c0f43c5ebf1f81e1e0ab381feaa6bc67aee"
 }
