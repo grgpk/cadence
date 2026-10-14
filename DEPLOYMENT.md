@@ -1,6 +1,6 @@
 # Deployment
 
-Cadence runs at `https://cadence.rustify.app` on `23.88.45.210`.
+Cadence runs at `https://bookcadence.app` on `23.88.45.210`.
 
 ## One-time setup
 
@@ -41,7 +41,7 @@ Google OAuth client (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI),
 and Resend SMTP (`RESEND_API_KEY`, `RESEND_SMTP_*`, `EMAIL_FROM`). Docker
 registry credentials stay in GitHub.
 
-DNS: `A cadence.rustify.app -> 23.88.45.210`.
+DNS: `A bookcadence.app -> 23.88.45.210`.
 
 ## Deploy
 
@@ -66,7 +66,7 @@ Skip local checks only when intentional:
 ```sh
 gh run list --workflow deploy.yml --limit 5
 ssh root@23.88.45.210 'cd /root/cadence && docker compose --env-file .env -f docker-compose.prod.yml ps'
-curl -fsS https://cadence.rustify.app/health
+curl -fsS https://bookcadence.app/health
 ```
 
 Production migrations run when backend starts. Add new migration files; never

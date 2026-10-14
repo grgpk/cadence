@@ -210,18 +210,18 @@ jobs:
           SSH=(ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes root@"$SERVER_IP")
           printf '%s\n' "$LETSENCRYPT_EMAIL" | "${SSH[@]}" 'read -r letsencrypt_email
             set -eu
-            if [ ! -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
-              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
+            if [ ! -s /etc/letsencrypt/live/bookcadence.app/fullchain.pem ]; then
+              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/bookcadence.app.conf
               nginx -t
               systemctl reload nginx
               if [ -n "$letsencrypt_email" ]; then
-                certbot certonly --nginx --non-interactive --agree-tos --email "$letsencrypt_email" --cert-name cadence.rustify.app -d cadence.rustify.app
+                certbot certonly --nginx --non-interactive --agree-tos --email "$letsencrypt_email" --cert-name bookcadence.app -d bookcadence.app
               fi
             fi
-            if [ -s /etc/letsencrypt/live/cadence.rustify.app/fullchain.pem ]; then
-              install -m 0644 "$HOME/cadence/nginx.prod.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
+            if [ -s /etc/letsencrypt/live/bookcadence.app/fullchain.pem ]; then
+              install -m 0644 "$HOME/cadence/nginx.prod.conf" /etc/nginx/conf.d/bookcadence.app.conf
             else
-              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/cadence.rustify.app.conf
+              install -m 0644 "$HOME/cadence/nginx.prod.bootstrap.conf" /etc/nginx/conf.d/bookcadence.app.conf
             fi
             nginx -t
             systemctl reload nginx

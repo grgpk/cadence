@@ -19,7 +19,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DATABASE}
-      CORS_ORIGINS: https://cadence.rustify.app
+      CORS_ORIGINS: https://bookcadence.app
       RUST_LOG: info
     ports:
       - "127.0.0.1:5105:3001"
