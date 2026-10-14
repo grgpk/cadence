@@ -1,6 +1,6 @@
 # Deployment
 
-Cadence runs at `https://bookcadence.app` on `23.88.45.210`.
+Cadence runs at `https://bookcadence.app` on `37.27.157.169`.
 
 ## One-time setup
 
@@ -11,13 +11,22 @@ GitHub Actions configuration:
 | Secret | `SSH_PRIVATE_KEY` |
 | Secret | `PROD_DOCKER_USERNAME` |
 | Secret | `PROD_DOCKER_PASSWORD` |
-| Variable | `SERVER_IP=23.88.45.210` |
+| Variable | `SERVER_IP=37.27.157.169` |
 | Variable | `PROD_DOCKER_REPOSITORY=cadence` |
 | Variable | `LETSENCRYPT_EMAIL=contact@rustify.rs` |
 
 Current Cadence GitHub setup already has `SSH_PRIVATE_KEY`, `SERVER_IP`, and
 `LETSENCRYPT_EMAIL`. Add the two Docker secrets and repository variable before
 first image deploy.
+
+Server prerequisites, needed on any new server before the first deploy:
+
+- The public half of `SSH_PRIVATE_KEY` is in `/root/.ssh/authorized_keys`
+  (`ssh-keygen -y -f <private-key>` prints it). Without it the workflow fails
+  with `Permission denied (publickey,password)`.
+- Docker with the compose plugin, Nginx, and certbot are installed.
+- Port 80 is reachable on `bookcadence.app` so certbot can issue the
+  certificate.
 
 Application runtime secrets are separate and stay on the server:
 
@@ -41,7 +50,7 @@ Google OAuth client (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, redirect URI),
 and Resend SMTP (`RESEND_API_KEY`, `RESEND_SMTP_*`, `EMAIL_FROM`). Docker
 registry credentials stay in GitHub.
 
-DNS: `A bookcadence.app -> 23.88.45.210`.
+DNS: `A bookcadence.app -> 37.27.157.169`.
 
 ## Deploy
 
@@ -65,7 +74,7 @@ Skip local checks only when intentional:
 
 ```sh
 gh run list --workflow deploy.yml --limit 5
-ssh root@23.88.45.210 'cd /root/cadence && docker compose --env-file .env -f docker-compose.prod.yml ps'
+ssh root@37.27.157.169 'cd /root/cadence && docker compose --env-file .env -f docker-compose.prod.yml ps'
 curl -fsS https://bookcadence.app/health
 ```
 

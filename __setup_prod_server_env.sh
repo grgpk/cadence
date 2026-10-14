@@ -2,7 +2,7 @@
 set -euo pipefail
 
 source_file="${1:-.env.prod}"
-server_ip="${SERVER_IP:-23.88.45.210}"
+server_ip="${SERVER_IP:-37.27.157.169}"
 ssh_key="${PROD_SSH_KEY:-$HOME/.ssh/hetzner-mac}"
 deploy_user="${DEPLOY_USER:-root}"
 deploy_dir="${DEPLOY_DIR:-/root/cadence}"
