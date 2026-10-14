@@ -194,7 +194,7 @@ jobs:
             chmod 600 "$runtime_env"
             cat > "$runtime_env"
             compose() {
-              docker compose --env-file "$HOME/.env" --env-file "$runtime_env" -f "$HOME/cadence/docker-compose.prod.yml" "$@"
+              docker compose --env-file "$HOME/cadence/.env" --env-file "$runtime_env" -f "$HOME/cadence/docker-compose.prod.yml" "$@"
             }
             compose config --images >/dev/null
             compose pull backend frontend
@@ -237,7 +237,7 @@ jobs:
             fi
             sleep 2
           done
-          "${SSH[@]}" 'cd "$HOME/cadence" && docker compose --env-file "$HOME/.env" -f docker-compose.prod.yml ps && docker compose --env-file "$HOME/.env" -f docker-compose.prod.yml logs --tail=80 backend frontend'
+          "${SSH[@]}" 'cd "$HOME/cadence" && docker compose --env-file "$HOME/cadence/.env" -f docker-compose.prod.yml ps && docker compose --env-file "$HOME/cadence/.env" -f docker-compose.prod.yml logs --tail=80 backend frontend'
           exit 1
 
       - name: Cleanup unused images
