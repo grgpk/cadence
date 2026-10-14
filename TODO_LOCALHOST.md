@@ -84,7 +84,7 @@ For production, add this second redirect URI to the same OAuth client or use a
 separate production client:
 
 ```text
-https://cadence.rustify.app/dashboard/calendar/callback
+https://bookcadence.app/dashboard/calendar/callback
 ```
 
 Common failure: `redirect_uri_mismatch`. Fix by comparing the URI character by

@@ -23,3 +23,4 @@ ssh "${ssh_options[@]}" "$deploy_user@$server_ip" \
     "install -d -m 700 '$deploy_dir' && install -m 600 /tmp/cadence.env '$deploy_dir/.env' && rm -f /tmp/cadence.env"
 
 echo "Server env installed at $deploy_user@$server_ip:$deploy_dir/.env"
+    
