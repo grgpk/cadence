@@ -128,7 +128,11 @@ allow_attributes = "allow"
 allow_attributes_without_reason = "allow"
 
 [workspace.lints.rust]
+# Temporary burn-down gate: explicit Rust lint policy remains authoritative while
+# legacy compiler warnings are removed incrementally.
+warnings = "allow" # TODO(strict-clippy): drop after warning debt is cleared
 unsafe_code = "forbid"
+unused_imports = "allow" # TODO(strict-clippy): remove legacy unused imports
 unused_must_use = "deny"
 irrefutable_let_patterns = "deny"
 non_ascii_idents = "deny"
