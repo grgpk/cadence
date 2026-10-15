@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { GoogleCalendarCallback } from "../../../domains/shared/OAuthCallback";
+import { GoogleCalendarCallback } from "../../../domains/shared/oauth-callback";
 import { ROUTES } from "../../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/calendar/callback")({

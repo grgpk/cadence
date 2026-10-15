@@ -11,8 +11,8 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { api } from "../../lib/api";
 import { errorMessage } from "../../lib/error-message";
-import { PasswordInput } from "../shared/AuthCard";
-import { Field } from "../shared/Field";
+import { PasswordInput } from "../shared/auth-card";
+import { Field } from "../shared/field";
 
 const ID = "account";
 const MIN_PASSWORD = 8;

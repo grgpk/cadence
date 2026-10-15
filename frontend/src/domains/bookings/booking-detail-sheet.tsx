@@ -16,9 +16,9 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { errorMessage } from "../../lib/error-message";
 import { formatDay, formatTime, zoneName } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { ConfirmDialog } from "../shared/ConfirmDialog";
-import { ErrorState } from "../shared/ErrorState";
-import { BOOKING_STATUS, StatusBadge } from "../shared/StatusBadge";
+import { ConfirmDialog } from "../shared/confirm-dialog";
+import { ErrorState } from "../shared/error-state";
+import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
 import { QUESTIONS } from "../widget/booking-form";
 import { bookingDetailQuery, cancelBooking, isCancelled } from "./bookings";
 

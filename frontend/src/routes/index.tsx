@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { LandingPage } from "../domains/landing/LandingPage";
+import { LandingPage } from "../domains/landing/landing-page";
 import { APP_NAME } from "../lib/config";
 
 const TITLE = `${APP_NAME} | One link for people to book you`;

@@ -4,8 +4,8 @@ import type { ReactNode } from "react";
 import { Button } from "../../components/ui/button";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
-import { Logo } from "./Logo";
-import { ThemeToggle } from "./ThemeToggle";
+import { Logo } from "./logo";
+import { ThemeToggle } from "./theme-toggle";
 
 export function PublicLayout({
   children,

@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
-import type { Column } from "../../domains/shared/DataTable";
+import type { Column } from "../../domains/shared/data-table";
 import { APP_NAME } from "../../lib/config";
 import { formatDateTime } from "../../lib/format";
 

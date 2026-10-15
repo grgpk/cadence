@@ -2,9 +2,9 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
 import { ROUTES } from "../../lib/routes";
-import { PublicLayout } from "../shared/PublicLayout";
-import { DayTape } from "./DayTape";
-import { HoursPreview, LinkPreview, TimesPreview } from "./StepPreviews";
+import { PublicLayout } from "../shared/public-layout";
+import { DayTape } from "./day-tape";
+import { HoursPreview, LinkPreview, TimesPreview } from "./step-previews";
 
 const STEPS = [
   {

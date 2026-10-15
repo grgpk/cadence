@@ -5,8 +5,8 @@ import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { formatTime } from "../../lib/format";
 import { NAME_LINK } from "../shared/link-styles";
-import { BOOKING_STATUS, StatusBadge } from "../shared/StatusBadge";
-import { PHASE_STYLES } from "../widget/SlotStep";
+import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
+import { PHASE_STYLES } from "../widget/slot-step";
 import { dayPhase, zonedTime } from "../widget/zoned-time";
 import { agendaDays, isCancelled } from "./bookings";
 

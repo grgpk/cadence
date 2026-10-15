@@ -2,10 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import type { Lead } from "../../bindings/Lead";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
-import { DetailSheet } from "../../domains/admin/components/DetailSheet";
+import { DetailSheet } from "../../domains/admin/components/detail-sheet";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
-import { TwoLine, type Column } from "../../domains/shared/DataTable";
-import { LEAD_STATUS, StatusBadge } from "../../domains/shared/StatusBadge";
+import { TwoLine, type Column } from "../../domains/shared/data-table";
+import { LEAD_STATUS, StatusBadge } from "../../domains/shared/status-badge";
 import { APP_NAME } from "../../lib/config";
 import { formatDateTime } from "../../lib/format";
 

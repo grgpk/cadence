@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { PublicLayout } from "./PublicLayout";
+import { PublicLayout } from "./public-layout";
 
 export function LegalPage({
   title,

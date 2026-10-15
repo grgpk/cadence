@@ -14,7 +14,7 @@ import { queryOptions } from "@tanstack/react-query";
 import { api } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
-import type { NavItem, NavSection } from "../shared/AppShell";
+import type { NavItem, NavSection } from "../shared/app-shell";
 
 const ADMIN_ROUTES = {
   leads: "/admin/leads",

@@ -3,9 +3,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import type { AdminBugReport } from "../../bindings/AdminBugReport";
 import { Badge } from "../../components/ui/badge";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
-import { DetailSheet } from "../../domains/admin/components/DetailSheet";
+import { DetailSheet } from "../../domains/admin/components/detail-sheet";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
-import { TwoLine, type Column } from "../../domains/shared/DataTable";
+import { TwoLine, type Column } from "../../domains/shared/data-table";
 import { APP_NAME } from "../../lib/config";
 import { formatDateTime } from "../../lib/format";
 

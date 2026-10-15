@@ -1,8 +1,8 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
-import { RouteError } from "../../domains/shared/NotFound";
+import { RouteError } from "../../domains/shared/not-found";
 import { getBookingPage } from "../../domains/widget/cadence-api";
-import { PublicBookingPage } from "../../domains/widget/PublicBookingPage";
+import { PublicBookingPage } from "../../domains/widget/public-booking-page";
 import { APP_NAME } from "../../lib/config";
 import { getVisitorCountry } from "../../lib/visitor";
 

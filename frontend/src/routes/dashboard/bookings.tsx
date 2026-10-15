@@ -8,9 +8,9 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
-import { Agenda } from "../../domains/bookings/Agenda";
-import { WeekView } from "../../domains/bookings/WeekView";
-import { BookingDetailSheet } from "../../domains/bookings/BookingDetailSheet";
+import { Agenda } from "../../domains/bookings/agenda";
+import { WeekView } from "../../domains/bookings/week-view";
+import { BookingDetailSheet } from "../../domains/bookings/booking-detail-sheet";
 import {
   bookingsQuery,
   matchesSearch,
@@ -18,11 +18,11 @@ import {
 } from "../../domains/bookings/bookings";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
 import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/host-api";
-import { EmptyState } from "../../domains/shared/EmptyState";
-import { ErrorState } from "../../domains/shared/ErrorState";
-import { PageHeader } from "../../domains/shared/PageHeader";
-import { SegmentedControl } from "../../domains/shared/SegmentedControl";
-import { TableSkeleton } from "../../domains/shared/TableSkeleton";
+import { EmptyState } from "../../domains/shared/empty-state";
+import { ErrorState } from "../../domains/shared/error-state";
+import { PageHeader } from "../../domains/shared/page-header";
+import { SegmentedControl } from "../../domains/shared/segmented-control";
+import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
 import { useNow } from "../../lib/use-now";
 

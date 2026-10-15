@@ -4,7 +4,7 @@ import type { AdminRoleAccess } from "../../bindings/AdminRoleAccess";
 import { Badge } from "../../components/ui/badge";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
-import { TwoLine, type Column } from "../../domains/shared/DataTable";
+import { TwoLine, type Column } from "../../domains/shared/data-table";
 import { APP_NAME } from "../../lib/config";
 
 export const Route = createFileRoute("/admin/roleaccesses")({

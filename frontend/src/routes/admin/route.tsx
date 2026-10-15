@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { ADMIN_NAV } from "../../domains/admin/routes";
-import { AppShell } from "../../domains/shared/AppShell";
+import { AppShell } from "../../domains/shared/app-shell";
 import { hasAdminAccess } from "../../lib/auth";
 import { NOINDEX_META } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";

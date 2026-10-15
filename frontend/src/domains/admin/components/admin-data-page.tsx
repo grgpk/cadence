@@ -5,11 +5,11 @@ import { useState } from "react";
 
 import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
-import { DataTable, type Column } from "../../shared/DataTable";
-import { EmptyState } from "../../shared/EmptyState";
-import { ErrorState } from "../../shared/ErrorState";
-import { PageHeader } from "../../shared/PageHeader";
-import { TableSkeleton } from "../../shared/TableSkeleton";
+import { DataTable, type Column } from "../../shared/data-table";
+import { EmptyState } from "../../shared/empty-state";
+import { ErrorState } from "../../shared/error-state";
+import { PageHeader } from "../../shared/page-header";
+import { TableSkeleton } from "../../shared/table-skeleton";
 import { adminDataQuery } from "../routes";
 
 type AdminDataPageProps<T> = {

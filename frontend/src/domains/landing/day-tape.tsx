@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useRef, useState } from "react";
 
-import { HourMark } from "../shared/HourMark";
+import { HourMark } from "../shared/hour-mark";
 import { dayPhase, type DayPhase } from "../widget/zoned-time";
 
 type Block =

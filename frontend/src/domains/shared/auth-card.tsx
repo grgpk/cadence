@@ -7,8 +7,8 @@ import { Input } from "../../components/ui/input";
 import { APP_NAME } from "../../lib/config";
 import { errorMessage } from "../../lib/error-message";
 import { ROUTES } from "../../lib/routes";
-import { DayTape } from "../landing/DayTape";
-import { Logo } from "./Logo";
+import { DayTape } from "../landing/day-tape";
+import { Logo } from "./logo";
 
 export function AuthCard({
   title,

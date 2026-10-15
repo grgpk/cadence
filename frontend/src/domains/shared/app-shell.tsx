@@ -22,10 +22,10 @@ import {
 import { hasAdminAccess } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
-import { LogoMark } from "./Logo";
-import { SEGMENT, SEGMENT_ON, SEGMENT_TRACK } from "./SegmentedControl";
-import { ThemeToggle } from "./ThemeToggle";
-import { UserMenu } from "./UserMenu";
+import { LogoMark } from "./logo";
+import { SEGMENT, SEGMENT_ON, SEGMENT_TRACK } from "./segmented-control";
+import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 
 export type NavItem = {
   title: string;

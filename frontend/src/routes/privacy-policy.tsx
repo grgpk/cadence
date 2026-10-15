@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { LegalPage, LegalSection } from "../domains/shared/LegalPage";
+import { LegalPage, LegalSection } from "../domains/shared/legal-page";
 import { APP_NAME } from "../lib/config";
 
 export const Route = createFileRoute("/privacy-policy")({

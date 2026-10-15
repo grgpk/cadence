@@ -11,17 +11,17 @@ import { Label } from "../../components/ui/label";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
 import { formatDay } from "../../lib/format";
-import { Field, fieldHelpId } from "../shared/Field";
+import { Field, fieldHelpId } from "../shared/field";
 import {
   DEFAULT_TIMEZONE,
   getCountryByVariant,
   timezoneDisplayWithTime,
   type CountryTimezone,
 } from "../shared/phone/country";
-import { PhoneInput } from "../shared/phone/PhoneInput";
+import { PhoneInput } from "../shared/phone/phone-input";
 import { formErrors, QUESTIONS, toggleValue, type FormValues } from "./booking-form";
-import { BookingSummary } from "./BookingSummary";
-import { PHASE_STYLES } from "./SlotStep";
+import { BookingSummary } from "./booking-summary";
+import { PHASE_STYLES } from "./slot-step";
 import { callEnd, clockLabel, dayPhase, zonedTime } from "./zoned-time";
 
 const ID = "cadence";

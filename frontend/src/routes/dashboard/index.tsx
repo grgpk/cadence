@@ -5,17 +5,17 @@ import { useState } from "react";
 
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
-import { Agenda } from "../../domains/bookings/Agenda";
-import { BookingDetailSheet } from "../../domains/bookings/BookingDetailSheet";
+import { Agenda } from "../../domains/bookings/agenda";
+import { BookingDetailSheet } from "../../domains/bookings/booking-detail-sheet";
 import { bookingsQuery, splitBookings } from "../../domains/bookings/bookings";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
-import { BookingPageStatus } from "../../domains/dashboard/BookingPageStatus";
+import { BookingPageStatus } from "../../domains/dashboard/booking-page-status";
 import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/host-api";
-import { TodayTape } from "../../domains/dashboard/TodayTape";
-import { EmptyState } from "../../domains/shared/EmptyState";
-import { ErrorState } from "../../domains/shared/ErrorState";
-import { PageHeader } from "../../domains/shared/PageHeader";
-import { TableSkeleton } from "../../domains/shared/TableSkeleton";
+import { TodayTape } from "../../domains/dashboard/today-tape";
+import { EmptyState } from "../../domains/shared/empty-state";
+import { ErrorState } from "../../domains/shared/error-state";
+import { PageHeader } from "../../domains/shared/page-header";
+import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 

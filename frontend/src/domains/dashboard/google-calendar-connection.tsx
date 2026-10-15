@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { ConfirmDialog } from "../shared/ConfirmDialog";
+import { ConfirmDialog } from "../shared/confirm-dialog";
 import { bookingPageQuery } from "../widget/cadence-api";
 import {
   calendarEventsQuery,

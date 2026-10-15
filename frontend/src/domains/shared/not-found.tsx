@@ -5,8 +5,8 @@ import { Button } from "../../components/ui/button";
 import { reportError } from "../../lib/bug-report";
 import { errorMessage } from "../../lib/error-message";
 import { ROUTES } from "../../lib/routes";
-import { ErrorState } from "./ErrorState";
-import { PublicLayout } from "./PublicLayout";
+import { ErrorState } from "./error-state";
+import { PublicLayout } from "./public-layout";
 
 const MESSAGE =
   "mx-auto flex max-w-lg flex-col items-center gap-6 px-4 py-20 text-center sm:py-28";

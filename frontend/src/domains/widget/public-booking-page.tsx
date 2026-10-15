@@ -4,9 +4,9 @@ import { CalendarOff } from "lucide-react";
 import type { BookingPage } from "../../bindings/BookingPage";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
-import { Logo } from "../shared/Logo";
-import { ThemeToggle } from "../shared/ThemeToggle";
-import { BookingCard } from "./BookingCard";
+import { Logo } from "../shared/logo";
+import { ThemeToggle } from "../shared/theme-toggle";
+import { BookingCard } from "./booking-card";
 
 /** A host's public link. The card is the page; everything else stays out of the way. */
 export function PublicBookingPage({

@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 
 import { Button } from "../../components/ui/button";
 import { submitGoogleCalendarCode } from "../dashboard/host-api";
-import { ErrorState } from "./ErrorState";
+import { ErrorState } from "./error-state";
 
 /** Finishes the Google sign-in round trip, then returns to the page that started it. */
 export function GoogleCalendarCallback({

@@ -13,17 +13,17 @@ import { errorMessage } from "../../lib/error-message";
 import { formatDay, formatLongDay, prefersHour12, zoneName } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
-import { ConfirmDialog } from "../shared/ConfirmDialog";
-import { ErrorState } from "../shared/ErrorState";
-import { PublicLayout } from "../shared/PublicLayout";
+import { ConfirmDialog } from "../shared/confirm-dialog";
+import { ErrorState } from "../shared/error-state";
+import { PublicLayout } from "../shared/public-layout";
 import {
   cancelManagedBooking,
   managedBookingQuery,
   rescheduleManagedBooking,
 } from "../widget/cadence-api";
-import { SlotStep, type CalendarView } from "../widget/SlotStep";
+import { SlotStep, type CalendarView } from "../widget/slot-step";
 import { callEnd, clockLabel, zonedTime } from "../widget/zoned-time";
-import { BookedStrip } from "./BookedStrip";
+import { BookedStrip } from "./booked-strip";
 import { isCancelled } from "./bookings";
 
 function headline(booking: ManagedBooking): string {

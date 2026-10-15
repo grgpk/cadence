@@ -1,7 +1,7 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 import { DASHBOARD_NAV } from "../../domains/dashboard/routes";
-import { AppShell } from "../../domains/shared/AppShell";
+import { AppShell } from "../../domains/shared/app-shell";
 import { NOINDEX_META } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 

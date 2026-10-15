@@ -18,8 +18,8 @@ import {
   adminDataQuery,
   VISIT_FUNNEL_ENDPOINT,
 } from "../../domains/admin/routes";
-import { EmptyState } from "../../domains/shared/EmptyState";
-import { PageHeader } from "../../domains/shared/PageHeader";
+import { EmptyState } from "../../domains/shared/empty-state";
+import { PageHeader } from "../../domains/shared/page-header";
 import { APP_NAME } from "../../lib/config";
 
 export const Route = createFileRoute("/admin/")({

@@ -1,7 +1,7 @@
 import { cn } from "cn";
 
 import { prefersHour12 } from "../../lib/format";
-import { HourMark } from "../shared/HourMark";
+import { HourMark } from "../shared/hour-mark";
 import type { WeekHours } from "./week-hours";
 
 const HOUR = 60;

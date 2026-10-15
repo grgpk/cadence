@@ -25,15 +25,15 @@ import {
   updateAvailabilityRule,
 } from "../../domains/dashboard/host-api";
 import { weekHours, type WeekHours } from "../../domains/dashboard/week-hours";
-import { placeOnWeek, WeekRuler } from "../../domains/dashboard/WeekGrid";
-import { OPEN_STYLES } from "../../domains/landing/DayTape";
+import { placeOnWeek, WeekRuler } from "../../domains/dashboard/week-grid";
+import { OPEN_STYLES } from "../../domains/landing/day-tape";
 import { phaseSpans } from "../../domains/widget/zoned-time";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
-import { ErrorState } from "../../domains/shared/ErrorState";
-import { Field } from "../../domains/shared/Field";
-import { PageHeader } from "../../domains/shared/PageHeader";
-import { TableSkeleton } from "../../domains/shared/TableSkeleton";
-import { TimePicker } from "../../domains/shared/TimePicker";
+import { ErrorState } from "../../domains/shared/error-state";
+import { Field } from "../../domains/shared/field";
+import { PageHeader } from "../../domains/shared/page-header";
+import { TableSkeleton } from "../../domains/shared/table-skeleton";
+import { TimePicker } from "../../domains/shared/time-picker";
 import { APP_NAME } from "../../lib/config";
 import { errorMessage } from "../../lib/error-message";
 import {

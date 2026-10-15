@@ -12,21 +12,21 @@ import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
-import { AccountSection } from "../../domains/dashboard/AccountSection";
+import { AccountSection } from "../../domains/dashboard/account-section";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
-import { GoogleCalendarConnection } from "../../domains/dashboard/GoogleCalendarConnection";
+import { GoogleCalendarConnection } from "../../domains/dashboard/google-calendar-connection";
 import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
-import { ConfirmDialog } from "../../domains/shared/ConfirmDialog";
-import { ErrorState } from "../../domains/shared/ErrorState";
-import { Field, fieldHelpId } from "../../domains/shared/Field";
-import { PageHeader } from "../../domains/shared/PageHeader";
+import { ConfirmDialog } from "../../domains/shared/confirm-dialog";
+import { ErrorState } from "../../domains/shared/error-state";
+import { Field, fieldHelpId } from "../../domains/shared/field";
+import { PageHeader } from "../../domains/shared/page-header";
 import {
   ALL_COUNTRY_TIMEZONES,
   detectBrowserCountryTimezone,
 } from "../../domains/shared/phone/country";
 import { QUESTIONS } from "../../domains/widget/booking-form";
-import { TimezoneCombobox } from "../../domains/widget/TimezoneCombobox";
+import { TimezoneCombobox } from "../../domains/widget/timezone-combobox";
 import { ApiError } from "../../lib/api";
 import { APP_NAME } from "../../lib/config";
 import { errorMessage } from "../../lib/error-message";

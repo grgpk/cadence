@@ -3,8 +3,8 @@ import { Video } from "lucide-react";
 import type { Booking } from "../../bindings/Booking";
 import { Button } from "../../components/ui/button";
 import { formatDay, formatTime, zoneName } from "../../lib/format";
-import { TwoLine, type Column } from "../shared/DataTable";
-import { BOOKING_STATUS, StatusBadge } from "../shared/StatusBadge";
+import { TwoLine, type Column } from "../shared/data-table";
+import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
 
 /**
  * Columns for a list of bookings. A host reads every call in their own

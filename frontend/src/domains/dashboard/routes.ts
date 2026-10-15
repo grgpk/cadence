@@ -1,7 +1,7 @@
 import { CalendarCheck, Clock, LayoutDashboard, Settings } from "lucide-react";
 
 import { ROUTES } from "../../lib/routes";
-import type { NavSection } from "../shared/AppShell";
+import type { NavSection } from "../shared/app-shell";
 
 export const DASHBOARD_NAV: NavSection[] = [
   {

@@ -8,10 +8,10 @@ import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { ApiError } from "../../lib/api";
 import { formatDay } from "../../lib/format";
-import { EmptyState } from "../shared/EmptyState";
-import { ErrorState } from "../shared/ErrorState";
-import { SegmentedControl } from "../shared/SegmentedControl";
-import { BookingCalendar } from "./BookingCalendar";
+import { EmptyState } from "../shared/empty-state";
+import { ErrorState } from "../shared/error-state";
+import { SegmentedControl } from "../shared/segmented-control";
+import { BookingCalendar } from "./booking-calendar";
 import { publicSlotsQuery } from "./cadence-api";
 import { shiftMonth } from "./calendar-grid";
 import {

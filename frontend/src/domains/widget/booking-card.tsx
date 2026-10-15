@@ -24,10 +24,10 @@ import {
   submitLead,
   updateCallingVisit,
 } from "./cadence-api";
-import { BookingSummary } from "./BookingSummary";
-import { DetailsStep } from "./DetailsStep";
-import { SlotStep, type CalendarView } from "./SlotStep";
-import { TimezoneCombobox } from "./TimezoneCombobox";
+import { BookingSummary } from "./booking-summary";
+import { DetailsStep } from "./details-step";
+import { SlotStep, type CalendarView } from "./slot-step";
+import { TimezoneCombobox } from "./timezone-combobox";
 import { zonedTime } from "./zoned-time";
 
 const HOUR12_KEY = "cadence-hour12";

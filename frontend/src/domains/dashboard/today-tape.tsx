@@ -11,8 +11,8 @@ import { clockMinutes, formatLongDay, prefersHour12 } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { useNow } from "../../lib/use-now";
 import { dayCall, firstName, isCancelled, sameDay } from "../bookings/bookings";
-import { OPEN_STYLES } from "../landing/DayTape";
-import { HourMark } from "../shared/HourMark";
+import { OPEN_STYLES } from "../landing/day-tape";
+import { HourMark } from "../shared/hour-mark";
 import { phaseSpans, zonedTime } from "../widget/zoned-time";
 
 const HOUR = 60;

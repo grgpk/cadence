@@ -15,7 +15,7 @@ import { THEME_INIT_SCRIPT } from "../lib/theme";
 import { getSiteOrigin } from "../lib/visitor";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";
-import { NotFound, RouteError } from "../domains/shared/NotFound";
+import { NotFound, RouteError } from "../domains/shared/not-found";
 import "../styles/globals.css";
 
 const PREVIEW_IMAGE = "/og.png";

@@ -8,8 +8,8 @@ import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { clockMinutes, formatTime, weekdayName } from "../../lib/format";
 import { weekHours } from "../dashboard/week-hours";
-import { placeOnWeek, WeekRuler } from "../dashboard/WeekGrid";
-import { OPEN_STYLES } from "../landing/DayTape";
+import { placeOnWeek, WeekRuler } from "../dashboard/week-grid";
+import { OPEN_STYLES } from "../landing/day-tape";
 import { useNow } from "../../lib/use-now";
 import { phaseSpans, zonedTime } from "../widget/zoned-time";
 import {

@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
 
-import { PageError } from "./domains/shared/NotFound";
+import { PageError } from "./domains/shared/not-found";
 import { ApiError } from "./lib/api";
 import { isProtectedPath, ROUTES } from "./lib/routes";
 import { routeTree } from "./routeTree.gen";
