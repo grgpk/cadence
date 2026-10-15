@@ -11,7 +11,7 @@ import { getSessionUser } from "../lib/auth";
 import { watchErrors } from "../lib/bug-report";
 import { APP_DESCRIPTION, APP_NAME } from "../lib/config";
 import { isProtectedPath, ROUTES } from "../lib/routes";
-import { THEME_INIT_SCRIPT } from "../lib/theme";
+import { THEME_INIT_SCRIPT } from "../hooks/theme";
 import { getSiteOrigin } from "../lib/visitor";
 import { Toaster } from "../components/ui/sonner";
 import { TooltipProvider } from "../components/ui/tooltip";

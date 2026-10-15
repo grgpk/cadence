@@ -9,7 +9,7 @@ import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { clockMinutes, formatLongDay, prefersHour12 } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
-import { useNow } from "../../lib/use-now";
+import { useNow } from "../../hooks/use-now";
 import { dayCall, firstName, isCancelled, sameDay } from "../bookings/bookings";
 import { OPEN_STYLES } from "../landing/day-tape";
 import { HourMark } from "../shared/hour-mark";

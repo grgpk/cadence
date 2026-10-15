@@ -24,7 +24,7 @@ import { PageHeader } from "../../domains/shared/page-header";
 import { SegmentedControl } from "../../domains/shared/segmented-control";
 import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
-import { useNow } from "../../lib/use-now";
+import { useNow } from "../../hooks/use-now";
 
 export const Route = createFileRoute("/dashboard/bookings")({
   head: () => ({ meta: [{ title: `Bookings | ${APP_NAME}` }] }),

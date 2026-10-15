@@ -10,7 +10,7 @@ import { clockMinutes, formatTime, weekdayName } from "../../lib/format";
 import { weekHours } from "../dashboard/week-hours";
 import { placeOnWeek, WeekRuler } from "../dashboard/week-grid";
 import { OPEN_STYLES } from "../landing/day-tape";
-import { useNow } from "../../lib/use-now";
+import { useNow } from "../../hooks/use-now";
 import { phaseSpans, zonedTime } from "../widget/zoned-time";
 import {
   dayCall,
