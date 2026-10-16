@@ -151,8 +151,11 @@ text_column!(SubscriptionStatus: Trialing, Active, PastDue, Canceled, Incomplete
 #[serde(rename_all = "snake_case")]
 #[ts(export, export_to = "../../frontend/src/bindings/Reminder.ts")]
 pub enum Reminder {
+    #[serde(rename = "before_24h")]
     Before24h,
+    #[serde(rename = "before_2h")]
     Before2h,
+    #[serde(rename = "before_30m")]
     Before30m,
 }
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { bookingPath, isProtectedPath, safeReturnPath } from "./routes";
+import { bookingPath, isProtectedPath, ROUTES, safeReturnPath } from "./routes";
 
 describe("isProtectedPath", () => {
   it("covers the dashboard and admin areas", () => {
@@ -12,6 +12,7 @@ describe("isProtectedPath", () => {
   it("leaves public and unknown pages open", () => {
     expect(isProtectedPath("/")).toBe(false);
     expect(isProtectedPath("/login")).toBe(false);
+    expect(isProtectedPath(ROUTES.pricing)).toBe(false);
     expect(isProtectedPath(bookingPath("ana"))).toBe(false);
     expect(isProtectedPath("/dashboards")).toBe(false);
     expect(isProtectedPath("/nope")).toBe(false);

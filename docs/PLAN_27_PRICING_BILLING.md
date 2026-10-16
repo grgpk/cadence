@@ -1,6 +1,6 @@
 # Plan 27: pricing, plans and billing
 
-Status: in progress. Milestone 1 (catalog and trial) is done: the backend serves the plans and each host's plan, and new hosts start a 14-day Pro trial. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
+Status: in progress. Milestones 1 and 2 are done: the backend serves the plans and each host's plan, new hosts start a 14-day Pro trial, and `/pricing` is live with every CTA going to sign-up. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
 
 ## Goal
 
@@ -183,7 +183,7 @@ Files:
 ## Milestones (each one leaves the app shippable)
 
 1. ✅ **Catalog and trial:** the migration, `plans.rs`, `effective_plan`, `GET /api/billing/plans` and `/me`, the trial on registration, bindings, and the seed.
-2. **Public pricing page:** the route, components, nav links, FAQ and comparison table. CTAs go to register.
+2. ✅ **Public pricing page:** the route, components, nav links, FAQ and comparison table. CTAs go to register.
 3. **Stripe:** checkout, portal, the webhook with signature and idempotency, the `/dashboard/billing` page, and the trial banner.
 4. **Enforcement:** the booking limit, reminders, public page flags, the branding badge, the `PlanGate` UI, `PlanRequired` errors, and the trial-ending, limit and payment-failed emails.
 5. **Admin:** the plan column, comp/revoke, and an MRR-free summary (counts per plan).

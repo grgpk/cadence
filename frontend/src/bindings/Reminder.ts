@@ -3,4 +3,4 @@
 /**
  * An email reminder an invitee gets before their call.
  */
-export type Reminder = "before24h" | "before2h" | "before30m";
+export type Reminder = "before_24h" | "before_2h" | "before_30m";

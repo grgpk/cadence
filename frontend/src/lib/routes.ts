@@ -10,6 +10,7 @@ export const ROUTES = {
   resetPassword: "/reset-password",
   terms: "/terms",
   privacy: "/privacy-policy",
+  pricing: "/pricing",
   dashboard: "/dashboard",
   dashboardBookings: "/dashboard/bookings",
   dashboardAvailability: "/dashboard/availability",

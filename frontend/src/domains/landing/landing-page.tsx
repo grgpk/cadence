@@ -37,9 +37,14 @@ export function LandingPage() {
               Set the hours you take calls and share one link. People pick a time, and it
               is on your calendar.
             </p>
-            <Button size="lg" asChild>
-              <Link to={ROUTES.register}>Create your account</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button size="lg" asChild>
+                <Link to={ROUTES.register}>Create your account</Link>
+              </Button>
+              <Button size="lg" variant="ghost" asChild>
+                <Link to={ROUTES.pricing}>See pricing</Link>
+              </Button>
+            </div>
           </div>
         </div>
         <div className="mt-12 sm:mt-16">

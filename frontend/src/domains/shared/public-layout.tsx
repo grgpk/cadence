@@ -23,6 +23,11 @@ export function PublicLayout({
             <Logo />
           </Link>
           <nav className="flex items-center gap-1">
+            {accountLinks ? (
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={ROUTES.pricing}>Pricing</Link>
+              </Button>
+            ) : null}
             <ThemeToggle />
             {accountLinks ? (
               <>
@@ -44,6 +49,9 @@ export function PublicLayout({
             © {new Date().getFullYear()} {APP_NAME}
           </p>
           <nav className="flex gap-5">
+            <Link to={ROUTES.pricing} className="hover:text-foreground">
+              Pricing
+            </Link>
             <Link to={ROUTES.terms} className="hover:text-foreground">
               Terms
             </Link>
