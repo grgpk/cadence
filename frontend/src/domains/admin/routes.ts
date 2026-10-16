@@ -1,6 +1,7 @@
 import {
   Bug,
   CalendarCheck,
+  CreditCard,
   KeyRound,
   LayoutDashboard,
   Mail,
@@ -21,6 +22,7 @@ const ADMIN_ROUTES = {
   bookings: "/admin/bookings",
   callingVisits: "/admin/calling-visits",
   hosts: "/admin/hosts",
+  plans: "/admin/plans",
   roleAccesses: "/admin/roleaccesses",
   emails: "/admin/emails",
   bugReports: "/admin/bug-reports",
@@ -64,6 +66,13 @@ export const ADMIN_PAGES = {
     endpoint: "/api/admin/hosts",
     icon: UserCog,
   },
+  plans: {
+    title: "Plans",
+    description: "Each host's plan. Give a plan for free, or take it back.",
+    to: ADMIN_ROUTES.plans,
+    endpoint: "/api/admin/billing",
+    icon: CreditCard,
+  },
   roleAccesses: {
     title: "Role accesses",
     description: "Roles granted to users.",
@@ -98,6 +107,7 @@ export const ADMIN_NAV: NavSection[] = [
       ADMIN_PAGES.bookings,
       ADMIN_PAGES.callingVisits,
       ADMIN_PAGES.hosts,
+      ADMIN_PAGES.plans,
       ADMIN_PAGES.roleAccesses,
     ],
   },

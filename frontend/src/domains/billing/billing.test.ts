@@ -7,6 +7,7 @@ import {
   checkoutIntent,
   hasPortal,
   planAction,
+  planCounts,
   STATUS,
   statusLine,
   trialDaysLeft,
@@ -133,5 +134,15 @@ describe("statusLine", () => {
       /payment failed/,
     );
     expect(statusLine(summary(), NOW)).toMatch(/^Free for as long/);
+  });
+});
+
+describe("planCounts", () => {
+  it("counts every plan, empty ones too", () => {
+    expect(planCounts([{ plan: "pro" }, { plan: "free" }, { plan: "pro" }])).toEqual({
+      free: 1,
+      pro: 2,
+      business: 0,
+    });
   });
 });

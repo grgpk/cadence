@@ -1,7 +1,7 @@
 use axum::{
     Router,
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{get, post, put},
 };
 
 use super::handlers;
@@ -24,4 +24,6 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/billing/me", get(handlers::me))
         .route("/api/billing/checkout", post(handlers::checkout))
         .route("/api/billing/portal", post(handlers::portal))
+        .route("/api/admin/billing", get(handlers::admin_list))
+        .route("/api/admin/billing/{user_unid}", put(handlers::admin_comp))
 }

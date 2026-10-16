@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use uuid::Uuid;
 
 use super::plans::{BillingInterval, Entitlements, Plan, SubscriptionStatus};
 
@@ -22,6 +23,30 @@ pub struct BillingSummary {
     pub entitlements: Entitlements,
     /// Calls booked this calendar month in the host's timezone.
     pub bookings_this_month: u32,
+}
+
+/// One host's plan as an admin sees it.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/AdminPlan.ts")]
+pub struct AdminPlan {
+    pub user_unid: Uuid,
+    pub full_name: String,
+    pub email: String,
+    /// The plan that applies now.
+    pub plan: Plan,
+    /// `None` for a host who never had a trial or a subscription.
+    pub status: Option<SubscriptionStatus>,
+    pub interval: Option<BillingInterval>,
+    pub trial_ends_at: Option<DateTime<Utc>>,
+    pub current_period_end: Option<DateTime<Utc>>,
+    pub cancel_at_period_end: bool,
+}
+
+/// An admin gives a host a paid plan for free, or takes it back with `None`.
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/CompPlan.ts")]
+pub struct CompPlan {
+    pub plan: Option<Plan>,
 }
 
 /// The paid plan a host picked on the pricing or billing page.

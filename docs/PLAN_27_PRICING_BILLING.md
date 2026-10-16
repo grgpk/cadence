@@ -1,6 +1,6 @@
 # Plan 27: pricing, plans and billing
 
-Status: in progress. Milestones 1–4 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), Stripe Checkout, the Customer Portal and signed webhooks (tested against a fake Stripe), and the Free plan's limits with their emails. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
+Status: in progress. Milestones 1–5 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), Stripe Checkout, the Customer Portal and signed webhooks (tested against a fake Stripe), the Free plan's limits with their emails, and the admin Plans page. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
 
 ## Goal
 
@@ -91,7 +91,7 @@ The domain follows the usual `routes -> handlers -> service -> db` layering.
   - `POST /api/billing/checkout` (`AuthUser`): body `{ plan, interval }`, returns `{ url }`
   - `POST /api/billing/portal` (`AuthUser`): returns `{ url }`, for plan changes, cancelling, invoices and the card
   - `POST /api/billing/webhook` (public): reads the raw body as `Bytes` and checks the signature
-  - `GET  /api/admin/billing` and `PUT /api/admin/billing/{user_unid}` (`AdminUser`): list subscriptions, and comp or revoke a plan
+  - `GET  /api/admin/billing` and `PUT /api/admin/billing/{user_unid}` (`AdminUser`): every host's plan, and give or take back a free plan
 - Env vars:
   - `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`
   - `STRIPE_PRICE_PRO_MONTH`, `STRIPE_PRICE_PRO_YEAR`, `STRIPE_PRICE_BUSINESS_MONTH`, `STRIPE_PRICE_BUSINESS_YEAR`
@@ -190,7 +190,7 @@ Files:
 2. ✅ **Public pricing page:** the route, components, nav links, FAQ and comparison table. CTAs go to register.
 3. ✅ **Stripe:** checkout, portal, the webhook with signature and idempotency, the `/dashboard/billing` page, and the trial banner.
 4. ✅ **Enforcement:** the booking limit, reminders, public page flags, the branding badge, the `PlanGate` UI, `PlanRequired` errors, and the trial-ending, limit and payment-failed emails.
-5. **Admin:** the plan column, comp/revoke, and an MRR-free summary (counts per plan).
+5. ✅ **Admin:** a Plans page (`/admin/plans`, `GET /api/admin/billing`) with every host's plan, per-plan counts, and give/take back a free plan (`PUT /api/admin/billing/{user_unid}`, `status = comped`). A plan Stripe bills is changed in Stripe only (409).
 6. **Plan 28:** event types.
 7. **Plan 29:** webhooks.
 

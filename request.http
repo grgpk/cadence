@@ -197,3 +197,12 @@ GET {{baseUrl}}/api/admin/calling-visits/funnel
 
 ### Logout
 POST {{baseUrl}}/api/auth/logout
+
+### Admin: every host's plan
+GET {{baseUrl}}/api/admin/billing
+
+### Admin: give a host Business for free (null takes a comped plan back)
+PUT {{baseUrl}}/api/admin/billing/00000000-0000-4000-8000-100000000003
+Content-Type: application/json
+
+{"plan":"business"}

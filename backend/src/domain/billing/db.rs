@@ -191,3 +191,75 @@ pub async fn contact(
     .fetch_optional(connection)
     .await
 }
+
+/// Every host with what is stored about their plan; no row means Free.
+pub struct HostPlanRow {
+    pub user_unid: Uuid,
+    pub full_name: String,
+    pub email: String,
+    pub plan: Option<Plan>,
+    pub status: Option<SubscriptionStatus>,
+    pub billing_interval: Option<BillingInterval>,
+    pub trial_ends_at: Option<DateTime<Utc>>,
+    pub current_period_end: Option<DateTime<Utc>>,
+    pub cancel_at_period_end: Option<bool>,
+}
+
+pub async fn host_plans(pool: &PgPool) -> Result<Vec<HostPlanRow>, sqlx::Error> {
+    sqlx::query_as!(
+        HostPlanRow,
+        r#"SELECT u.unid AS user_unid, u.full_name, u.email,
+                  s.plan AS "plan?: Plan", s.status AS "status?: SubscriptionStatus",
+                  s.billing_interval AS "billing_interval?: BillingInterval",
+                  s.trial_ends_at AS "trial_ends_at?", s.current_period_end AS "current_period_end?",
+                  s.cancel_at_period_end AS "cancel_at_period_end?"
+           FROM users u LEFT JOIN subscriptions s ON s.user_unid = u.unid
+           WHERE EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')
+              OR EXISTS(SELECT 1 FROM widget_settings w WHERE w.host_unid = u.unid)
+           ORDER BY u.created_at DESC"#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Gives a host `plan` without payment, replacing a trial or an ended plan.
+pub async fn comp(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    plan: Plan,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO subscriptions (user_unid, plan, status) VALUES ($1, $2, $3)
+         ON CONFLICT (user_unid) DO UPDATE SET
+             plan = EXCLUDED.plan, status = EXCLUDED.status, billing_interval = NULL,
+             current_period_end = NULL, cancel_at_period_end = false, updated_at = now()
+         RETURNING 1",
+        user_unid,
+        plan.as_str(),
+        SubscriptionStatus::Comped.as_str(),
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Takes a comped plan back. A host Stripe knows keeps their customer, as
+/// an ended plan; anyone else is back to no row at all.
+pub async fn uncomp(connection: &mut PgConnection, user_unid: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM subscriptions
+         WHERE user_unid = $1 AND status = 'comped' AND stripe_customer_id IS NULL
+         RETURNING 1",
+        user_unid,
+    )
+    .fetch_optional(&mut *connection)
+    .await?;
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET status = 'canceled', updated_at = now()
+         WHERE user_unid = $1 AND status = 'comped' RETURNING 1",
+        user_unid,
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|_| ())
+}

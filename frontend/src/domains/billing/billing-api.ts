@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
+import type { CompPlan } from "../../bindings/CompPlan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { RedirectUrl } from "../../bindings/RedirectUrl";
 import type { StartCheckout } from "../../bindings/StartCheckout";
@@ -32,4 +33,12 @@ export async function goToCheckout(choice: StartCheckout): Promise<void> {
 export async function goToPortal(): Promise<void> {
   const { url } = await api<RedirectUrl>("/api/billing/portal", { method: "POST" });
   window.location.assign(url);
+}
+
+/** An admin gives `userUnid` a paid plan for free, or takes it back with `null`. */
+export function compPlan(userUnid: string, body: CompPlan): Promise<void> {
+  return api<void>(`/api/admin/billing/${userUnid}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
 }

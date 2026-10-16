@@ -1,19 +1,20 @@
 use axum::{
     Json,
     body::Bytes,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
 };
 use chrono::Utc;
+use uuid::Uuid;
 
 use super::{
-    models::{BillingSummary, RedirectUrl, StartCheckout, StripeEvent},
+    models::{AdminPlan, BillingSummary, CompPlan, RedirectUrl, StartCheckout, StripeEvent},
     plans::{PlanOffer, catalog},
     service,
 };
 use crate::{
     app_state::AppState,
-    domain::auth::middleware::AuthUser,
+    domain::auth::middleware::{AdminUser, AuthUser},
     error::{AppError, AppResult},
 };
 
@@ -64,4 +65,21 @@ pub async fn webhook(
         .map_err(|error| AppError::BadRequest(format!("unreadable event: {error}")))?;
     service::apply_event(&state.pool, payments, event).await?;
     Ok(StatusCode::OK)
+}
+
+pub async fn admin_list(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+) -> AppResult<Json<Vec<AdminPlan>>> {
+    Ok(Json(service::host_plans(&state.pool, Utc::now()).await?))
+}
+
+pub async fn admin_comp(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+    Path(user_unid): Path<Uuid>,
+    Json(body): Json<CompPlan>,
+) -> AppResult<StatusCode> {
+    service::comp(&state.pool, user_unid, body.plan).await?;
+    Ok(StatusCode::NO_CONTENT)
 }

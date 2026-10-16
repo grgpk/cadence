@@ -27,6 +27,7 @@ import { Route as AdminCallingVisitsRouteImport } from './routes/admin/calling-v
 import { Route as AdminEmailsRouteImport } from './routes/admin/emails'
 import { Route as AdminHostsRouteImport } from './routes/admin/hosts'
 import { Route as AdminLeadsRouteImport } from './routes/admin/leads'
+import { Route as AdminPlansRouteImport } from './routes/admin/plans'
 import { Route as AdminRoleaccessesRouteImport } from './routes/admin/roleaccesses'
 import { Route as BookSlugRouteImport } from './routes/book/$slug'
 import { Route as BookingTokenRouteImport } from './routes/booking/$token'
@@ -130,6 +131,11 @@ const AdminLeadsRoute = AdminLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AdminRouteRoute,
 } as any)
+const AdminPlansRoute = AdminPlansRouteImport.update({
+  id: '/plans',
+  path: '/plans',
+  getParentRoute: () => AdminRouteRoute,
+} as any)
 const AdminRoleaccessesRoute = AdminRoleaccessesRouteImport.update({
   id: '/roleaccesses',
   path: '/roleaccesses',
@@ -210,6 +216,7 @@ export interface FileRoutesByFullPath {
   '/admin/emails': typeof AdminEmailsRoute
   '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
+  '/admin/plans': typeof AdminPlansRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
@@ -240,6 +247,7 @@ export interface FileRoutesByTo {
   '/admin/emails': typeof AdminEmailsRoute
   '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
+  '/admin/plans': typeof AdminPlansRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/admin/emails': typeof AdminEmailsRoute
   '/admin/hosts': typeof AdminHostsRoute
   '/admin/leads': typeof AdminLeadsRoute
+  '/admin/plans': typeof AdminPlansRoute
   '/admin/roleaccesses': typeof AdminRoleaccessesRoute
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/admin/emails'
     | '/admin/hosts'
     | '/admin/leads'
+    | '/admin/plans'
     | '/admin/roleaccesses'
     | '/book/$slug'
     | '/booking/$token'
@@ -337,6 +347,7 @@ export interface FileRouteTypes {
     | '/admin/emails'
     | '/admin/hosts'
     | '/admin/leads'
+    | '/admin/plans'
     | '/admin/roleaccesses'
     | '/book/$slug'
     | '/booking/$token'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/admin/emails'
     | '/admin/hosts'
     | '/admin/leads'
+    | '/admin/plans'
     | '/admin/roleaccesses'
     | '/book/$slug'
     | '/booking/$token'
@@ -528,6 +540,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminLeadsRouteImport
       parentRoute: typeof AdminRouteRoute
     }
+    '/admin/plans': {
+      id: '/admin/plans'
+      path: '/plans'
+      fullPath: '/admin/plans'
+      preLoaderRoute: typeof AdminPlansRouteImport
+      parentRoute: typeof AdminRouteRoute
+    }
     '/admin/roleaccesses': {
       id: '/admin/roleaccesses'
       path: '/roleaccesses'
@@ -622,6 +641,7 @@ interface AdminRouteRouteChildren {
   AdminEmailsRoute: typeof AdminEmailsRoute
   AdminHostsRoute: typeof AdminHostsRoute
   AdminLeadsRoute: typeof AdminLeadsRoute
+  AdminPlansRoute: typeof AdminPlansRoute
   AdminRoleaccessesRoute: typeof AdminRoleaccessesRoute
   AdminIndexRoute: typeof AdminIndexRoute
 }
@@ -633,6 +653,7 @@ const AdminRouteRouteChildren: AdminRouteRouteChildren = {
   AdminEmailsRoute: AdminEmailsRoute,
   AdminHostsRoute: AdminHostsRoute,
   AdminLeadsRoute: AdminLeadsRoute,
+  AdminPlansRoute: AdminPlansRoute,
   AdminRoleaccessesRoute: AdminRoleaccessesRoute,
   AdminIndexRoute: AdminIndexRoute,
 }

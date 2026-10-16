@@ -1,3 +1,4 @@
+import type { AdminPlan } from "../../bindings/AdminPlan";
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { Plan } from "../../bindings/Plan";
@@ -32,7 +33,7 @@ export function checkoutIntent(search: Record<string, unknown>): Partial<Checkou
 }
 
 /** Stripe bills this subscription now: a plan change goes through the portal. */
-export function isBilled(summary: BillingSummary): boolean {
+export function isBilled(summary: Pick<BillingSummary, "status">): boolean {
   return summary.status === STATUS.ACTIVE || summary.status === STATUS.PAST_DUE;
 }
 
@@ -100,4 +101,13 @@ export function statusLine(summary: BillingSummary, now: number): string {
     default:
       return "Free for as long as you like. Upgrade any time.";
   }
+}
+
+/** How many hosts each plan has now. */
+export function planCounts(
+  rows: readonly Pick<AdminPlan, "plan">[],
+): Record<Plan, number> {
+  const counts: Record<Plan, number> = { free: 0, pro: 0, business: 0 };
+  for (const row of rows) counts[row.plan] += 1;
+  return counts;
 }

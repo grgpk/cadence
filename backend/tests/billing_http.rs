@@ -353,3 +353,121 @@ async fn paying_takes_back_the_trial_notice_and_a_failed_renewal_is_told_once(po
     subscription_event(&app, "evt_3", "updated", 300, unid, PRO_MONTH, "past_due").await;
     assert_eq!(waiting_notices(&pool, unid).await, ["payment_failed"]);
 }
+
+async fn grant_admin(pool: &PgPool, user: Uuid) {
+    sqlx::query_scalar!(
+        "INSERT INTO roleaccesses (grantedto_unid, role) VALUES ($1, 'Admin') RETURNING 1",
+        user,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("role is granted");
+}
+
+async fn comp(app: &Router, cookie: &str, user: Uuid, plan: Value) -> StatusCode {
+    let path = format!("/api/admin/billing/{user}");
+    send(
+        app,
+        Method::PUT,
+        &path,
+        Some(cookie),
+        Some(json!({ "plan": plan })),
+    )
+    .await
+    .0
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_admin_sees_every_hosts_plan_and_comps_one(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, host_cookie) = register(&app, "ada@example.com").await;
+
+    // Hosts cannot read or change plans.
+    let (status, _) = send(
+        &app,
+        Method::GET,
+        "/api/admin/billing",
+        Some(&host_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(
+        comp(&app, &host_cookie, host, json!("business")).await,
+        StatusCode::FORBIDDEN
+    );
+
+    let (status, plans) = send(
+        &app,
+        Method::GET,
+        "/api/admin/billing",
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let row = |plans: &Value| {
+        plans
+            .as_array()
+            .expect("a list")
+            .iter()
+            .find(|row| row["email"] == "ada@example.com")
+            .cloned()
+            .expect("the host is listed")
+    };
+    assert_eq!(row(&plans)["plan"], "pro");
+    assert_eq!(row(&plans)["status"], "trialing");
+
+    assert_eq!(
+        comp(&app, &admin_cookie, host, json!("business")).await,
+        StatusCode::NO_CONTENT
+    );
+    let (_, plans) = send(
+        &app,
+        Method::GET,
+        "/api/admin/billing",
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(row(&plans)["plan"], "business");
+    assert_eq!(row(&plans)["status"], "comped");
+    let (_, summary) = send(&app, Method::GET, ME, Some(&host_cookie), None).await;
+    assert_eq!(summary["plan"], "business");
+
+    assert_eq!(
+        comp(&app, &admin_cookie, host, json!("free")).await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        comp(&app, &admin_cookie, host, Value::Null).await,
+        StatusCode::NO_CONTENT
+    );
+    let (_, summary) = send(&app, Method::GET, ME, Some(&host_cookie), None).await;
+    assert_eq!(summary["plan"], "free");
+    assert_eq!(summary["status"], Value::Null);
+    assert_eq!(
+        comp(&app, &admin_cookie, host, Value::Null).await,
+        StatusCode::CONFLICT
+    );
+    assert_eq!(
+        comp(&app, &admin_cookie, Uuid::new_v4(), json!("pro")).await,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_plan_stripe_bills_is_not_changed_by_an_admin(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, _) = register(&app, "ada@example.com").await;
+    subscription_event(&app, "evt_1", "created", 100, host, PRO_MONTH, "active").await;
+
+    assert_eq!(
+        comp(&app, &admin_cookie, host, json!("business")).await,
+        StatusCode::CONFLICT
+    );
+}

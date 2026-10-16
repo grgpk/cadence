@@ -4,8 +4,8 @@ use uuid::Uuid;
 
 use super::{
     db::{self, SyncedSubscription},
-    models::{BillingSummary, StartCheckout, StripeEvent, StripeSubscription},
-    plans::{Entitlements, Plan, SubscriptionStatus, TRIAL_DAYS, effective_plan},
+    models::{AdminPlan, BillingSummary, StartCheckout, StripeEvent, StripeSubscription},
+    plans::{Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS, effective_plan},
     stripe::{CheckoutRequest, Payments, PaymentsError},
 };
 use crate::{
@@ -186,6 +186,73 @@ pub async fn portal(
         .portal_url(&customer, &format!("{}{BILLING_PATH}", app_url()))
         .await
         .map_err(payments_failed)
+}
+
+/// Every host and the plan that applies to them now, newest first.
+pub async fn host_plans(pool: &PgPool, now: DateTime<Utc>) -> AppResult<Vec<AdminPlan>> {
+    let rows = db::host_plans(pool).await?;
+    Ok(rows
+        .into_iter()
+        .map(|row| {
+            let stored = row.plan.zip(row.status).map(|(plan, status)| Subscription {
+                plan,
+                status,
+                billing_interval: row.billing_interval,
+                trial_ends_at: row.trial_ends_at,
+                current_period_end: row.current_period_end,
+                cancel_at_period_end: row.cancel_at_period_end.unwrap_or(false),
+            });
+            AdminPlan {
+                user_unid: row.user_unid,
+                full_name: row.full_name,
+                email: row.email,
+                plan: effective_plan(stored.as_ref(), now),
+                status: row.status,
+                interval: row.billing_interval,
+                trial_ends_at: row.trial_ends_at,
+                current_period_end: row.current_period_end,
+                cancel_at_period_end: row.cancel_at_period_end.unwrap_or(false),
+            }
+        })
+        .collect())
+}
+
+/// An admin gives a host a paid plan for free, or takes a comped plan back.
+/// A plan Stripe bills is changed in Stripe, never here.
+pub async fn comp(pool: &PgPool, user_unid: Uuid, plan: Option<Plan>) -> AppResult<()> {
+    let mut transaction = pool.begin().await?;
+    let contact = db::contact(&mut transaction, user_unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let status = db::status(&mut transaction, user_unid).await?;
+    if status.is_some_and(is_billed) {
+        return Err(AppError::Conflict(
+            "this host pays through Stripe: change the plan there".to_owned(),
+        ));
+    }
+    match plan {
+        Some(Plan::Free) => {
+            return Err(AppError::BadRequest("give a paid plan, or none".to_owned()));
+        }
+        Some(plan) => {
+            db::comp(&mut transaction, user_unid, plan).await?;
+            emails::drop_account_notice(
+                &mut transaction,
+                AccountNotice::TrialEnding,
+                &contact.email,
+            )
+            .await?;
+        }
+        None if status == Some(SubscriptionStatus::Comped) => {
+            db::uncomp(&mut transaction, user_unid).await?;
+        }
+        None => {
+            return Err(AppError::Conflict(
+                "this host has no comped plan".to_owned(),
+            ));
+        }
+    }
+    Ok(transaction.commit().await?)
 }
 
 /// Stripe's statuses in ours. Stripe's own trials are not used, so a

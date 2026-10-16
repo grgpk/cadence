@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import type { LucideIcon } from "lucide-react";
 import { Search } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { Card } from "../../../components/ui/card";
 import { Input } from "../../../components/ui/input";
@@ -25,6 +25,8 @@ type AdminDataPageProps<T> = {
   searchText?: (item: T) => string;
   /** What the search box starts with, for links that open the list already narrowed. */
   initialSearch?: string;
+  /** Figures about all rows, shown above the table once they load. */
+  summary?: (rows: T[]) => ReactNode;
 };
 
 export function AdminDataPage<T>({
@@ -38,6 +40,7 @@ export function AdminDataPage<T>({
   columns,
   searchText,
   initialSearch = "",
+  summary,
 }: AdminDataPageProps<T>) {
   const [search, setSearch] = useState(initialSearch);
   const query = useQuery(adminDataQuery<T[]>(endpoint));
@@ -78,6 +81,7 @@ export function AdminDataPage<T>({
           </>
         }
       />
+      {summary && query.data ? summary(query.data) : null}
       {query.isError ? (
         <ErrorState
           title={`${title} did not load`}
