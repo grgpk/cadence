@@ -7,7 +7,7 @@ use serde_json::json;
 
 use super::{
     db,
-    models::{Role, USER_STATUS_ACTIVE, UserRecord},
+    models::{Role, UserRecord, UserStatus},
     service::verify_token,
 };
 use crate::{app_state::AppState, error::AppError};
@@ -36,7 +36,7 @@ impl FromRequestParts<AppState> for AuthUser {
                 internal()
             })?
             .ok_or_else(|| unauthorized("user not found"))?;
-        if user.status != USER_STATUS_ACTIVE {
+        if user.status != UserStatus::Active {
             return Err(unauthorized("user is not active"));
         }
         // The password was changed or reset after this session was issued.

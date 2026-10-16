@@ -29,50 +29,62 @@ use ts_rs::TS;
 
 #[test]
 fn export_bindings() {
-    assert!(Role::export().is_ok());
-    assert!(UserStatus::export().is_ok());
-    assert!(RegisterRequest::export().is_ok());
-    assert!(LoginRequest::export().is_ok());
-    assert!(SessionUser::export().is_ok());
-    assert!(ForgotPasswordRequest::export().is_ok());
-    assert!(ResetPasswordRequest::export().is_ok());
-    assert!(UpdateProfileRequest::export().is_ok());
-    assert!(ChangePasswordRequest::export().is_ok());
-    assert!(AvailabilityRuleInput::export().is_ok());
-    assert!(AvailabilityRule::export().is_ok());
-    assert!(TimeSlot::export().is_ok());
-    assert!(HoursRange::export().is_ok());
-    assert!(DateOverride::export().is_ok());
-    assert!(DateOverrideInput::export().is_ok());
-    assert!(CalendarEvent::export().is_ok());
-    assert!(EventDateTime::export().is_ok());
-    assert!(GoogleOAuthConfigResponse::export().is_ok());
-    assert!(GoogleCalendarLoginRequest::export().is_ok());
-    assert!(CreateBookingRequest::export().is_ok());
-    assert!(BookingStatus::export().is_ok());
-    assert!(Booking::export().is_ok());
-    assert!(BookingDetail::export().is_ok());
-    assert!(CreatedBooking::export().is_ok());
-    assert!(ManagedBooking::export().is_ok());
-    assert!(RescheduleRequest::export().is_ok());
-    assert!(AdminBugType::export().is_ok());
-    assert!(AddBugReportRequest::export().is_ok());
-    assert!(AdminBugReport::export().is_ok());
-    assert!(CallingVisitRequest::export().is_ok());
-    assert!(CallingVisitEngagement::export().is_ok());
-    assert!(CallingVisit::export().is_ok());
-    assert!(LeadQualification::export().is_ok());
-    assert!(LeadUpdate::export().is_ok());
-    assert!(Lead::export().is_ok());
-    assert!(SubmitLeadRequest::export().is_ok());
-    assert!(RoleAccess::export().is_ok());
-    assert!(ConferencingApp::export().is_ok());
-    assert!(ConferencingUpdate::export().is_ok());
-    assert!(HostSettings::export().is_ok());
-    assert!(BookingPage::export().is_ok());
-    assert!(AdminHost::export().is_ok());
-    assert!(AdminRoleAccess::export().is_ok());
-    assert!(VisitFunnel::export().is_ok());
-    assert!(EmailState::export().is_ok());
-    assert!(AdminEmail::export().is_ok());
+    // One list, checked once: every wire type writes its TypeScript file.
+    let exports = [
+        ("Role", Role::export()),
+        ("UserStatus", UserStatus::export()),
+        ("RegisterRequest", RegisterRequest::export()),
+        ("LoginRequest", LoginRequest::export()),
+        ("SessionUser", SessionUser::export()),
+        ("ForgotPasswordRequest", ForgotPasswordRequest::export()),
+        ("ResetPasswordRequest", ResetPasswordRequest::export()),
+        ("UpdateProfileRequest", UpdateProfileRequest::export()),
+        ("ChangePasswordRequest", ChangePasswordRequest::export()),
+        ("AvailabilityRuleInput", AvailabilityRuleInput::export()),
+        ("AvailabilityRule", AvailabilityRule::export()),
+        ("TimeSlot", TimeSlot::export()),
+        ("HoursRange", HoursRange::export()),
+        ("DateOverride", DateOverride::export()),
+        ("DateOverrideInput", DateOverrideInput::export()),
+        ("CalendarEvent", CalendarEvent::export()),
+        ("EventDateTime", EventDateTime::export()),
+        (
+            "GoogleOAuthConfigResponse",
+            GoogleOAuthConfigResponse::export(),
+        ),
+        (
+            "GoogleCalendarLoginRequest",
+            GoogleCalendarLoginRequest::export(),
+        ),
+        ("CreateBookingRequest", CreateBookingRequest::export()),
+        ("BookingStatus", BookingStatus::export()),
+        ("Booking", Booking::export()),
+        ("BookingDetail", BookingDetail::export()),
+        ("CreatedBooking", CreatedBooking::export()),
+        ("ManagedBooking", ManagedBooking::export()),
+        ("RescheduleRequest", RescheduleRequest::export()),
+        ("AdminBugType", AdminBugType::export()),
+        ("AddBugReportRequest", AddBugReportRequest::export()),
+        ("AdminBugReport", AdminBugReport::export()),
+        ("CallingVisitRequest", CallingVisitRequest::export()),
+        ("CallingVisitEngagement", CallingVisitEngagement::export()),
+        ("CallingVisit", CallingVisit::export()),
+        ("LeadQualification", LeadQualification::export()),
+        ("LeadUpdate", LeadUpdate::export()),
+        ("Lead", Lead::export()),
+        ("SubmitLeadRequest", SubmitLeadRequest::export()),
+        ("RoleAccess", RoleAccess::export()),
+        ("ConferencingApp", ConferencingApp::export()),
+        ("ConferencingUpdate", ConferencingUpdate::export()),
+        ("HostSettings", HostSettings::export()),
+        ("BookingPage", BookingPage::export()),
+        ("AdminHost", AdminHost::export()),
+        ("AdminRoleAccess", AdminRoleAccess::export()),
+        ("VisitFunnel", VisitFunnel::export()),
+        ("EmailState", EmailState::export()),
+        ("AdminEmail", AdminEmail::export()),
+    ];
+    for (name, export) in exports {
+        assert!(export.is_ok(), "{name} did not export");
+    }
 }

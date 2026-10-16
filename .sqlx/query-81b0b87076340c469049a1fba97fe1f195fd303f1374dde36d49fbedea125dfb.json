@@ -1,10 +1,32 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()\n         WHERE host_unid = $1\n         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+  "query": "SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app AS \"conferencing_app: ConferencingApp\", w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,\n                  w.is_active AS accepting_bookings\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "host_email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "public_slug",
         "type_info": "Text",
         "origin": {
@@ -15,7 +37,18 @@
         }
       },
       {
-        "ordinal": 1,
+        "ordinal": 3,
+        "name": "host_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "title",
         "type_info": "Text",
         "origin": {
@@ -26,7 +59,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 5,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -37,7 +70,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 6,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
@@ -48,29 +81,7 @@
         }
       },
       {
-        "ordinal": 4,
-        "name": "meeting_link",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "meeting_link"
-          }
-        }
-      },
-      {
-        "ordinal": 5,
-        "name": "conferencing_app",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "conferencing_app"
-          }
-        }
-      },
-      {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -125,7 +136,41 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
+        "name": "calendar_connected!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "conferencing_app: ConferencingApp",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "conferencing_app"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "meeting_link",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "meeting_link"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "has_meeting_link!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 16,
         "name": "minimum_notice_hours",
         "type_info": "Int4",
         "origin": {
@@ -136,7 +181,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 17,
         "name": "booking_window_days",
         "type_info": "Int4",
         "origin": {
@@ -147,7 +192,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 18,
         "name": "buffer_minutes",
         "type_info": "Int4",
         "origin": {
@@ -158,8 +203,8 @@
         }
       },
       {
-        "ordinal": 14,
-        "name": "is_active",
+        "ordinal": 19,
+        "name": "accepting_bookings",
         "type_info": "Bool",
         "origin": {
           "Table": {
@@ -171,8 +216,8 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
         "Text",
+        "Uuid",
         "Text"
       ]
     },
@@ -181,18 +226,23 @@
       false,
       false,
       false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
       true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
+      null,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "3830ae4b4760f46666cf619b75b2e21afecb2e76a3e383a68afe7438b7b722eb"
+  "hash": "81b0b87076340c469049a1fba97fe1f195fd303f1374dde36d49fbedea125dfb"
 }

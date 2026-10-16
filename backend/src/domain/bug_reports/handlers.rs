@@ -39,7 +39,7 @@ pub async fn add_bug_report(
     match BugReportsService::add(&app_state.pool, &report).await {
         Ok(_id) => (StatusCode::OK, Json(AddBugReportResponse { ok: true })).into_response(),
         Err(error) => {
-            tracing::error!("bug report insert failed: {error}");
+            tracing::error!(%error, "bug report insert failed");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(AddBugReportResponse { ok: false }),

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
-use super::models::{Role, UserRecord};
+use super::models::{Role, UserRecord, UserStatus};
 
 #[derive(sqlx::FromRow)]
 struct UserBase {
@@ -10,7 +10,7 @@ struct UserBase {
     email: String,
     password_hash: String,
     full_name: String,
-    status: String,
+    status: UserStatus,
     session_version: i32,
 }
 
@@ -51,7 +51,7 @@ async fn assemble(pool: &PgPool, base: UserBase) -> Result<UserRecord, sqlx::Err
 pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserRecord>, sqlx::Error> {
     let base = sqlx::query_as!(
         UserBase,
-        "SELECT unid, email, password_hash, full_name, status, session_version FROM users WHERE lower(email) = lower($1)",
+        "SELECT unid, email, password_hash, full_name, status AS \"status: UserStatus\", session_version FROM users WHERE lower(email) = lower($1)",
         email,
     )
     .fetch_optional(pool)
@@ -66,7 +66,7 @@ pub async fn find_by_email(pool: &PgPool, email: &str) -> Result<Option<UserReco
 pub async fn find_by_unid(pool: &PgPool, unid: Uuid) -> Result<Option<UserRecord>, sqlx::Error> {
     let base = sqlx::query_as!(
         UserBase,
-        "SELECT unid, email, password_hash, full_name, status, session_version FROM users WHERE unid = $1",
+        "SELECT unid, email, password_hash, full_name, status AS \"status: UserStatus\", session_version FROM users WHERE unid = $1",
         unid,
     )
     .fetch_optional(pool)
@@ -87,7 +87,7 @@ pub async fn create_host(
     let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
     let user = sqlx::query_as!(
         UserBase,
-        "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status, session_version",
+        "INSERT INTO users (email, password_hash, full_name) VALUES ($1, $2, $3) RETURNING unid, email, password_hash, full_name, status AS \"status: UserStatus\", session_version",
         email,
         password_hash,
         full_name,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, slot_end, timezone, invitee_name, invitee_email, google_meet_url)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+  "query": "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at\n         FROM bookings WHERE manage_token = $1",
   "describe": {
     "columns": [
       {
@@ -88,7 +88,7 @@
       },
       {
         "ordinal": 8,
-        "name": "status",
+        "name": "status: BookingStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -144,14 +144,6 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Uuid",
-        "Uuid",
-        "Timestamptz",
-        "Timestamptz",
-        "Text",
-        "Text",
-        "Text",
         "Text"
       ]
     },
@@ -171,5 +163,5 @@
       false
     ]
   },
-  "hash": "cea8d69dede8c519efe25fd896747e4568ca322c1ed2637720bc0d2dea271675"
+  "hash": "cec28f76a73803d801c34380ecedd781bfcf9304d03a0afe0d0b726fcd842e16"
 }

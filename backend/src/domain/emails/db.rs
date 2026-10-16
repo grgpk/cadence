@@ -3,6 +3,8 @@ use serde_json::Value;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
+use crate::domain::bookings::models::BookingStatus;
+
 /// A row that failed this many times is left alone: the address or the
 /// content is being refused, and another try will not change that.
 pub const MAX_ATTEMPTS: i32 = 20;
@@ -52,7 +54,7 @@ pub struct PendingEmail {
     pub payload: Option<Value>,
     /// `None` for an email that is not about a call.
     pub call_start: Option<DateTime<Utc>>,
-    pub call_status: Option<String>,
+    pub call_status: Option<BookingStatus>,
 }
 
 /// The next due email, locked until the transaction ends. Rows another
@@ -63,7 +65,7 @@ pub async fn claim_next(
     sqlx::query_as!(
         PendingEmail,
         r#"SELECT e.id, e.email, e.template, e.payload,
-                  b.slot_start AS "call_start?", b.status AS "call_status?"
+                  b.slot_start AS "call_start?", b.status AS "call_status?: BookingStatus"
            FROM email_queue e LEFT JOIN bookings b ON b.unid = e.booking_unid
            WHERE e.sent_at IS NULL AND e.send_at <= now() AND e.attempts < $1
            ORDER BY e.send_at ASC LIMIT 1
@@ -152,6 +154,3 @@ pub async fn list_recent(pool: &PgPool) -> Result<Vec<QueuedEmail>, sqlx::Error>
     .fetch_all(pool)
     .await
 }
-
-#[allow(dead_code)]
-fn _datetime_type_is_explicit(_: DateTime<Utc>) {}

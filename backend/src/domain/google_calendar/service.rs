@@ -1,3 +1,4 @@
+use anyhow::Context;
 use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -100,7 +101,7 @@ pub async fn google_calendar_login(
         ])
         .send()
         .await
-        .map_err(|error| anyhow::anyhow!("token exchange failed: {error}"))?;
+        .context("token exchange failed")?;
 
     if !response.status().is_success() {
         let body = response.text().await.unwrap_or_default();
@@ -111,7 +112,7 @@ pub async fn google_calendar_login(
     let token_data: GoogleTokenResponse = response
         .json()
         .await
-        .map_err(|error| anyhow::anyhow!("failed to parse Google token: {error}"))?;
+        .context("failed to parse Google token")?;
     let refresh_token = token_data
         .refresh_token
         .ok_or_else(|| anyhow::anyhow!("no refresh token received, reconnect Google Calendar"))?;
@@ -162,7 +163,7 @@ pub async fn access_token(pool: &PgPool, host_unid: Uuid) -> Result<Option<Strin
         ])
         .send()
         .await
-        .map_err(|error| anyhow::anyhow!("token refresh failed: {error}"))?;
+        .context("token refresh failed")?;
 
     if !response.status().is_success() {
         tracing::error!(status = %response.status(), "Google access token refresh failed");
@@ -198,5 +199,5 @@ pub async fn get_calendar_events(
     GoogleCalendarClient::new(access_token)
         .get_upcoming_events(7)
         .await
-        .map_err(|error| anyhow::anyhow!(error.to_string()))
+        .map_err(anyhow::Error::from)
 }

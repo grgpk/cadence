@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                minimum_notice_hours, booking_window_days, buffer_minutes, is_active\n         FROM widget_settings WHERE host_unid = $1",
+  "query": "UPDATE widget_settings SET public_slug = $2, title = $3, description = $4, timezone = $5,\n                ask_currently_working_on = $6, ask_how_heard_about_us = $7, ask_what_stopping_you = $8,\n                ask_investment_comfort = $9, ask_urgency_level = $10,\n                minimum_notice_hours = $11, booking_window_days = $12, is_active = $13,\n                buffer_minutes = $14, updated_at = now()\n         WHERE host_unid = $1\n         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       },
       {
         "ordinal": 5,
-        "name": "conferencing_app",
+        "name": "conferencing_app: ConferencingApp",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -171,7 +171,20 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Bool",
+        "Int4",
+        "Int4",
+        "Bool",
+        "Int4"
       ]
     },
     "nullable": [
@@ -192,5 +205,5 @@
       false
     ]
   },
-  "hash": "5e365730b1c92ac28ba65bf5165cd99a9b5e54ad118e6e710bc4084fbd7fe30e"
+  "hash": "5b3ea40080a50b9527b5838c0472e6dd5072f5afce3d2cfe4f9c2c2a1a854663"
 }

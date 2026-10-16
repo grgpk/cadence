@@ -799,8 +799,8 @@ async fn the_development_seed_applies_after_migrations_and_again(pool: PgPool) {
     assert_eq!(seed_state(&pool).await, seeded);
 
     // Locally, the seed switches its logins back on.
-    sqlx::query!("UPDATE users SET status = 'Banned'")
-        .execute(&pool)
+    sqlx::query_scalar!("UPDATE users SET status = 'Banned' RETURNING 1")
+        .fetch_all(&pool)
         .await
         .expect("users are writable");
     assert_eq!(

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.unid, u.full_name, u.email, u.status, u.created_at,\n                  w.public_slug AS \"public_slug?\",\n                  COALESCE(w.is_active, false) AS \"page_active!\",\n                  EXISTS(SELECT 1 FROM availability a WHERE a.host_unid = u.unid) AS \"has_hours!\",\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = u.unid) AS \"calendar_connected!\",\n                  COALESCE(w.meeting_link IS NOT NULL, false) AS \"has_meeting_link!\"\n           FROM users u LEFT JOIN widget_settings w ON w.host_unid = u.unid\n           WHERE w.host_unid IS NOT NULL\n              OR EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')\n           ORDER BY u.created_at DESC",
+  "query": "SELECT u.unid, u.full_name, u.email, u.status AS \"status: UserStatus\", u.created_at,\n                  w.public_slug AS \"public_slug?\",\n                  COALESCE(w.is_active, false) AS \"page_active!\",\n                  EXISTS(SELECT 1 FROM availability a WHERE a.host_unid = u.unid) AS \"has_hours!\",\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = u.unid) AS \"calendar_connected!\",\n                  COALESCE(w.meeting_link IS NOT NULL, false) AS \"has_meeting_link!\"\n           FROM users u LEFT JOIN widget_settings w ON w.host_unid = u.unid\n           WHERE w.host_unid IS NOT NULL\n              OR EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')\n           ORDER BY u.created_at DESC",
   "describe": {
     "columns": [
       {
@@ -38,7 +38,7 @@
       },
       {
         "ordinal": 3,
-        "name": "status",
+        "name": "status: UserStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -110,5 +110,5 @@
       null
     ]
   },
-  "hash": "2908c93e336fb2c29d6259a0aa0519dd9cd5e1d8dc76db3b496e39ef13088e55"
+  "hash": "fa6b9da68636480473bfc6ba8b35b6de20831bd3217da162ad68ad653f791305"
 }

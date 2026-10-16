@@ -1,6 +1,7 @@
 pub mod app_state;
 pub mod domain;
 pub mod error;
+mod text_column;
 pub mod tracing_bugreport_layer;
 pub mod tracing_setup;
 pub mod tracking;

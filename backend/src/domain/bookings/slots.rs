@@ -59,7 +59,7 @@ pub async fn open_slots(
         .busy(page.host_unid, &page.timezone, from, to)
         .await
         .unwrap_or_else(|error| {
-            tracing::error!(%error, "calendar busy times were not loaded");
+            tracing::error!(?error, "calendar busy times were not loaded");
             Vec::new()
         });
     Ok(rules.open_times(

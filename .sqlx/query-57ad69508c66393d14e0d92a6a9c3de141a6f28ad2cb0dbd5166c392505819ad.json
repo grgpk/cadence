@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bookings SET google_event_id = $2, google_meet_url = COALESCE($3, google_meet_url), updated_at = now()\n         WHERE unid = $1\n         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+  "query": "UPDATE bookings SET status = $3, cancelled_at = now(), updated_at = now()\n         WHERE host_unid = $1 AND unid = $2 AND status <> $3\n         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
   "describe": {
     "columns": [
       {
@@ -88,7 +88,7 @@
       },
       {
         "ordinal": 8,
-        "name": "status",
+        "name": "status: BookingStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -145,7 +145,7 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Text",
+        "Uuid",
         "Text"
       ]
     },
@@ -165,5 +165,5 @@
       false
     ]
   },
-  "hash": "f863c4d74bb4c936bad74efd3d8b3080d768b853dde889d834cd6b6feba96fe1"
+  "hash": "57ad69508c66393d14e0d92a6a9c3de141a6f28ad2cb0dbd5166c392505819ad"
 }

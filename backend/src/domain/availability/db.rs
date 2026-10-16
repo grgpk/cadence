@@ -1,4 +1,4 @@
-use chrono::{NaiveDate, NaiveTime};
+use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -138,6 +138,3 @@ pub async fn delete_override(
     .await?;
     Ok(!deleted.is_empty())
 }
-
-#[allow(dead_code)]
-fn _time_type_is_explicit(_: NaiveTime) {}

@@ -101,11 +101,11 @@ pub async fn create(
                 title: &format!("{} with {}", page.title, request.invitee_name),
                 invitee_name: &request.invitee_name,
                 invitee_email: &request.invitee_email,
-                with_meet: page.conferencing_app == ConferencingApp::GoogleMeet.as_str(),
+                with_meet: page.conferencing_app == ConferencingApp::GoogleMeet,
             },
         )
         .await
-        .inspect_err(|error| tracing::error!(%error, "calendar event was not created"))
+        .inspect_err(|error| tracing::error!(?error, "calendar event was not created"))
         .ok()
         .flatten();
 
@@ -187,7 +187,7 @@ async fn cancel_call(
     if let Some(event_id) = &booking.google_event_id
         && let Err(error) = calendar.delete_event(booking.host_unid, event_id).await
     {
-        tracing::warn!(%error, booking_unid = %booking.unid, "calendar event of a cancelled call was not deleted");
+        tracing::warn!(?error, booking_unid = %booking.unid, "calendar event of a cancelled call was not deleted");
     }
     Ok(booking)
 }
@@ -267,7 +267,7 @@ pub async fn reschedule(
             )
             .await
     {
-        tracing::warn!(%error, booking_unid = %booking.unid, "calendar event was not moved");
+        tracing::warn!(?error, booking_unid = %booking.unid, "calendar event was not moved");
     }
     Ok(managed_booking(booking, page))
 }
@@ -281,11 +281,11 @@ async fn find_managed(pool: &PgPool, token: &str) -> AppResult<(Booking, Booking
 }
 
 fn can_change(booking: &Booking) -> bool {
-    booking.status != BookingStatus::Cancelled.as_str() && booking.slot_start > Utc::now()
+    booking.status != BookingStatus::Cancelled && booking.slot_start > Utc::now()
 }
 
 fn ensure_can_change(booking: &Booking) -> AppResult<()> {
-    if booking.status == BookingStatus::Cancelled.as_str() {
+    if booking.status == BookingStatus::Cancelled {
         return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
     }
     if !can_change(booking) {
@@ -296,7 +296,7 @@ fn ensure_can_change(booking: &Booking) -> AppResult<()> {
 
 fn managed_booking(booking: Booking, page: BookingPage) -> ManagedBooking {
     // A cancelled call has nowhere to join.
-    let meeting_url = if booking.status == BookingStatus::Cancelled.as_str() {
+    let meeting_url = if booking.status == BookingStatus::Cancelled {
         None
     } else {
         booking.meeting_url.clone()

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{Claims, USER_STATUS_ACTIVE, UserRecord},
+    models::{Claims, UserRecord, UserStatus},
 };
 use crate::{
     domain::emails::service as emails,
@@ -136,7 +136,7 @@ pub async fn authenticate(pool: &PgPool, email: &str, password: &str) -> AppResu
         .map_or(DUMMY_PASSWORD_HASH, |user| user.password_hash.as_str());
     let matches = verify_password(password, stored_hash).await?;
     match user {
-        Some(user) if matches && user.status == USER_STATUS_ACTIVE => Ok(user),
+        Some(user) if matches && user.status == UserStatus::Active => Ok(user),
         _ => Err(AppError::Unauthorized),
     }
 }
@@ -163,7 +163,7 @@ pub async fn request_password_reset(pool: &PgPool, email: &str) -> AppResult<()>
     let Some(user) = db::find_by_email(pool, &normalize_email(email)).await? else {
         return Ok(());
     };
-    if user.status != USER_STATUS_ACTIVE {
+    if user.status != UserStatus::Active {
         return Ok(());
     }
     // 244 random bits from two v4 UUIDs. Only its hash is stored.

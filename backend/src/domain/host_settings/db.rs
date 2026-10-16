@@ -2,12 +2,12 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::models::{AdminHost, BookingPage, ConferencingApp, HostSettings};
-use crate::domain::auth::models::USER_STATUS_ACTIVE;
+use crate::domain::auth::models::UserStatus;
 
 pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
+        "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
                 ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                 minimum_notice_hours, booking_window_days, buffer_minutes, is_active
          FROM widget_settings WHERE host_unid = $1",
@@ -28,7 +28,7 @@ pub async fn insert(
         HostSettings,
         "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)
          ON CONFLICT (host_unid) DO NOTHING
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
                    ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                    minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
         host_unid,
@@ -52,7 +52,7 @@ pub async fn update(
                 minimum_notice_hours = $11, booking_window_days = $12, is_active = $13,
                 buffer_minutes = $14, updated_at = now()
          WHERE host_unid = $1
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
                    ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                    minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
         host_unid,
@@ -86,7 +86,7 @@ pub async fn set_conferencing(
         HostSettings,
         "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()
          WHERE host_unid = $1
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
                    ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                    minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
         host_unid,
@@ -111,14 +111,14 @@ pub async fn find_page(
                   w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,
                   w.ask_investment_comfort, w.ask_urgency_level,
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
-                  w.conferencing_app, w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
+                  w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
                   w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,
                   w.is_active AS accepting_bookings
            FROM widget_settings w JOIN users u ON u.unid = w.host_unid
            WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3"#,
         public_slug,
         host_unid,
-        USER_STATUS_ACTIVE,
+        UserStatus::Active.as_str(),
     )
     .fetch_optional(pool)
     .await
@@ -129,7 +129,7 @@ pub async fn find_page(
 pub async fn list_hosts(pool: &PgPool) -> Result<Vec<AdminHost>, sqlx::Error> {
     sqlx::query_as!(
         AdminHost,
-        r#"SELECT u.unid, u.full_name, u.email, u.status, u.created_at,
+        r#"SELECT u.unid, u.full_name, u.email, u.status AS "status: UserStatus", u.created_at,
                   w.public_slug AS "public_slug?",
                   COALESCE(w.is_active, false) AS "page_active!",
                   EXISTS(SELECT 1 FROM availability a WHERE a.host_unid = u.unid) AS "has_hours!",

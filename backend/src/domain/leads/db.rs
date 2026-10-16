@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -102,6 +101,3 @@ pub async fn mark_submitted(
     .fetch_one(pool)
     .await
 }
-
-#[allow(dead_code)]
-fn _keep_datetime_import(_: DateTime<Utc>) {}

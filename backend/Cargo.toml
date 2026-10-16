@@ -24,7 +24,7 @@ sqlx = { version = "0.9", features = ["runtime-tokio", "tls-rustls", "postgres",
 thiserror = "2"
 time = "0.3"
 time-tz = { version = "2", features = ["system"] }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "time", "sync", "signal"] }
 tracing = "0.1"
 tracing-log = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

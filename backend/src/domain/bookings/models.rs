@@ -1,6 +1,8 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+
+use crate::text_column::text_column;
 use uuid::Uuid;
 
 use crate::domain::leads::models::Lead;
@@ -19,9 +21,8 @@ pub struct CreateBookingRequest {
     pub invitee_email: String,
 }
 
-/// The values of the `bookings_status` check. `Booking.status` stays a string
-/// for sqlx; this gives the frontend the closed set.
-#[derive(Clone, Copy, Debug, Serialize, TS)]
+/// The values of the `bookings_status` check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
 #[serde(rename_all = "lowercase")]
 #[ts(export, export_to = "../../frontend/src/bindings/BookingStatus.ts")]
 pub enum BookingStatus {
@@ -29,6 +30,8 @@ pub enum BookingStatus {
     Confirmed,
     Cancelled,
 }
+
+text_column!(BookingStatus: Pending, Confirmed, Cancelled);
 
 impl BookingStatus {
     /// The value as the `status` column stores it.
@@ -53,8 +56,7 @@ pub struct Booking {
     pub timezone: String,
     pub invitee_name: String,
     pub invitee_email: String,
-    #[ts(as = "BookingStatus")]
-    pub status: String,
+    pub status: BookingStatus,
     /// Where the call happens: the Google Meet link, or the host's own meeting link.
     pub meeting_url: Option<String>,
     /// Only needed to take the event off the host's calendar.
@@ -87,8 +89,7 @@ pub struct ManagedBooking {
     pub timezone: String,
     /// How long the call runs.
     pub minutes: i32,
-    #[ts(as = "BookingStatus")]
-    pub status: String,
+    pub status: BookingStatus,
     pub invitee_name: String,
     pub meeting_url: Option<String>,
     pub host_name: String,

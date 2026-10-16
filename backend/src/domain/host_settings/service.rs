@@ -237,7 +237,7 @@ mod tests {
             email: email.to_owned(),
             password_hash: String::new(),
             full_name: full_name.to_owned(),
-            status: String::new(),
+            status: crate::domain::auth::models::UserStatus::Active,
             session_version: 0,
             roles: Vec::new(),
         }

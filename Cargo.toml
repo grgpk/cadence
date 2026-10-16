@@ -4,6 +4,13 @@ resolver = "2"
 
 # Strict quality policy. Backend inherits this policy through `lints.workspace`.
 # Lint groups come first at negative priority so single-lint overrides win.
+# A server binary: small and fast to start. No `panic = "abort"`: one panic in
+# a request handler must not take the whole server down.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
 [workspace.lints.clippy]
 all = { level = "warn", priority = -2 }
 pedantic = { level = "warn", priority = -2 }
@@ -99,14 +106,16 @@ manual_string_new = "warn"
 
 # Group lints that conflict with established internal-binary style.
 module_name_repetitions = "allow"
-missing_errors_doc = "deny"
-missing_panics_doc = "deny"
-must_use_candidate = "deny"
+# Doc and must_use lints are for published library APIs, not this binary.
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
 missing_const_for_fn = "deny"
 redundant_pub_crate = "deny"
 option_if_let_else = "deny"
 cognitive_complexity = "deny"
-multiple_crate_versions = "deny"
+# Duplicate versions come from dependencies, not from this crate.
+multiple_crate_versions = "allow"
 cargo_common_metadata = "deny"
 too_many_arguments = "deny"
 too_many_lines = "allow"
@@ -128,11 +137,7 @@ allow_attributes = "allow"
 allow_attributes_without_reason = "allow"
 
 [workspace.lints.rust]
-# Temporary burn-down gate: explicit Rust lint policy remains authoritative while
-# legacy compiler warnings are removed incrementally.
-warnings = "allow" # TODO(strict-clippy): drop after warning debt is cleared
 unsafe_code = "forbid"
-unused_imports = "allow" # TODO(strict-clippy): remove legacy unused imports
 unused_must_use = "deny"
 irrefutable_let_patterns = "deny"
 non_ascii_idents = "deny"

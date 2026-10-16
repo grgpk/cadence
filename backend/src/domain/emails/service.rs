@@ -429,7 +429,7 @@ pub fn delivery(email: &PendingEmail, now: DateTime<Utc>) -> Delivery {
     .contains(&template);
     let is_cancellation =
         [BOOKING_CANCELLED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE].contains(&template);
-    let call_cancelled = email.call_status.as_deref() == Some(BookingStatus::Cancelled.as_str());
+    let call_cancelled = email.call_status == Some(BookingStatus::Cancelled);
     let call_started = email.call_start.is_some_and(|start| start <= now);
     if (call_cancelled && !is_cancellation) || (call_started && is_reminder) {
         return Delivery::Drop;
@@ -526,9 +526,9 @@ fn host_content(template: &str, email: &HostEmail) -> Content {
     Content {
         greeting: greeting(text(email.host_name.as_ref())),
         details: [
-            invitee.map(|name| match text(email.invitee_email.as_ref()) {
-                Some(address) => format!("{name} ({address})"),
-                None => name.to_owned(),
+            invitee.map(|name| {
+                text(email.invitee_email.as_ref())
+                    .map_or_else(|| name.to_owned(), |address| format!("{name} ({address})"))
             }),
             text(email.title.as_ref()).map(str::to_owned),
         ]
@@ -1149,7 +1149,7 @@ mod tests {
     fn pending(
         template: &str,
         call_start: Option<DateTime<Utc>>,
-        status: Option<&str>,
+        status: Option<BookingStatus>,
     ) -> PendingEmail {
         PendingEmail {
             id: uuid::Uuid::nil(),
@@ -1157,7 +1157,7 @@ mod tests {
             template: template.to_owned(),
             payload: Some(invitee_payload("Nino")),
             call_start,
-            call_status: status.map(str::to_owned),
+            call_status: status,
         }
     }
 
@@ -1169,7 +1169,7 @@ mod tests {
     fn a_cancelled_call_only_sends_word_of_the_cancellation() {
         let now = Utc::now();
         let ahead = Some(now + Duration::days(1));
-        let cancelled = Some(BookingStatus::Cancelled.as_str());
+        let cancelled = Some(BookingStatus::Cancelled);
         for template in [
             BOOKING_CONFIRMATION_TEMPLATE,
             REMINDER_24H_TEMPLATE,
@@ -1193,7 +1193,7 @@ mod tests {
     fn a_started_call_drops_its_reminders_but_not_its_news() {
         let now = Utc::now();
         let started = Some(now - Duration::minutes(1));
-        let confirmed = Some(BookingStatus::Confirmed.as_str());
+        let confirmed = Some(BookingStatus::Confirmed);
         for template in [
             REMINDER_24H_TEMPLATE,
             REMINDER_2H_TEMPLATE,

@@ -101,12 +101,7 @@ impl GoogleCalendarClient {
         let time_min = format!("{start_date}T00:00:00Z");
         let time_max = format!("{end_date}T23:59:59Z");
 
-        tracing::info!(
-            "Fetching events from {} to {} (tz: {})",
-            start_date,
-            end_date,
-            timezone
-        );
+        tracing::info!(start_date, end_date, timezone, "fetching calendar events");
 
         let url = format!(
             "{}/calendars/{}/events?timeMin={}&timeMax={}&timeZone={}&singleEvents=true&orderBy=startTime",
@@ -125,10 +120,10 @@ impl GoogleCalendarClient {
         let mut events = Vec::new();
         let mut page_token: Option<String> = None;
         for _ in 0..EVENT_PAGES_MAX {
-            let page_url = match &page_token {
-                Some(token) => format!("{url}&pageToken={}", urlencoding::encode(token)),
-                None => url.to_owned(),
-            };
+            let page_url = page_token.as_ref().map_or_else(
+                || url.to_owned(),
+                |token| format!("{url}&pageToken={}", urlencoding::encode(token)),
+            );
             let response = self
                 .client
                 .get(&page_url)
@@ -140,12 +135,12 @@ impl GoogleCalendarClient {
                 reqwest::StatusCode::UNAUTHORIZED => return Err(GoogleCalendarError::Unauthorized),
                 reqwest::StatusCode::BAD_REQUEST => {
                     let body = response.text().await.unwrap_or_default();
-                    tracing::error!("Calendar API bad request: {}", body);
+                    tracing::error!(%body, "calendar API bad request");
                     return Err(GoogleCalendarError::BadRequest(body));
                 }
                 status if !status.is_success() => {
                     let body = response.text().await.unwrap_or_default();
-                    tracing::error!("Calendar API error {}: {}", status, body);
+                    tracing::error!(%status, %body, "calendar API error");
                     return Err(GoogleCalendarError::Other(format!("API error: {status}")));
                 }
                 _ => response.json().await?,
@@ -186,13 +181,16 @@ impl GoogleCalendarClient {
                 { "email": attendee_email, "displayName": attendee_name }
             ],
         });
-        if with_meet {
-            event_body["conferenceData"] = serde_json::json!({
-                "createRequest": {
-                    "requestId": uuid::Uuid::new_v4().to_string(),
-                    "conferenceSolutionKey": { "type": "hangoutsMeet" }
-                }
-            });
+        if with_meet && let Some(fields) = event_body.as_object_mut() {
+            fields.insert(
+                "conferenceData".to_owned(),
+                serde_json::json!({
+                    "createRequest": {
+                        "requestId": uuid::Uuid::new_v4().to_string(),
+                        "conferenceSolutionKey": { "type": "hangoutsMeet" }
+                    }
+                }),
+            );
         }
 
         let url = format!(
@@ -214,7 +212,7 @@ impl GoogleCalendarClient {
             reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
             status if !status.is_success() => {
                 let body = response.text().await.unwrap_or_default();
-                tracing::error!("Create event failed: {}", body);
+                tracing::error!(%body, "calendar event was not created");
                 Err(GoogleCalendarError::Other(format!(
                     "Create event failed: {status}"
                 )))
@@ -261,7 +259,7 @@ impl GoogleCalendarClient {
             reqwest::StatusCode::NOT_FOUND | reqwest::StatusCode::GONE => Ok(()),
             status if !status.is_success() => {
                 let body = response.text().await.unwrap_or_default();
-                tracing::error!("Delete event failed: {}", body);
+                tracing::error!(%body, "calendar event was not deleted");
                 Err(GoogleCalendarError::Other(format!(
                     "Delete event failed: {status}"
                 )))
@@ -301,7 +299,7 @@ impl GoogleCalendarClient {
             reqwest::StatusCode::UNAUTHORIZED => Err(GoogleCalendarError::Unauthorized),
             status if !status.is_success() => {
                 let body = response.text().await.unwrap_or_default();
-                tracing::error!("Update event failed: {}", body);
+                tracing::error!(%body, "calendar event was not moved");
                 Err(GoogleCalendarError::Other(format!(
                     "Update event failed: {status}"
                 )))

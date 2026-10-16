@@ -6,10 +6,11 @@ use lettre::{
     message::{Attachment, Mailbox, MultiPart, SinglePart, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
+use tokio::{sync::watch, task::JoinHandle};
 
 use super::{
-    db,
+    db::{self, PendingEmail},
     service::{self, Delivery, RenderedEmail},
 };
 use crate::domain::{
@@ -23,18 +24,33 @@ const TICK_MAX: usize = 50;
 const SMTP_TIMEOUT: StdDuration = StdDuration::from_secs(20);
 const UNKNOWN_TEMPLATE: &str = "unknown email template";
 
-pub fn start(pool: PgPool) {
+/// How long the worker waits between passes.
+const TICK: StdDuration = StdDuration::from_secs(60);
+
+/// Runs the email queue every minute until `shutdown` turns `true`. A pass
+/// that has started finishes first, so no email is cut off mid-send.
+pub fn start(pool: PgPool, mut shutdown: watch::Receiver<bool>) -> JoinHandle<()> {
     tokio::spawn(async move {
-        loop {
-            if let Some(mailer) = SmtpMailer::from_env() {
-                process_due(&pool, &mailer).await;
-            } else {
-                tracing::warn!("email transport is not configured");
+        let mailer = SmtpMailer::from_env();
+        if mailer.is_none() {
+            tracing::warn!("email transport is not configured");
+        }
+        while !*shutdown.borrow() {
+            if let Some(mailer) = &mailer {
+                process_due(&pool, mailer).await;
             }
             sweep(&pool).await;
-            tokio::time::sleep(StdDuration::from_secs(60)).await;
+            tokio::select! {
+                () = tokio::time::sleep(TICK) => {}
+                // A dropped sender means the server is gone; stop as well.
+                _ = shutdown.changed() => {}
+            }
+            if shutdown.has_changed().is_err() {
+                break;
+            }
         }
-    });
+        tracing::info!("email worker stopped");
+    })
 }
 
 /// Hands a rendered email to whatever delivers it. The error is what the
@@ -69,44 +85,56 @@ async fn process_next<M: Mailer + Sync>(pool: &PgPool, mailer: &M) -> Result<boo
     let Some(email) = db::claim_next(&mut transaction).await? else {
         return Ok(false);
     };
-    match service::delivery(&email, Utc::now()) {
+    deliver(&mut transaction, &email, mailer).await?;
+    transaction.commit().await?;
+    Ok(true)
+}
+
+/// Sends, drops or fails one claimed email and records which.
+async fn deliver<M: Mailer + Sync>(
+    connection: &mut PgConnection,
+    email: &PendingEmail,
+    mailer: &M,
+) -> Result<(), sqlx::Error> {
+    match service::delivery(email, Utc::now()) {
         Delivery::Drop => {
             tracing::info!(email_id = %email.id, template = %email.template, "email dropped, its call is cancelled or has started");
-            db::delete(&mut transaction, email.id).await?;
+            db::delete(connection, email.id).await?;
         }
         Delivery::UnknownTemplate => {
             tracing::warn!(email_id = %email.id, template = %email.template, "unknown email template");
-            db::mark_failed(&mut transaction, email.id, UNKNOWN_TEMPLATE).await?;
+            db::mark_failed(connection, email.id, UNKNOWN_TEMPLATE).await?;
         }
         Delivery::Send(rendered) => match mailer.send(&email.email, rendered).await {
             Ok(()) => {
                 let forget_payload = service::forgets_payload(&email.template);
-                db::mark_sent(&mut transaction, email.id, forget_payload).await?;
+                db::mark_sent(connection, email.id, forget_payload).await?;
             }
             Err(error) => {
                 tracing::error!(%error, email_id = %email.id, "email send failed");
-                db::mark_failed(&mut transaction, email.id, &error).await?;
+                db::mark_failed(connection, email.id, &error).await?;
             }
         },
     }
-    transaction.commit().await?;
-    Ok(true)
+    Ok(())
 }
 
 /// The one loop that already runs every minute also removes what nothing
 /// reads any more.
 pub async fn sweep(pool: &PgPool) {
-    if let Err(error) = rate_limits::forget_old(pool).await {
-        tracing::error!(%error, "old rate limit windows were not removed");
-    }
-    if let Err(error) = service::forget_old_sent(pool).await {
-        tracing::error!(%error, "old sent emails were not removed");
-    }
-    if let Err(error) = auth::forget_old_resets(pool).await {
-        tracing::error!(%error, "old password resets were not removed");
-    }
-    if let Err(error) = google_calendar::forget_old_states(pool).await {
-        tracing::error!(%error, "old OAuth states were not removed");
+    unswept("rate limit windows", rate_limits::forget_old(pool).await);
+    unswept("sent emails", service::forget_old_sent(pool).await);
+    unswept("password resets", auth::forget_old_resets(pool).await);
+    unswept(
+        "OAuth states",
+        google_calendar::forget_old_states(pool).await,
+    );
+}
+
+/// Logs a sweep step that failed; the next minute tries again.
+fn unswept<E: std::fmt::Debug>(what: &str, result: Result<(), E>) {
+    if let Err(error) = result {
+        tracing::error!(?error, what, "old rows were not removed");
     }
 }
 
@@ -127,33 +155,38 @@ impl SmtpMailer {
 
 impl Mailer for SmtpMailer {
     async fn send(&self, recipient: &str, email: RenderedEmail) -> Result<(), String> {
-        let recipient = recipient
-            .parse::<Mailbox>()
-            .map_err(|error| error.to_string())?;
-        let png = ContentType::parse("image/png").map_err(|error| error.to_string())?;
-        let message = Message::builder()
-            .from(self.from.clone())
-            .to(recipient)
-            .subject(email.subject)
-            .multipart(
-                MultiPart::alternative()
-                    .singlepart(SinglePart::plain(email.text))
-                    .multipart(
-                        MultiPart::related()
-                            .singlepart(SinglePart::html(email.html))
-                            .singlepart(
-                                Attachment::new_inline(service::LOGO_CID.to_owned())
-                                    .body(service::LOGO_PNG.to_vec(), png),
-                            ),
-                    ),
-            )
-            .map_err(|error| error.to_string())?;
+        let message = message(self.from.clone(), recipient, email)?;
         self.transport
             .send(message)
             .await
             .map(|_| ())
             .map_err(|error| error.to_string())
     }
+}
+
+/// The email as mail servers take it: text and HTML, with the logo inline.
+fn message(from: Mailbox, recipient: &str, email: RenderedEmail) -> Result<Message, String> {
+    let recipient = recipient
+        .parse::<Mailbox>()
+        .map_err(|error| error.to_string())?;
+    let png = ContentType::parse("image/png").map_err(|error| error.to_string())?;
+    Message::builder()
+        .from(from)
+        .to(recipient)
+        .subject(email.subject)
+        .multipart(
+            MultiPart::alternative()
+                .singlepart(SinglePart::plain(email.text))
+                .multipart(
+                    MultiPart::related()
+                        .singlepart(SinglePart::html(email.html))
+                        .singlepart(
+                            Attachment::new_inline(service::LOGO_CID.to_owned())
+                                .body(service::LOGO_PNG.to_vec(), png),
+                        ),
+                ),
+        )
+        .map_err(|error| error.to_string())
 }
 
 fn smtp_transport() -> Option<AsyncSmtpTransport<Tokio1Executor>> {

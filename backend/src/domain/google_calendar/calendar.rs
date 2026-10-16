@@ -50,12 +50,13 @@ pub struct CreatedEvent {
 /// The calendar could not be read or changed. What that means for a booking
 /// is the caller's decision.
 #[derive(Debug, Error)]
-#[error("{0}")]
-pub struct CalendarError(String);
+#[error("the host's calendar could not be reached")]
+pub struct CalendarError(#[source] anyhow::Error);
 
 impl CalendarError {
-    fn from_display(error: impl std::fmt::Display) -> Self {
-        Self(error.to_string())
+    /// Keeps the cause, so a log of this error says why the calendar failed.
+    fn new(cause: impl Into<anyhow::Error>) -> Self {
+        Self(cause.into())
     }
 }
 
@@ -130,7 +131,7 @@ impl GoogleCalendar {
     async fn client(&self, host_unid: Uuid) -> Result<Option<GoogleCalendarClient>, CalendarError> {
         let token = access_token(&self.pool, host_unid)
             .await
-            .map_err(CalendarError::from_display)?;
+            .map_err(CalendarError::new)?;
         Ok(token.map(GoogleCalendarClient::new))
     }
 
@@ -150,7 +151,7 @@ impl GoogleCalendar {
         let events = client
             .get_events_between(&start_date, &end_date, QUERY_TIMEZONE)
             .await
-            .map_err(CalendarError::from_display)?;
+            .map_err(CalendarError::new)?;
         Ok(events
             .into_iter()
             .filter_map(|event| {
@@ -189,7 +190,7 @@ impl GoogleCalendar {
                 event.invitee_name,
             )
             .await
-            .map_err(CalendarError::from_display)?;
+            .map_err(CalendarError::new)?;
         Ok(Some(CreatedEvent {
             event_id: created.event_id,
             meet_link: created.meet_link,
@@ -213,7 +214,7 @@ impl GoogleCalendar {
                 start + Duration::minutes(i64::from(minutes)),
             )
             .await
-            .map_err(CalendarError::from_display)
+            .map_err(CalendarError::new)
     }
 
     async fn delete_event(&self, host_unid: Uuid, event_id: &str) -> Result<(), CalendarError> {
@@ -223,7 +224,7 @@ impl GoogleCalendar {
         client
             .delete_event(event_id)
             .await
-            .map_err(CalendarError::from_display)
+            .map_err(CalendarError::new)
     }
 }
 
@@ -320,9 +321,9 @@ impl InMemoryCalendar {
     fn connected(&self, host_unid: Uuid) -> Result<bool, CalendarError> {
         let state = self.state();
         if state.failing {
-            return Err(CalendarError(
-                "the in-memory calendar was told to fail".to_owned(),
-            ));
+            return Err(CalendarError::new(anyhow::anyhow!(
+                "the in-memory calendar was told to fail"
+            )));
         }
         Ok(state.connected.contains(&host_unid))
     }
@@ -469,6 +470,16 @@ mod tests {
             time_zone: None,
         };
         assert_eq!(event_instant(&value, "UTC"), None);
+    }
+
+    #[test]
+    fn a_calendar_error_keeps_why_the_calendar_failed() {
+        let error = CalendarError::new(anyhow::anyhow!("Google answered 503"));
+        assert!(std::error::Error::source(&error).is_some());
+        assert_eq!(
+            format!("{:#}", anyhow::Error::new(error)),
+            "the host's calendar could not be reached: Google answered 503"
+        );
     }
 
     #[test]

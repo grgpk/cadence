@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, email, password_hash, full_name, status, session_version FROM users WHERE unid = $1",
+  "query": "SELECT unid, email, password_hash, full_name, status AS \"status: UserStatus\", session_version FROM users WHERE unid = $1",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "status",
+        "name": "status: UserStatus",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -84,5 +84,5 @@
       false
     ]
   },
-  "hash": "39a6f2fa62a8100f550463bfae42a2c3f496bbf365a9ab1bb865c504d3bd6b19"
+  "hash": "9eb06ecf2069e643d53b50b0c8623050a88fdf873002dae7640cab80b21b1a90"
 }

@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::text_column::text_column;
+
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/Role.ts")]
 pub enum Role {
@@ -13,7 +15,7 @@ pub enum Role {
 }
 
 impl Role {
-    pub fn is_elevated(&self) -> bool {
+    pub const fn is_elevated(&self) -> bool {
         matches!(self, Self::Root | Self::Admin)
     }
 }
@@ -42,16 +44,25 @@ impl FromStr for Role {
     }
 }
 
-pub const USER_STATUS_ACTIVE: &str = "Active";
-
-/// The values of the `users_status` check, for wire types that carry the
-/// status as a string.
-#[derive(Debug, Serialize, TS)]
+/// The values of the `users_status` check.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/UserStatus.ts")]
 pub enum UserStatus {
     Active,
     Banned,
 }
+
+impl UserStatus {
+    /// The value as the `status` column stores it.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Active => "Active",
+            Self::Banned => "Banned",
+        }
+    }
+}
+
+text_column!(UserStatus: Active, Banned);
 
 #[derive(Clone, Debug)]
 pub struct UserRecord {
@@ -59,7 +70,7 @@ pub struct UserRecord {
     pub email: String,
     pub password_hash: String,
     pub full_name: String,
-    pub status: String,
+    pub status: UserStatus,
     /// Sessions issued under an older version no longer work.
     pub session_version: i32,
     pub roles: Vec<Role>,

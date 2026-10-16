@@ -14,7 +14,7 @@ pub fn setup_tracing(pool: PgPool) {
                 .with_file(true)
                 .with_line_number(true),
         )
-        .with(BugReportLayer { pool });
+        .with(BugReportLayer::start(pool));
 
     let _ = tracing::subscriber::set_global_default(subscriber);
 }

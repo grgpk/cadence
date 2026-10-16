@@ -2,6 +2,6 @@
 
 /**
  * The values of the `widget_conferencing_app` check: where every call of a
- * host happens. The column stays a string for sqlx.
+ * host happens.
  */
 export type ConferencingApp = "google_meet" | "custom_link";

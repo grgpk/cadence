@@ -4,9 +4,10 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::domain::auth::models::UserStatus;
+use crate::text_column::text_column;
 
 /// The values of the `widget_conferencing_app` check: where every call of a
-/// host happens. The column stays a string for sqlx.
+/// host happens.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export, export_to = "../../frontend/src/bindings/ConferencingApp.ts")]
@@ -26,6 +27,8 @@ impl ConferencingApp {
         }
     }
 }
+
+text_column!(ConferencingApp: GoogleMeet, CustomLink);
 
 /// What the host picks on the Integrations page.
 #[derive(Debug, Deserialize, TS)]
@@ -52,8 +55,7 @@ pub struct HostSettings {
     /// Read only here; written through `ConferencingUpdate`.
     pub meeting_link: Option<String>,
     /// Read only here; written through `ConferencingUpdate`.
-    #[ts(as = "ConferencingApp")]
-    pub conferencing_app: String,
+    pub conferencing_app: ConferencingApp,
     pub ask_currently_working_on: bool,
     pub ask_how_heard_about_us: bool,
     pub ask_what_stopping_you: bool,
@@ -94,8 +96,7 @@ pub struct BookingPage {
     pub ask_investment_comfort: bool,
     pub ask_urgency_level: bool,
     pub calendar_connected: bool,
-    #[ts(as = "ConferencingApp")]
-    pub conferencing_app: String,
+    pub conferencing_app: ConferencingApp,
     /// The link itself is only given to someone who has booked.
     #[serde(skip)]
     #[ts(skip)]
@@ -123,8 +124,7 @@ pub struct AdminHost {
     pub unid: Uuid,
     pub full_name: String,
     pub email: String,
-    #[ts(as = "UserStatus")]
-    pub status: String,
+    pub status: UserStatus,
     pub created_at: DateTime<Utc>,
     /// `None` until the host first opens their dashboard.
     pub public_slug: Option<String>,

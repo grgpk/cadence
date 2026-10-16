@@ -1,32 +1,10 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  w.title, w.description, w.timezone,\n                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,\n                  w.ask_investment_comfort, w.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app, w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,\n                  w.is_active AS accepting_bookings\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3",
+  "query": "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                minimum_notice_hours, booking_window_days, buffer_minutes, is_active\n         FROM widget_settings WHERE host_unid = $1",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "host_unid",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "host_unid"
-          }
-        }
-      },
-      {
-        "ordinal": 1,
-        "name": "host_email",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "users",
-            "name": "email"
-          }
-        }
-      },
-      {
-        "ordinal": 2,
         "name": "public_slug",
         "type_info": "Text",
         "origin": {
@@ -37,18 +15,7 @@
         }
       },
       {
-        "ordinal": 3,
-        "name": "host_name",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "users",
-            "name": "full_name"
-          }
-        }
-      },
-      {
-        "ordinal": 4,
+        "ordinal": 1,
         "name": "title",
         "type_info": "Text",
         "origin": {
@@ -59,7 +26,7 @@
         }
       },
       {
-        "ordinal": 5,
+        "ordinal": 2,
         "name": "description",
         "type_info": "Text",
         "origin": {
@@ -70,7 +37,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 3,
         "name": "timezone",
         "type_info": "Text",
         "origin": {
@@ -81,79 +48,7 @@
         }
       },
       {
-        "ordinal": 7,
-        "name": "ask_currently_working_on",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "ask_currently_working_on"
-          }
-        }
-      },
-      {
-        "ordinal": 8,
-        "name": "ask_how_heard_about_us",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "ask_how_heard_about_us"
-          }
-        }
-      },
-      {
-        "ordinal": 9,
-        "name": "ask_what_stopping_you",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "ask_what_stopping_you"
-          }
-        }
-      },
-      {
-        "ordinal": 10,
-        "name": "ask_investment_comfort",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "ask_investment_comfort"
-          }
-        }
-      },
-      {
-        "ordinal": 11,
-        "name": "ask_urgency_level",
-        "type_info": "Bool",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "ask_urgency_level"
-          }
-        }
-      },
-      {
-        "ordinal": 12,
-        "name": "calendar_connected!",
-        "type_info": "Bool",
-        "origin": "Expression"
-      },
-      {
-        "ordinal": 13,
-        "name": "conferencing_app",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "widget_settings",
-            "name": "conferencing_app"
-          }
-        }
-      },
-      {
-        "ordinal": 14,
+        "ordinal": 4,
         "name": "meeting_link",
         "type_info": "Text",
         "origin": {
@@ -164,13 +59,73 @@
         }
       },
       {
-        "ordinal": 15,
-        "name": "has_meeting_link!",
-        "type_info": "Bool",
-        "origin": "Expression"
+        "ordinal": 5,
+        "name": "conferencing_app: ConferencingApp",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "conferencing_app"
+          }
+        }
       },
       {
-        "ordinal": 16,
+        "ordinal": 6,
+        "name": "ask_currently_working_on",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_currently_working_on"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "ask_how_heard_about_us",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_how_heard_about_us"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "ask_what_stopping_you",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_what_stopping_you"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "ask_investment_comfort",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_investment_comfort"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "ask_urgency_level",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "ask_urgency_level"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
         "name": "minimum_notice_hours",
         "type_info": "Int4",
         "origin": {
@@ -181,7 +136,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 12,
         "name": "booking_window_days",
         "type_info": "Int4",
         "origin": {
@@ -192,7 +147,7 @@
         }
       },
       {
-        "ordinal": 18,
+        "ordinal": 13,
         "name": "buffer_minutes",
         "type_info": "Int4",
         "origin": {
@@ -203,8 +158,8 @@
         }
       },
       {
-        "ordinal": 19,
-        "name": "accepting_bookings",
+        "ordinal": 14,
+        "name": "is_active",
         "type_info": "Bool",
         "origin": {
           "Table": {
@@ -216,9 +171,7 @@
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -226,23 +179,18 @@
       false,
       false,
       false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      null,
-      false,
       true,
-      null,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
       false,
       false,
       false,
       false
     ]
   },
-  "hash": "f9470677e00fdc461035f977edf8f98546880ec4c8651e41c1301d671f567e7d"
+  "hash": "c7a0e3df2df5bd79e69933924f12a762fc217f85e8c7296a7a07ea43493199e8"
 }

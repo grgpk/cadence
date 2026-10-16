@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use serde_json::Value;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
@@ -39,7 +38,7 @@ pub async fn create(
         Booking,
         "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, slot_end, timezone, invitee_name, invitee_email, google_meet_url)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         host_unid,
         lead_unid,
         calling_visit_unid,
@@ -66,7 +65,7 @@ pub async fn set_calendar_event(
         Booking,
         "UPDATE bookings SET google_event_id = $2, google_meet_url = COALESCE($3, google_meet_url), updated_at = now()
          WHERE unid = $1
-         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         unid,
         google_event_id,
         meet_link,
@@ -107,7 +106,7 @@ pub async fn booked_between(
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at
          FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC LIMIT $2",
         host_unid,
         LIST_MAX,
@@ -123,7 +122,7 @@ pub async fn find(
 ) -> Result<Option<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at
          FROM bookings WHERE host_unid = $1 AND unid = $2",
         host_unid,
         unid,
@@ -138,7 +137,7 @@ pub async fn find_by_token(
 ) -> Result<Option<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
+        "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at
          FROM bookings WHERE manage_token = $1",
         manage_token,
     )
@@ -157,7 +156,7 @@ pub async fn reschedule(
         Booking,
         "UPDATE bookings SET slot_start = $2, slot_end = $3, updated_at = now()
          WHERE unid = $1 AND status <> $4
-         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         unid,
         slot_start,
         slot_end,
@@ -177,7 +176,7 @@ pub async fn cancel(
         Booking,
         "UPDATE bookings SET status = $3, cancelled_at = now(), updated_at = now()
          WHERE host_unid = $1 AND unid = $2 AND status <> $3
-         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         host_unid,
         unid,
         BookingStatus::Cancelled.as_str(),
@@ -190,7 +189,7 @@ impl BookingsDb {
     pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
         sqlx::query_as!(
             Booking,
-            "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status, google_meet_url AS meeting_url, google_event_id, manage_token, created_at
+            "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at
              FROM bookings ORDER BY slot_start DESC LIMIT $1",
             LIST_MAX,
         )

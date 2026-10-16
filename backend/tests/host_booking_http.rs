@@ -973,7 +973,7 @@ async fn a_date_with_its_own_hours_changes_the_open_times(pool: PgPool) {
         slots
             .iter()
             .filter(|start| (**start + Duration::hours(4)).date_naive() == day)
-            .map(|start| start.hour())
+            .map(Timelike::hour)
             .collect()
     };
     assert_eq!(on_day(&slots(&app, &slug).await), vec![5]);
@@ -2401,4 +2401,18 @@ async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
             .expect("queued");
         assert_eq!(waiting_emails(&pool, booking.unid).await, [told]);
     }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_email_worker_stops_when_told_and_not_a_minute_later(pool: PgPool) {
+    let (shutdown, shutdown_seen) = tokio::sync::watch::channel(false);
+    let running = worker::start(pool, shutdown_seen);
+    // Let the first pass run, then ask it to stop during its wait.
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    shutdown.send(true).expect("the worker is listening");
+    let stopped = tokio::time::timeout(std::time::Duration::from_secs(5), running).await;
+    assert!(
+        stopped.is_ok(),
+        "the worker kept sleeping after being told to stop"
+    );
 }

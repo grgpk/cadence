@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid) DO NOTHING\n         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,\n                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
   "describe": {
     "columns": [
       {
@@ -60,7 +60,7 @@
       },
       {
         "ordinal": 5,
-        "name": "conferencing_app",
+        "name": "conferencing_app: ConferencingApp",
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -194,5 +194,5 @@
       false
     ]
   },
-  "hash": "93e05ba951b72ee5399684cc85f9118295ed2420dd21202af53b162aa14bc5d4"
+  "hash": "c3b49290a3a7373943a3197a043c9fa0b53f538f0f6326813cb264bce9b9a582"
 }
