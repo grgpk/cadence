@@ -52,6 +52,8 @@ export type AppEntry = {
   icon: ComponentType<{ className?: string }>;
   /** `false` while the app is on the way: listed, but nothing to set up. */
   available: boolean;
+  /** Another app this one only works with. */
+  requires?: AppSlug;
 };
 
 /** Every app a host can connect, or will be able to soon. */
@@ -73,9 +75,10 @@ export const APPS: readonly AppEntry[] = [
     category: APP_CATEGORY.conferencing,
     summary: "A new Meet link for each call, added to the calendar event.",
     description:
-      "Each booked call gets its own Google Meet link, sent in the confirmation and added to the calendar event. Needs Google Calendar connected.",
+      "Each booked call gets its own Google Meet link, sent in the confirmation and added to the calendar event.",
     icon: GoogleMeetIcon,
     available: true,
+    requires: APP_SLUG.googleCalendar,
   },
   {
     slug: APP_SLUG.customLink,
