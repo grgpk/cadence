@@ -25,7 +25,7 @@ use uuid::Uuid;
 
 pub async fn public_slots(
     State(state): State<AppState>,
-    Path(slug): Path<String>,
+    Path((slug, type_slug)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> AppResult<Json<Vec<TimeSlot>>> {
     rate_limits::check(
@@ -34,7 +34,7 @@ pub async fn public_slots(
         &client_address(&headers),
     )
     .await?;
-    let page = host_settings::bookable_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
     Ok(Json(
         service::public_slots(&state.pool, &state.calendar, &page).await?,
     ))
@@ -42,7 +42,7 @@ pub async fn public_slots(
 
 pub async fn create(
     State(state): State<AppState>,
-    Path(slug): Path<String>,
+    Path((slug, type_slug)): Path<(String, String)>,
     headers: HeaderMap,
     Json(request): Json<CreateBookingRequest>,
 ) -> AppResult<(axum::http::StatusCode, Json<CreatedBooking>)> {
@@ -52,7 +52,7 @@ pub async fn create(
         &client_address(&headers),
     )
     .await?;
-    let page = host_settings::bookable_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
     Ok((
         axum::http::StatusCode::CREATED,
         Json(service::create(&state.pool, &state.calendar, &page, request).await?),

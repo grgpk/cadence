@@ -11,6 +11,18 @@ export function isSlotLayout(value: unknown): value is SlotLayout {
   return SLOT_LAYOUTS.some((layout) => layout === value);
 }
 
+/** `?view=week` or `?view=list` opens a booking page on that layout; month needs no value. */
+export function slotViewSearch(search: Record<string, unknown>): { view?: SlotLayout } {
+  return isSlotLayout(search.view) && search.view !== DEFAULT_SLOT_LAYOUT
+    ? { view: search.view }
+    : {};
+}
+
+/** The address search for `layout`: nothing for the default one. */
+export function slotViewOf(layout: SlotLayout): { view?: SlotLayout } {
+  return layout === DEFAULT_SLOT_LAYOUT ? {} : { view: layout };
+}
+
 /** The open times of one day, in the order they happen. */
 export type SlotDay = CivilDay & { key: string; slots: TimeSlot[] };
 

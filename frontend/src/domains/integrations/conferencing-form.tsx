@@ -70,6 +70,7 @@ export function ConferencingForm({
     mutationFn: saveConferencing,
     onSuccess: async (next) => {
       queryClient.setQueryData(QUERY_KEYS.hostSettings, next);
+      // Every kind of call on the link shows where calls happen.
       await queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.bookingPage(next.public_slug),
       });

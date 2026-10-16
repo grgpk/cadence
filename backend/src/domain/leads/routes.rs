@@ -8,9 +8,12 @@ use super::handlers;
 
 pub fn public_routes() -> Router<AppState> {
     Router::new()
-        .route("/api/hosts/{slug}/leads/{lead_unid}", post(handlers::save))
         .route(
-            "/api/hosts/{slug}/leads/{lead_unid}/submit",
+            "/api/hosts/{slug}/types/{type_slug}/leads/{lead_unid}",
+            post(handlers::save),
+        )
+        .route(
+            "/api/hosts/{slug}/types/{type_slug}/leads/{lead_unid}/submit",
             post(handlers::submit),
         )
 }

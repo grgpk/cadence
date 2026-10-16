@@ -27,6 +27,18 @@ pub fn is_valid_email(email: &str) -> bool {
         && domain.split('.').all(|label| !label.is_empty())
 }
 
+/// A part of a public link: `min` to `max` lowercase letters and digits, in
+/// words joined by single dashes.
+pub fn is_link_slug(slug: &str, min: usize, max: usize) -> bool {
+    (min..=max).contains(&slug.len())
+        && slug.split('-').all(|part| {
+            !part.is_empty()
+                && part
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
+}
+
 /// Whether an optional text field holds more than `max` characters.
 pub fn is_too_long(value: Option<&str>, max: usize) -> bool {
     value.is_some_and(|text| text.chars().count() > max)

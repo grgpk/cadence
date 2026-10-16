@@ -23,7 +23,7 @@ import { ConferencingForm } from "../../../domains/integrations/conferencing-for
 import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
 import { ErrorState } from "../../../domains/shared/error-state";
 import { PanelCard } from "../../../domains/shared/panel-card";
-import { bookingPageQuery } from "../../../domains/widget/cadence-api";
+import { hostPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 import { ROUTES } from "../../../lib/routes";
 
@@ -41,7 +41,7 @@ function AppDetailsPage() {
   const app = findApp(Route.useParams().slug);
   const settings = useQuery(hostSettingsQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
   if (!app) return null;
   const calendarConnected = page.data?.calendar_connected ?? false;
   const loading = settings.isPending || Boolean(slug && page.isPending);

@@ -58,22 +58,26 @@ function recorder(
         `visit ${unid} ${Object.keys(update).join(",")}`,
         undefined,
       ),
-    saveLead: (slug, leadUnid, update) =>
+    saveLead: (pageRef, leadUnid, update) =>
       answer(
         "saveLead",
-        `save ${slug} ${leadUnid} ${update.first_name} ${update.utm_source}`,
+        `save ${pageRef.host}/${pageRef.type} ${leadUnid} ${update.first_name} ${update.utm_source}`,
         {
           unid: leadUnid,
         } as Lead,
       ),
-    submitLead: (slug, leadUnid, sourcePage) =>
-      answer("submitLead", `submit ${slug} ${leadUnid} ${sourcePage}`, {
-        unid: leadUnid,
-      } as Lead),
-    createBooking: (slug, request) =>
+    submitLead: (pageRef, leadUnid, sourcePage) =>
+      answer(
+        "submitLead",
+        `submit ${pageRef.host}/${pageRef.type} ${leadUnid} ${sourcePage}`,
+        {
+          unid: leadUnid,
+        } as Lead,
+      ),
+    createBooking: (pageRef, request) =>
       answer(
         "createBooking",
-        `book ${slug} ${request.slot_start} ${request.invitee_name} <${request.invitee_email}> visit=${request.calling_visit_unid}`,
+        `book ${pageRef.host}/${pageRef.type} ${request.slot_start} ${request.invitee_name} <${request.invitee_email}> visit=${request.calling_visit_unid}`,
         {
           unid: "call-1",
           slot_start: request.slot_start,
@@ -86,7 +90,11 @@ function recorder(
 }
 
 const session = (api: BookingApi) =>
-  createBookingSession(api, { slug: "ana", leadUnid: "lead-1", arrival: ARRIVAL });
+  createBookingSession(api, {
+    pageRef: { host: "ana", type: "intro" },
+    leadUnid: "lead-1",
+    arrival: ARRIVAL,
+  });
 
 describe("a booking session", () => {
   it("records the visit with where the visitor came from", async () => {
@@ -102,10 +110,10 @@ describe("a booking session", () => {
     await visit.book(CHOICE);
     expect(calls).toEqual([
       "visit newsletter https://example.com/blog",
-      "save ana lead-1 Mia newsletter",
-      "submit ana lead-1 /book/ana",
+      "save ana/intro lead-1 Mia newsletter",
+      "submit ana/intro lead-1 /book/ana",
       "visit visit-1 form_submitted",
-      "book ana 2026-10-20T09:00:00Z Mia Chen <mia@example.com> visit=visit-1",
+      "book ana/intro 2026-10-20T09:00:00Z Mia Chen <mia@example.com> visit=visit-1",
       "visit visit-1 booked_call",
     ]);
   });
@@ -142,7 +150,7 @@ describe("a booking session", () => {
   it("never fails while autosaving", async () => {
     const { api, calls } = recorder({ saveLead: new Error("offline") });
     await expect(session(api).saveDraft(VALUES)).resolves.toBeUndefined();
-    expect(calls).toEqual(["save ana lead-1 Mia newsletter"]);
+    expect(calls).toEqual(["save ana/intro lead-1 Mia newsletter"]);
   });
 
   it("gives the confirmation page everything it shows", async () => {
@@ -155,6 +163,7 @@ describe("a booking session", () => {
       meet: "https://meet.google.com/abc",
       link: true,
       slug: "ana",
+      type: "intro",
       host: "Ana",
       manage: "abc123",
     });

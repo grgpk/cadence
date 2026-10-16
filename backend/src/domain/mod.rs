@@ -5,6 +5,7 @@ pub mod bookings;
 pub mod bug_reports;
 pub mod calling_visits;
 pub mod emails;
+pub mod event_types;
 pub mod google_calendar;
 pub mod host_settings;
 pub mod leads;

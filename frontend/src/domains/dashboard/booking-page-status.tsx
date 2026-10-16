@@ -9,7 +9,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { zoneName } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { callPlace, CONFERENCING_APP } from "../integrations/conferencing";
-import { bookingPageQuery } from "../widget/cadence-api";
+import { hostPageQuery } from "../widget/cadence-api";
 import { availabilityQuery, hostSettingsQuery } from "./host-api";
 import { callLengthLabel, daysLabel } from "./hours-labels";
 import { SETTINGS_SECTIONS } from "./routes";
@@ -43,7 +43,7 @@ export function bookingPageProblems({
       fix: {
         label: "Take bookings again",
         to: ROUTES.dashboardSettings,
-        hash: SETTINGS_SECTIONS.rules,
+        hash: SETTINGS_SECTIONS.bookingPage,
       },
     });
   }
@@ -67,7 +67,7 @@ function useBookingPageState() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
   const rules = availability.data ?? [];
   const place = settings.data
     ? callPlace({

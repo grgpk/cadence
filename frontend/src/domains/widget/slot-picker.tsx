@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState, type CSSProperties, type ReactNode } from "react";
 
 import type { TimeSlot } from "../../bindings/TimeSlot";
-import { publicSlotsQuery } from "./cadence-api";
+import { publicSlotsQuery, type PageRef } from "./cadence-api";
 import { ListSlots } from "./list-slots";
 import { MonthSlots } from "./month-slots";
 import { type SlotLayout, sharedLength } from "./slot-days";
@@ -23,7 +23,7 @@ const VIEW_IN = { "--step-from": "0.5rem" } as CSSProperties;
  * go through.
  */
 export function SlotPicker({
-  slug,
+  pageRef,
   timeZone,
   layout,
   hour12,
@@ -34,7 +34,7 @@ export function SlotPicker({
   wording,
   windowDays,
 }: {
-  slug: string;
+  pageRef: PageRef;
   /** The IANA timezone the times are shown in. */
   timeZone: string;
   layout: SlotLayout;
@@ -56,7 +56,15 @@ export function SlotPicker({
     setMonth(null);
   }
 
-  const shared = { slug, timeZone, wording, hour12, onHour12Change, onPick, releaseKey };
+  const shared = {
+    pageRef,
+    timeZone,
+    wording,
+    hour12,
+    onHour12Change,
+    onPick,
+    releaseKey,
+  };
 
   if (layout === "month") {
     return (
@@ -86,7 +94,7 @@ export function SlotPicker({
           : undefined
       }
     >
-      {summary ? <SummaryColumn slug={slug} summary={summary} /> : null}
+      {summary ? <SummaryColumn pageRef={pageRef} summary={summary} /> : null}
       {/* The summary stays put; only the times come in, so its switch can slide. */}
       <div key={layout} style={VIEW_IN} className="min-w-0 motion-safe:animate-step-in">
         {times}
@@ -97,14 +105,14 @@ export function SlotPicker({
 
 /** The summary beside the week and list views, told the call length once it is known. */
 function SummaryColumn({
-  slug,
+  pageRef,
   summary,
 }: {
-  slug: string;
+  pageRef: PageRef;
   summary: (callMinutes: number | null) => ReactNode;
 }) {
   // The same request and cache as the times themselves.
-  const slots = useQuery(publicSlotsQuery(slug));
+  const slots = useQuery(publicSlotsQuery(pageRef));
   return (
     <div className="p-5 @[760px]:p-6">{summary(sharedLength(slots.data ?? []))}</div>
   );

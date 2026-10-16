@@ -13,7 +13,7 @@ import { GoogleCalendarConnection } from "../../../domains/integrations/google-c
 import { ErrorState } from "../../../domains/shared/error-state";
 import { PageHeader } from "../../../domains/shared/page-header";
 import { PanelCard } from "../../../domains/shared/panel-card";
-import { bookingPageQuery } from "../../../domains/widget/cadence-api";
+import { hostPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 import { ROUTES } from "../../../lib/routes";
 
@@ -37,7 +37,7 @@ function MoreApps({ category }: { category: AppCategory }) {
 function InstalledAppsPage() {
   const settings = useQuery(hostSettingsQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
 
   return (
     <>

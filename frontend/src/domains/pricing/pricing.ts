@@ -90,7 +90,6 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
       },
       {
         label: "Event types",
-        soon: true,
         value: (e) =>
           e.max_event_types === null ? "Unlimited" : String(e.max_event_types),
       },
@@ -145,7 +144,7 @@ export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
   ],
   business: [
     "Everything in Pro",
-    "Several event types (soon)",
+    "Several kinds of call on one link",
     "Webhooks for your tools (soon)",
   ],
 };

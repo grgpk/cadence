@@ -25,6 +25,7 @@ pub async fn lock_host(connection: &mut PgConnection, host_unid: Uuid) -> Result
 pub async fn create(
     connection: &mut PgConnection,
     host_unid: Uuid,
+    event_type_unid: Uuid,
     lead_unid: Option<Uuid>,
     calling_visit_unid: Option<Uuid>,
     slot_start: DateTime<Utc>,
@@ -36,8 +37,8 @@ pub async fn create(
 ) -> Result<Booking, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, slot_end, timezone, invitee_name, invitee_email, google_meet_url)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        "INSERT INTO bookings (host_unid, lead_unid, calling_visit_unid, slot_start, slot_end, timezone, invitee_name, invitee_email, google_meet_url, event_type_unid)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
         host_unid,
         lead_unid,
@@ -48,6 +49,7 @@ pub async fn create(
         invitee_name,
         invitee_email,
         meeting_url,
+        event_type_unid,
     )
     .fetch_one(connection)
     .await

@@ -16,7 +16,7 @@ import {
 } from "../shared/phone/country";
 import { arrivalHere, EMPTY_FORM, type FormValues } from "./booking-form";
 import { bookingFailure, CADENCE_API, createBookingSession } from "./booking-session";
-import { refreshOpenTimes } from "./cadence-api";
+import { refreshOpenTimes, type PageRef } from "./cadence-api";
 import { BookingSummary } from "./booking-summary";
 import { DetailsStep } from "./details-step";
 import type { SlotLayout } from "./slot-days";
@@ -26,37 +26,37 @@ import { ViewSwitch } from "./view-switch";
 
 type StoredForm = { leadUnid: string; values: FormValues };
 
-function formKey(slug: string): string {
-  return `cadence-booking-${slug}`;
+function formKey(pageRef: PageRef): string {
+  return `cadence-booking-${pageRef.host}/${pageRef.type}`;
 }
 
 /** The form as it was before a refresh, for this tab and this booking page only. */
-function storedForm(slug: string): StoredForm | null {
+function storedForm(pageRef: PageRef): StoredForm | null {
   try {
-    const stored = sessionStorage.getItem(formKey(slug));
+    const stored = sessionStorage.getItem(formKey(pageRef));
     return stored ? (JSON.parse(stored) as StoredForm) : null;
   } catch {
     return null;
   }
 }
 
-function storeForm(slug: string, form: StoredForm | null) {
+function storeForm(pageRef: PageRef, form: StoredForm | null) {
   try {
-    if (form) sessionStorage.setItem(formKey(slug), JSON.stringify(form));
-    else sessionStorage.removeItem(formKey(slug));
+    if (form) sessionStorage.setItem(formKey(pageRef), JSON.stringify(form));
+    else sessionStorage.removeItem(formKey(pageRef));
   } catch {
     // Storage can be blocked; the form still works for this page load.
   }
 }
 
 function Booking({
-  slug,
+  pageRef,
   page,
   countryVariant,
   layout,
   onLayoutChange,
 }: {
-  slug: string;
+  pageRef: PageRef;
   page: BookingPage;
   countryVariant: string;
   layout: SlotLayout;
@@ -64,7 +64,7 @@ function Booking({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const [stored] = useState(() => storedForm(slug));
+  const [stored] = useState(() => storedForm(pageRef));
   const [values, setValues] = useState<FormValues>({
     ...EMPTY_FORM,
     countryVariant,
@@ -81,7 +81,7 @@ function Booking({
   // One visit to this page: its visit record, its lead and its booking.
   const [session] = useState(() =>
     createBookingSession(CADENCE_API, {
-      slug,
+      pageRef,
       leadUnid: stored?.leadUnid ?? crypto.randomUUID(),
       arrival: arrivalHere(),
     }),
@@ -94,7 +94,7 @@ function Booking({
 
   function changeValues(next: FormValues) {
     setValues(next);
-    storeForm(slug, { leadUnid: session.leadUnid, values: next });
+    storeForm(pageRef, { leadUnid: session.leadUnid, values: next });
   }
 
   function showStep(next: TimeSlot | null) {
@@ -115,12 +115,12 @@ function Booking({
         hour12,
         hostName: page.host_name,
       });
-      storeForm(slug, null);
+      storeForm(pageRef, null);
       // Part of the request, so the button stays busy until the next page is up.
       await navigate({ to: ROUTES.bookingConfirmation, search });
     },
     // The time may have just been taken, so the cached times can no longer be trusted.
-    onError: () => refreshOpenTimes(queryClient, slug),
+    onError: () => refreshOpenTimes(queryClient, pageRef),
   });
   const submitError = !book.error
     ? null
@@ -156,7 +156,7 @@ function Booking({
       className="outline-none motion-safe:animate-step-in"
     >
       <SlotPicker
-        slug={slug}
+        pageRef={pageRef}
         timeZone={timezone.iana}
         layout={layout}
         hour12={hour12}
@@ -193,13 +193,13 @@ function Booking({
 }
 
 export function BookingCard({
-  slug,
+  pageRef,
   page,
   initialCountryAlpha2,
   layout,
   onLayoutChange,
 }: {
-  slug: string;
+  pageRef: PageRef;
   page: BookingPage;
   initialCountryAlpha2?: string | null;
   /** How the open times are laid out: the month calendar, a week, or a list. */
@@ -219,7 +219,7 @@ export function BookingCard({
       <div className="overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-12px_rgb(0_0_0/0.14)]">
         {mounted ? (
           <Booking
-            slug={slug}
+            pageRef={pageRef}
             page={page}
             countryVariant={countryVariant}
             layout={layout}

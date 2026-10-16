@@ -6,28 +6,35 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostSettings},
+    models::{AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostPage, HostSettings},
 };
 use crate::{
-    domain::{auth::models::UserRecord, billing::service as billing},
+    domain::{
+        auth::models::UserRecord,
+        billing::{plans::Entitlements, service as billing},
+        event_types::service as event_types,
+    },
     error::{AppError, AppResult},
+    validation::is_link_slug,
 };
 
 const SLUG_MIN: usize = 3;
 const SLUG_MAX: usize = 40;
-const TITLE_MAX: usize = 80;
-const DESCRIPTION_MAX: usize = 300;
 const MEETING_LINK_MAX: usize = 500;
-const NOTICE_HOURS_MAX: i32 = 168;
-const WINDOW_DAYS_MAX: i32 = 90;
-const BUFFER_MINUTES_MAX: i32 = 120;
 const SLUG_ATTEMPTS: usize = 5;
 const FALLBACK_SLUG: &str = "host";
 /// Hours saved before a host picked a timezone were entered as UTC.
 const DEFAULT_TIMEZONE: &str = "UTC";
 
-/// Returns the host's settings, creating the row (and their link) on first use.
+/// Returns the host's settings, creating the row (their link and their first
+/// kind of call) on first use.
 pub async fn get_or_create(pool: &PgPool, user: &UserRecord) -> AppResult<HostSettings> {
+    let settings = find_or_insert(pool, user).await?;
+    event_types::ensure_first(pool, user.unid).await?;
+    Ok(settings)
+}
+
+async fn find_or_insert(pool: &PgPool, user: &UserRecord) -> AppResult<HostSettings> {
     if let Some(settings) = db::find(pool, user.unid).await? {
         return Ok(settings);
     }
@@ -57,21 +64,7 @@ pub async fn update(
     mut settings: HostSettings,
 ) -> AppResult<HostSettings> {
     settings.public_slug = settings.public_slug.trim().to_lowercase();
-    settings.title = settings.title.trim().to_owned();
-    settings.description = settings.description.trim().to_owned();
     validate(&settings)?;
-    let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
-    if !entitlements.custom_questions {
-        // Questions saved under a paid plan stay saved; new ones need one.
-        let saved = db::find(pool, host_unid).await?.ok_or(AppError::NotFound)?;
-        if asks(&settings)
-            .into_iter()
-            .zip(asks(&saved))
-            .any(|(now, before)| now && !before)
-        {
-            return Err(AppError::PlanRequired("custom booking questions"));
-        }
-    }
     match db::update(pool, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
         Ok(None) => Err(AppError::NotFound),
@@ -105,19 +98,39 @@ pub async fn set_conferencing(
         .ok_or(AppError::NotFound)
 }
 
-/// Resolves a public link to its page for reading. A paused page is shown
-/// with `accepting_bookings` off; unknown and banned hosts look the same.
-pub async fn display_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
-    let page = db::find_page(pool, Some(&slug.to_lowercase()), None)
+/// A host's public link: who they are and the kinds of call they take now.
+/// Types past the host's plan are left out; unknown and banned hosts look
+/// the same.
+pub async fn host_page(pool: &PgPool, slug: &str) -> AppResult<HostPage> {
+    let host = db::find_host(pool, &slug.to_lowercase())
         .await?
         .ok_or(AppError::NotFound)?;
-    with_plan(pool, page).await
+    let entitlements = billing::entitlements_for(pool, host.host_unid, Utc::now()).await?;
+    let mut types = db::active_types(pool, host.host_unid).await?;
+    types.truncate(types_allowed(&entitlements));
+    Ok(HostPage {
+        host_name: host.host_name,
+        accepting_bookings: host.is_active,
+        full: billing::monthly_limit_reached(pool, host.host_unid, &entitlements).await?,
+        show_branding: !entitlements.hide_branding,
+        calendar_connected: host.calendar_connected,
+        types,
+    })
 }
 
-/// Resolves a public link to a page that can be booked right now. A paused
-/// page, and one with no bookings left this month, looks unknown here.
-pub async fn bookable_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
-    let page = display_page(pool, slug).await?;
+/// Resolves a public link to one kind of call, for reading. A paused page or
+/// type, or one past the host's plan, is shown with `accepting_bookings` off.
+pub async fn display_page(pool: &PgPool, slug: &str, type_slug: &str) -> AppResult<BookingPage> {
+    let page = db::find_type_page(pool, &slug.to_lowercase(), &type_slug.to_lowercase())
+        .await?
+        .ok_or(AppError::NotFound)?;
+    with_plan(pool, page, true).await
+}
+
+/// Resolves a public link to a kind of call that can be booked right now. A
+/// paused one, and a page with no bookings left this month, looks unknown here.
+pub async fn bookable_page(pool: &PgPool, slug: &str, type_slug: &str) -> AppResult<BookingPage> {
+    let page = display_page(pool, slug, type_slug).await?;
     if page.accepting_bookings && !page.full {
         Ok(page)
     } else {
@@ -126,16 +139,30 @@ pub async fn bookable_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> 
 }
 
 /// The page an existing call was booked through, paused or not.
-pub async fn page_of_host(pool: &PgPool, host_unid: Uuid) -> AppResult<BookingPage> {
-    let page = db::find_page(pool, None, Some(host_unid))
+pub async fn page_of_booking(pool: &PgPool, booking_unid: Uuid) -> AppResult<BookingPage> {
+    let page = db::page_of_booking(pool, booking_unid)
         .await?
         .ok_or(AppError::NotFound)?;
-    with_plan(pool, page).await
+    with_plan(pool, page, false).await
 }
 
-/// The page as the host's plan lets it run. Nothing is cleared: questions a
-/// plan leaves out are kept, only not asked, and come back with an upgrade.
-async fn with_plan(pool: &PgPool, mut page: BookingPage) -> AppResult<BookingPage> {
+/// How many kinds of call the plan books, oldest first.
+fn types_allowed(entitlements: &Entitlements) -> usize {
+    entitlements.max_event_types.map_or(usize::MAX, |limit| {
+        usize::try_from(limit).unwrap_or(usize::MAX)
+    })
+}
+
+/// The page as the host's plan lets it run.
+///
+/// Nothing is cleared: questions a plan leaves out are kept, only not asked,
+/// and come back with an upgrade. With `new_calls`, a type past the plan
+/// takes none; its booked calls still move.
+async fn with_plan(
+    pool: &PgPool,
+    mut page: BookingPage,
+    new_calls: bool,
+) -> AppResult<BookingPage> {
     let entitlements = billing::entitlements_for(pool, page.host_unid, Utc::now()).await?;
     if !entitlements.custom_questions {
         page.ask_currently_working_on = false;
@@ -144,20 +171,14 @@ async fn with_plan(pool: &PgPool, mut page: BookingPage) -> AppResult<BookingPag
         page.ask_investment_comfort = false;
         page.ask_urgency_level = false;
     }
+    if new_calls
+        && usize::try_from(page.type_rank).unwrap_or(usize::MAX) >= types_allowed(&entitlements)
+    {
+        page.accepting_bookings = false;
+    }
     page.show_branding = !entitlements.hide_branding;
     page.full = billing::monthly_limit_reached(pool, page.host_unid, &entitlements).await?;
     Ok(page)
-}
-
-/// The booking form questions a page asks, in one order.
-const fn asks(settings: &HostSettings) -> [bool; 5] {
-    [
-        settings.ask_currently_working_on,
-        settings.ask_how_heard_about_us,
-        settings.ask_what_stopping_you,
-        settings.ask_investment_comfort,
-        settings.ask_urgency_level,
-    ]
 }
 
 pub async fn list_hosts(pool: &PgPool) -> AppResult<Vec<AdminHost>> {
@@ -170,33 +191,8 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
             "link must be 3 to 40 lowercase letters, numbers or single dashes".to_owned(),
         ));
     }
-    if settings.title.is_empty() || settings.title.chars().count() > TITLE_MAX {
-        return Err(AppError::BadRequest(
-            "title must be 1 to 80 characters".to_owned(),
-        ));
-    }
-    if settings.description.chars().count() > DESCRIPTION_MAX {
-        return Err(AppError::BadRequest(
-            "description must be at most 300 characters".to_owned(),
-        ));
-    }
     if !is_known_timezone(&settings.timezone) {
         return Err(AppError::BadRequest("timezone is invalid".to_owned()));
-    }
-    if !(0..=NOTICE_HOURS_MAX).contains(&settings.minimum_notice_hours) {
-        return Err(AppError::BadRequest(
-            "minimum notice must be 0 to 168 hours".to_owned(),
-        ));
-    }
-    if !(1..=WINDOW_DAYS_MAX).contains(&settings.booking_window_days) {
-        return Err(AppError::BadRequest(
-            "booking window must be 1 to 90 days".to_owned(),
-        ));
-    }
-    if !(0..=BUFFER_MINUTES_MAX).contains(&settings.buffer_minutes) {
-        return Err(AppError::BadRequest(
-            "buffer must be 0 to 120 minutes".to_owned(),
-        ));
     }
     Ok(())
 }
@@ -225,13 +221,7 @@ fn is_valid_meeting_link(link: &str) -> bool {
 }
 
 fn is_valid_slug(slug: &str) -> bool {
-    (SLUG_MIN..=SLUG_MAX).contains(&slug.len())
-        && slug.split('-').all(|part| {
-            !part.is_empty()
-                && part
-                    .bytes()
-                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
-        })
+    is_link_slug(slug, SLUG_MIN, SLUG_MAX)
 }
 
 /// Lowercase ASCII letters and digits, every other run of characters becomes one dash.

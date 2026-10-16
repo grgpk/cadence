@@ -64,12 +64,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO widget_settings (
     host_unid,
     public_slug,
-    title,
-    description,
     accent_color,
-    duration_minutes,
-    buffer_minutes,
-    minimum_notice_hours,
     timezone,
     is_active,
     created_at,
@@ -77,17 +72,49 @@ INSERT INTO widget_settings (
 ) VALUES (
     '00000000-0000-4000-8000-100000000003',
     'cadence-host',
-    'Book a coaching call',
-    'Choose a focused 30-minute conversation about your next career move.',
     '#7c3aed',
-    30,
-    15,
-    4,
     'Europe/Paris',
     true,
     now() - interval '21 days',
     now() - interval '2 hours'
 )
+ON CONFLICT DO NOTHING;
+
+-- Two kinds of call. The host is on Pro, so only the first one is booked;
+-- the deep dive waits for Business.
+INSERT INTO event_types (
+    unid,
+    host_unid,
+    slug,
+    title,
+    description,
+    duration_minutes,
+    buffer_minutes,
+    minimum_notice_hours,
+    created_at
+) VALUES
+    (
+        'e1000000-0000-4000-8000-000000000001',
+        '00000000-0000-4000-8000-100000000003',
+        'coaching',
+        'Book a coaching call',
+        'Choose a focused 30-minute conversation about your next career move.',
+        NULL,
+        15,
+        4,
+        now() - interval '21 days'
+    ),
+    (
+        'e1000000-0000-4000-8000-000000000002',
+        '00000000-0000-4000-8000-100000000003',
+        'deep-dive',
+        'Career deep dive',
+        'An hour to plan your next six months, step by step.',
+        60,
+        15,
+        24,
+        now() - interval '20 days'
+    )
 ON CONFLICT DO NOTHING;
 
 -- Monday through Sunday windows. Service weekday numbering: Monday = 0.
@@ -337,6 +364,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO bookings (
     unid,
     host_unid,
+    event_type_unid,
     lead_unid,
     calling_visit_unid,
     slot_start,
@@ -354,6 +382,7 @@ INSERT INTO bookings (
     (
         '40000000-0000-4000-8000-000000000001',
         '00000000-0000-4000-8000-100000000003',
+        'e1000000-0000-4000-8000-000000000001',
         '30000000-0000-4000-8000-000000000001',
         '20000000-0000-4000-8000-000000000001',
         date_trunc('day', now()) + interval '2 days 10 hours',
@@ -371,6 +400,7 @@ INSERT INTO bookings (
     (
         '40000000-0000-4000-8000-000000000002',
         '00000000-0000-4000-8000-100000000003',
+        'e1000000-0000-4000-8000-000000000001',
         '30000000-0000-4000-8000-000000000002',
         '20000000-0000-4000-8000-000000000002',
         date_trunc('day', now()) + interval '4 days 14 hours',
@@ -388,6 +418,7 @@ INSERT INTO bookings (
     (
         '40000000-0000-4000-8000-000000000003',
         '00000000-0000-4000-8000-100000000003',
+        'e1000000-0000-4000-8000-000000000001',
         '30000000-0000-4000-8000-000000000003',
         NULL,
         date_trunc('day', now()) + interval '6 days 11 hours',

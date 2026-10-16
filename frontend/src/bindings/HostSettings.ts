@@ -2,10 +2,11 @@
 import type { ConferencingApp } from "./ConferencingApp";
 
 /**
- * A host's own booking page settings. Read and written by the host only.
- * Each `ask_*` flag is an independent switch for one form question.
+ * What belongs to the host on their booking page, whatever kind of call is
+ * booked. Read and written by the host only; each kind of call is an
+ * event type.
  */
-export type HostSettings = { public_slug: string, title: string, description: string, timezone: string, 
+export type HostSettings = { public_slug: string, timezone: string, 
 /**
  * Where calls happen when Google Calendar does not supply a Meet link.
  * Read only here; written through `ConferencingUpdate`.
@@ -14,19 +15,7 @@ meeting_link: string | null,
 /**
  * Read only here; written through `ConferencingUpdate`.
  */
-conferencing_app: ConferencingApp, ask_currently_working_on: boolean, ask_how_heard_about_us: boolean, ask_what_stopping_you: boolean, ask_investment_comfort: boolean, ask_urgency_level: boolean, 
-/**
- * Shortest time between now and a call a visitor can book.
- */
-minimum_notice_hours: number, 
-/**
- * How many days ahead a visitor can book.
- */
-booking_window_days: number, 
-/**
- * Free time kept before and after every booked call.
- */
-buffer_minutes: number, 
+conferencing_app: ConferencingApp, 
 /**
  * `false` pauses the page: it can still be read, but not booked.
  */

@@ -17,7 +17,7 @@ import {
 import { EmptyState } from "../../../domains/shared/empty-state";
 import { PageHeader } from "../../../domains/shared/page-header";
 import { CONFERENCING_APP } from "../../../domains/integrations/conferencing";
-import { bookingPageQuery } from "../../../domains/widget/cadence-api";
+import { hostPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 
 const CATEGORIES = Object.values(APP_CATEGORY);
@@ -61,7 +61,7 @@ function AppStorePage() {
   const [search, setSearch] = useState("");
   const settings = useQuery(hostSettingsQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
 
   const apps = filterApps(APPS, search, category);
   const stateOf = (app: AppEntry) =>

@@ -2,6 +2,7 @@
 export const ROUTES = {
   home: "/",
   bookingPage: "/book/$slug",
+  bookingType: "/book/$slug/$type",
   bookingConfirmation: "/booking-confirmation",
   manageBooking: "/booking/$token",
   login: "/login",
@@ -18,6 +19,8 @@ export const ROUTES = {
   dashboardAppsInstalled: "/dashboard/apps/installed",
   dashboardApp: "/dashboard/apps/$slug",
   dashboardSettings: "/dashboard/settings",
+  dashboardEventTypes: "/dashboard/event-types",
+  dashboardEventType: "/dashboard/event-types/$unid",
   dashboardBilling: "/dashboard/billing",
   admin: "/admin",
 } as const;

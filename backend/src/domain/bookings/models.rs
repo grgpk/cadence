@@ -97,6 +97,8 @@ pub struct ManagedBooking {
     pub title: String,
     /// The host's public link, for finding another time.
     pub slug: String,
+    /// The kind of call it is, whose open times a move picks from.
+    pub event_slug: String,
     /// `false` once the call is cancelled or has started.
     pub can_change: bool,
 }

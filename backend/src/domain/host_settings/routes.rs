@@ -7,7 +7,12 @@ use axum::{
 use super::handlers;
 
 pub fn public_routes() -> Router<AppState> {
-    Router::new().route("/api/hosts/{slug}", get(handlers::public_page))
+    Router::new()
+        .route("/api/hosts/{slug}", get(handlers::host_page))
+        .route(
+            "/api/hosts/{slug}/types/{type_slug}",
+            get(handlers::type_page),
+        )
 }
 
 pub fn protected_routes() -> Router<AppState> {

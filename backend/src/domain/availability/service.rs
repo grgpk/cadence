@@ -144,6 +144,19 @@ pub fn slots_between(
     from: DateTime<Utc>,
     to: DateTime<Utc>,
 ) -> Vec<TimeSlot> {
+    slots_between_at(rules, overrides, timezone, None, from, to)
+}
+
+/// As `slots_between`, with calls of `length` minutes stepped through the
+/// same hours instead of each range's own slot length.
+pub fn slots_between_at(
+    rules: &[AvailabilityRule],
+    overrides: &[DateOverride],
+    timezone: &str,
+    length: Option<i32>,
+    from: DateTime<Utc>,
+    to: DateTime<Utc>,
+) -> Vec<TimeSlot> {
     // A local day can start up to a day before or after the same UTC date.
     let first_day = from.date_naive() - Duration::days(1);
     let last_day = to.date_naive() + Duration::days(1);
@@ -169,7 +182,7 @@ pub fn slots_between(
                     },
                 );
             hours.into_iter().flat_map(move |(start, end, minutes)| {
-                range_slots(date, start, end, minutes, timezone)
+                range_slots(date, start, end, length.unwrap_or(minutes), timezone)
             })
         })
         .filter(|slot| slot.start >= from && slot.start < to)

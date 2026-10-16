@@ -1,5 +1,6 @@
 import {
   CalendarCheck,
+  CalendarRange,
   Clock,
   CreditCard,
   LayoutDashboard,
@@ -16,6 +17,7 @@ export const DASHBOARD_NAV: NavSection[] = [
       { title: "Overview", to: ROUTES.dashboard, icon: LayoutDashboard, exact: true },
       { title: "Bookings", to: ROUTES.dashboardBookings, icon: CalendarCheck },
       { title: "Availability", to: ROUTES.dashboardAvailability, icon: Clock },
+      { title: "Event types", to: ROUTES.dashboardEventTypes, icon: CalendarRange },
       {
         title: "Apps",
         to: ROUTES.dashboardApps,
@@ -35,8 +37,6 @@ export const DASHBOARD_NAV: NavSection[] = [
 export const SETTINGS_SECTIONS = {
   bookingPage: "booking-page",
   time: "time",
-  rules: "rules",
-  questions: "questions",
   appearance: "appearance",
   account: "account",
 } as const;

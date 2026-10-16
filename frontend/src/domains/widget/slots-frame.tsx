@@ -10,7 +10,7 @@ import { ApiError } from "../../lib/api";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorState } from "../shared/error-state";
 import { SegmentedControl } from "../shared/segmented-control";
-import { publicSlotsQuery } from "./cadence-api";
+import { publicSlotsQuery, type PageRef } from "./cadence-api";
 import { slotsByDay, type SlotDay } from "./slot-days";
 
 const LOADING_ROWS = [0, 1, 2, 3];
@@ -78,7 +78,7 @@ export function slotsStatus(
  * then the host's open times by day, or why there are none.
  */
 export function SlotsFrame({
-  slug,
+  pageRef,
   timeZone,
   title,
   controls,
@@ -87,7 +87,7 @@ export function SlotsFrame({
   onHour12Change,
   children,
 }: {
-  slug: string;
+  pageRef: PageRef;
   timeZone: string;
   title: (days: SlotDay[]) => ReactNode;
   /** Shown beside the title, before the clock choice. */
@@ -98,7 +98,7 @@ export function SlotsFrame({
   children: (days: SlotDay[]) => ReactNode;
 }) {
   // The same request and cache as the month view, so switching views is instant.
-  const query = useQuery(publicSlotsQuery(slug));
+  const query = useQuery(publicSlotsQuery(pageRef));
   const days = slotsByDay(query.data ?? [], timeZone);
 
   const body = slotsStatus(query, wording, "h-10") ?? children(days);

@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Fragment, useState, type CSSProperties } from "react";
 
+import type { PageRef } from "./cadence-api";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { useNow } from "../../hooks/use-now";
@@ -34,7 +35,7 @@ const FADE_OUT =
  * across.
  */
 export function WeekSlots({
-  slug,
+  pageRef,
   timeZone,
   initialDay,
   wording,
@@ -43,7 +44,7 @@ export function WeekSlots({
   onPick,
   releaseKey,
 }: {
-  slug: string;
+  pageRef: PageRef;
   timeZone: string;
   /** The day the visitor last looked at, so the week opens around it. */
   initialDay: CivilDay | null;
@@ -65,7 +66,7 @@ export function WeekSlots({
 
   return (
     <SlotsFrame
-      slug={slug}
+      pageRef={pageRef}
       timeZone={timeZone}
       wording={wording}
       hour12={hour12}

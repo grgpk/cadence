@@ -22,6 +22,10 @@ title: string,
  */
 slug: string, 
 /**
+ * The kind of call it is, whose open times a move picks from.
+ */
+event_slug: string, 
+/**
  * `false` once the call is cancelled or has started.
  */
 can_change: boolean, };

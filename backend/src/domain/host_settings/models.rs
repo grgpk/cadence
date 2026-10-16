@@ -41,32 +41,19 @@ pub struct ConferencingUpdate {
     pub meeting_link: Option<String>,
 }
 
-/// A host's own booking page settings. Read and written by the host only.
-/// Each `ask_*` flag is an independent switch for one form question.
-#[allow(clippy::struct_excessive_bools)]
+/// What belongs to the host on their booking page, whatever kind of call is
+/// booked. Read and written by the host only; each kind of call is an
+/// event type.
 #[derive(Debug, Deserialize, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/HostSettings.ts")]
 pub struct HostSettings {
     pub public_slug: String,
-    pub title: String,
-    pub description: String,
     pub timezone: String,
     /// Where calls happen when Google Calendar does not supply a Meet link.
     /// Read only here; written through `ConferencingUpdate`.
     pub meeting_link: Option<String>,
     /// Read only here; written through `ConferencingUpdate`.
     pub conferencing_app: ConferencingApp,
-    pub ask_currently_working_on: bool,
-    pub ask_how_heard_about_us: bool,
-    pub ask_what_stopping_you: bool,
-    pub ask_investment_comfort: bool,
-    pub ask_urgency_level: bool,
-    /// Shortest time between now and a call a visitor can book.
-    pub minimum_notice_hours: i32,
-    /// How many days ahead a visitor can book.
-    pub booking_window_days: i32,
-    /// Free time kept before and after every booked call.
-    pub buffer_minutes: i32,
     /// `false` pauses the page: it can still be read, but not booked.
     pub is_active: bool,
 }
@@ -79,6 +66,19 @@ pub struct BookingPage {
     #[serde(skip)]
     #[ts(skip)]
     pub host_unid: Uuid,
+    /// The kind of call this page books.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub event_type_unid: Uuid,
+    /// The type's part of the link: `/book/<host>/<event_slug>`.
+    pub event_slug: String,
+    /// The type's own call length; `None` follows the host's hours.
+    pub duration_minutes: Option<i32>,
+    /// Active types older than this one. A plan with a single type books
+    /// rank 0 only.
+    #[serde(skip)]
+    #[ts(skip)]
+    pub type_rank: i64,
     /// Where the host is told about their calls.
     #[serde(skip)]
     #[ts(skip)]
@@ -118,6 +118,34 @@ pub struct BookingPage {
     pub full: bool,
     /// The Cadence logo under the card. Paid plans leave it off.
     pub show_branding: bool,
+}
+
+/// A kind of call as a visitor picks it on the host's page.
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/EventTypeCard.ts")]
+pub struct EventTypeCard {
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub duration_minutes: Option<i32>,
+}
+
+/// A host's public link: who they are and the kinds of call they take now.
+/// Each flag is an independent fact about the host.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/HostPage.ts")]
+pub struct HostPage {
+    pub host_name: String,
+    /// `false` while the host has paused the page.
+    pub accepting_bookings: bool,
+    /// The host's plan has no bookings left this month.
+    pub full: bool,
+    pub show_branding: bool,
+    pub calendar_connected: bool,
+    /// Bookable kinds of call, oldest first. Types past the host's plan are
+    /// left out.
+    pub types: Vec<EventTypeCard>,
 }
 
 /// One host as an admin sees them: who they are and how far their booking

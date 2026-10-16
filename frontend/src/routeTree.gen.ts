@@ -36,10 +36,13 @@ import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/av
 import { Route as DashboardBillingRouteImport } from './routes/dashboard/billing'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as BookSlugTypeRouteImport } from './routes/book/$slug_.$type'
 import { Route as DashboardAppsIndexRouteImport } from './routes/dashboard/apps/index'
 import { Route as DashboardAppsSlugRouteImport } from './routes/dashboard/apps/$slug'
 import { Route as DashboardAppsInstalledRouteImport } from './routes/dashboard/apps/installed'
 import { Route as DashboardCalendarCallbackRouteImport } from './routes/dashboard/calendar/callback'
+import { Route as DashboardEventTypesIndexRouteImport } from './routes/dashboard/event-types/index'
+import { Route as DashboardEventTypesUnidRouteImport } from './routes/dashboard/event-types/$unid'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -176,6 +179,11 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const BookSlugTypeRoute = BookSlugTypeRouteImport.update({
+  id: '/book/$slug_/$type',
+  path: '/book/$slug/$type',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardAppsIndexRoute = DashboardAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -197,6 +205,17 @@ const DashboardCalendarCallbackRoute =
     path: '/calendar/callback',
     getParentRoute: () => DashboardRouteRoute,
   } as any)
+const DashboardEventTypesIndexRoute =
+  DashboardEventTypesIndexRouteImport.update({
+    id: '/event-types/',
+    path: '/event-types/',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
+const DashboardEventTypesUnidRoute = DashboardEventTypesUnidRouteImport.update({
+  id: '/event-types/$unid',
+  path: '/event-types/$unid',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -226,10 +245,13 @@ export interface FileRoutesByFullPath {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/book/$slug/$type': typeof BookSlugTypeRoute
   '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
   '/dashboard/apps/': typeof DashboardAppsIndexRoute
+  '/dashboard/event-types/': typeof DashboardEventTypesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -257,10 +279,13 @@ export interface FileRoutesByTo {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/book/$slug/$type': typeof BookSlugTypeRoute
   '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
   '/dashboard/apps': typeof DashboardAppsIndexRoute
+  '/dashboard/event-types': typeof DashboardEventTypesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -291,10 +316,13 @@ export interface FileRoutesById {
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/book/$slug_/$type': typeof BookSlugTypeRoute
   '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
   '/dashboard/apps/': typeof DashboardAppsIndexRoute
+  '/dashboard/event-types/': typeof DashboardEventTypesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -326,10 +354,13 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
+    | '/book/$slug/$type'
     | '/dashboard/apps/$slug'
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/event-types/$unid'
     | '/dashboard/apps/'
+    | '/dashboard/event-types/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -357,10 +388,13 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/admin'
     | '/dashboard'
+    | '/book/$slug/$type'
     | '/dashboard/apps/$slug'
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/event-types/$unid'
     | '/dashboard/apps'
+    | '/dashboard/event-types'
   id:
     | '__root__'
     | '/'
@@ -390,10 +424,13 @@ export interface FileRouteTypes {
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
+    | '/book/$slug_/$type'
     | '/dashboard/apps/$slug'
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/event-types/$unid'
     | '/dashboard/apps/'
+    | '/dashboard/event-types/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -410,6 +447,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   BookSlugRoute: typeof BookSlugRoute
   BookingTokenRoute: typeof BookingTokenRoute
+  BookSlugTypeRoute: typeof BookSlugTypeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -603,6 +641,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/book/$slug_/$type': {
+      id: '/book/$slug_/$type'
+      path: '/book/$slug/$type'
+      fullPath: '/book/$slug/$type'
+      preLoaderRoute: typeof BookSlugTypeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/apps/': {
       id: '/dashboard/apps/'
       path: '/apps'
@@ -629,6 +674,20 @@ declare module '@tanstack/react-router' {
       path: '/calendar/callback'
       fullPath: '/dashboard/calendar/callback'
       preLoaderRoute: typeof DashboardCalendarCallbackRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/event-types/': {
+      id: '/dashboard/event-types/'
+      path: '/event-types'
+      fullPath: '/dashboard/event-types/'
+      preLoaderRoute: typeof DashboardEventTypesIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/event-types/$unid': {
+      id: '/dashboard/event-types/$unid'
+      path: '/event-types/$unid'
+      fullPath: '/dashboard/event-types/$unid'
+      preLoaderRoute: typeof DashboardEventTypesUnidRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
   }
@@ -671,7 +730,9 @@ interface DashboardRouteRouteChildren {
   DashboardAppsSlugRoute: typeof DashboardAppsSlugRoute
   DashboardAppsInstalledRoute: typeof DashboardAppsInstalledRoute
   DashboardCalendarCallbackRoute: typeof DashboardCalendarCallbackRoute
+  DashboardEventTypesUnidRoute: typeof DashboardEventTypesUnidRoute
   DashboardAppsIndexRoute: typeof DashboardAppsIndexRoute
+  DashboardEventTypesIndexRoute: typeof DashboardEventTypesIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
@@ -683,7 +744,9 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAppsSlugRoute: DashboardAppsSlugRoute,
   DashboardAppsInstalledRoute: DashboardAppsInstalledRoute,
   DashboardCalendarCallbackRoute: DashboardCalendarCallbackRoute,
+  DashboardEventTypesUnidRoute: DashboardEventTypesUnidRoute,
   DashboardAppsIndexRoute: DashboardAppsIndexRoute,
+  DashboardEventTypesIndexRoute: DashboardEventTypesIndexRoute,
 }
 
 const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(
@@ -704,6 +767,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   BookSlugRoute: BookSlugRoute,
   BookingTokenRoute: BookingTokenRoute,
+  BookSlugTypeRoute: BookSlugTypeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

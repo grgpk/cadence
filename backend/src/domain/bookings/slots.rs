@@ -124,6 +124,8 @@ pub fn end_of(slot: &TimeSlot) -> DateTime<Utc> {
 /// What a booking page's settings say about open times.
 struct Rules<'a> {
     timezone: &'a str,
+    /// The kind of call's own length; `None` follows the hours.
+    length: Option<i32>,
     notice: Duration,
     window: Duration,
     gap: Duration,
@@ -142,6 +144,7 @@ impl<'a> Rules<'a> {
     fn of(page: &'a BookingPage) -> Self {
         Self {
             timezone: &page.timezone,
+            length: page.duration_minutes,
             notice: Duration::hours(i64::from(page.minimum_notice_hours)),
             window: Duration::days(i64::from(page.booking_window_days)),
             gap: Duration::minutes(i64::from(page.buffer_minutes)),
@@ -176,16 +179,23 @@ impl<'a> Rules<'a> {
             .filter_map(|call| call.google_event_id.as_deref())
             .collect();
         let event_gap = self.gap.max(Duration::minutes(CALENDAR_EVENT_GAP_MINUTES));
-        availability::slots_between(taken.hours, taken.overrides, self.timezone, from, to)
-            .into_iter()
-            .filter(|slot| is_free(slot, taken.booked, self.gap, moving))
-            .filter(|slot| {
-                !taken.busy.iter().any(|event| {
-                    !own_events.contains(&event.event_id.as_str())
-                        && too_close(slot, event.start, event.end, event_gap)
-                })
+        availability::slots_between_at(
+            taken.hours,
+            taken.overrides,
+            self.timezone,
+            self.length,
+            from,
+            to,
+        )
+        .into_iter()
+        .filter(|slot| is_free(slot, taken.booked, self.gap, moving))
+        .filter(|slot| {
+            !taken.busy.iter().any(|event| {
+                !own_events.contains(&event.event_id.as_str())
+                    && too_close(slot, event.start, event.end, event_gap)
             })
-            .collect()
+        })
+        .collect()
     }
 }
 
@@ -238,6 +248,7 @@ mod tests {
     fn rules(gap_minutes: i64) -> Rules<'static> {
         Rules {
             timezone: "UTC",
+            length: None,
             notice: Duration::zero(),
             window: Duration::days(7),
             gap: Duration::minutes(gap_minutes),

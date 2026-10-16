@@ -12,7 +12,7 @@ import {
   disconnectGoogleCalendar,
 } from "../dashboard/host-api";
 import { ConfirmDialog } from "../shared/confirm-dialog";
-import { bookingPageQuery } from "../widget/cadence-api";
+import { hostPageQuery } from "../widget/cadence-api";
 import { GoogleCalendarIcon } from "./google-calendar-icon";
 
 /** The host's Google Calendar link: its state and the one action that changes it. */
@@ -22,7 +22,7 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
   const events = useQuery(calendarEventsQuery);
   // The events call fails both when no calendar is connected and when Google
   // is unreachable. The booking page knows which, straight from our database.
-  const page = useQuery(bookingPageQuery(slug));
+  const page = useQuery(hostPageQuery(slug));
   // Pending until the browser leaves for Google's sign-in page.
   const connect = useMutation({
     mutationFn: connectGoogleCalendar,
@@ -34,7 +34,7 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: QUERY_KEYS.calendarEvents }),
-        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bookingPage(slug) }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hostPage(slug) }),
       ]);
       toast.success("Google Calendar disconnected");
     },

@@ -1,5 +1,7 @@
 @baseUrl = http://localhost:3001
 @slug = cadence-host
+@type = coaching
+@eventTypeUnid = e1000000-0000-4000-8000-000000000001
 @leadUnid = 00000000-0000-0000-0000-000000000001
 @bookingUnid = 00000000-0000-0000-0000-000000000002
 # The manage_token returned by "Book call".
@@ -98,14 +100,32 @@ Content-Type: application/json
 ### Put a date back on the weekly hours
 DELETE {{baseUrl}}/api/availability/overrides/2026-10-24
 
-### My booking page settings (creates the link on first read)
+### My booking page settings (creates the link and a first event type on first read)
 GET {{baseUrl}}/api/host/settings
 
 ### Update my booking page settings
 PUT {{baseUrl}}/api/host/settings
 Content-Type: application/json
 
-{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"conferencing_app":"google_meet","ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"buffer_minutes":0,"is_active":true}
+{"public_slug":"cadence-host","timezone":"Europe/Paris","meeting_link":null,"conferencing_app":"google_meet","is_active":true}
+
+### My event types (bookable is false past my plan)
+GET {{baseUrl}}/api/host/event-types
+
+### New event type (403 past my plan, 409 when the link is taken)
+POST {{baseUrl}}/api/host/event-types
+Content-Type: application/json
+
+{"slug":"deep-dive-2","title":"Deep dive","description":"","duration_minutes":60,"buffer_minutes":15,"minimum_notice_hours":24,"booking_window_days":14,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"is_active":true}
+
+### Update an event type (duration_minutes null follows the hours)
+PUT {{baseUrl}}/api/host/event-types/{{eventTypeUnid}}
+Content-Type: application/json
+
+{"slug":"coaching","title":"Book a coaching call","description":"","duration_minutes":null,"buffer_minutes":15,"minimum_notice_hours":4,"booking_window_days":7,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"is_active":true}
+
+### Delete an event type (409 for the last one)
+DELETE {{baseUrl}}/api/host/event-types/{{eventTypeUnid}}
 
 ### Where my calls happen (google_meet or custom_link; custom_link needs the link)
 PUT {{baseUrl}}/api/host/conferencing
@@ -113,14 +133,17 @@ Content-Type: application/json
 
 {"app":"custom_link","meeting_link":"https://zoom.us/j/123456789"}
 
-### Public booking page (accepting_bookings is false while paused)
+### Public link: the host and the event types it offers
 GET {{baseUrl}}/api/hosts/{{slug}}
 
-### Public slots for the next 7 days
-GET {{baseUrl}}/api/hosts/{{slug}}/slots
+### One event type's page (accepting_bookings is false while paused or past the plan)
+GET {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}
+
+### Public slots of an event type
+GET {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/slots
 
 ### Create/update lead
-POST {{baseUrl}}/api/hosts/{{slug}}/leads/{{leadUnid}}
+POST {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/leads/{{leadUnid}}
 Content-Type: application/json
 
 {"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","source_page":"/"}
@@ -133,7 +156,7 @@ Content-Type: application/json
 
 ### Book call
 # slot_start must be one of the starts returned by the slots request above.
-POST {{baseUrl}}/api/hosts/{{slug}}/bookings
+POST {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/bookings
 Content-Type: application/json
 
 {"lead_unid":"{{leadUnid}}","calling_visit_unid":null,"slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}

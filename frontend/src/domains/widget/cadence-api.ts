@@ -2,6 +2,7 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 
 import type { BookingPage } from "../../bindings/BookingPage";
+import type { HostPage } from "../../bindings/HostPage";
 import type { CallingVisit } from "../../bindings/CallingVisit";
 import type { CallingVisitRequest } from "../../bindings/CallingVisitRequest";
 import type { CreateBookingRequest } from "../../bindings/CreateBookingRequest";
@@ -16,27 +17,34 @@ import { QUERY_KEYS } from "../../lib/query-keys";
 
 const NOT_FOUND = 404;
 
-function hostPath(slug: string): string {
-  return `/api/hosts/${encodeURIComponent(slug)}`;
+/** One kind of call on a host's link: `/book/<host>/<type>`. */
+export type PageRef = { host: string; type: string };
+
+function hostPath(host: string): string {
+  return `/api/hosts/${encodeURIComponent(host)}`;
+}
+
+function typePath({ host, type }: PageRef): string {
+  return `${hostPath(host)}/types/${encodeURIComponent(type)}`;
 }
 
 export function saveLead(
-  slug: string,
+  pageRef: PageRef,
   leadUnid: string,
   update: LeadUpdate,
 ): Promise<Lead> {
-  return api<Lead>(`${hostPath(slug)}/leads/${leadUnid}`, {
+  return api<Lead>(`${typePath(pageRef)}/leads/${leadUnid}`, {
     method: "POST",
     body: JSON.stringify(update),
   });
 }
 
 export function submitLead(
-  slug: string,
+  pageRef: PageRef,
   leadUnid: string,
   sourcePage: string,
 ): Promise<Lead> {
-  return api<Lead>(`${hostPath(slug)}/leads/${leadUnid}/submit`, {
+  return api<Lead>(`${typePath(pageRef)}/leads/${leadUnid}/submit`, {
     method: "POST",
     body: JSON.stringify({ source_page: sourcePage }),
   });
@@ -72,30 +80,39 @@ export function updateCallingVisit(
   });
 }
 
-/** A host's booking page, or `null` when the link is unknown or switched off. */
-export const getBookingPage = createServerFn({ method: "GET" })
-  .validator((slug: string) => slug)
-  .handler(async ({ data: slug }) => {
-    const response = await fetch(
-      `${SERVER_API_URL}/api/hosts/${encodeURIComponent(slug)}`,
-    );
-    if (response.status === NOT_FOUND) return null;
-    if (!response.ok) throw new Error("The booking page did not load.");
-    return response.json() as Promise<BookingPage>;
-  });
+async function readOrNull<T>(path: string, failure: string): Promise<T | null> {
+  const response = await fetch(`${SERVER_API_URL}${path}`);
+  if (response.status === NOT_FOUND) return null;
+  if (!response.ok) throw new Error(failure);
+  return response.json() as Promise<T>;
+}
 
-export function bookingPageQuery(slug: string) {
+/** A host's link and the kinds of call it offers, or `null` when unknown. */
+export const getHostPage = createServerFn({ method: "GET" })
+  .validator((host: string) => host)
+  .handler(({ data: host }) =>
+    readOrNull<HostPage>(hostPath(host), "The booking page did not load."),
+  );
+
+export function hostPageQuery(host: string) {
   return queryOptions({
-    queryKey: QUERY_KEYS.bookingPage(slug),
-    queryFn: () => getBookingPage({ data: slug }),
+    queryKey: QUERY_KEYS.hostPage(host),
+    queryFn: () => getHostPage({ data: host }),
   });
 }
 
-/** Every time the host can still be booked inside their booking window. */
-export function publicSlotsQuery(slug: string) {
+/** One kind of call on a host's link, or `null` when either is unknown. */
+export const getBookingPage = createServerFn({ method: "GET" })
+  .validator((pageRef: PageRef) => pageRef)
+  .handler(({ data: pageRef }) =>
+    readOrNull<BookingPage>(typePath(pageRef), "The booking page did not load."),
+  );
+
+/** Every time the host can still be booked for this kind of call. */
+export function publicSlotsQuery(pageRef: PageRef) {
   return queryOptions({
-    queryKey: QUERY_KEYS.publicSlots(slug),
-    queryFn: () => api<TimeSlot[]>(`${hostPath(slug)}/slots`),
+    queryKey: QUERY_KEYS.publicSlots(pageRef.host, pageRef.type),
+    queryFn: () => api<TimeSlot[]>(`${typePath(pageRef)}/slots`),
   });
 }
 
@@ -103,15 +120,20 @@ export function publicSlotsQuery(slug: string) {
  * Reads a booking page's open times again: after a booking, a move or a
  * cancel, or when one did not go through and the cached times are stale.
  */
-export function refreshOpenTimes(queryClient: QueryClient, slug: string): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) });
+export function refreshOpenTimes(
+  queryClient: QueryClient,
+  pageRef: PageRef,
+): Promise<void> {
+  return queryClient.invalidateQueries({
+    queryKey: QUERY_KEYS.publicSlots(pageRef.host, pageRef.type),
+  });
 }
 
 export function createBooking(
-  slug: string,
+  pageRef: PageRef,
   request: CreateBookingRequest,
 ): Promise<CreatedBooking> {
-  return api<CreatedBooking>(`${hostPath(slug)}/bookings`, {
+  return api<CreatedBooking>(`${typePath(pageRef)}/bookings`, {
     method: "POST",
     body: JSON.stringify(request),
   });

@@ -15,6 +15,9 @@ import { searchInstant, searchMinutes, searchText, searchTimezone } from "../lib
 const MEET_ORIGIN = "https://meet.google.com/";
 const MAX_CALL_MINUTES = 240;
 
+/** A part of a booking link: lowercase words joined by single dashes. */
+const LINK_PART = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
   // Only a Google Meet address can become a button: a crafted URL must not be able
@@ -32,7 +35,8 @@ export const Route = createFileRoute("/booking-confirmation")({
         : undefined,
     // Whether the booking has a place to meet. A host's own link is only sent by email.
     link: search.link === true,
-    slug: searchText(search.slug, /^[a-z0-9]+(-[a-z0-9]+)*$/),
+    slug: searchText(search.slug, LINK_PART),
+    type: searchText(search.type, LINK_PART),
     // Shown as plain text only, so any short name is safe.
     host: searchText(search.host, /^.{1,120}$/),
     // The private link to change or cancel this call.
@@ -43,7 +47,8 @@ export const Route = createFileRoute("/booking-confirmation")({
 });
 
 function BookingConfirmationPage() {
-  const { start, minutes, tz, h12, meet, link, slug, host, manage } = Route.useSearch();
+  const { start, minutes, tz, h12, meet, link, slug, type, host, manage } =
+    Route.useSearch();
 
   if (!start || !minutes || !tz) {
     return (
@@ -158,8 +163,8 @@ function BookingConfirmationPage() {
             </>
           ) : slug ? (
             <Link
-              to={ROUTES.bookingPage}
-              params={{ slug }}
+              to={type ? ROUTES.bookingType : ROUTES.bookingPage}
+              params={{ slug, type }}
               className="font-medium text-foreground underline underline-offset-4"
             >
               Book another time

@@ -13,15 +13,19 @@ import {
   saveLead,
   submitLead,
   updateCallingVisit,
+  type PageRef,
 } from "./cadence-api";
 
 /** The API calls a booking session makes; tests pass a recorder instead. */
 export type BookingApi = {
   createCallingVisit: (request: CallingVisitRequest) => Promise<CallingVisit>;
   updateCallingVisit: typeof updateCallingVisit;
-  saveLead: (slug: string, leadUnid: string, update: LeadUpdate) => Promise<Lead>;
-  submitLead: (slug: string, leadUnid: string, sourcePage: string) => Promise<Lead>;
-  createBooking: (slug: string, request: CreateBookingRequest) => Promise<CreatedBooking>;
+  saveLead: (pageRef: PageRef, leadUnid: string, update: LeadUpdate) => Promise<Lead>;
+  submitLead: (pageRef: PageRef, leadUnid: string, sourcePage: string) => Promise<Lead>;
+  createBooking: (
+    pageRef: PageRef,
+    request: CreateBookingRequest,
+  ) => Promise<CreatedBooking>;
 };
 
 export const CADENCE_API: BookingApi = {
@@ -46,7 +50,9 @@ export type ConfirmationSearch = {
   meet?: string;
   /** Whether the call has a place to meet at all. */
   link: boolean;
+  /** The host's link and the kind of call, for booking another time. */
   slug?: string;
+  type?: string;
   host?: string;
   /** The private link to change or cancel the call. */
   manage?: string;
@@ -81,7 +87,11 @@ type BookingSession = {
 
 export function createBookingSession(
   api: BookingApi,
-  { slug, leadUnid, arrival }: { slug: string; leadUnid: string; arrival: Arrival },
+  {
+    pageRef,
+    leadUnid,
+    arrival,
+  }: { pageRef: PageRef; leadUnid: string; arrival: Arrival },
 ): BookingSession {
   let visitUnid: string | null = null;
   let leadSubmitted = false;
@@ -115,20 +125,20 @@ export function createBookingSession(
 
     async saveDraft(values) {
       try {
-        await api.saveLead(slug, leadUnid, leadUpdate(values, arrival));
+        await api.saveLead(pageRef, leadUnid, leadUpdate(values, arrival));
       } catch {
         // The answers are saved again when the visitor books.
       }
     },
 
     async book({ slot, values, timezone, hour12, hostName }) {
-      await api.saveLead(slug, leadUnid, leadUpdate(values, arrival));
+      await api.saveLead(pageRef, leadUnid, leadUpdate(values, arrival));
       if (!leadSubmitted) {
-        await api.submitLead(slug, leadUnid, arrival.path);
+        await api.submitLead(pageRef, leadUnid, arrival.path);
         leadSubmitted = true;
         noteVisit({ form_submitted: true });
       }
-      const booking = await api.createBooking(slug, {
+      const booking = await api.createBooking(pageRef, {
         lead_unid: leadUnid,
         calling_visit_unid: visitUnid,
         slot_start: slot.start,
@@ -144,7 +154,8 @@ export function createBookingSession(
         h12: hour12,
         meet: booking.meeting_url ?? undefined,
         link: booking.meeting_url !== null,
-        slug,
+        slug: pageRef.host,
+        type: pageRef.type,
         host: hostName,
         manage: booking.manage_token,
       };

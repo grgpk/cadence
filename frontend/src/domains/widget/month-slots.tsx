@@ -13,7 +13,7 @@ import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { EmptyState } from "../shared/empty-state";
 import { SegmentedControl } from "../shared/segmented-control";
 import { BookingCalendar } from "./booking-calendar";
-import { publicSlotsQuery } from "./cadence-api";
+import { publicSlotsQuery, type PageRef } from "./cadence-api";
 import { sharedLength, slotsByDay } from "./slot-days";
 import {
   type MonthPosition,
@@ -129,7 +129,7 @@ function DayTimes({
  * booking card's first step; without one, it picks a new time for a call.
  */
 export function MonthSlots({
-  slug,
+  pageRef,
   timeZone,
   summary,
   wording,
@@ -140,7 +140,7 @@ export function MonthSlots({
   onPick,
   releaseKey,
 }: {
-  slug: string;
+  pageRef: PageRef;
   /** The IANA timezone the times are shown in. */
   timeZone: string;
   /** The column before the calendar, given the call length once it is known. */
@@ -154,7 +154,7 @@ export function MonthSlots({
   onPick: (slot: TimeSlot) => void;
   releaseKey: number;
 }) {
-  const query = useQuery(publicSlotsQuery(slug));
+  const query = useQuery(publicSlotsQuery(pageRef));
   const timesRef = useRef<HTMLDivElement>(null);
   // +1 when the calendar last moved forward, -1 when it moved back.
   const [monthDirection, setMonthDirection] = useState(1);

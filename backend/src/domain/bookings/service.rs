@@ -67,6 +67,7 @@ pub async fn create(
     let booking = match db::create(
         &mut transaction,
         host_unid,
+        page.event_type_unid,
         request.lead_unid,
         request.calling_visit_unid,
         slot.start,
@@ -176,7 +177,7 @@ pub async fn cancel(
     let booking = db::find(pool, host_unid, unid)
         .await?
         .ok_or(AppError::NotFound)?;
-    let page = host_settings::page_of_host(pool, host_unid).await?;
+    let page = host_settings::page_of_booking(pool, booking.unid).await?;
     cancel_call(pool, calendar, &booking, &page, CancelledBy::Host).await
 }
 
@@ -301,7 +302,7 @@ async fn find_managed(pool: &PgPool, token: &str) -> AppResult<(Booking, Booking
     let booking = db::find_by_token(pool, token)
         .await?
         .ok_or(AppError::NotFound)?;
-    let page = host_settings::page_of_host(pool, booking.host_unid).await?;
+    let page = host_settings::page_of_booking(pool, booking.unid).await?;
     Ok((booking, page))
 }
 
@@ -337,6 +338,7 @@ fn managed_booking(booking: Booking, page: BookingPage) -> ManagedBooking {
         host_name: page.host_name,
         title: page.title,
         slug: page.public_slug,
+        event_slug: page.event_slug,
     }
 }
 

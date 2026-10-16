@@ -158,6 +158,25 @@ async fn save_conferencing(
     .await
 }
 
+/// The host's first kind of call, as they edit it: at `/book/<slug>/call`.
+async fn first_type(app: &Router, host: &Host) -> Value {
+    let (status, types) = get(app, "/api/host/event-types", Some(&host.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    types[0].clone()
+}
+
+async fn save_type(app: &Router, host: &Host, kind: &Value) -> (StatusCode, Value) {
+    let unid = kind["unid"].as_str().expect("the type has an id");
+    send(
+        app,
+        Method::PUT,
+        &format!("/api/host/event-types/{unid}"),
+        Some(&host.cookie),
+        Some(kind.clone()),
+    )
+    .await
+}
+
 fn slug(settings: &Value) -> &str {
     settings["public_slug"]
         .as_str()
@@ -192,7 +211,7 @@ async fn host_with_hours(app: &Router, email: &str) -> (Host, String) {
 }
 
 async fn slots(app: &Router, slug: &str) -> Vec<DateTime<Utc>> {
-    let (status, slots) = get(app, &format!("/api/hosts/{slug}/slots"), None).await;
+    let (status, slots) = get(app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::OK);
     slots
         .as_array()
@@ -221,7 +240,7 @@ async fn book(app: &Router, slug: &str, start: DateTime<Utc>) -> (Uuid, String) 
     let (status, booked) = send(
         app,
         Method::POST,
-        &format!("/api/hosts/{slug}/bookings"),
+        &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
         Some(booking(start, None)),
     )
@@ -253,7 +272,7 @@ async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
     let app = app(&pool);
     cadence_host(&app).await;
 
-    let (status, page) = get(&app, &format!("/api/hosts/{HOST_SLUG}"), None).await;
+    let (status, page) = get(&app, &format!("/api/hosts/{HOST_SLUG}/types/call"), None).await;
     assert_eq!(status, StatusCode::OK);
     assert!(page.get("host_unid").is_none());
     assert!(page.get("email").is_none());
@@ -262,9 +281,9 @@ async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
         assert_eq!(page[flag], false, "{flag}");
     }
 
-    let (status, _) = get(&app, "/api/hosts/CADENCE-HOST", None).await;
+    let (status, _) = get(&app, "/api/hosts/CADENCE-HOST/types/call", None).await;
     assert_eq!(status, StatusCode::OK, "links are case-insensitive");
-    let (status, _) = get(&app, "/api/hosts/nobody-here", None).await;
+    let (status, _) = get(&app, "/api/hosts/nobody-here/types/call", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -272,7 +291,7 @@ async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
 async fn a_switched_off_page_is_readable_and_a_banned_host_is_not(pool: PgPool) {
     let app = app(&pool);
     cadence_host(&app).await;
-    let page_path = format!("/api/hosts/{HOST_SLUG}");
+    let page_path = format!("/api/hosts/{HOST_SLUG}/types/call");
     let (_, page) = get(&app, &page_path, None).await;
     assert_eq!(page["accepting_bookings"], true);
 
@@ -320,7 +339,7 @@ async fn every_host_gets_their_own_link(pool: PgPool) {
     // Reading again does not mint a new link.
     assert_eq!(settings(&app, &first).await, first_settings);
 
-    let (status, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    let (status, page) = get(&app, "/api/hosts/ada-lovelace/types/call", None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["host_name"], "Ada Lovelace");
     assert_eq!(page["calendar_connected"], false);
@@ -337,7 +356,6 @@ async fn settings_are_validated_and_stay_with_their_host(pool: PgPool) {
     for (field, bad) in [
         ("public_slug", json!("Ada Lovelace!")),
         ("public_slug", json!("ab")),
-        ("title", json!("  ")),
         ("timezone", json!("Mars/Olympus")),
     ] {
         let mut changed = ada_settings.clone();
@@ -353,16 +371,19 @@ async fn settings_are_validated_and_stay_with_their_host(pool: PgPool) {
 
     let mut changed = ada_settings.clone();
     changed["public_slug"] = json!("ada");
-    changed["title"] = json!("Talk to Ada");
-    changed["ask_urgency_level"] = json!(true);
     let (status, saved) = save_settings(&app, &ada, &changed).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(saved, changed);
+    let mut kind = first_type(&app, &ada).await;
+    kind["title"] = json!("Talk to Ada");
+    kind["ask_urgency_level"] = json!(true);
+    let (status, _) = save_type(&app, &ada, &kind).await;
+    assert_eq!(status, StatusCode::OK);
 
-    let (_, page) = get(&app, "/api/hosts/ada", None).await;
+    let (_, page) = get(&app, "/api/hosts/ada/types/call", None).await;
     assert_eq!(page["title"], "Talk to Ada");
     assert_eq!(page["ask_urgency_level"], true);
-    let (status, _) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    let (status, _) = get(&app, "/api/hosts/ada-lovelace/types/call", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "the old link is gone");
     assert_eq!(settings(&app, &grace).await, grace_settings);
 }
@@ -371,9 +392,10 @@ async fn settings_are_validated_and_stay_with_their_host(pool: PgPool) {
 async fn answers_are_kept_only_for_questions_the_host_asks(pool: PgPool) {
     let app = app(&pool);
     let host = register(&app, "Ada Lovelace", "ada@example.com").await;
-    let mut host_settings = settings(&app, &host).await;
+    settings(&app, &host).await;
+    let mut kind = first_type(&app, &host).await;
     let lead_unid = Uuid::new_v4();
-    let path = format!("/api/hosts/ada-lovelace/leads/{lead_unid}");
+    let path = format!("/api/hosts/ada-lovelace/types/call/leads/{lead_unid}");
     let answers = json!({
         "first_name": "Linus",
         "email": "linus@example.com",
@@ -399,8 +421,8 @@ async fn answers_are_kept_only_for_questions_the_host_asks(pool: PgPool) {
         assert_eq!(lead[field], Value::Null, "{field}");
     }
 
-    host_settings["ask_investment_comfort"] = json!(true);
-    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    kind["ask_investment_comfort"] = json!(true);
+    let (status, _) = save_type(&app, &host, &kind).await;
     assert_eq!(status, StatusCode::OK);
     let (_, lead) = send(&app, Method::POST, &path, None, Some(answers)).await;
     assert_eq!(lead["investment_comfort"], "$500–2,000 (serious training)");
@@ -420,7 +442,7 @@ async fn a_lead_cannot_be_rewritten_through_another_hosts_link(pool: PgPool) {
     let (status, _) = send(
         &app,
         Method::POST,
-        &format!("/api/hosts/ada-lovelace/leads/{lead_unid}"),
+        &format!("/api/hosts/ada-lovelace/types/call/leads/{lead_unid}"),
         None,
         Some(json!({ "first_name": "Linus", "email": "linus@example.com" })),
     )
@@ -431,7 +453,7 @@ async fn a_lead_cannot_be_rewritten_through_another_hosts_link(pool: PgPool) {
         let (status, _) = send(
             &app,
             Method::POST,
-            &format!("/api/hosts/grace-hopper/leads/{lead_unid}{suffix}"),
+            &format!("/api/hosts/grace-hopper/types/call/leads/{lead_unid}{suffix}"),
             None,
             Some(json!({ "first_name": "Mallory" })),
         )
@@ -465,7 +487,7 @@ async fn slots_follow_the_hosts_hours_and_timezone_without_google(pool: PgPool) 
     let idle_settings = settings(&app, &idle).await;
     let (status, none) = get(
         &app,
-        &format!("/api/hosts/{}/slots", self::slug(&idle_settings)),
+        &format!("/api/hosts/{}/types/call/slots", self::slug(&idle_settings)),
         None,
     )
     .await;
@@ -477,7 +499,7 @@ async fn slots_follow_the_hosts_hours_and_timezone_without_google(pool: PgPool) 
 async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let path = format!("/api/hosts/{slug}/bookings");
+    let path = format!("/api/hosts/{slug}/types/call/bookings");
     let open = slots(&app, &slug).await;
     let start = open[0];
 
@@ -550,7 +572,7 @@ async fn a_hosts_own_meeting_link_is_validated_and_kept_private(pool: PgPool) {
     assert_eq!(with_link["meeting_link"], "https://zoom.us/j/123456789");
     assert_eq!(with_link["conferencing_app"], "custom_link");
 
-    let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    let (_, page) = get(&app, "/api/hosts/ada-lovelace/types/call", None).await;
     assert_eq!(page["has_meeting_link"], true);
     assert_eq!(page["conferencing_app"], "custom_link");
     assert!(page.get("meeting_link").is_none());
@@ -569,7 +591,7 @@ async fn a_hosts_own_meeting_link_is_validated_and_kept_private(pool: PgPool) {
     let (status, cleared) = save_conferencing(&app, &host, "google_meet", Some("")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(cleared["meeting_link"], Value::Null);
-    let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
+    let (_, page) = get(&app, "/api/hosts/ada-lovelace/types/call", None).await;
     assert_eq!(page["has_meeting_link"], false);
 }
 
@@ -585,7 +607,7 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
     let (status, booked) = send(
         &app,
         Method::POST,
-        &format!("/api/hosts/{slug}/bookings"),
+        &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
         Some(booking(start, None)),
     )
@@ -622,33 +644,42 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
 async fn booking_rules_are_checked_and_stay_off_the_public_page(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let mut rules = settings(&app, &host).await;
+    assert_eq!(settings(&app, &host).await["is_active"], true);
+    let mut rules = first_type(&app, &host).await;
     assert_eq!(rules["minimum_notice_hours"], 4);
     assert_eq!(rules["booking_window_days"], 7);
     assert_eq!(rules["buffer_minutes"], 0, "no gap until chosen");
-    assert_eq!(rules["is_active"], true);
+    assert_eq!(
+        rules["duration_minutes"],
+        Value::Null,
+        "the hours set the length"
+    );
 
     for (field, bad) in [
-        ("minimum_notice_hours", -1),
-        ("minimum_notice_hours", 169),
-        ("booking_window_days", 0),
-        ("booking_window_days", 91),
-        ("buffer_minutes", -1),
-        ("buffer_minutes", 121),
+        ("minimum_notice_hours", json!(-1)),
+        ("minimum_notice_hours", json!(169)),
+        ("booking_window_days", json!(0)),
+        ("booking_window_days", json!(91)),
+        ("buffer_minutes", json!(-1)),
+        ("buffer_minutes", json!(121)),
+        ("duration_minutes", json!(4)),
+        ("duration_minutes", json!(241)),
+        ("title", json!("  ")),
+        ("slug", json!("A call")),
     ] {
         let mut changed = rules.clone();
-        changed[field] = json!(bad);
-        let (status, _) = save_settings(&app, &host, &changed).await;
+        changed[field] = bad.clone();
+        let (status, _) = save_type(&app, &host, &changed).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{field} = {bad}");
     }
 
     rules["booking_window_days"] = json!(2);
     rules["minimum_notice_hours"] = json!(24);
     rules["buffer_minutes"] = json!(15);
-    let (status, saved) = save_settings(&app, &host, &rules).await;
+    let (status, saved) = save_type(&app, &host, &rules).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(saved, rules);
-    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
     assert_eq!(page["booking_window_days"], 2);
     assert!(page.get("minimum_notice_hours").is_none());
     assert!(page.get("buffer_minutes").is_none());
@@ -670,19 +701,19 @@ async fn a_paused_page_can_be_read_but_not_booked(pool: PgPool) {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(saved["is_active"], false);
 
-    let (status, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    let (status, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["accepting_bookings"], false);
     assert_eq!(page["host_name"], "Nino Tbilisi");
-    let (status, _) = get(&app, &format!("/api/hosts/{slug}/slots"), None).await;
+    let (status, _) = get(&app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let path = format!("/api/hosts/{slug}/bookings");
+    let path = format!("/api/hosts/{slug}/types/call/bookings");
     let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = send(
         &app,
         Method::POST,
-        &format!("/api/hosts/{slug}/leads/{}", Uuid::new_v4()),
+        &format!("/api/hosts/{slug}/types/call/leads/{}", Uuid::new_v4()),
         None,
         Some(json!({ "first_name": "Ada" })),
     )
@@ -702,16 +733,16 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     let other = register(&app, "Grace Hopper", "grace@example.com").await;
-    let mut asking = settings(&app, &host).await;
+    let mut asking = first_type(&app, &host).await;
     asking["ask_urgency_level"] = json!(true);
-    let (status, _) = save_settings(&app, &host, &asking).await;
+    let (status, _) = save_type(&app, &host, &asking).await;
     assert_eq!(status, StatusCode::OK);
 
     let lead_unid = Uuid::new_v4();
     let (status, _) = send(
         &app,
         Method::POST,
-        &format!("/api/hosts/{slug}/leads/{lead_unid}"),
+        &format!("/api/hosts/{slug}/types/call/leads/{lead_unid}"),
         None,
         Some(json!({
             "first_name": "Ada",
@@ -725,7 +756,7 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
     assert_eq!(status, StatusCode::OK);
 
     let open = slots(&app, &slug).await;
-    let path = format!("/api/hosts/{slug}/bookings");
+    let path = format!("/api/hosts/{slug}/types/call/bookings");
     let (status, with_lead) = send(
         &app,
         Method::POST,
@@ -793,7 +824,7 @@ async fn a_cancelled_call_frees_its_time_and_tells_the_invitee(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     let other = register(&app, "Grace Hopper", "grace@example.com").await;
-    let book_path = format!("/api/hosts/{slug}/bookings");
+    let book_path = format!("/api/hosts/{slug}/types/call/bookings");
     let open = slots(&app, &slug).await;
     // Far enough out that every reminder is queued.
     let start = *open.last().expect("the host has open times");
@@ -1069,6 +1100,7 @@ async fn an_invitee_reads_their_call_through_the_manage_link(pool: PgPool) {
             "host_name": "Nino Tbilisi",
             "title": "Book your call",
             "slug": slug,
+            "event_slug": "call",
             "can_change": true,
         })
     );
@@ -1811,7 +1843,7 @@ async fn a_booking_with_bad_details_is_refused_and_takes_no_time(pool: PgPool) {
     let (_, slug) = host_with_hours(&app, "nino@example.com").await;
     let open = slots(&app, &slug).await;
     let start = open[0];
-    let bookings_path = format!("/api/hosts/{slug}/bookings");
+    let bookings_path = format!("/api/hosts/{slug}/types/call/bookings");
     let try_booking = |field: &'static str, value: Value| {
         let mut body = booking(start, None);
         body[field] = value;
@@ -1894,7 +1926,7 @@ async fn reading_open_times_is_limited(pool: PgPool) {
     const LIMIT: usize = 120;
     let app = app(&pool);
     let (_, slug) = host_with_hours(&app, "nino@example.com").await;
-    let path = format!("/api/hosts/{slug}/slots");
+    let path = format!("/api/hosts/{slug}/types/call/slots");
 
     for attempt in 0..LIMIT {
         let (status, _) = get(&app, &path, None).await;
@@ -1973,8 +2005,11 @@ async fn host_in_tbilisi(app: &Router, buffer: i32, hours: &[(&str, &str, i32)])
     let host = register(app, "Nino Tbilisi", "nino@example.com").await;
     let mut settings = settings(app, &host).await;
     settings["timezone"] = json!("Asia/Tbilisi");
-    settings["buffer_minutes"] = json!(buffer);
     let (status, settings) = save_settings(app, &host, &settings).await;
+    assert_eq!(status, StatusCode::OK);
+    let mut kind = first_type(app, &host).await;
+    kind["buffer_minutes"] = json!(buffer);
+    let (status, _) = save_type(app, &host, &kind).await;
     assert_eq!(status, StatusCode::OK);
     for weekday in 0..7 {
         for (start_time, end_time, slot_minutes) in hours {
@@ -2012,7 +2047,7 @@ fn tbilisi(days: i64, hour: u32, minute: u32) -> DateTime<Utc> {
 /// The open times on the day `day` falls on, as "HH:MM/length" on the host's
 /// clock in Tbilisi.
 async fn open_on(app: &Router, slug: &str, day: DateTime<Utc>) -> Vec<String> {
-    let (status, slots) = get(app, &format!("/api/hosts/{slug}/slots"), None).await;
+    let (status, slots) = get(app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::OK);
     slots
         .as_array()
@@ -2034,7 +2069,7 @@ async fn try_to_book(app: &Router, slug: &str, start: DateTime<Utc>) -> StatusCo
     send(
         app,
         Method::POST,
-        &format!("/api/hosts/{slug}/bookings"),
+        &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
         Some(booking(start, None)),
     )
@@ -2341,7 +2376,7 @@ async fn call_with_empty_queue(
         .await
         .expect("bookings are readable")
         .expect("the call exists");
-    let page = host_settings::service::page_of_host(pool, host.unid)
+    let page = host_settings::service::page_of_booking(pool, unid)
         .await
         .expect("the page exists");
     let mut connection = pool.acquire().await.expect("a connection");
@@ -2469,7 +2504,7 @@ async fn account_notices(pool: &PgPool, template: &str) -> i64 {
 async fn a_free_host_sends_one_reminder_and_shows_the_logo(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let page = format!("/api/hosts/{slug}");
+    let page = format!("/api/hosts/{slug}/types/call");
     assert_eq!(
         get(&app, &page, None).await.1["show_branding"],
         false,
@@ -2505,16 +2540,16 @@ async fn a_free_page_takes_no_new_calls_once_the_month_is_full(pool: PgPool) {
     let (_, token) = book(&app, &slug, first).await;
     assert_eq!(account_notices(&pool, "host_booking_limit").await, 1);
 
-    let (status, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    let (status, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(page["full"], true);
     assert_eq!(
         page["accepting_bookings"], true,
         "the host did not pause it"
     );
-    let (status, _) = get(&app, &format!("/api/hosts/{slug}/slots"), None).await;
+    let (status, _) = get(&app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let path = format!("/api/hosts/{slug}/bookings");
+    let path = format!("/api/hosts/{slug}/types/call/bookings");
     let (status, _) = send(&app, Method::POST, &path, None, Some(booking(second, None))).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
@@ -2534,25 +2569,231 @@ async fn a_free_page_takes_no_new_calls_once_the_month_is_full(pool: PgPool) {
 async fn questions_need_a_paid_plan_and_stay_saved_without_one(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let mut asking = settings(&app, &host).await;
+    let mut asking = first_type(&app, &host).await;
     asking["ask_urgency_level"] = json!(true);
-    let (status, _) = save_settings(&app, &host, &asking).await;
+    let (status, _) = save_type(&app, &host, &asking).await;
     assert_eq!(status, StatusCode::OK, "the trial includes questions");
 
     end_trial(&pool, &host).await;
-    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
     assert_eq!(page["ask_urgency_level"], false, "not asked on Free");
-    let mut saved = settings(&app, &host).await;
+    let mut saved = first_type(&app, &host).await;
     assert_eq!(saved["ask_urgency_level"], true, "still saved");
 
     saved["title"] = json!("Intro call");
-    let (status, _) = save_settings(&app, &host, &saved).await;
+    let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::OK, "other changes still save");
     saved["ask_investment_comfort"] = json!(true);
-    let (status, _) = save_settings(&app, &host, &saved).await;
+    let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     saved["ask_investment_comfort"] = json!(false);
     saved["ask_urgency_level"] = json!(false);
-    let (status, _) = save_settings(&app, &host, &saved).await;
+    let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::OK, "turning one off is fine");
+}
+
+/// Gives the host Business, which books any number of kinds of call.
+async fn give_business(pool: &PgPool, host: &Host) {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET plan = 'business', status = 'comped' WHERE user_unid = $1 RETURNING 1",
+        host.unid,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the host has a plan row");
+}
+
+/// A second kind of call at `/book/<slug>/<type_slug>`.
+async fn new_type(app: &Router, host: &Host, type_slug: &str, minutes: Option<i32>) -> StatusCode {
+    let mut kind = first_type(app, host).await;
+    kind["slug"] = json!(type_slug);
+    kind["title"] = json!(format!("The {type_slug}"));
+    kind["duration_minutes"] = json!(minutes);
+    send(
+        app,
+        Method::POST,
+        "/api/host/event-types",
+        Some(&host.cookie),
+        Some(kind),
+    )
+    .await
+    .0
+}
+
+/// The open times of one kind of call, as start and length.
+async fn type_slots(app: &Router, slug: &str, type_slug: &str) -> Vec<(DateTime<Utc>, i64)> {
+    let (status, slots) = get(
+        app,
+        &format!("/api/hosts/{slug}/types/{type_slug}/slots"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{type_slug}");
+    slots
+        .as_array()
+        .expect("slots are a list")
+        .iter()
+        .map(|slot| {
+            let start = serde_json::from_value(slot["start"].clone()).expect("slot has a start");
+            (start, slot["minutes"].as_i64().expect("slot has a length"))
+        })
+        .collect()
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_type_with_its_own_length_steps_through_the_same_hours(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_in_tbilisi(&app, 0, &[("09:00:00", "12:00:00", 60)]).await;
+    give_business(&pool, &host).await;
+    assert_eq!(
+        new_type(&app, &host, "quick", Some(30)).await,
+        StatusCode::CREATED
+    );
+    let day = |slots: &[(DateTime<Utc>, i64)]| -> Vec<(DateTime<Utc>, i64)> {
+        slots
+            .iter()
+            .filter(|(start, _)| start.date_naive() == tbilisi(3, 9, 0).date_naive())
+            .copied()
+            .collect()
+    };
+
+    let hourly = day(&type_slots(&app, &slug, "call").await);
+    let quick = day(&type_slots(&app, &slug, "quick").await);
+    assert_eq!(
+        hourly.iter().map(|slot| slot.1).collect::<Vec<_>>(),
+        [60, 60, 60]
+    );
+    assert_eq!(quick.len(), 6, "every half hour from 09:00 to 11:30");
+    assert!(quick.iter().all(|slot| slot.1 == 30));
+
+    // A 30-minute call at 10:00 closes the hour-long 10:00 call too.
+    let path = format!("/api/hosts/{slug}/types/quick/bookings");
+    let (status, booked) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(tbilisi(3, 10, 0), None)),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(booked["minutes"], 30);
+    let starts: Vec<DateTime<Utc>> = day(&type_slots(&app, &slug, "call").await)
+        .into_iter()
+        .map(|slot| slot.0)
+        .collect();
+    assert_eq!(starts, [tbilisi(3, 9, 0), tbilisi(3, 11, 0)]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_plan_decides_how_many_types_the_link_offers(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    assert_eq!(
+        new_type(&app, &host, "deep-dive", Some(60)).await,
+        StatusCode::FORBIDDEN,
+        "Pro books one kind of call"
+    );
+
+    give_business(&pool, &host).await;
+    assert_eq!(
+        new_type(&app, &host, "deep-dive", Some(60)).await,
+        StatusCode::CREATED
+    );
+    assert_eq!(
+        new_type(&app, &host, "deep-dive", None).await,
+        StatusCode::CONFLICT
+    );
+    let (status, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["host_name"], "Nino Tbilisi");
+    let listed: Vec<&str> = page["types"]
+        .as_array()
+        .expect("a list of types")
+        .iter()
+        .filter_map(|kind| kind["slug"].as_str())
+        .collect();
+    assert_eq!(listed, ["call", "deep-dive"]);
+
+    // Back on Free: the newer type stays saved but is not offered.
+    end_trial(&pool, &host).await;
+    sqlx::query_scalar!(
+        "DELETE FROM subscriptions WHERE user_unid = $1 RETURNING 1",
+        host.unid
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the plan row is gone");
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(page["types"].as_array().map(Vec::len), Some(1));
+    let (status, deep) = get(&app, &format!("/api/hosts/{slug}/types/deep-dive"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(deep["accepting_bookings"], false);
+    let (status, _) = get(
+        &app,
+        &format!("/api/hosts/{slug}/types/deep-dive/slots"),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, types) = get(&app, "/api/host/event-types", Some(&host.cookie)).await;
+    let bookable: Vec<bool> = types
+        .as_array()
+        .expect("a list of types")
+        .iter()
+        .map(|kind| kind["bookable"] == true)
+        .collect();
+    assert_eq!(bookable, [true, false]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_call_outlives_its_type_and_the_last_type_stays(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    give_business(&pool, &host).await;
+    assert_eq!(
+        new_type(&app, &host, "intro", None).await,
+        StatusCode::CREATED
+    );
+    let (_, types) = get(&app, "/api/host/event-types", Some(&host.cookie)).await;
+    let intro = types[1]["unid"].as_str().expect("the new type").to_owned();
+    let start = type_slots(&app, &slug, "intro").await[0].0;
+    let path = format!("/api/hosts/{slug}/types/intro/bookings");
+    let (status, booked) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    assert_eq!(status, StatusCode::CREATED);
+    let token = booked["manage_token"]
+        .as_str()
+        .expect("a manage link")
+        .to_owned();
+    let (_, call) = get(&app, &format!("/api/manage/{token}"), None).await;
+    assert_eq!(call["event_slug"], "intro");
+
+    let delete = |unid: String| {
+        let app = app.clone();
+        let cookie = host.cookie.clone();
+        async move {
+            send(
+                &app,
+                Method::DELETE,
+                &format!("/api/host/event-types/{unid}"),
+                Some(&cookie),
+                None,
+            )
+            .await
+            .0
+        }
+    };
+    assert_eq!(delete(intro).await, StatusCode::NO_CONTENT);
+    let (status, call) = get(&app, &format!("/api/manage/{token}"), None).await;
+    assert_eq!(status, StatusCode::OK, "the call is still there");
+    assert_eq!(
+        call["event_slug"], "call",
+        "read with the host's first type"
+    );
+
+    let first = first_type(&app, &host).await["unid"]
+        .as_str()
+        .expect("an id")
+        .to_owned();
+    assert_eq!(delete(first).await, StatusCode::CONFLICT);
 }

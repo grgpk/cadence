@@ -4,7 +4,7 @@ use axum::{
 };
 
 use super::{
-    models::{AdminHost, BookingPage, ConferencingUpdate, HostSettings},
+    models::{AdminHost, BookingPage, ConferencingUpdate, HostPage, HostSettings},
     service,
 };
 use crate::{
@@ -13,11 +13,20 @@ use crate::{
     error::AppResult,
 };
 
-pub async fn public_page(
+pub async fn host_page(
     State(state): State<AppState>,
     Path(slug): Path<String>,
+) -> AppResult<Json<HostPage>> {
+    Ok(Json(service::host_page(&state.pool, &slug).await?))
+}
+
+pub async fn type_page(
+    State(state): State<AppState>,
+    Path((slug, type_slug)): Path<(String, String)>,
 ) -> AppResult<Json<BookingPage>> {
-    Ok(Json(service::display_page(&state.pool, &slug).await?))
+    Ok(Json(
+        service::display_page(&state.pool, &slug, &type_slug).await?,
+    ))
 }
 
 pub async fn get(State(state): State<AppState>, user: AuthUser) -> AppResult<Json<HostSettings>> {

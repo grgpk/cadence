@@ -28,7 +28,7 @@ pub async fn list_all(
 
 pub async fn save(
     State(state): State<AppState>,
-    Path((slug, lead_unid)): Path<(String, Uuid)>,
+    Path((slug, type_slug, lead_unid)): Path<(String, String, Uuid)>,
     headers: HeaderMap,
     Json(update): Json<LeadUpdate>,
 ) -> AppResult<Json<Lead>> {
@@ -38,7 +38,7 @@ pub async fn save(
         &client_address(&headers),
     )
     .await?;
-    let page = host_settings::bookable_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
     Ok(Json(
         service::save(&state.pool, &page, lead_unid, update).await?,
     ))
@@ -46,7 +46,7 @@ pub async fn save(
 
 pub async fn submit(
     State(state): State<AppState>,
-    Path((slug, lead_unid)): Path<(String, Uuid)>,
+    Path((slug, type_slug, lead_unid)): Path<(String, String, Uuid)>,
     headers: HeaderMap,
     Json(body): Json<SubmitLeadRequest>,
 ) -> AppResult<Json<Lead>> {
@@ -56,7 +56,7 @@ pub async fn submit(
         &client_address(&headers),
     )
     .await?;
-    let page = host_settings::bookable_page(&state.pool, &slug).await?;
+    let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
     let lead = service::submit(
         &state.pool,
         page.host_unid,

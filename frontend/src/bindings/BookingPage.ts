@@ -4,7 +4,15 @@ import type { ConferencingApp } from "./ConferencingApp";
 /**
  * What a visitor's browser may know about a booking page.
  */
-export type BookingPage = { host_name: string, title: string, description: string, timezone: string, ask_currently_working_on: boolean, ask_how_heard_about_us: boolean, ask_what_stopping_you: boolean, ask_investment_comfort: boolean, ask_urgency_level: boolean, calendar_connected: boolean, conferencing_app: ConferencingApp, has_meeting_link: boolean, booking_window_days: number, 
+export type BookingPage = { 
+/**
+ * The type's part of the link: `/book/<host>/<event_slug>`.
+ */
+event_slug: string, 
+/**
+ * The type's own call length; `None` follows the host's hours.
+ */
+duration_minutes: number | null, host_name: string, title: string, description: string, timezone: string, ask_currently_working_on: boolean, ask_how_heard_about_us: boolean, ask_what_stopping_you: boolean, ask_investment_comfort: boolean, ask_urgency_level: boolean, calendar_connected: boolean, conferencing_app: ConferencingApp, has_meeting_link: boolean, booking_window_days: number, 
 /**
  * `false` while the host has paused the page.
  */

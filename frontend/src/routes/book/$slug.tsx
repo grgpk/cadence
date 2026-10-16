@@ -1,36 +1,42 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { RouteError } from "../../domains/shared/not-found";
-import { getBookingPage } from "../../domains/widget/cadence-api";
-import { PublicBookingPage } from "../../domains/widget/public-booking-page";
+import { getBookingPage, getHostPage } from "../../domains/widget/cadence-api";
+import {
+  HostTypesPage,
+  PublicBookingPage,
+} from "../../domains/widget/public-booking-page";
 import {
   DEFAULT_SLOT_LAYOUT,
-  isSlotLayout,
-  type SlotLayout,
+  slotViewOf,
+  slotViewSearch,
 } from "../../domains/widget/slot-days";
 import { APP_NAME } from "../../lib/config";
 import { getVisitorCountry } from "../../lib/visitor";
 
 export const Route = createFileRoute("/book/$slug")({
-  // `?view=week` or `?view=list` opens the page on that layout; month needs no value.
-  validateSearch: (search): { view?: SlotLayout } =>
-    isSlotLayout(search.view) && search.view !== DEFAULT_SLOT_LAYOUT
-      ? { view: search.view }
-      : {},
+  validateSearch: slotViewSearch,
   loader: async ({ params }) => {
-    const [country, page] = await Promise.all([
+    const [country, host] = await Promise.all([
       getVisitorCountry(),
-      getBookingPage({ data: params.slug }),
+      getHostPage({ data: params.slug }),
     ]);
-    if (!page) throw notFound();
-    return { country, page };
+    if (!host) throw notFound();
+    // With one kind of call the link opens it, as every link did before
+    // there were several.
+    const only = host.types.length === 1 ? host.types[0] : undefined;
+    const page = only
+      ? await getBookingPage({ data: { host: params.slug, type: only.slug } })
+      : null;
+    return { country, host, page };
   },
   head: ({ loaderData }) => {
     if (!loaderData) return { meta: [{ title: APP_NAME }] };
-    const { page } = loaderData;
-    const title = `${page.title} | ${page.host_name}`;
-    // The description is optional in a host's settings.
-    const description = page.description || `Book a call with ${page.host_name}.`;
+    const { host, page } = loaderData;
+    const title = page
+      ? `${page.title} | ${host.host_name}`
+      : `${host.host_name} | ${APP_NAME}`;
+    const description = page?.description || `Book a call with ${host.host_name}.`;
     return {
       meta: [
         { title },
@@ -40,26 +46,24 @@ export const Route = createFileRoute("/book/$slug")({
       ],
     };
   },
-  component: HostBookingPage,
+  component: HostLinkPage,
   errorComponent: RouteError,
 });
 
-function HostBookingPage() {
-  const { country, page } = Route.useLoaderData();
+function HostLinkPage() {
+  const { country, host, page } = Route.useLoaderData();
   const { slug } = Route.useParams();
   const { view = DEFAULT_SLOT_LAYOUT } = Route.useSearch();
   const navigate = Route.useNavigate();
+  if (!page) return <HostTypesPage slug={slug} host={host} />;
   return (
     <PublicBookingPage
-      slug={slug}
+      pageRef={{ host: slug, type: page.event_slug }}
       page={page}
       initialCountryAlpha2={country}
       layout={view}
       onLayoutChange={(next) =>
-        void navigate({
-          search: next === DEFAULT_SLOT_LAYOUT ? {} : { view: next },
-          replace: true,
-        })
+        void navigate({ search: slotViewOf(next), replace: true })
       }
     />
   );

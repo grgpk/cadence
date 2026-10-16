@@ -2,6 +2,7 @@ import { cn } from "cn";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 
+import type { PageRef } from "./cadence-api";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { useNow } from "../../hooks/use-now";
@@ -24,7 +25,7 @@ const SCROLL_INSIDE =
  * away.
  */
 export function ListSlots({
-  slug,
+  pageRef,
   timeZone,
   wording,
   windowDays,
@@ -33,7 +34,7 @@ export function ListSlots({
   onPick,
   releaseKey,
 }: {
-  slug: string;
+  pageRef: PageRef;
   timeZone: string;
   wording: SlotsWording;
   /** How far ahead the host takes bookings, for the line under the last day. */
@@ -51,7 +52,7 @@ export function ListSlots({
 
   return (
     <SlotsFrame
-      slug={slug}
+      pageRef={pageRef}
       timeZone={timeZone}
       wording={wording}
       hour12={hour12}

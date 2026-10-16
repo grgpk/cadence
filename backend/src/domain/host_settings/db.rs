@@ -1,16 +1,15 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{AdminHost, BookingPage, ConferencingApp, HostSettings};
+use super::models::{AdminHost, BookingPage, ConferencingApp, EventTypeCard, HostSettings};
 use crate::domain::auth::models::UserStatus;
 
 pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
-                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
-                minimum_notice_hours, booking_window_days, buffer_minutes, is_active
-         FROM widget_settings WHERE host_unid = $1",
+        r#"SELECT public_slug, timezone, meeting_link,
+                  conferencing_app AS "conferencing_app: ConferencingApp", is_active
+           FROM widget_settings WHERE host_unid = $1"#,
         host_unid,
     )
     .fetch_optional(pool)
@@ -26,11 +25,10 @@ pub async fn insert(
 ) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)
-         ON CONFLICT (host_unid) DO NOTHING
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
-                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
-                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+        r#"INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)
+           ON CONFLICT (host_unid) DO NOTHING
+           RETURNING public_slug, timezone, meeting_link,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
         host_unid,
         public_slug,
         timezone,
@@ -46,29 +44,14 @@ pub async fn update(
 ) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "UPDATE widget_settings SET public_slug = $2, title = $3, description = $4, timezone = $5,
-                ask_currently_working_on = $6, ask_how_heard_about_us = $7, ask_what_stopping_you = $8,
-                ask_investment_comfort = $9, ask_urgency_level = $10,
-                minimum_notice_hours = $11, booking_window_days = $12, is_active = $13,
-                buffer_minutes = $14, updated_at = now()
-         WHERE host_unid = $1
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
-                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
-                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+        r#"UPDATE widget_settings SET public_slug = $2, timezone = $3, is_active = $4, updated_at = now()
+           WHERE host_unid = $1
+           RETURNING public_slug, timezone, meeting_link,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
         host_unid,
         settings.public_slug,
-        settings.title,
-        settings.description,
         settings.timezone,
-        settings.ask_currently_working_on,
-        settings.ask_how_heard_about_us,
-        settings.ask_what_stopping_you,
-        settings.ask_investment_comfort,
-        settings.ask_urgency_level,
-        settings.minimum_notice_hours,
-        settings.booking_window_days,
         settings.is_active,
-        settings.buffer_minutes,
     )
     .fetch_optional(pool)
     .await
@@ -84,11 +67,10 @@ pub async fn set_conferencing(
 ) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()
-         WHERE host_unid = $1
-         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app AS \"conferencing_app: ConferencingApp\", ask_currently_working_on, ask_how_heard_about_us,
-                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
-                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+        r#"UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()
+           WHERE host_unid = $1
+           RETURNING public_slug, timezone, meeting_link,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
         host_unid,
         app.as_str(),
         meeting_link,
@@ -97,32 +79,111 @@ pub async fn set_conferencing(
     .await
 }
 
-/// The page of an active host, found by its link or by its host; pass one of
-/// the two. A paused page is returned too.
-pub async fn find_page(
+/// One kind of call on an active host's link. A paused page or type is
+/// returned too, with `accepting_bookings` off.
+pub async fn find_type_page(
     pool: &PgPool,
-    public_slug: Option<&str>,
-    host_unid: Option<Uuid>,
+    public_slug: &str,
+    type_slug: &str,
 ) -> Result<Option<BookingPage>, sqlx::Error> {
     sqlx::query_as!(
         BookingPage,
-        r#"SELECT w.host_unid, u.email AS host_email, w.public_slug, u.full_name AS host_name,
-                  w.title, w.description, w.timezone,
-                  w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,
-                  w.ask_investment_comfort, w.ask_urgency_level,
+        r#"SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,
+                  (SELECT count(*) FROM event_types o
+                   WHERE o.host_unid = e.host_unid AND o.is_active
+                     AND (o.created_at, o.unid) < (e.created_at, e.unid)) AS "type_rank!",
+                  u.email AS host_email, w.public_slug, u.full_name AS host_name,
+                  e.title, e.description, w.timezone,
+                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,
+                  e.ask_investment_comfort, e.ask_urgency_level,
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
                   w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
-                  w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,
-                  w.is_active AS accepting_bookings,
+                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
+                  (w.is_active AND e.is_active) AS "accepting_bookings!",
                   -- Set from the host's plan by the service.
                   false AS "full!", true AS "show_branding!"
-           FROM widget_settings w JOIN users u ON u.unid = w.host_unid
-           WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3"#,
+           FROM widget_settings w
+           JOIN users u ON u.unid = w.host_unid
+           JOIN event_types e ON e.host_unid = w.host_unid
+           WHERE w.public_slug = $1 AND e.slug = $2 AND u.status = $3"#,
         public_slug,
-        host_unid,
+        type_slug,
         UserStatus::Active.as_str(),
     )
     .fetch_optional(pool)
+    .await
+}
+
+/// The page a call was booked through: its own type, or the host's first
+/// type when its own was deleted. Paused or not.
+pub async fn page_of_booking(
+    pool: &PgPool,
+    booking_unid: Uuid,
+) -> Result<Option<BookingPage>, sqlx::Error> {
+    sqlx::query_as!(
+        BookingPage,
+        r#"SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,
+                  0::bigint AS "type_rank!",
+                  u.email AS host_email, w.public_slug, u.full_name AS host_name,
+                  e.title, e.description, w.timezone,
+                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,
+                  e.ask_investment_comfort, e.ask_urgency_level,
+                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
+                  w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
+                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
+                  -- A call already booked can move while its type is off.
+                  w.is_active AS accepting_bookings,
+                  false AS "full!", true AS "show_branding!"
+           FROM bookings b
+           JOIN widget_settings w ON w.host_unid = b.host_unid
+           JOIN users u ON u.unid = w.host_unid
+           JOIN LATERAL (
+               SELECT * FROM event_types t WHERE t.host_unid = b.host_unid
+               ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid
+               LIMIT 1
+           ) e ON true
+           WHERE b.unid = $1 AND u.status = $2"#,
+        booking_unid,
+        UserStatus::Active.as_str(),
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Who an active host's link belongs to.
+pub struct HostRow {
+    pub host_unid: Uuid,
+    pub host_name: String,
+    pub is_active: bool,
+    pub calendar_connected: bool,
+}
+
+pub async fn find_host(pool: &PgPool, public_slug: &str) -> Result<Option<HostRow>, sqlx::Error> {
+    sqlx::query_as!(
+        HostRow,
+        r#"SELECT w.host_unid, u.full_name AS host_name, w.is_active,
+                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!"
+           FROM widget_settings w JOIN users u ON u.unid = w.host_unid
+           WHERE w.public_slug = $1 AND u.status = $2"#,
+        public_slug,
+        UserStatus::Active.as_str(),
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// The host's active kinds of call, oldest first.
+pub async fn active_types(
+    pool: &PgPool,
+    host_unid: Uuid,
+) -> Result<Vec<EventTypeCard>, sqlx::Error> {
+    sqlx::query_as!(
+        EventTypeCard,
+        "SELECT slug, title, description, duration_minutes FROM event_types
+         WHERE host_unid = $1 AND is_active ORDER BY created_at, unid",
+        host_unid,
+    )
+    .fetch_all(pool)
     .await
 }
 

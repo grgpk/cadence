@@ -22,6 +22,7 @@ import {
   managedBookingQuery,
   refreshOpenTimes,
   rescheduleManagedBooking,
+  type PageRef,
 } from "../widget/cadence-api";
 import { bookingFailure } from "../widget/booking-session";
 import { DEFAULT_SLOT_LAYOUT, type SlotLayout } from "../widget/slot-days";
@@ -59,14 +60,14 @@ function Reschedule({
     mutationFn: (slot: TimeSlot) => rescheduleManagedBooking(token, slot.start),
     onSuccess: async (moved) => {
       queryClient.setQueryData(QUERY_KEYS.managedBooking(token), moved);
-      await refreshOpenTimes(queryClient, booking.slug);
+      await refreshOpenTimes(queryClient, pageRefOf(booking));
       toast.success("Call rescheduled");
       onDone();
     },
     onError: async (error) => {
       setPickKey((key) => key + 1);
       // The time may have just been taken, so the cached times can no longer be trusted.
-      await refreshOpenTimes(queryClient, booking.slug);
+      await refreshOpenTimes(queryClient, pageRefOf(booking));
       toast.error(
         bookingFailure(error) === "taken"
           ? "That time was just taken. Pick another one."
@@ -90,7 +91,7 @@ function Reschedule({
         className="overflow-hidden rounded-2xl border bg-card"
       >
         <SlotPicker
-          slug={booking.slug}
+          pageRef={pageRefOf(booking)}
           timeZone={booking.timezone}
           layout={layout}
           hour12={hour12}
@@ -134,6 +135,11 @@ function Reschedule({
 }
 
 /** A call as the person who booked it sees it: when it is, and how to move or cancel it. */
+/** The kind of call a booking was made with, on its host's link. */
+function pageRefOf(booking: ManagedBooking): PageRef {
+  return { host: booking.slug, type: booking.event_slug };
+}
+
 export function ManageBookingPage({ token }: { token: string }) {
   const queryClient = useQueryClient();
   const query = useQuery({
@@ -164,7 +170,7 @@ export function ManageBookingPage({ token }: { token: string }) {
       setRescheduling(false);
       toast.success("Call cancelled");
       // The time it held is open again.
-      await refreshOpenTimes(queryClient, cancelled.slug);
+      await refreshOpenTimes(queryClient, pageRefOf(cancelled));
     },
     onError: (error) => toast.error(`The call was not cancelled. ${errorMessage(error)}`),
   });
