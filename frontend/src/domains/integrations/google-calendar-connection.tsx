@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
 import { Button } from "../../components/ui/button";
@@ -13,6 +13,7 @@ import {
 } from "../dashboard/host-api";
 import { ConfirmDialog } from "../shared/confirm-dialog";
 import { bookingPageQuery } from "../widget/cadence-api";
+import { GoogleCalendarIcon } from "./google-calendar-icon";
 
 /** The host's Google Calendar link: its state and the one action that changes it. */
 export function GoogleCalendarConnection({ slug }: { slug: string }) {
@@ -43,9 +44,8 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
   const disconnectButton = (
     <Button
       type="button"
-      variant="outline"
+      variant="ghost"
       size="sm"
-      className="ml-auto"
       onClick={() => setConfirming(true)}
       disabled={disconnect.isPending}
     >
@@ -54,54 +54,70 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
     </Button>
   );
 
+  let status: ReactNode;
+  let actions: ReactNode;
+  if (events.isPending || (events.isError && page.isPending)) {
+    status = <Skeleton className="h-4 w-40" />;
+    actions = <Skeleton className="h-8 w-24" />;
+  } else if (events.isSuccess) {
+    status = (
+      <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="inline-flex items-center gap-1.5 font-medium text-success">
+          <CheckCircle2 className="size-4 motion-safe:animate-in motion-safe:zoom-in-50 motion-safe:fade-in motion-safe:duration-300" />
+          Connected
+        </span>
+        <span className="text-muted-foreground tabular-nums">
+          {events.data.length} {events.data.length === 1 ? "event" : "events"} in the next
+          7 days
+        </span>
+      </span>
+    );
+    actions = disconnectButton;
+  } else if (page.data?.calendar_connected) {
+    status = (
+      <span className="inline-flex items-center gap-1.5 font-medium text-warning">
+        <AlertTriangle className="size-4" />
+        Connected, but Google did not answer
+      </span>
+    );
+    actions = (
+      <>
+        {disconnectButton}
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => connect.mutate()}
+          disabled={connect.isPending}
+        >
+          {connectIcon}
+          Reconnect
+        </Button>
+      </>
+    );
+  } else {
+    status = (
+      <span className="text-muted-foreground">
+        Not connected. Your busy times are not checked.
+      </span>
+    );
+    actions = (
+      <Button type="button" onClick={() => connect.mutate()} disabled={connect.isPending}>
+        {connectIcon}
+        {connect.isPending ? "Opening Google" : "Connect"}
+      </Button>
+    );
+  }
+
   return (
-    <>
-      <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2">
-        {events.isPending || (events.isError && page.isPending) ? (
-          <Skeleton className="h-9 w-48" />
-        ) : events.isSuccess ? (
-          <>
-            <span className="inline-flex items-center gap-2 text-sm font-medium text-success">
-              <CheckCircle2 className="size-4" />
-              Connected
-            </span>
-            <span className="text-sm text-muted-foreground tabular-nums">
-              {events.data.length} {events.data.length === 1 ? "event" : "events"} in the
-              next 7 days
-            </span>
-            {disconnectButton}
-          </>
-        ) : page.data?.calendar_connected ? (
-          <>
-            <span className="inline-flex items-center gap-2 text-sm font-medium text-warning">
-              <AlertTriangle className="size-4" />
-              Connected, but Google did not answer
-            </span>
-            <Button
-              type="button"
-              size="sm"
-              onClick={() => connect.mutate()}
-              disabled={connect.isPending}
-            >
-              {connectIcon}
-              Reconnect
-            </Button>
-            {disconnectButton}
-          </>
-        ) : (
-          <>
-            <Button
-              type="button"
-              onClick={() => connect.mutate()}
-              disabled={connect.isPending}
-            >
-              {connectIcon}
-              Connect Google Calendar
-            </Button>
-            <p className="text-sm text-muted-foreground">Not connected</p>
-          </>
-        )}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+      <span className="grid size-10 shrink-0 place-items-center rounded-lg border bg-card shadow-xs">
+        <GoogleCalendarIcon />
+      </span>
+      <div className="min-w-0 flex-1 basis-56">
+        <p className="font-semibold">Google Calendar</p>
+        <div className="mt-0.5 text-sm">{status}</div>
       </div>
+      <div className="flex items-center gap-2">{actions}</div>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
@@ -111,6 +127,6 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
         destructive
         onConfirm={() => disconnect.mutate()}
       />
-    </>
+    </div>
   );
 }

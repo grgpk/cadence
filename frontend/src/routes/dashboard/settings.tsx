@@ -6,7 +6,6 @@ import { toast } from "sonner";
 
 import type { HostSettings } from "../../bindings/HostSettings";
 import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
@@ -21,6 +20,7 @@ import { ConfirmDialog } from "../../domains/shared/confirm-dialog";
 import { ErrorState } from "../../domains/shared/error-state";
 import { Field, fieldHelpId } from "../../domains/shared/field";
 import { PageHeader } from "../../domains/shared/page-header";
+import { PanelCard } from "../../domains/shared/panel-card";
 import {
   ALL_COUNTRY_TIMEZONES,
   detectBrowserCountryTimezone,
@@ -70,13 +70,9 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <Card id={id} className="scroll-mt-16 gap-0 overflow-hidden py-0">
-      <div className="border-b px-5 py-3.5">
-        <h2 className="font-semibold">{SECTION_TITLES[id]}</h2>
-        <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
-      </div>
-      <div className="grid gap-5 p-5">{children}</div>
-    </Card>
+    <PanelCard id={id} title={SECTION_TITLES[id]} description={description}>
+      {children}
+    </PanelCard>
   );
 }
 

@@ -24,26 +24,35 @@ Apple Calendar, Zoom and Microsoft Teams are shown as coming soon.
 ```
 ┌──────────────┬──────────────────────────────────────────────┐
 │ Overview     │ Integrations                                 │
-│ Bookings     │                                              │
-│ Availability │ Calendars                                    │
-│ Integrations │ ┌───────────────────┐ ┌───────────────────┐  │
-│ Settings     │ │ Google Calendar   │ │ Outlook Calendar  │  │
-│              │ │ ● Connected · 4   │ │ Coming soon       │  │
-│              │ └───────────────────┘ └───────────────────┘  │
-│              │ ┌───────────────────┐                        │
-│              │ │ Apple Calendar    │                        │
-│              │ └───────────────────┘                        │
-│              │ Conferencing                                 │
-│              │ ┌──────────────────────────────────────────┐ │
-│              │ │ Default meeting app                      │ │
-│              │ │ ◉ Google Meet      ○ Your own link       │ │
-│              │ │ Meeting link [https://…]         [Save]  │ │
+│ Bookings     │ ┌ When someone books you ──────────────────┐ │
+│ Availability │ │ [31] Google Calendar ━━━━━ [▶] Google Meet│ │
+│ Integrations │ │ busy times blocked     a new link per call│ │
+│ Settings     │ └──────────────────────────────────────────┘ │
+│              │ ┌ Calendar ────────────────────────────────┐ │
+│              │ │ [31] Google Calendar  ✓ Connected · 4    │ │
+│              │ │                            [Disconnect]  │ │
+│              │ │ Coming soon (Outlook) (Apple Calendar)   │ │
 │              │ └──────────────────────────────────────────┘ │
-│              │ ┌───────────────────┐ ┌───────────────────┐  │
-│              │ │ Zoom  Coming soon │ │ Teams Coming soon │  │
-│              │ └───────────────────┘ └───────────────────┘  │
+│              │ ┌ Meeting app ─────────────────────────────┐ │
+│              │ │ ┌ Google Meet   ◉ ┐ ┌ Your own link  ○ ┐  │ │
+│              │ │ Backup link [https://…]                  │ │
+│              │ │ [Unsaved changes      Discard  Save]     │ │
+│              │ │ Coming soon (Zoom) (Microsoft Teams)     │ │
+│              │ └──────────────────────────────────────────┘ │
 └──────────────┴──────────────────────────────────────────────┘
 ```
+
+The call-flow strip at the top is the one visual moment. When a calendar is
+connected and calls have a place, its rail draws in once with `bar-grow`. It
+is dashed while either end is missing, and it shows a warning when people
+would get no link. The other motion responds to what the host does:
+
+- the "Connected" check pops in
+- the picked meeting-app tile highlights
+- the no-calendar warning slides in
+- the unsaved-changes bar rises, as on Settings
+
+All of it is off under reduced motion.
 
 ## Data model
 
@@ -95,8 +104,9 @@ Integrations page and the overview "Calls" row say so.
   `routes/dashboard/integrations.tsx`.
 - `domains/integrations/` holds:
   - `catalog.ts`: the coming-soon apps
-  - `integration-card.tsx`
-  - `conferencing-form.tsx`
+  - `call-flow.tsx`, `coming-soon.tsx`
+  - `conferencing-form.tsx`, with the Settings-style unsaved bar and leave guard
+  - `google-calendar-icon.tsx`
   - `conferencing.ts`: `CONFERENCING_APP` and `callPlace`
   - `google-meet-icon.tsx`
   - `google-calendar-connection.tsx`, moved from `domains/dashboard/`
@@ -105,6 +115,8 @@ Integrations page and the overview "Calls" row say so.
 - Settings loses the "Where calls happen" section and its anchor. The overview
   "Calls" row links to Integrations.
 - The booking widget labels the call through `callPlace`.
+- `domains/shared/panel-card.tsx` is the titled card that Settings sections
+  and the Integrations panels share.
 
 ## Left alone
 
