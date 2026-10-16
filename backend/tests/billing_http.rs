@@ -16,10 +16,11 @@ use cadence_backend::{
         auth::service::make_token,
         billing::{
             plans::{BillingInterval, Plan},
-            stripe::{Payments, PriceIds, sign},
+            stripe::{Payments, PriceIds},
         },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
+    signature::sign,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde_json::{Value, json};

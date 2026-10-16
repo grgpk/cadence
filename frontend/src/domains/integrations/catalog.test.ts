@@ -28,6 +28,8 @@ describe("isInstalled", () => {
     expect(isInstalled(APP_SLUG.customLink, MEET, false)).toBe(false);
     expect(isInstalled(APP_SLUG.customLink, LINK, false)).toBe(true);
     expect(isInstalled(APP_SLUG.googleMeet, LINK, true)).toBe(false);
+    expect(isInstalled(APP_SLUG.webhooks, MEET, false)).toBe(false);
+    expect(isInstalled(APP_SLUG.webhooks, MEET, false, 2)).toBe(true);
   });
 
   it("does not count a custom link with no link", () => {

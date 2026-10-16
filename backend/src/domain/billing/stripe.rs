@@ -2,23 +2,21 @@
 //! signature on the events Stripe sends back. Stripe in production; a fake
 //! that answers with made-up URLs in tests.
 //!
-//! Two form-encoded calls and one HMAC do not need a Stripe SDK.
+//! Two form-encoded calls and one HMAC (`crate::signature`) do not need a
+//! Stripe SDK.
 
 use std::{env, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
-use sha2::Sha256;
 use thiserror::Error;
 use uuid::Uuid;
 
 use super::plans::{BillingInterval, Plan};
+use crate::signature::{self, BadSignature};
 
 const API: &str = "https://api.stripe.com/v1";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
-/// How old a signed event may be, against replays.
-const SIGNATURE_TOLERANCE_SECONDS: i64 = 300;
 
 #[derive(Debug, Error)]
 pub enum PaymentsError {
@@ -27,10 +25,6 @@ pub enum PaymentsError {
     #[error("no stripe price for this plan")]
     NoPrice,
 }
-
-#[derive(Debug, Error, PartialEq, Eq)]
-#[error("the stripe signature does not match")]
-pub struct BadSignature;
 
 /// One Stripe price for each paid plan and interval.
 #[derive(Clone, Debug)]
@@ -195,7 +189,7 @@ impl Payments {
         header: &str,
         now: DateTime<Utc>,
     ) -> Result<(), BadSignature> {
-        verify_signature(&self.webhook_secret, payload, header, now)
+        signature::verify(&self.webhook_secret, payload, header, now)
     }
 }
 
@@ -226,122 +220,9 @@ async fn post(
         .map_err(|error| PaymentsError::Request(error.into()))
 }
 
-/// Stripe's scheme: `t=<unix seconds>,v1=<hex HMAC-SHA256 of "t.body">`,
-/// possibly with several `v1` values while a secret is being rolled.
-fn verify_signature(
-    secret: &str,
-    payload: &[u8],
-    header: &str,
-    now: DateTime<Utc>,
-) -> Result<(), BadSignature> {
-    let mut timestamp = None;
-    let mut signatures = Vec::new();
-    for part in header.split(',') {
-        match part.trim().split_once('=') {
-            Some(("t", value)) => timestamp = value.parse::<i64>().ok(),
-            Some(("v1", value)) => signatures.push(value),
-            _ => {}
-        }
-    }
-    let timestamp = timestamp.ok_or(BadSignature)?;
-    if (now.timestamp() - timestamp).abs() > SIGNATURE_TOLERANCE_SECONDS {
-        return Err(BadSignature);
-    }
-    let matches = |signature: &&str| {
-        let Ok(expected) = hex::decode(signature) else {
-            return false;
-        };
-        let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret.as_bytes()) else {
-            return false;
-        };
-        mac.update(timestamp.to_string().as_bytes());
-        mac.update(b".");
-        mac.update(payload);
-        mac.verify_slice(&expected).is_ok()
-    };
-    if signatures.iter().any(matches) {
-        Ok(())
-    } else {
-        Err(BadSignature)
-    }
-}
-
-/// Signs `payload` as Stripe would, for tests that send events.
-pub fn sign(secret: &str, payload: &[u8], at: DateTime<Utc>) -> String {
-    let timestamp = at.timestamp();
-    let signature = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).map_or_else(
-        |_| String::new(),
-        |mut mac| {
-            mac.update(timestamp.to_string().as_bytes());
-            mac.update(b".");
-            mac.update(payload);
-            hex::encode(mac.finalize().into_bytes())
-        },
-    );
-    format!("t={timestamp},v1={signature}")
-}
-
 #[cfg(test)]
 mod tests {
-    use chrono::TimeZone;
-
     use super::*;
-
-    const SECRET: &str = "whsec_test_secret";
-    const PAYLOAD: &[u8] = br#"{"id":"evt_1"}"#;
-    /// HMAC-SHA256 of `1700000000.{"id":"evt_1"}`, computed outside Rust.
-    const SIGNATURE: &str = "248a374f50f943a28b0f6ab50faf9a7e7e29b710fa26df9fb1618b9bf8ea9c9a";
-
-    fn at(seconds: i64) -> DateTime<Utc> {
-        Utc.timestamp_opt(seconds, 0).single().unwrap_or_default()
-    }
-
-    #[test]
-    fn a_known_signature_verifies() {
-        let header = format!("t=1700000000,v1={SIGNATURE}");
-        assert_eq!(
-            verify_signature(SECRET, PAYLOAD, &header, at(1_700_000_010)),
-            Ok(())
-        );
-    }
-
-    #[test]
-    fn any_v1_may_match_while_secrets_roll() {
-        let header = format!("t=1700000000,v1=00ff,v1={SIGNATURE},v0=abc");
-        assert_eq!(
-            verify_signature(SECRET, PAYLOAD, &header, at(1_700_000_000)),
-            Ok(())
-        );
-    }
-
-    #[test]
-    fn a_changed_body_an_old_event_or_no_timestamp_is_refused() {
-        let header = format!("t=1700000000,v1={SIGNATURE}");
-        let now = at(1_700_000_000);
-        assert_eq!(
-            verify_signature(SECRET, b"{}", &header, now),
-            Err(BadSignature)
-        );
-        assert_eq!(
-            verify_signature(SECRET, PAYLOAD, &header, at(1_700_000_301)),
-            Err(BadSignature)
-        );
-        assert_eq!(
-            verify_signature(SECRET, PAYLOAD, &format!("v1={SIGNATURE}"), now),
-            Err(BadSignature)
-        );
-        assert_eq!(
-            verify_signature("whsec_other", PAYLOAD, &header, now),
-            Err(BadSignature)
-        );
-    }
-
-    #[test]
-    fn sign_matches_verify() {
-        let now = Utc::now();
-        let header = sign(SECRET, PAYLOAD, now);
-        assert_eq!(verify_signature(SECRET, PAYLOAD, &header, now), Ok(()));
-    }
 
     #[test]
     fn prices_map_both_ways() {

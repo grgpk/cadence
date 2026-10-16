@@ -21,6 +21,7 @@ use crate::{
             service as host_settings,
         },
         leads::service as leads,
+        webhooks::{models::WebhookEvent, service as webhooks},
     },
     error::{AppError, AppResult},
     validation::is_valid_email,
@@ -134,6 +135,15 @@ pub async fn create(
         now,
     )
     .await?;
+    if entitlements.webhooks {
+        webhooks::booking_event(
+            &mut transaction,
+            WebhookEvent::BookingCreated,
+            &booking,
+            page,
+        )
+        .await?;
+    }
     transaction.commit().await?;
     billing::notice_if_full(
         pool,
@@ -191,13 +201,24 @@ async fn cancel_call(
     cancelled_by: CancelledBy,
 ) -> AppResult<Booking> {
     ensure_can_change(booking)?;
+    let now = Utc::now();
+    let entitlements = billing::entitlements_for(pool, booking.host_unid, now).await?;
 
     let mut transaction = pool.begin().await?;
     // Another request may have cancelled it since it was read.
     let Some(booking) = db::cancel(&mut transaction, booking.host_unid, booking.unid).await? else {
         return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
     };
-    emails::cancelled(&mut transaction, &booking, page, cancelled_by, Utc::now()).await?;
+    emails::cancelled(&mut transaction, &booking, page, cancelled_by, now).await?;
+    if entitlements.webhooks {
+        webhooks::booking_event(
+            &mut transaction,
+            WebhookEvent::BookingCancelled,
+            &booking,
+            page,
+        )
+        .await?;
+    }
     transaction.commit().await?;
 
     // The call is cancelled either way; a stale calendar event must not undo
@@ -280,6 +301,15 @@ pub async fn reschedule(
         now,
     )
     .await?;
+    if entitlements.webhooks {
+        webhooks::booking_event(
+            &mut transaction,
+            WebhookEvent::BookingRescheduled,
+            &booking,
+            &page,
+        )
+        .await?;
+    }
     transaction.commit().await?;
 
     // The call has moved either way; the calendar follows when it can.

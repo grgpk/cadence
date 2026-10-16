@@ -32,6 +32,9 @@ use cadence_backend::domain::{
     },
     leads::models::{Lead, LeadQualification, LeadUpdate, SubmitLeadRequest},
     roleaccesses::models::{AdminRoleAccess, RoleAccess},
+    webhooks::models::{
+        WebhookDelivery, WebhookEndpoint, WebhookEndpointInput, WebhookEndpointUpdate, WebhookEvent,
+    },
 };
 use ts_rs::TS;
 
@@ -106,6 +109,11 @@ fn export_bindings() {
         ("StartCheckout", StartCheckout::export()),
         ("RedirectUrl", RedirectUrl::export()),
         ("AdminPlan", AdminPlan::export()),
+        ("WebhookEvent", WebhookEvent::export()),
+        ("WebhookEndpoint", WebhookEndpoint::export()),
+        ("WebhookEndpointInput", WebhookEndpointInput::export()),
+        ("WebhookEndpointUpdate", WebhookEndpointUpdate::export()),
+        ("WebhookDelivery", WebhookDelivery::export()),
         ("CompPlan", CompPlan::export()),
     ];
     for (name, export) in exports {

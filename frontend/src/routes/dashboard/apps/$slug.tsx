@@ -21,6 +21,9 @@ import {
 import { callPlace } from "../../../domains/integrations/conferencing";
 import { ConferencingForm } from "../../../domains/integrations/conferencing-form";
 import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
+import { webhooksQuery } from "../../../domains/integrations/webhooks-api";
+import { WebhooksPanel } from "../../../domains/integrations/webhooks-panel";
+import { PLAN_NAMES } from "../../../domains/pricing/pricing";
 import { ErrorState } from "../../../domains/shared/error-state";
 import { PanelCard } from "../../../domains/shared/panel-card";
 import { hostPageQuery } from "../../../domains/widget/cadence-api";
@@ -42,6 +45,7 @@ function AppDetailsPage() {
   const settings = useQuery(hostSettingsQuery);
   const slug = settings.data?.public_slug;
   const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const webhooks = useQuery(webhooksQuery);
   if (!app) return null;
   const calendarConnected = page.data?.calendar_connected ?? false;
   const loading = settings.isPending || Boolean(slug && page.isPending);
@@ -66,7 +70,12 @@ function AppDetailsPage() {
             {settings.data ? (
               <AppStatus
                 app={app}
-                installed={isInstalled(app.slug, settings.data, calendarConnected)}
+                installed={isInstalled(
+                  app.slug,
+                  settings.data,
+                  calendarConnected,
+                  webhooks.data?.length,
+                )}
               />
             ) : null}
           </div>
@@ -97,6 +106,13 @@ function AppDetailsPage() {
               error={settings.error}
               onRetry={() => void settings.refetch()}
             />
+          ) : app.category === APP_CATEGORY.automation ? (
+            <PanelCard
+              title="Your webhooks"
+              description="Up to five URLs on your own servers. Each one hears about every call."
+            >
+              <WebhooksPanel />
+            </PanelCard>
           ) : (
             <>
               <CallFlow
@@ -155,7 +171,7 @@ function About({
       <p className="leading-relaxed">{app.description}</p>
       <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5">
         <dt className="text-muted-foreground">Price</dt>
-        <dd>Free</dd>
+        <dd>{app.plan ? `With ${PLAN_NAMES[app.plan]}` : "Free"}</dd>
         <dt className="text-muted-foreground">Category</dt>
         <dd>{CATEGORY_INFO[app.category].name}</dd>
         {required ? (

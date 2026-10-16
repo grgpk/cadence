@@ -7,6 +7,7 @@ import { Skeleton } from "../../../components/ui/skeleton";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
 import { CallFlow } from "../../../domains/integrations/call-flow";
 import { APP_CATEGORY, type AppCategory } from "../../../domains/integrations/catalog";
+import { WebhooksPanel } from "../../../domains/integrations/webhooks-panel";
 import { callPlace } from "../../../domains/integrations/conferencing";
 import { ConferencingForm } from "../../../domains/integrations/conferencing-form";
 import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
@@ -85,6 +86,14 @@ function InstalledAppsPage() {
               saved={settings.data}
               calendarConnected={page.data?.calendar_connected ?? false}
             />
+          </PanelCard>
+
+          <PanelCard
+            title="Webhooks"
+            description="Your own servers hear about every booked, moved and cancelled call."
+            footer={<MoreApps category={APP_CATEGORY.automation} />}
+          >
+            <WebhooksPanel />
           </PanelCard>
         </div>
       )}

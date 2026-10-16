@@ -124,7 +124,7 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
   },
   {
     title: "Automation",
-    rows: [{ label: "Webhooks", soon: true, value: (e) => e.webhooks }],
+    rows: [{ label: "Webhooks", value: (e) => e.webhooks }],
   },
 ];
 
@@ -145,7 +145,7 @@ export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
   business: [
     "Everything in Pro",
     "Several kinds of call on one link",
-    "Webhooks for your tools (soon)",
+    "Webhooks for your own tools",
   ],
 };
 

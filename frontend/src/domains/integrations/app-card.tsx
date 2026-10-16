@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { Check, ChevronRight, Link as LinkIcon } from "lucide-react";
+import { Check, ChevronRight, Link as LinkIcon, Webhook } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
 import { ROUTES } from "../../lib/routes";
@@ -167,9 +167,27 @@ function ConferencingSketch() {
   );
 }
 
+/** A booked call, posted on to the host's own server. */
+function AutomationSketch() {
+  return (
+    <div aria-hidden="true" className="flex h-9 items-center gap-2">
+      <span className="flex h-full shrink-0 flex-col justify-center rounded-sm border-l-4 border-noon bg-primary px-2 text-[0.6875rem] leading-tight text-primary-foreground">
+        <span className="font-semibold">Ana</span>
+        <span className="text-clock opacity-80">10:00</span>
+      </span>
+      <span className="h-px flex-1 border-t border-dashed border-foreground/40" />
+      <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-full border bg-card px-2.5 font-mono text-xs text-muted-foreground">
+        <Webhook className="size-3 shrink-0" />
+        <span className="truncate">POST /hooks/cadence</span>
+      </span>
+    </div>
+  );
+}
+
 const SKETCHES = {
   [APP_CATEGORY.calendar]: CalendarSketch,
   [APP_CATEGORY.conferencing]: ConferencingSketch,
+  [APP_CATEGORY.automation]: AutomationSketch,
 };
 
 /** A category of apps, picked to show only its apps. */

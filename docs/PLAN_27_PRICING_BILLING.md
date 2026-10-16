@@ -34,7 +34,7 @@ What the exploration found:
 | "Booked with Cadence" badge | shown | hidden | hidden |
 | Google Calendar, Meet, own link, date overrides, reschedule/cancel links | yes | yes | yes |
 | Event types | 1 | 1 | unlimited (Plan 28, done) |
-| Webhooks | – | – | yes (Plan 29) |
+| Webhooks | – | – | yes (Plan 29, done) |
 
 ## Data model: `migrations/0017_create_subscriptions.sql` (new tables only)
 

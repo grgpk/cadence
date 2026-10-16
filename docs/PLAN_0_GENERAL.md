@@ -113,7 +113,7 @@ cadence/
 | 26 | `PLAN_26_SLOT_PICKER.md` | one slot picker for booking and rescheduling: month, week and list on both pages, one pick and set of states, one 12h/24h choice | 🔄 in progress |
 | 27 | `PLAN_27_PRICING_BILLING.md` | public pricing page, Free/Pro/Business, Stripe checkout and portal, 14-day Pro trial, plan limits enforced, billing page | 🔄 in progress |
 | 28 | `PLAN_28_EVENT_TYPES.md` | several event types per host, `/book/$slug/$type`, Business only | 🔄 in progress |
-| 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | 📅 planned |
+| 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

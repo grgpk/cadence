@@ -32,7 +32,10 @@ async fn main() -> anyhow::Result<()> {
     info!("Migrations done ✔");
 
     let (shutdown, shutdown_seen) = tokio::sync::watch::channel(false);
-    let worker = cadence_backend::domain::emails::worker::start(pool.clone(), shutdown_seen);
+    let worker =
+        cadence_backend::domain::emails::worker::start(pool.clone(), shutdown_seen.clone());
+    let webhook_worker =
+        cadence_backend::domain::webhooks::worker::start(pool.clone(), shutdown_seen);
 
     let cors_origins: Vec<HeaderValue> = env::var("CORS_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000".to_owned())
@@ -80,9 +83,10 @@ async fn main() -> anyhow::Result<()> {
         .with_graceful_shutdown(shutdown_signal())
         .await?;
 
-    // Requests are done; let the email worker finish what it is sending.
+    // Requests are done; let the workers finish what they are sending.
     let _ = shutdown.send(true);
     let _ = worker.await;
+    let _ = webhook_worker.await;
     info!("Stopped");
     Ok(())
 }

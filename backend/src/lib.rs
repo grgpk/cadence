@@ -1,6 +1,7 @@
 pub mod app_state;
 pub mod domain;
 pub mod error;
+pub mod signature;
 mod text_column;
 pub mod tracing_bugreport_layer;
 pub mod tracing_setup;
@@ -29,6 +30,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::google_calendar::routes::protected_routes())
         .merge(domain::host_settings::routes::protected_routes())
         .merge(domain::roleaccesses::routes::protected_routes())
+        .merge(domain::webhooks::routes::protected_routes())
         .layer(middleware::from_fn(require_auth));
 
     let public = Router::new()

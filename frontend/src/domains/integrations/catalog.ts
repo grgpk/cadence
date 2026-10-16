@@ -1,7 +1,8 @@
-import { CalendarDays, Link as LinkIcon, Video } from "lucide-react";
+import { CalendarDays, Link as LinkIcon, Video, Webhook } from "lucide-react";
 import type { ComponentType } from "react";
 
 import type { HostSettings } from "../../bindings/HostSettings";
+import type { Plan } from "../../bindings/Plan";
 import { CONFERENCING_APP } from "./conferencing";
 import { GoogleCalendarIcon } from "./google-calendar-icon";
 import { GoogleMeetIcon } from "./google-meet-icon";
@@ -9,6 +10,7 @@ import { GoogleMeetIcon } from "./google-meet-icon";
 export const APP_CATEGORY = {
   calendar: "calendar",
   conferencing: "conferencing",
+  automation: "automation",
 } as const;
 
 export type AppCategory = (typeof APP_CATEGORY)[keyof typeof APP_CATEGORY];
@@ -27,6 +29,11 @@ export const CATEGORY_INFO: Record<
     description: "Where your calls happen.",
     icon: Video,
   },
+  [APP_CATEGORY.automation]: {
+    name: "Automation",
+    description: "Send your calls to your own tools.",
+    icon: Webhook,
+  },
 };
 
 export const APP_SLUG = {
@@ -37,6 +44,7 @@ export const APP_SLUG = {
   appleCalendar: "apple-calendar",
   zoom: "zoom",
   teams: "teams",
+  webhooks: "webhooks",
 } as const;
 
 export type AppSlug = (typeof APP_SLUG)[keyof typeof APP_SLUG];
@@ -54,6 +62,8 @@ export type AppEntry = {
   available: boolean;
   /** Another app this one only works with. */
   requires?: AppSlug;
+  /** The plan it comes with; free on every plan without one. */
+  plan?: Plan;
 };
 
 /** Every app a host can connect, or will be able to soon. */
@@ -89,6 +99,17 @@ export const APPS: readonly AppEntry[] = [
       "Use one meeting room for every call, such as a personal Zoom or Teams link. Everyone who books gets it in their confirmation.",
     icon: LinkIcon,
     available: true,
+  },
+  {
+    slug: APP_SLUG.webhooks,
+    name: "Webhooks",
+    category: APP_CATEGORY.automation,
+    summary: "Your own server hears about every booking, move and cancel.",
+    description:
+      "Cadence posts each booked, moved or cancelled call to a URL on your server, signed with a secret only you and Cadence know. Use it to fill a CRM, a sheet or your own app.",
+    icon: Webhook,
+    available: true,
+    plan: "business",
   },
   {
     slug: APP_SLUG.outlook,
@@ -139,10 +160,13 @@ export function isInstalled(
   slug: AppSlug,
   settings: Pick<HostSettings, "conferencing_app" | "meeting_link">,
   calendarConnected: boolean,
+  webhookCount = 0,
 ): boolean {
   switch (slug) {
     case APP_SLUG.googleCalendar:
       return calendarConnected;
+    case APP_SLUG.webhooks:
+      return webhookCount > 0;
     case APP_SLUG.googleMeet:
       return settings.conferencing_app === CONFERENCING_APP.googleMeet;
     case APP_SLUG.customLink:
@@ -168,11 +192,17 @@ export function appState(
   slug: AppSlug,
   settings: Pick<HostSettings, "conferencing_app" | "meeting_link">,
   calendarConnected: boolean,
+  webhookCount = 0,
 ): { tone: AppTone; text: string } {
-  if (!isInstalled(slug, settings, calendarConnected)) {
+  if (!isInstalled(slug, settings, calendarConnected, webhookCount)) {
     return { tone: APP_TONE.off, text: "Not set up" };
   }
   switch (slug) {
+    case APP_SLUG.webhooks:
+      return {
+        tone: APP_TONE.on,
+        text: webhookCount === 1 ? "1 endpoint" : `${webhookCount} endpoints`,
+      };
     case APP_SLUG.googleCalendar:
       return { tone: APP_TONE.on, text: "Busy times blocked" };
     case APP_SLUG.googleMeet:

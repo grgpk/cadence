@@ -2,6 +2,8 @@
 @slug = cadence-host
 @type = coaching
 @eventTypeUnid = e1000000-0000-4000-8000-000000000001
+# The unid returned by "Add a webhook".
+@webhookUnid = replace-with-a-webhook-unid
 @leadUnid = 00000000-0000-0000-0000-000000000001
 @bookingUnid = 00000000-0000-0000-0000-000000000002
 # The manage_token returned by "Book call".
@@ -160,6 +162,30 @@ POST {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/bookings
 Content-Type: application/json
 
 {"lead_unid":"{{leadUnid}}","calling_visit_unid":null,"slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
+
+### My webhooks (secrets included; Business only)
+GET {{baseUrl}}/api/host/webhooks
+
+### Add a webhook (400 for a URL that is not public https, 409 past five)
+POST {{baseUrl}}/api/host/webhooks
+Content-Type: application/json
+
+{"url":"https://example.com/hooks/cadence"}
+
+### Switch a webhook off (turning it on needs Business)
+PUT {{baseUrl}}/api/host/webhooks/{{webhookUnid}}
+Content-Type: application/json
+
+{"is_active":false}
+
+### Send a test ping to a webhook
+POST {{baseUrl}}/api/host/webhooks/{{webhookUnid}}/test
+
+### A webhook's last 20 deliveries
+GET {{baseUrl}}/api/host/webhooks/{{webhookUnid}}/deliveries
+
+### Delete a webhook
+DELETE {{baseUrl}}/api/host/webhooks/{{webhookUnid}}
 
 ### Invitee: my call, through the manage link
 GET {{baseUrl}}/api/manage/{{manageToken}}

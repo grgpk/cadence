@@ -7,6 +7,8 @@ export const QUERY_KEYS = {
   availabilityOverrides: ["availability-overrides"] as const,
   hostSettings: ["host-settings"] as const,
   eventTypes: ["event-types"] as const,
+  webhooks: ["webhooks"] as const,
+  webhookDeliveries: (unid: string) => ["webhook-deliveries", unid] as const,
   hostPage: (host: string) => ["host-page", host] as const,
   /** Without `type`, every kind of call on the host's link. */
   bookingPage: (host: string, type?: string) =>
