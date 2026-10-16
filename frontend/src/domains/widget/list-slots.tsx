@@ -6,7 +6,8 @@ import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { useNow } from "../../hooks/use-now";
 import { relativeDayLabel, todayIn } from "../../lib/civil-day";
-import { SlotsFrame } from "./slots-frame";
+import { DAYS_PER_PAGE, listPage } from "./slot-picker-rules";
+import { SlotsFrame, type SlotsWording } from "./slots-frame";
 import { TimeChip, usePick } from "./time-chip";
 
 /**
@@ -18,9 +19,6 @@ import { TimeChip, usePick } from "./time-chip";
 const SCROLL_INSIDE =
   "@[760px]:-mr-4 @[760px]:max-h-[23rem] @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pb-8 @[760px]:[mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]";
 
-/** Days shown at first, and added by each "Show more days". */
-const DAYS_PER_PAGE = 5;
-
 /**
  * Open times day after day, soonest first, so the earliest time is one click
  * away.
@@ -28,23 +26,26 @@ const DAYS_PER_PAGE = 5;
 export function ListSlots({
   slug,
   timeZone,
-  emptyDescription,
+  wording,
   windowDays,
   hour12,
   onHour12Change,
   onPick,
+  releaseKey,
 }: {
   slug: string;
   timeZone: string;
-  emptyDescription: string;
+  wording: SlotsWording;
   /** How far ahead the host takes bookings, for the line under the last day. */
-  windowDays: number;
+  windowDays?: number;
   hour12: boolean;
   onHour12Change: (hour12: boolean) => void;
   onPick: (slot: TimeSlot) => void;
+  /** Change it to let go of a picked time that did not go through. */
+  releaseKey: number;
 }) {
   const [shownDays, setShownDays] = useState(DAYS_PER_PAGE);
-  const { picked, pick } = usePick(onPick);
+  const { picked, pick } = usePick(onPick, releaseKey);
   // Refreshed each minute, so "Today" and "Tomorrow" move on at midnight.
   const today = todayIn(timeZone, useNow() ?? new Date());
 
@@ -52,53 +53,58 @@ export function ListSlots({
     <SlotsFrame
       slug={slug}
       timeZone={timeZone}
-      emptyDescription={emptyDescription}
+      wording={wording}
       hour12={hour12}
       onHour12Change={onHour12Change}
       title={() => "Soonest open times"}
     >
-      {(days) => (
-        <div className={cn("grid content-start gap-6", SCROLL_INSIDE)}>
-          {days.slice(0, shownDays).map((day) => (
-            <section key={day.key} className="grid gap-2.5">
-              <h3 className="flex items-baseline gap-2 bg-card text-sm font-semibold @[760px]:sticky @[760px]:top-0 @[760px]:z-10 @[760px]:pb-1">
-                {relativeDayLabel(day, today)}
-                <span className="ml-auto text-xs font-normal text-muted-foreground tabular-nums">
-                  {day.slots.length} {day.slots.length === 1 ? "time" : "times"}
-                </span>
-              </h3>
-              <ul className="grid grid-cols-3 gap-2 @[760px]:grid-cols-4 @[960px]:grid-cols-6">
-                {day.slots.map((slot) => (
-                  <li key={slot.start}>
-                    <TimeChip
-                      slot={slot}
-                      timeZone={timeZone}
-                      hour12={hour12}
-                      picked={picked === slot.start}
-                      onPick={pick}
-                    />
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ))}
-          {days.length > shownDays ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="justify-self-start"
-              onClick={() => setShownDays(shownDays + DAYS_PER_PAGE)}
-            >
-              <ChevronDown />
-              Show more days
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Those are all the open times in the next {windowDays} days.
-            </p>
-          )}
-        </div>
-      )}
+      {(days) => {
+        const page = listPage(days, shownDays);
+        return (
+          <div className={cn("grid content-start gap-6", SCROLL_INSIDE)}>
+            {page.days.map((day) => (
+              <section key={day.key} className="grid gap-2.5">
+                <h3 className="flex items-baseline gap-2 bg-card text-sm font-semibold @[760px]:sticky @[760px]:top-0 @[760px]:z-10 @[760px]:pb-1">
+                  {relativeDayLabel(day, today)}
+                  <span className="ml-auto text-xs font-normal text-muted-foreground tabular-nums">
+                    {day.slots.length} {day.slots.length === 1 ? "time" : "times"}
+                  </span>
+                </h3>
+                <ul className="grid grid-cols-3 gap-2 @[760px]:grid-cols-4 @[960px]:grid-cols-6">
+                  {day.slots.map((slot) => (
+                    <li key={slot.start}>
+                      <TimeChip
+                        slot={slot}
+                        timeZone={timeZone}
+                        hour12={hour12}
+                        picked={picked === slot.start}
+                        onPick={pick}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ))}
+            {page.more ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="justify-self-start"
+                onClick={() => setShownDays(shownDays + DAYS_PER_PAGE)}
+              >
+                <ChevronDown />
+                Show more days
+              </Button>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {windowDays === undefined
+                  ? "Those are all the open times."
+                  : `Those are all the open times in the next ${windowDays} days.`}
+              </p>
+            )}
+          </div>
+        );
+      }}
     </SlotsFrame>
   );
 }

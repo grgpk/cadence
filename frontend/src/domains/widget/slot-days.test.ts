@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { weekFrom } from "../../lib/civil-day";
-import {
-  firstOpenFrom,
-  isSlotLayout,
-  sharedLength,
-  slotsByDay,
-  weekAround,
-  weekTimetable,
-} from "./slot-days";
+import { isSlotLayout, sharedLength, slotsByDay, weekTimetable } from "./slot-days";
 
 const slot = (start: string) => ({ start, minutes: 30 });
 
@@ -89,34 +82,5 @@ describe("weekTimetable", () => {
   it("leaves out days past the week", () => {
     const days = slotsByDay([slot("2026-10-30T09:00:00Z")], "UTC");
     expect(weekTimetable(days, week, "UTC")).toEqual([]);
-  });
-});
-
-describe("weekAround", () => {
-  const days = slotsByDay(
-    ["2026-10-17", "2026-10-19", "2026-10-23", "2026-10-24", "2026-11-05"].map((day) =>
-      slot(`${day}T12:00:00Z`),
-    ),
-    "UTC",
-  );
-
-  it("opens on the first open day without a picked day", () => {
-    expect(weekAround(days, null)?.key).toBe("2026-10-17");
-  });
-
-  it("keeps a picked day inside the week, not at its start", () => {
-    expect(weekAround(days, { year: 2026, month: 10, day: 23 })?.key).toBe("2026-10-17");
-  });
-
-  it("moves on to the week that holds a later day", () => {
-    expect(weekAround(days, { year: 2026, month: 10, day: 24 })?.key).toBe("2026-10-24");
-    // Nothing is open in the week after Oct 24, so the next week starts on Nov 5.
-    expect(weekAround(days, { year: 2026, month: 11, day: 5 })?.key).toBe("2026-11-05");
-  });
-
-  it("finds the first open day on or after a day", () => {
-    expect(firstOpenFrom(days, { year: 2026, month: 10, day: 20 })?.key).toBe(
-      "2026-10-23",
-    );
   });
 });

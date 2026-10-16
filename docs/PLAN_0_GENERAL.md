@@ -110,6 +110,7 @@ cadence/
 | 23 | `PLAN_23_EMAIL_QUEUE.md` | the email queue decides which emails a booked, moved or cancelled call sends; typed payloads; one writer of the queue | 🔄 in progress |
 | 24 | `PLAN_24_CIVIL_DAY.md` | one civil day module for keys, weeks, month grids and labels; zoned time moved to lib; week labels read "Oct 19 to 25" | 🔄 in progress |
 | 25 | `PLAN_25_BOOKING_SESSION.md` | booking session module: visit, lead and booking outside React, one confirmation address type, one taken-time check | 🔄 in progress |
+| 26 | `PLAN_26_SLOT_PICKER.md` | one slot picker for booking and rescheduling: month, week and list on both pages, one pick and set of states, one 12h/24h choice | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

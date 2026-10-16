@@ -3,22 +3,28 @@ import { useEffect, useRef, useState } from "react";
 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
-import { PHASE_STYLES } from "./slot-step";
 import { clockLabel, dayPhase, zonedTime } from "../../lib/zoned-time";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
+import { type Pick, pickTime, releasePick } from "./slot-picker-rules";
 
-/** Long enough to see the time fill before the card moves on, as in the month view. */
+/** Long enough to see the time fill before the card moves on. */
 const PICK_MS = 170;
 
-/** The one time being picked, reported once its fill has played. */
-export function usePick(onPick: (slot: TimeSlot) => void) {
-  const [picked, setPicked] = useState<string | null>(null);
+/**
+ * The one time being picked, reported once its fill has played. A change of
+ * `releaseKey` lets go of it, when the pick did not go through.
+ */
+export function usePick(onPick: (slot: TimeSlot) => void, releaseKey = 0) {
+  const [picked, setPicked] = useState<Pick>(releasePick);
   const timer = useRef<number | undefined>(undefined);
   // A view that is left before the fill finishes must not report its pick.
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the key is the signal, not a value read here
+  useEffect(() => setPicked(releasePick()), [releaseKey]);
 
   function pick(slot: TimeSlot) {
     if (picked !== null) return;
-    setPicked(slot.start);
+    setPicked(pickTime(picked, slot.start));
     timer.current = window.setTimeout(() => onPick(slot), PICK_MS);
   }
 

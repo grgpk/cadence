@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import { createServerFn } from "@tanstack/react-start";
 
 import type { BookingPage } from "../../bindings/BookingPage";
@@ -97,6 +97,14 @@ export function publicSlotsQuery(slug: string) {
     queryKey: QUERY_KEYS.publicSlots(slug),
     queryFn: () => api<TimeSlot[]>(`${hostPath(slug)}/slots`),
   });
+}
+
+/**
+ * Reads a booking page's open times again: after a booking, a move or a
+ * cancel, or when one did not go through and the cached times are stale.
+ */
+export function refreshOpenTimes(queryClient: QueryClient, slug: string): Promise<void> {
+  return queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) });
 }
 
 export function createBooking(

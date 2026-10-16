@@ -6,7 +6,6 @@ import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { useNow } from "../../hooks/use-now";
 import {
-  addDays,
   type CivilDay,
   dayKey,
   longDayLabel,
@@ -16,12 +15,11 @@ import {
   weekLabel,
 } from "../../lib/civil-day";
 import { dayPhase } from "../../lib/zoned-time";
-import { firstOpenFrom, type SlotDay, weekAround, weekTimetable } from "./slot-days";
-import { SlotsFrame } from "./slots-frame";
-import { PHASE_STYLES } from "./slot-step";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
+import { type SlotDay, weekTimetable } from "./slot-days";
+import { weekAround, weekSteps } from "./slot-picker-rules";
+import { SlotsFrame, type SlotsWording } from "./slots-frame";
 import { TimeChip, usePick } from "./time-chip";
-
-const WEEK_DAYS = 7;
 
 /**
  * Fades out where the week runs on: the next days on a phone, which swipes
@@ -39,24 +37,27 @@ export function WeekSlots({
   slug,
   timeZone,
   initialDay,
-  emptyDescription,
+  wording,
   hour12,
   onHour12Change,
   onPick,
+  releaseKey,
 }: {
   slug: string;
   timeZone: string;
   /** The day the visitor last looked at, so the week opens around it. */
   initialDay: CivilDay | null;
-  emptyDescription: string;
+  wording: SlotsWording;
   hour12: boolean;
   onHour12Change: (hour12: boolean) => void;
   onPick: (slot: TimeSlot) => void;
+  /** Change it to let go of a picked time that did not go through. */
+  releaseKey: number;
 }) {
   const [chosenWeek, setChosenWeek] = useState<CivilDay | null>(null);
   // +1 when the week last moved forward, -1 when it moved back.
   const [direction, setDirection] = useState(1);
-  const { picked, pick } = usePick(onPick);
+  const { picked, pick } = usePick(onPick, releaseKey);
   // Refreshed each minute, so "today" moves on at midnight.
   const today = dayKey(todayIn(timeZone, useNow() ?? new Date()));
 
@@ -66,7 +67,7 @@ export function WeekSlots({
     <SlotsFrame
       slug={slug}
       timeZone={timeZone}
-      emptyDescription={emptyDescription}
+      wording={wording}
       hour12={hour12}
       onHour12Change={onHour12Change}
       title={(days) => {
@@ -76,13 +77,7 @@ export function WeekSlots({
       controls={(days) => {
         const week = shownWeek(days);
         if (!week) return null;
-        const from = dayKey(week);
-        const to = dayKey(addDays(week, WEEK_DAYS));
-        // Each move starts on an open day, skipping stretches with nothing to pick.
-        const earlier = days.some((day) => day.key < from)
-          ? firstOpenFrom(days, addDays(week, -WEEK_DAYS))
-          : null;
-        const later = days.find((day) => day.key >= to) ?? null;
+        const { earlier, later } = weekSteps(days, week);
         const move = (day: SlotDay | null, offset: 1 | -1) => {
           if (!day) return;
           setDirection(offset);

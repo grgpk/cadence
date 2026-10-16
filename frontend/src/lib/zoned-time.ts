@@ -1,6 +1,6 @@
 import { dateFormatter, formatClock } from "./format";
 
-export type ZonedTime = {
+type ZonedTime = {
   year: number;
   /** 1-indexed, 1 = January. */
   month: number;

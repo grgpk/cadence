@@ -1,7 +1,7 @@
 import { cn } from "cn";
 
 import { HourMark } from "../shared/hour-mark";
-import { PHASE_STYLES } from "../widget/slot-step";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { dayPhase, zonedTime } from "../../lib/zoned-time";
 
 /** The strip shows the hour before the call and the two after it starts. */

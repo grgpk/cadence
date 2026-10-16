@@ -1,12 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Skeleton } from "../../components/ui/skeleton";
-import { prefersHour12 } from "../../lib/format";
-import { QUERY_KEYS } from "../../lib/query-keys";
+import { useClockPreference } from "../../hooks/use-clock-preference";
 import { ROUTES } from "../../lib/routes";
 import {
   DEFAULT_TIMEZONE,
@@ -17,31 +16,13 @@ import {
 } from "../shared/phone/country";
 import { arrivalHere, EMPTY_FORM, type FormValues } from "./booking-form";
 import { bookingFailure, CADENCE_API, createBookingSession } from "./booking-session";
-import { publicSlotsQuery } from "./cadence-api";
+import { refreshOpenTimes } from "./cadence-api";
 import { BookingSummary } from "./booking-summary";
 import { DetailsStep } from "./details-step";
-import { ListSlots } from "./list-slots";
-import { sharedLength, type SlotLayout } from "./slot-days";
-import { SlotStep, type CalendarView } from "./slot-step";
+import type { SlotLayout } from "./slot-days";
+import { SlotPicker } from "./slot-picker";
 import { TimezoneCombobox } from "./timezone-combobox";
 import { ViewSwitch } from "./view-switch";
-import { WeekSlots } from "./week-slots";
-import { zonedTime } from "../../lib/zoned-time";
-
-const HOUR12_KEY = "cadence-hour12";
-
-/** A switched view slides in a little from the right, the same move as each step. */
-const VIEW_IN = { "--step-from": "0.5rem" } as CSSProperties;
-
-function initialHour12(): boolean {
-  try {
-    const stored = localStorage.getItem(HOUR12_KEY);
-    if (stored !== null) return stored === "true";
-  } catch {
-    // Storage can be blocked; fall through to the locale's own convention.
-  }
-  return prefersHour12();
-}
 
 type StoredForm = { leadUnid: string; values: FormValues };
 
@@ -83,8 +64,6 @@ function Booking({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // Shared with whichever view shows the times; read here for the call length.
-  const slots = useQuery(publicSlotsQuery(slug));
   const [stored] = useState(() => storedForm(slug));
   const [values, setValues] = useState<FormValues>({
     ...EMPTY_FORM,
@@ -97,12 +76,8 @@ function Booking({
       defaultTimezoneForCountry(countryVariant) ??
       DEFAULT_TIMEZONE,
   );
-  const [view, setView] = useState<CalendarView>(() => {
-    const today = zonedTime(new Date(), timezone.iana);
-    return { year: today.year, month: today.month, day: null };
-  });
   const [slot, setSlot] = useState<TimeSlot | null>(null);
-  const [hour12, setHour12] = useState(initialHour12);
+  const [hour12, setHour12] = useClockPreference();
   // One visit to this page: its visit record, its lead and its booking.
   const [session] = useState(() =>
     createBookingSession(CADENCE_API, {
@@ -131,15 +106,6 @@ function Booking({
     void session.start();
   }, [session]);
 
-  function changeHour12(next: boolean) {
-    setHour12(next);
-    try {
-      localStorage.setItem(HOUR12_KEY, String(next));
-    } catch {
-      // The choice still applies for this visit.
-    }
-  }
-
   const book = useMutation({
     mutationFn: async (picked: TimeSlot) => {
       const search = await session.book({
@@ -154,8 +120,7 @@ function Booking({
       await navigate({ to: ROUTES.bookingConfirmation, search });
     },
     // The time may have just been taken, so the cached times can no longer be trusted.
-    onError: () =>
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.publicSlots(slug) }),
+    onError: () => refreshOpenTimes(queryClient, slug),
   });
   const submitError = !book.error
     ? null
@@ -173,14 +138,7 @@ function Booking({
       page={page}
       minutes={callMinutes}
       timezone={
-        <TimezoneCombobox
-          selected={timezone}
-          hour12={hour12}
-          onSelect={(next) => {
-            setTimezone(next);
-            setView({ ...view, day: null });
-          }}
-        />
+        <TimezoneCombobox selected={timezone} hour12={hour12} onSelect={setTimezone} />
       }
     >
       <ViewSwitch value={layout} onChange={onLayoutChange} />
@@ -197,56 +155,17 @@ function Booking({
       style={{ "--step-from": "-1rem" } as CSSProperties}
       className="outline-none motion-safe:animate-step-in"
     >
-      {layout === "month" ? (
-        // The month card has its own summary column, so all of it comes in.
-        <div key="month" style={VIEW_IN} className="motion-safe:animate-step-in">
-          <SlotStep
-            slug={slug}
-            timeZone={timezone.iana}
-            emptyDescription={emptyDescription}
-            summary={summary}
-            view={view}
-            onViewChange={setView}
-            hour12={hour12}
-            onHour12Change={changeHour12}
-            onPick={pickTime}
-          />
-        </div>
-      ) : (
-        <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)] @[760px]:divide-x @[760px]:divide-y-0">
-          <div className="p-5 @[760px]:p-6">
-            {summary(sharedLength(slots.data ?? []))}
-          </div>
-          {/* The summary stays put; only the times come in, so its switch can slide. */}
-          <div
-            key={layout}
-            style={VIEW_IN}
-            className="min-w-0 motion-safe:animate-step-in"
-          >
-            {layout === "week" ? (
-              <WeekSlots
-                slug={slug}
-                timeZone={timezone.iana}
-                initialDay={view.day === null ? null : { ...view, day: view.day }}
-                emptyDescription={emptyDescription}
-                hour12={hour12}
-                onHour12Change={changeHour12}
-                onPick={pickTime}
-              />
-            ) : (
-              <ListSlots
-                slug={slug}
-                timeZone={timezone.iana}
-                emptyDescription={emptyDescription}
-                windowDays={page.booking_window_days}
-                hour12={hour12}
-                onHour12Change={changeHour12}
-                onPick={pickTime}
-              />
-            )}
-          </div>
-        </div>
-      )}
+      <SlotPicker
+        slug={slug}
+        timeZone={timezone.iana}
+        layout={layout}
+        hour12={hour12}
+        onHour12Change={setHour12}
+        onPick={pickTime}
+        summary={summary}
+        wording={{ emptyDescription }}
+        windowDays={page.booking_window_days}
+      />
     </section>
   ) : (
     <section

@@ -10,7 +10,8 @@ import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { ApiError } from "../../lib/api";
 import { errorMessage } from "../../lib/error-message";
-import { formatDay, formatLongDay, prefersHour12, zoneName } from "../../lib/format";
+import { useClockPreference } from "../../hooks/use-clock-preference";
+import { formatDay, formatLongDay, zoneName } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
 import { ConfirmDialog } from "../shared/confirm-dialog";
@@ -19,11 +20,14 @@ import { PublicLayout } from "../shared/public-layout";
 import {
   cancelManagedBooking,
   managedBookingQuery,
+  refreshOpenTimes,
   rescheduleManagedBooking,
 } from "../widget/cadence-api";
 import { bookingFailure } from "../widget/booking-session";
-import { SlotStep, type CalendarView } from "../widget/slot-step";
-import { callEnd, clockLabel, zonedTime } from "../../lib/zoned-time";
+import { DEFAULT_SLOT_LAYOUT, type SlotLayout } from "../widget/slot-days";
+import { SlotPicker } from "../widget/slot-picker";
+import { ViewSwitch } from "../widget/view-switch";
+import { callEnd, clockLabel } from "../../lib/zoned-time";
 import { BookedStrip } from "./booked-strip";
 import { isCancelled } from "./bookings";
 
@@ -38,20 +42,15 @@ function headline(booking: ManagedBooking): string {
 function Reschedule({
   token,
   booking,
-  hour12,
   onDone,
 }: {
   token: string;
   booking: ManagedBooking;
-  hour12: boolean;
   onDone: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [clock12, setClock12] = useState(hour12);
-  const [view, setView] = useState<CalendarView>(() => {
-    const today = zonedTime(new Date(), booking.timezone);
-    return { year: today.year, month: today.month, day: null };
-  });
+  const [hour12, setHour12] = useClockPreference();
+  const [layout, setLayout] = useState<SlotLayout>(DEFAULT_SLOT_LAYOUT);
   const [picked, setPicked] = useState<TimeSlot | null>(null);
   // Bumped to let go of a time that was picked and then not confirmed.
   const [pickKey, setPickKey] = useState(0);
@@ -60,18 +59,14 @@ function Reschedule({
     mutationFn: (slot: TimeSlot) => rescheduleManagedBooking(token, slot.start),
     onSuccess: async (moved) => {
       queryClient.setQueryData(QUERY_KEYS.managedBooking(token), moved);
-      await queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.publicSlots(booking.slug),
-      });
+      await refreshOpenTimes(queryClient, booking.slug);
       toast.success("Call rescheduled");
       onDone();
     },
     onError: async (error) => {
       setPickKey((key) => key + 1);
       // The time may have just been taken, so the cached times can no longer be trusted.
-      await queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.publicSlots(booking.slug),
-      });
+      await refreshOpenTimes(queryClient, booking.slug);
       toast.error(
         bookingFailure(error) === "taken"
           ? "That time was just taken. Pick another one."
@@ -86,24 +81,26 @@ function Reschedule({
   }, []);
 
   return (
-    <div ref={bringIntoView} className="@container mt-6 scroll-mb-6">
+    <div ref={bringIntoView} className="@container mt-6 grid scroll-mb-6 gap-3">
+      <ViewSwitch value={layout} onChange={setLayout} />
       {/* No second time can be picked while the first is being saved. */}
       <div
         inert={move.isPending}
         aria-busy={move.isPending}
         className="overflow-hidden rounded-2xl border bg-card"
       >
-        <SlotStep
+        <SlotPicker
           slug={booking.slug}
           timeZone={booking.timezone}
-          emptyDescription={`${booking.host_name} has no other open times right now. Your call stays where it is.`}
-          pausedDescription={`${booking.host_name} is not taking new times right now. Your call stays where it is.`}
-          view={view}
-          onViewChange={setView}
-          hour12={clock12}
-          onHour12Change={setClock12}
-          pickKey={pickKey}
+          layout={layout}
+          hour12={hour12}
+          onHour12Change={setHour12}
+          releaseKey={pickKey}
           onPick={setPicked}
+          wording={{
+            emptyDescription: `${booking.host_name} has no other open times right now. Your call stays where it is.`,
+            pausedDescription: `${booking.host_name} is not taking new times right now. Your call stays where it is.`,
+          }}
         />
       </div>
       <ConfirmDialog
@@ -116,7 +113,7 @@ function Reschedule({
         title="Reschedule your call?"
         description={
           picked
-            ? `New time: ${formatDay(picked.start, booking.timezone)}, ${clockLabel(new Date(picked.start), booking.timezone, clock12)} (${zoneName(booking.timezone)}). ${booking.host_name} is told about the change.`
+            ? `New time: ${formatDay(picked.start, booking.timezone)}, ${clockLabel(new Date(picked.start), booking.timezone, hour12)} (${zoneName(booking.timezone)}). ${booking.host_name} is told about the change.`
             : ""
         }
         confirmLabel="Reschedule"
@@ -158,9 +155,7 @@ export function ManageBookingPage({ token }: { token: string }) {
     }
     lastSettled.current = settled;
   }, [query.data, settled]);
-  // The device's clock style is only known in the browser.
-  const [hour12, setHour12] = useState(false);
-  useEffect(() => setHour12(prefersHour12()), []);
+  const [hour12] = useClockPreference();
 
   const cancel = useMutation({
     mutationFn: () => cancelManagedBooking(token),
@@ -169,9 +164,7 @@ export function ManageBookingPage({ token }: { token: string }) {
       setRescheduling(false);
       toast.success("Call cancelled");
       // The time it held is open again.
-      await queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.publicSlots(cancelled.slug),
-      });
+      await refreshOpenTimes(queryClient, cancelled.slug);
     },
     onError: (error) => toast.error(`The call was not cancelled. ${errorMessage(error)}`),
   });
@@ -324,7 +317,6 @@ export function ManageBookingPage({ token }: { token: string }) {
           <Reschedule
             token={token}
             booking={booking}
-            hour12={hour12}
             onDone={() => setRescheduling(false)}
           />
         ) : null}

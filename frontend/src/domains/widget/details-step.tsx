@@ -22,7 +22,7 @@ import {
 import { PhoneInput } from "../shared/phone/phone-input";
 import { formErrors, QUESTIONS, toggleValue, type FormValues } from "./booking-form";
 import { BookingSummary } from "./booking-summary";
-import { PHASE_STYLES } from "./slot-step";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { callEnd, clockLabel, dayPhase, zonedTime } from "../../lib/zoned-time";
 
 const ID = "cadence";

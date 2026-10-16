@@ -6,7 +6,7 @@ import { Button } from "../../components/ui/button";
 import { formatTime } from "../../lib/format";
 import { NAME_LINK } from "../shared/link-styles";
 import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
-import { PHASE_STYLES } from "../widget/slot-step";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { dayPhase, zonedTime } from "../../lib/zoned-time";
 import { agendaDays, isCancelled } from "./bookings";
 
