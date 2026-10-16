@@ -15,14 +15,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../../components/ui/select";
+import { fromKey, longDayLabel } from "../../lib/civil-day";
 import { errorMessage } from "../../lib/error-message";
-import {
-  clockMinutes,
-  clockTime,
-  formatClock,
-  formatLongDay,
-  prefersHour12,
-} from "../../lib/format";
+import { clockMinutes, clockTime, formatClock, prefersHour12 } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { removeDateOverride, saveDateOverride } from "../dashboard/host-api";
 import { TimePicker } from "../shared/time-picker";
@@ -35,7 +30,7 @@ type Row = { key: number; start: string; end: string; slotMinutes: number };
 
 /** "Saturday, October 24" for an ISO date, read as a calendar day. */
 export function dateLabel(date: string): string {
-  return formatLongDay(`${date}T12:00:00Z`, "UTC", false);
+  return longDayLabel(fromKey(date));
 }
 
 const rowOf = (span: Span, key: number): Row => ({

@@ -3,14 +3,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { CSSProperties } from "react";
 
 import { Button } from "../../components/ui/button";
-import { calendarWeeks, monthLabel } from "./calendar-grid";
-import { formatLongDay } from "../../lib/format";
+import { longDayLabel, monthLabel, monthWeeks } from "../../lib/civil-day";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-function dayLabel(year: number, month: number, day: number): string {
-  return formatLongDay(new Date(Date.UTC(year, month - 1, day)), "UTC", false);
-}
 
 export function BookingCalendar({
   year,
@@ -40,7 +35,7 @@ export function BookingCalendar({
   onNext: () => void;
   onSelect: (day: number) => void;
 }) {
-  const days = calendarWeeks(year, month, true).flat();
+  const days = monthWeeks(year, month, { rows: "fit" }).flat();
 
   return (
     <div>
@@ -91,8 +86,9 @@ export function BookingCalendar({
         style={{ "--step-from": `${direction}rem` } as CSSProperties}
         className="grid grid-cols-7 gap-1 motion-safe:animate-step-in"
       >
-        {days.map((day, index) => {
-          if (day === null) return <span key={`blank-${index}`} />;
+        {days.map((cell, index) => {
+          if (!cell.inMonth) return <span key={`blank-${index}`} />;
+          const { day } = cell;
           const available = availableDays.includes(day);
           const selected = selectedDay === day;
           return (
@@ -102,7 +98,7 @@ export function BookingCalendar({
               disabled={!available}
               aria-pressed={selected}
               aria-current={day === todayDay ? "date" : undefined}
-              aria-label={`${dayLabel(year, month, day)}${available ? "" : ", unavailable"}`}
+              aria-label={`${longDayLabel(cell)}${available ? "" : ", unavailable"}`}
               onClick={() => onSelect(day)}
               className={cn(
                 "relative flex aspect-square w-full items-center justify-center rounded-md text-sm tabular-nums transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",

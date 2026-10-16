@@ -12,13 +12,14 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { formatLongDay, formatTime, lengthLabel, prefersHour12 } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { useNow } from "../../hooks/use-now";
-import { hoursOn, isoDate } from "../availability/hours-math";
+import { dayKey } from "../../lib/civil-day";
+import { hoursOn } from "../availability/hours-math";
 import { AgendaRow } from "../bookings/agenda";
 import { dayCall, dayPlan, firstName, isCancelled } from "../bookings/bookings";
 import { OPEN_STYLES } from "../landing/day-tape";
 import { HourMark } from "../shared/hour-mark";
 import { NAME_LINK } from "../shared/link-styles";
-import { phaseSpans, zonedTime } from "../widget/zoned-time";
+import { phaseSpans, zonedTime } from "../../lib/zoned-time";
 
 const HOUR = 60;
 const MINUTE_MS = 60_000;
@@ -155,9 +156,7 @@ export function TodayCard({
   const today = zonedTime(now, timeZone);
   const plan = dayPlan(bookings, timeZone, now.getTime());
   const hoursKnown = rules !== undefined && overrides !== undefined;
-  const open = hoursKnown
-    ? hoursOn(isoDate(today.year, today.month, today.day), rules, overrides).spans
-    : [];
+  const open = hoursKnown ? hoursOn(dayKey(today), rules, overrides).spans : [];
   const calls = plan.today
     .filter((booking) => !isCancelled(booking))
     .map((booking) => dayCall(booking, timeZone));

@@ -27,7 +27,7 @@ import {
 import { placeOnWeek, WeekRuler } from "../dashboard/week-grid";
 import type { WeekHours } from "../dashboard/week-hours";
 import { OPEN_STYLES } from "../landing/day-tape";
-import { phaseSpans } from "../widget/zoned-time";
+import { phaseSpans } from "../../lib/zoned-time";
 import { HoursForm, WEEKDAYS, hourAfter } from "./hours-form";
 import {
   DEFAULT_SLOT_MINUTES,

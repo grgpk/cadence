@@ -22,7 +22,7 @@ import {
   rescheduleManagedBooking,
 } from "../widget/cadence-api";
 import { SlotStep, type CalendarView } from "../widget/slot-step";
-import { callEnd, clockLabel, zonedTime } from "../widget/zoned-time";
+import { callEnd, clockLabel, zonedTime } from "../../lib/zoned-time";
 import { BookedStrip } from "./booked-strip";
 import { isCancelled } from "./bookings";
 

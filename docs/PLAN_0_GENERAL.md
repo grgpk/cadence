@@ -108,6 +108,7 @@ cadence/
 | 21 | `PLAN_21_BOOKING_VIEWS.md` | booking page gets week and list views beside the month calendar; `?view=` opens one | 🔄 in progress |
 | 22 | `PLAN_22_SLOT_POLICY.md` | one slot policy module decides and reserves open times; host calendar behind a seam with Google and in-memory adapters | 🔄 in progress |
 | 23 | `PLAN_23_EMAIL_QUEUE.md` | the email queue decides which emails a booked, moved or cancelled call sends; typed payloads; one writer of the queue | 🔄 in progress |
+| 24 | `PLAN_24_CIVIL_DAY.md` | one civil day module for keys, weeks, month grids and labels; zoned time moved to lib; week labels read "Oct 19 to 25" | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

@@ -1,5 +1,6 @@
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { DateOverride } from "../../bindings/DateOverride";
+import { fromKey, weekdayIndex } from "../../lib/civil-day";
 import { clockMinutes } from "../../lib/format";
 import type { WeekHours } from "../dashboard/week-hours";
 
@@ -98,17 +99,6 @@ export function foldInto(
   };
 }
 
-/** "2026-10-05" for a calendar day. */
-export function isoDate(year: number, month: number, day: number): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-/** The API's weekday for a date: 0 is Monday. */
-export function weekdayOf(date: string): number {
-  const [year = 0, month = 1, day = 1] = date.split("-").map(Number);
-  return (new Date(Date.UTC(year, month - 1, day)).getUTCDay() + 6) % 7;
-}
-
 /**
  * The hours a date is open: its own when it has an override, otherwise its
  * weekday's.
@@ -120,7 +110,7 @@ export function hoursOn(
 ): { spans: Span[]; own: boolean } {
   const override = overrides.find((day) => day.date === date);
   if (override) return { spans: override.ranges.map(ruleSpan), own: true };
-  const weekday = weekdayOf(date);
+  const weekday = weekdayIndex(fromKey(date));
   return {
     spans: rules.filter((rule) => rule.weekday === weekday).map(ruleSpan),
     own: false,

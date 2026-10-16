@@ -4,10 +4,10 @@ import { useState } from "react";
 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
-import { relativeDayLabel } from "./slot-days";
+import { useNow } from "../../hooks/use-now";
+import { relativeDayLabel, todayIn } from "../../lib/civil-day";
 import { SlotsFrame } from "./slots-frame";
 import { TimeChip, usePick } from "./time-chip";
-import { zonedTime } from "./zoned-time";
 
 /**
  * Beside the summary the list scrolls inside the card, as the week does, so
@@ -45,7 +45,8 @@ export function ListSlots({
 }) {
   const [shownDays, setShownDays] = useState(DAYS_PER_PAGE);
   const { picked, pick } = usePick(onPick);
-  const today = zonedTime(new Date(), timeZone);
+  // Refreshed each minute, so "Today" and "Tomorrow" move on at midnight.
+  const today = todayIn(timeZone, useNow() ?? new Date());
 
   return (
     <SlotsFrame

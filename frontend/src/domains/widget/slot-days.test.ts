@@ -1,14 +1,11 @@
 import { describe, expect, it } from "vitest";
 
+import { weekFrom } from "../../lib/civil-day";
 import {
-  addDays,
   firstOpenFrom,
   isSlotLayout,
-  relativeDayLabel,
   sharedLength,
   slotsByDay,
-  weekDays,
-  weekLabel,
   weekAround,
   weekTimetable,
 } from "./slot-days";
@@ -47,32 +44,6 @@ describe("slotsByDay", () => {
   });
 });
 
-describe("weeks", () => {
-  it("runs seven days, across a month end", () => {
-    const days = weekDays({ year: 2026, month: 10, day: 26 });
-    expect(days).toHaveLength(7);
-    expect(days[6]).toEqual({ year: 2026, month: 11, day: 1 });
-  });
-
-  it("labels a week inside one month and across two", () => {
-    expect(weekLabel({ year: 2026, month: 10, day: 19 })).toBe("Oct 19 – 25");
-    expect(weekLabel({ year: 2026, month: 10, day: 26 })).toBe("Oct 26 – Nov 1");
-  });
-});
-
-describe("relativeDayLabel", () => {
-  const today = { year: 2026, month: 12, day: 31 };
-
-  it("names today and tomorrow, even across a year end", () => {
-    expect(relativeDayLabel(today, today)).toBe("Today");
-    expect(relativeDayLabel(addDays(today, 1), today)).toBe("Tomorrow");
-  });
-
-  it("spells out any later day", () => {
-    expect(relativeDayLabel(addDays(today, 2), today)).toBe("Saturday, January 2");
-  });
-});
-
 it("accepts only known layouts", () => {
   expect(isSlotLayout("week")).toBe(true);
   expect(isSlotLayout("grid")).toBe(false);
@@ -89,7 +60,7 @@ it("knows the call length only when every time agrees", () => {
 });
 
 describe("weekTimetable", () => {
-  const week = weekDays({ year: 2026, month: 10, day: 17 });
+  const week = weekFrom({ year: 2026, month: 10, day: 17 });
 
   it("lines the same time up across days, earliest row first", () => {
     const days = slotsByDay(

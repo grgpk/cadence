@@ -8,6 +8,23 @@ import { Card } from "../../components/ui/card";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { useNow } from "../../hooks/use-now";
 import {
+  addDays,
+  type CivilDay,
+  dayKey,
+  daysBetween,
+  longDayLabel,
+  mondayOf,
+  type MonthCell,
+  monthLabel,
+  monthWeeks,
+  sameDay,
+  shiftMonth,
+  todayIn,
+  weekdayIndex,
+  weekFrom,
+  weekLabel,
+} from "../../lib/civil-day";
+import {
   clockMinutes,
   formatTime,
   hourLabel,
@@ -18,19 +35,8 @@ import { placeOnWeek } from "../dashboard/week-grid";
 import { weekHours, type WeekHours } from "../dashboard/week-hours";
 import { OPEN_STYLES } from "../landing/day-tape";
 import { SegmentedControl } from "../shared/segmented-control";
-import { phaseSpans, zonedTime } from "../widget/zoned-time";
-import {
-  dayCall,
-  dayOf,
-  daysBetween,
-  isCancelled,
-  lanes,
-  type MonthDay,
-  monthGrid,
-  sameDay,
-  type WeekDay,
-  weekDays,
-} from "./bookings";
+import { phaseSpans, zonedTime } from "../../lib/zoned-time";
+import { dayCall, isCancelled, lanes } from "./bookings";
 
 export const CALENDAR_MODE = { day: "day", week: "week", month: "month" } as const;
 export type CalendarMode = (typeof CALENDAR_MODE)[keyof typeof CALENDAR_MODE];
@@ -48,44 +54,6 @@ const HOUR_PX = 56;
 const MONTH_CELL_CALLS = 3;
 
 type Call = ReturnType<typeof dayCall>;
-
-function utcDate(day: WeekDay): Date {
-  return new Date(Date.UTC(day.year, day.month - 1, day.day));
-}
-
-const MONTH = new Intl.DateTimeFormat("en-GB", { month: "long", timeZone: "UTC" });
-const MONTH_YEAR = new Intl.DateTimeFormat("en-GB", {
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
-const LONG_DAY = new Intl.DateTimeFormat("en-GB", {
-  weekday: "long",
-  day: "numeric",
-  month: "long",
-  timeZone: "UTC",
-});
-
-/** "12 to 18 October", or "26 October to 1 November" across a month end. */
-function weekLabel(days: WeekDay[]): string {
-  const first = days[0];
-  const last = days.at(-1);
-  if (!first || !last) return "";
-  const start =
-    first.month === last.month
-      ? first.day
-      : `${first.day} ${MONTH.format(utcDate(first))}`;
-  return `${start} to ${last.day} ${MONTH.format(utcDate(last))}`;
-}
-
-function dayKey(day: WeekDay): string {
-  return `${day.year}-${day.month}-${day.day}`;
-}
-
-/** Monday is 0, as in the API's availability rules. */
-function weekdayIndex(day: WeekDay): number {
-  return (utcDate(day).getUTCDay() + 6) % 7;
-}
 
 /**
  * The host's calls on a calendar: one day or a week as columns of hours, or a
@@ -114,7 +82,7 @@ export function CalendarView({
   const mode = chosenMode ?? (isMobile ? CALENDAR_MODE.day : CALENDAR_MODE.week);
   // Each minute, so the line at "now" and what counts as past keep up.
   const now = useNow()?.getTime() ?? Date.now();
-  const today = dayOf(now, timeZone, 0);
+  const today = todayIn(timeZone, now);
 
   const callsByDay = new Map<string, Call[]>();
   for (const booking of bookings) {
@@ -123,20 +91,23 @@ export function CalendarView({
     const key = dayKey(call.day);
     callsByDay.set(key, [...(callsByDay.get(key) ?? []), call]);
   }
-  const callsOn = (day: WeekDay) => callsByDay.get(dayKey(day)) ?? [];
+  const callsOn = (day: CivilDay) => callsByDay.get(dayKey(day)) ?? [];
 
-  const month = mode === CALENDAR_MODE.month ? monthGrid(now, timeZone, offset) : null;
+  const month =
+    mode === CALENDAR_MODE.month ? shiftMonth(today.year, today.month, offset) : null;
   const days =
     mode === CALENDAR_MODE.day
-      ? [dayOf(now, timeZone, offset)]
+      ? [addDays(today, offset)]
       : mode === CALENDAR_MODE.week
-        ? weekDays(now, timeZone, offset)
+        ? weekFrom(addDays(mondayOf(today), offset * 7))
         : [];
   const label = month
-    ? MONTH_YEAR.format(new Date(Date.UTC(month.year, month.month - 1, 1)))
+    ? monthLabel(month.year, month.month)
     : mode === CALENDAR_MODE.day && days[0]
-      ? LONG_DAY.format(utcDate(days[0]))
-      : weekLabel(days);
+      ? longDayLabel(days[0])
+      : days[0]
+        ? weekLabel(days[0])
+        : "";
   const unit = mode === CALENDAR_MODE.day ? "day" : mode;
 
   return (
@@ -184,7 +155,7 @@ export function CalendarView({
       </div>
       {month ? (
         <MonthGrid
-          days={month.days}
+          days={monthWeeks(month.year, month.month, { rows: "six" }).flat()}
           today={today}
           timeZone={timeZone}
           callsOn={callsOn}
@@ -218,12 +189,12 @@ function TimeGrid({
   callsOn,
   onOpen,
 }: {
-  days: WeekDay[];
-  today: WeekDay;
+  days: CivilDay[];
+  today: CivilDay;
   now: number;
   timeZone: string;
   rules: AvailabilityRule[];
-  callsOn: (day: WeekDay) => Call[];
+  callsOn: (day: CivilDay) => Call[];
   onOpen: (booking: Booking) => void;
 }) {
   const calls = days.flatMap(callsOn);
@@ -393,12 +364,12 @@ function MonthGrid({
   onOpen,
   onPickDay,
 }: {
-  days: MonthDay[];
-  today: WeekDay;
+  days: MonthCell[];
+  today: CivilDay;
   timeZone: string;
-  callsOn: (day: WeekDay) => Call[];
+  callsOn: (day: CivilDay) => Call[];
   onOpen: (booking: Booking) => void;
-  onPickDay: (day: WeekDay) => void;
+  onPickDay: (day: CivilDay) => void;
 }) {
   return (
     <div>
@@ -429,7 +400,7 @@ function MonthGrid({
               <button
                 type="button"
                 onClick={() => onPickDay(day)}
-                aria-label={LONG_DAY.format(utcDate(day))}
+                aria-label={longDayLabel(day)}
                 className={cn(
                   "text-clock grid size-7 shrink-0 place-items-center self-center rounded-full text-sm outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   !day.inMonth && "text-muted-foreground",

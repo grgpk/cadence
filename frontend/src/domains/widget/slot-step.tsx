@@ -6,14 +6,14 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
+import { useNow } from "../../hooks/use-now";
 import { ApiError } from "../../lib/api";
-import { formatDay } from "../../lib/format";
+import { shiftMonth, shortDayLabel } from "../../lib/civil-day";
 import { EmptyState } from "../shared/empty-state";
 import { ErrorState } from "../shared/error-state";
 import { SegmentedControl } from "../shared/segmented-control";
 import { BookingCalendar } from "./booking-calendar";
 import { publicSlotsQuery } from "./cadence-api";
-import { shiftMonth } from "./calendar-grid";
 import {
   clockLabel,
   DAY_PHASES,
@@ -21,7 +21,7 @@ import {
   zonedTime,
   type DayPhase,
   type ZonedTime,
-} from "./zoned-time";
+} from "../../lib/zoned-time";
 
 export type CalendarView = { year: number; month: number; day: number | null };
 
@@ -199,7 +199,8 @@ export function SlotStep({
   // +1 when the calendar last moved forward, -1 when it moved back.
   const [monthDirection, setMonthDirection] = useState(1);
 
-  const today = zonedTime(new Date(), timeZone);
+  // Refreshed each minute, so the calendar's today moves on at midnight.
+  const today = zonedTime(useNow() ?? new Date(), timeZone);
   const slots: LocalSlot[] = (query.data ?? []).map((slot) => ({
     slot,
     at: zonedTime(new Date(slot.start), timeZone),
@@ -218,10 +219,7 @@ export function SlotStep({
   const selectedDayLabel =
     selectedDay === null
       ? null
-      : formatDay(
-          new Date(Date.UTC(view.year, view.month - 1, selectedDay)).toISOString(),
-          "UTC",
-        );
+      : shortDayLabel({ year: view.year, month: view.month, day: selectedDay });
 
   // The calendar opens on this month. If the first open time is in a later one,
   // start there instead of on a month with nothing to pick.

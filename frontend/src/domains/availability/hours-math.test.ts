@@ -11,7 +11,6 @@ import {
   minutesAt,
   roomyWeek,
   snap,
-  weekdayOf,
   weekTotals,
 } from "./hours-math";
 
@@ -97,11 +96,6 @@ describe("foldInto", () => {
 
 describe("hoursOn", () => {
   const rules = [rule(1, 0, "09:00", "17:00")];
-
-  it("reads Monday as weekday 0", () => {
-    expect(weekdayOf("2026-10-12")).toBe(0);
-    expect(weekdayOf("2026-10-18")).toBe(6);
-  });
 
   it("uses the weekday's hours on an ordinary date", () => {
     expect(hoursOn("2026-10-12", rules, [])).toEqual({

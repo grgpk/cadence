@@ -6,13 +6,19 @@ import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { DateOverride } from "../../bindings/DateOverride";
 import { Button } from "../../components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
+import {
+  dayKey,
+  daysInMonth,
+  monthLabel,
+  monthWeeks,
+  shiftMonth,
+} from "../../lib/civil-day";
 import { clockTime, formatClock, prefersHour12 } from "../../lib/format";
 import { placeOnWeek } from "../dashboard/week-grid";
 import type { WeekHours } from "../dashboard/week-hours";
-import { calendarWeeks, monthLabel, shiftMonth } from "../widget/calendar-grid";
-import { phaseSpans, zonedTime, type DayPhase } from "../widget/zoned-time";
+import { phaseSpans, zonedTime, type DayPhase } from "../../lib/zoned-time";
 import { DateEditor, dateLabel } from "./date-editor";
-import { hoursOn, isoDate, ruleSpan, type Span } from "./hours-math";
+import { hoursOn, ruleSpan, type Span } from "./hours-math";
 
 const WEEKDAY_HEADS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 /** Dates can be set this many months ahead, as far as the API takes them. */
@@ -61,16 +67,16 @@ export function DatesCalendar({
 }) {
   const hour12 = prefersHour12();
   const now = zonedTime(new Date(), timezone);
-  const today = isoDate(now.year, now.month, now.day);
+  const today = dayKey(now);
   const [shown, setShown] = useState({ year: now.year, month: now.month });
   const [open, setOpen] = useState<string | null>(null);
   const [focused, setFocused] = useState<string>(today);
   const monthsIn = (shown.year - now.year) * 12 + shown.month - now.month;
-  const days = calendarWeeks(shown.year, shown.month, true).flat();
+  const days = monthWeeks(shown.year, shown.month, { rows: "fit" }).flat();
   const inMonth = (date: string) =>
-    date.startsWith(isoDate(shown.year, shown.month, 1).slice(0, 8));
+    date.startsWith(dayKey({ ...shown, day: 1 }).slice(0, 8));
   // The roving tab stop: the focused date when it is in this month, else its first open date.
-  const firstDay = isoDate(shown.year, shown.month, monthsIn === 0 ? now.day : 1);
+  const firstDay = dayKey({ ...shown, day: monthsIn === 0 ? now.day : 1 });
   const tabStop = inMonth(focused) && focused >= today ? focused : firstDay;
   const upcoming = overrides.filter((day) => day.date >= today);
 
@@ -89,12 +95,8 @@ export function DatesCalendar({
     }[event.key];
     if (step === undefined) return;
     event.preventDefault();
-    const last = new Date(shown.year, shown.month, 0).getDate();
-    const next = isoDate(
-      shown.year,
-      shown.month,
-      Math.min(last, Math.max(1, day + step)),
-    );
+    const last = daysInMonth(shown.year, shown.month);
+    const next = dayKey({ ...shown, day: Math.min(last, Math.max(1, day + step)) });
     if (next < today) return;
     setFocused(next);
     document.getElementById(cellId(next))?.focus();
@@ -153,9 +155,10 @@ export function DatesCalendar({
           key={`${shown.year}-${shown.month}`}
           className="grid grid-cols-7 gap-1.5 motion-safe:animate-step-in"
         >
-          {days.map((day, index) => {
-            if (day === null) return <span key={`blank-${index}`} />;
-            const date = isoDate(shown.year, shown.month, day);
+          {days.map((cell, index) => {
+            if (!cell.inMonth) return <span key={`blank-${index}`} />;
+            const { day } = cell;
+            const date = dayKey(cell);
             const past = date < today;
             const { spans, own } = hoursOn(date, rules, overrides);
             const off = spans.length === 0;

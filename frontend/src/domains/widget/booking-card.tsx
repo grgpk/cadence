@@ -33,7 +33,7 @@ import { SlotStep, type CalendarView } from "./slot-step";
 import { TimezoneCombobox } from "./timezone-combobox";
 import { ViewSwitch } from "./view-switch";
 import { WeekSlots } from "./week-slots";
-import { zonedTime } from "./zoned-time";
+import { zonedTime } from "../../lib/zoned-time";
 
 const HOUR12_KEY = "cadence-hour12";
 

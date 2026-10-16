@@ -4,7 +4,7 @@ import { CalendarPlus, CalendarX, Download, Video } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/public-layout";
 import { BookedStrip } from "../domains/bookings/booked-strip";
-import { callEnd, clockLabel } from "../domains/widget/zoned-time";
+import { callEnd, clockLabel } from "../lib/zoned-time";
 import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
 import { formatLongDay, zoneName } from "../lib/format";

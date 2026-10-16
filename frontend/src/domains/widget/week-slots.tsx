@@ -4,23 +4,22 @@ import { Fragment, useState, type CSSProperties } from "react";
 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
+import { useNow } from "../../hooks/use-now";
 import {
   addDays,
+  type CivilDay,
   dayKey,
-  firstOpenFrom,
   longDayLabel,
   shortWeekday,
-  weekDays,
+  todayIn,
+  weekFrom,
   weekLabel,
-  weekAround,
-  weekTimetable,
-  type CivilDay,
-  type SlotDay,
-} from "./slot-days";
+} from "../../lib/civil-day";
+import { dayPhase } from "../../lib/zoned-time";
+import { firstOpenFrom, type SlotDay, weekAround, weekTimetable } from "./slot-days";
 import { SlotsFrame } from "./slots-frame";
 import { PHASE_STYLES } from "./slot-step";
 import { TimeChip, usePick } from "./time-chip";
-import { dayPhase, zonedTime } from "./zoned-time";
 
 const WEEK_DAYS = 7;
 
@@ -58,7 +57,8 @@ export function WeekSlots({
   // +1 when the week last moved forward, -1 when it moved back.
   const [direction, setDirection] = useState(1);
   const { picked, pick } = usePick(onPick);
-  const today = dayKey(zonedTime(new Date(), timeZone));
+  // Refreshed each minute, so "today" moves on at midnight.
+  const today = dayKey(todayIn(timeZone, useNow() ?? new Date()));
 
   const shownWeek = (days: SlotDay[]) => chosenWeek ?? weekAround(days, initialDay);
 
@@ -117,7 +117,7 @@ export function WeekSlots({
       {(days) => {
         const start = shownWeek(days);
         if (!start) return null;
-        const week = weekDays(start);
+        const week = weekFrom(start);
         const rows = weekTimetable(days, week, timeZone);
         const openColumns = week.map((_, column) =>
           rows.some((row) => row.cells[column] !== null),

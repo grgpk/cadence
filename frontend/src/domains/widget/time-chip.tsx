@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
 import { PHASE_STYLES } from "./slot-step";
-import { clockLabel, dayPhase, zonedTime } from "./zoned-time";
+import { clockLabel, dayPhase, zonedTime } from "../../lib/zoned-time";
 
 /** Long enough to see the time fill before the card moves on, as in the month view. */
 const PICK_MS = 170;

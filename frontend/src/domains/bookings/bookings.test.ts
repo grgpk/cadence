@@ -4,15 +4,11 @@ import type { Booking } from "../../bindings/Booking";
 import {
   agendaDays,
   dayCall,
-  dayOf,
   dayPlan,
-  daysBetween,
   firstName,
   lanes,
   matchesSearch,
-  monthGrid,
   splitBookings,
-  weekDays,
 } from "./bookings";
 
 const NOW = Date.parse("2026-10-14T12:00:00Z");
@@ -100,26 +96,6 @@ describe("matchesSearch", () => {
   });
 });
 
-describe("weekDays", () => {
-  // NOW is Wednesday 14 October 2026.
-  it("gives the week around today, Monday first", () => {
-    const days = weekDays(NOW, "UTC", 0);
-    expect(days.map((day) => day.day)).toEqual([12, 13, 14, 15, 16, 17, 18]);
-  });
-
-  it("moves by whole weeks and crosses into the next month", () => {
-    expect(weekDays(NOW, "UTC", -1)[0]).toEqual({ year: 2026, month: 10, day: 5 });
-    expect(weekDays(NOW, "UTC", 3).at(-1)).toEqual({ year: 2026, month: 11, day: 8 });
-  });
-
-  it("starts from the day it is in the given timezone", () => {
-    // Sunday 23:30 UTC is already Monday in Tokyo.
-    const sundayNight = Date.parse("2026-10-18T23:30:00Z");
-    expect(weekDays(sundayNight, "UTC", 0)[0]?.day).toBe(12);
-    expect(weekDays(sundayNight, "Asia/Tokyo", 0)[0]?.day).toBe(19);
-  });
-});
-
 describe("agendaDays across a clock change", () => {
   // Clocks go back in Paris on 25 October 2026, so that day lasts 25 hours.
   const lateOnTheLongDay = Date.parse("2026-10-24T22:30:00Z"); // 00:30 on the 25th
@@ -164,44 +140,6 @@ describe("firstName", () => {
   it("takes the first word of a name", () => {
     expect(firstName("  Mia  Chen ")).toBe("Mia");
     expect(firstName("Noor")).toBe("Noor");
-  });
-});
-
-describe("dayOf and daysBetween", () => {
-  it("moves by calendar days across a month end", () => {
-    expect(dayOf(NOW, "UTC", 0)).toEqual({ year: 2026, month: 10, day: 14 });
-    expect(dayOf(NOW, "UTC", 18)).toEqual({ year: 2026, month: 11, day: 1 });
-    expect(daysBetween(dayOf(NOW, "UTC", 0), { year: 2026, month: 11, day: 1 })).toBe(18);
-  });
-
-  it("counts whole days across a clock change", () => {
-    expect(
-      daysBetween({ year: 2026, month: 10, day: 24 }, { year: 2026, month: 10, day: 26 }),
-    ).toBe(2);
-  });
-});
-
-describe("monthGrid", () => {
-  it("lays out six weeks from the Monday on or before the first", () => {
-    const { year, month, days } = monthGrid(NOW, "UTC", 0);
-    expect({ year, month }).toEqual({ year: 2026, month: 10 });
-    expect(days).toHaveLength(42);
-    expect(days[0]).toEqual({ year: 2026, month: 9, day: 28, inMonth: false });
-    expect(days[3]).toEqual({ year: 2026, month: 10, day: 1, inMonth: true });
-  });
-
-  it("starts the week before when the first is a Sunday", () => {
-    // 1 November 2026 is a Sunday.
-    const { month, days } = monthGrid(NOW, "UTC", 1);
-    expect(month).toBe(11);
-    expect(days[0]).toMatchObject({ month: 10, day: 26, inMonth: false });
-    expect(days[6]).toMatchObject({ month: 11, day: 1, inMonth: true });
-  });
-
-  it("moves across a year end and keeps every day across a clock change", () => {
-    expect(monthGrid(NOW, "UTC", 3)).toMatchObject({ year: 2027, month: 1 });
-    const october = monthGrid(NOW, "Europe/Paris", 0).days.map((day) => day.day);
-    expect(october.slice(27, 30)).toEqual([25, 26, 27]);
   });
 });
 

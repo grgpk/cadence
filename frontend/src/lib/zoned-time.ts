@@ -1,4 +1,4 @@
-import { dateFormatter, formatClock } from "../../lib/format";
+import { dateFormatter, formatClock } from "./format";
 
 export type ZonedTime = {
   year: number;

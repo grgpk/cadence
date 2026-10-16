@@ -1,6 +1,6 @@
 import type { TimeSlot } from "../../bindings/TimeSlot";
-import { formatLongDay } from "../../lib/format";
-import { zonedTime } from "./zoned-time";
+import { addDays, type CivilDay, dayKey, dayOfInstant } from "../../lib/civil-day";
+import { zonedTime } from "../../lib/zoned-time";
 
 /** The ways a visitor can look through open times. Month is the original card. */
 export const SLOT_LAYOUTS = ["month", "week", "list"] as const;
@@ -11,35 +11,10 @@ export function isSlotLayout(value: unknown): value is SlotLayout {
   return SLOT_LAYOUTS.some((layout) => layout === value);
 }
 
-/** A date on the visitor's calendar, with no time or zone attached. */
-export type CivilDay = { year: number; month: number; day: number };
-
 /** The open times of one day, in the order they happen. */
 export type SlotDay = CivilDay & { key: string; slots: TimeSlot[] };
 
-const DAY_MS = 86_400_000;
 const WEEK_DAYS = 7;
-
-/** "2026-10-17", which also sorts in date order. */
-export function dayKey({ year, month, day }: CivilDay): string {
-  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
-function utcDate({ year, month, day }: CivilDay): Date {
-  return new Date(Date.UTC(year, month - 1, day));
-}
-
-function fromUtc(date: Date): CivilDay {
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  };
-}
-
-export function addDays(day: CivilDay, days: number): CivilDay {
-  return fromUtc(new Date(utcDate(day).getTime() + days * DAY_MS));
-}
 
 /** Open times grouped by the day they fall on in `timeZone`, earliest first. */
 export function slotsByDay(slots: TimeSlot[], timeZone: string): SlotDay[] {
@@ -49,46 +24,13 @@ export function slotsByDay(slots: TimeSlot[], timeZone: string): SlotDay[] {
   );
   // In time order, each day is first seen before any later one.
   for (const slot of earliestFirst) {
-    const { year, month, day } = zonedTime(new Date(slot.start), timeZone);
+    const { year, month, day } = dayOfInstant(slot.start, timeZone);
     const key = dayKey({ year, month, day });
     const existing = days.get(key);
     if (existing) existing.slots.push(slot);
     else days.set(key, { key, year, month, day, slots: [slot] });
   }
   return [...days.values()];
-}
-
-/** The seven days in a row from `start`. */
-export function weekDays(start: CivilDay): CivilDay[] {
-  return Array.from({ length: WEEK_DAYS }, (_, index) => addDays(start, index));
-}
-
-/** "Oct 19 – 25", or "Oct 26 – Nov 1" when the week crosses a month. */
-export function weekLabel(start: CivilDay): string {
-  const end = addDays(start, WEEK_DAYS - 1);
-  const month = (day: CivilDay) =>
-    utcDate(day).toLocaleString("en", { month: "short", timeZone: "UTC" });
-  return start.month === end.month
-    ? `${month(start)} ${start.day} – ${end.day}`
-    : `${month(start)} ${start.day} – ${month(end)} ${end.day}`;
-}
-
-/** "Today", "Tomorrow", or "Monday, October 19". */
-export function relativeDayLabel(day: CivilDay, today: CivilDay): string {
-  const key = dayKey(day);
-  if (key === dayKey(today)) return "Today";
-  if (key === dayKey(addDays(today, 1))) return "Tomorrow";
-  return formatLongDay(utcDate(day), "UTC", false);
-}
-
-/** "Mon" for a day, read on the calendar rather than in any zone. */
-export function shortWeekday(day: CivilDay): string {
-  return utcDate(day).toLocaleString("en", { weekday: "short", timeZone: "UTC" });
-}
-
-/** "Monday, October 19", for a screen reader naming a column of times. */
-export function longDayLabel(day: CivilDay): string {
-  return formatLongDay(utcDate(day), "UTC", false);
 }
 
 /** The call length when every open time has the same one; hosts can vary it by day. */

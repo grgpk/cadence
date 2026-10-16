@@ -4,12 +4,18 @@ import type { Booking } from "../../bindings/Booking";
 import type { BookingDetail } from "../../bindings/BookingDetail";
 import type { BookingStatus } from "../../bindings/BookingStatus";
 import { api } from "../../lib/api";
+import {
+  addDays,
+  type CivilDay,
+  dayKey,
+  dayOfInstant,
+  todayIn,
+} from "../../lib/civil-day";
 import { formatDay } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { zonedTime } from "../widget/zoned-time";
+import { zonedTime } from "../../lib/zoned-time";
 
 const CANCELLED: BookingStatus = "cancelled";
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function isCancelled(booking: Pick<Booking, "status">): boolean {
   return booking.status === CANCELLED;
@@ -64,76 +70,6 @@ export function splitBookings(
   return { upcoming, past, cancelled };
 }
 
-export type WeekDay = { year: number; month: number; day: number };
-
-/**
- * The seven days, Monday first, of the week `offset` weeks from the one `now`
- * falls in, on the clock of `timeZone`.
- */
-export function weekDays(now: number, timeZone: string, offset: number): WeekDay[] {
-  const midnight = todayMidnight(now, timeZone);
-  return Array.from({ length: 7 }, (_, index) =>
-    dayAt(midnight + (index - sinceMonday(midnight) + offset * 7) * DAY_MS),
-  );
-}
-
-// Calendar days as UTC midnights, so adding days never meets a clock change.
-function todayMidnight(now: number, timeZone: string): number {
-  const today = zonedTime(new Date(now), timeZone);
-  return Date.UTC(today.year, today.month - 1, today.day);
-}
-
-function sinceMonday(midnight: number): number {
-  return (new Date(midnight).getUTCDay() + 6) % 7;
-}
-
-function dayAt(midnight: number): WeekDay {
-  const date = new Date(midnight);
-  return {
-    year: date.getUTCFullYear(),
-    month: date.getUTCMonth() + 1,
-    day: date.getUTCDate(),
-  };
-}
-
-/** The day `offset` days from the one `now` falls in, on the clock of `timeZone`. */
-export function dayOf(now: number, timeZone: string, offset: number): WeekDay {
-  return dayAt(todayMidnight(now, timeZone) + offset * DAY_MS);
-}
-
-/** Whole calendar days from `from` to `to`. */
-export function daysBetween(from: WeekDay, to: WeekDay): number {
-  return Math.round(
-    (Date.UTC(to.year, to.month - 1, to.day) -
-      Date.UTC(from.year, from.month - 1, from.day)) /
-      DAY_MS,
-  );
-}
-
-export type MonthDay = WeekDay & { inMonth: boolean };
-
-const MONTH_GRID_DAYS = 42;
-
-/**
- * The month `offset` months from the one `now` falls in, as six full weeks,
- * Monday first. Days from the months either side are marked out of it.
- */
-export function monthGrid(
-  now: number,
-  timeZone: string,
-  offset: number,
-): { year: number; month: number; days: MonthDay[] } {
-  const today = zonedTime(new Date(now), timeZone);
-  const first = Date.UTC(today.year, today.month - 1 + offset, 1);
-  const { year, month } = dayAt(first);
-  const start = first - sinceMonday(first) * DAY_MS;
-  const days = Array.from({ length: MONTH_GRID_DAYS }, (_, index) => {
-    const day = dayAt(start + index * DAY_MS);
-    return { ...day, inMonth: day.month === month };
-  });
-  return { year, month, days };
-}
-
 /**
  * Side-by-side columns for calls that overlap on one day: each call's column
  * and how many columns its group of overlapping calls needs.
@@ -171,9 +107,9 @@ export function lanes<T extends { from: number; to: number }>(
 
 type AgendaDay = { key: string; label: string; bookings: Booking[] };
 
-function dayKey(instant: Date, timeZone: string): string {
-  const { year, month, day } = zonedTime(instant, timeZone);
-  return `${year}-${month}-${day}`;
+/** The key of the day an instant falls on, on the clock of `timeZone`. */
+function keyOn(instant: string | number, timeZone: string): string {
+  return dayKey(dayOfInstant(instant, timeZone));
 }
 
 /**
@@ -185,21 +121,19 @@ export function agendaDays(
   timeZone: string,
   now: number,
 ): AgendaDay[] {
-  const today = dayKey(new Date(now), timeZone);
+  const today = todayIn(timeZone, now);
   // The next calendar day, which is not always 24 hours away.
-  const { year, month, day } = zonedTime(new Date(now), timeZone);
-  const next = new Date(Date.UTC(year, month - 1, day + 1));
-  const tomorrow = `${next.getUTCFullYear()}-${next.getUTCMonth() + 1}-${next.getUTCDate()}`;
+  const tomorrow = dayKey(addDays(today, 1));
   const days: AgendaDay[] = [];
   for (const booking of bookings) {
-    const key = dayKey(new Date(booking.slot_start), timeZone);
+    const key = keyOn(booking.slot_start, timeZone);
     const last = days.at(-1);
     if (last?.key === key) {
       last.bookings.push(booking);
       continue;
     }
     const label =
-      key === today
+      key === dayKey(today)
         ? "Today"
         : key === tomorrow
           ? "Tomorrow"
@@ -218,17 +152,13 @@ const HOUR_MINUTES = 60;
 export function dayCall(
   booking: Booking,
   timeZone: string,
-): { booking: Booking; day: WeekDay; from: number; to: number } {
+): { booking: Booking; day: CivilDay; from: number; to: number } {
   const { year, month, day, hour, minute } = zonedTime(
     new Date(booking.slot_start),
     timeZone,
   );
   const from = hour * HOUR_MINUTES + minute;
   return { booking, day: { year, month, day }, from, to: from + booking.minutes };
-}
-
-export function sameDay(a: WeekDay, b: WeekDay): boolean {
-  return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
 /** "Mia" for "Mia Chen": what fits in a block on a ruler. */
@@ -248,10 +178,9 @@ export function dayPlan(
   timeZone: string,
   now: number,
 ): { today: Booking[]; current: Booking | null; next: Booking | null; later: Booking[] } {
-  const todayKey = dayKey(new Date(now), timeZone);
+  const todayKey = keyOn(now, timeZone);
   const sorted = [...bookings].sort((a, b) => a.slot_start.localeCompare(b.slot_start));
-  const isToday = (booking: Booking) =>
-    dayKey(new Date(booking.slot_start), timeZone) === todayKey;
+  const isToday = (booking: Booking) => keyOn(booking.slot_start, timeZone) === todayKey;
   const start = (booking: Booking) => new Date(booking.slot_start).getTime();
   const live = sorted.filter((booking) => !isCancelled(booking));
   return {
