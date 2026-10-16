@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, CalendarRange, Copy, List, Search } from "lucide-react";
+import { CalendarDays, Copy, List, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Booking } from "../../bindings/Booking";
@@ -9,7 +9,11 @@ import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { Agenda } from "../../domains/bookings/agenda";
-import { WeekView } from "../../domains/bookings/week-view";
+import {
+  CALENDAR_MODE,
+  type CalendarMode,
+  CalendarView,
+} from "../../domains/bookings/calendar-view";
 import { BookingDetailSheet } from "../../domains/bookings/booking-detail-sheet";
 import {
   bookingsQuery,
@@ -26,17 +30,33 @@ import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
 import { useNow } from "../../hooks/use-now";
 
+const VIEW = { list: "list", calendar: "calendar" } as const;
+type View = (typeof VIEW)[keyof typeof VIEW];
+
+type BookingsSearch = { view?: View; mode?: CalendarMode; offset?: number };
+
+const MODES: readonly unknown[] = Object.values(CALENDAR_MODE);
+
 export const Route = createFileRoute("/dashboard/bookings")({
+  // The calendar's place lives in the URL, so a reload stays on the same week.
+  validateSearch: (search): BookingsSearch => {
+    if (search.view !== VIEW.calendar) return {};
+    const offset = Number(search.offset);
+    return {
+      view: VIEW.calendar,
+      mode: MODES.includes(search.mode) ? (search.mode as CalendarMode) : undefined,
+      offset: Number.isInteger(offset) && offset !== 0 ? offset : undefined,
+    };
+  },
   head: () => ({ meta: [{ title: `Bookings | ${APP_NAME}` }] }),
   component: BookingsPage,
 });
 
 const TABS = { UPCOMING: "upcoming", PAST: "past", CANCELLED: "cancelled" } as const;
 const VIEWS = [
-  { value: "list", label: "List", icon: List },
-  { value: "week", label: "Week", icon: CalendarRange },
+  { value: VIEW.list, label: "List", icon: List },
+  { value: VIEW.calendar, label: "Calendar", icon: CalendarDays },
 ] as const;
-type View = (typeof VIEWS)[number]["value"];
 
 function BookingList({
   loading,
@@ -78,7 +98,10 @@ function BookingsPage() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<View>("list");
+  const { view = VIEW.list, mode, offset = 0 } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const setView = (next: View) =>
+    void navigate({ search: next === VIEW.calendar ? { view: next } : {} });
   const [openUnid, setOpenUnid] = useState<string | null>(null);
   const slug = settings.data?.public_slug;
   const timeZone = settings.data?.timezone;
@@ -124,16 +147,28 @@ function BookingsPage() {
           error={settings.error}
           onRetry={() => void settings.refetch()}
         />
-      ) : view === "week" ? (
+      ) : view === VIEW.calendar ? (
         loading || availability.isPending ? (
           <Card className="gap-0 overflow-hidden py-0">
             <TableSkeleton rows={7} />
           </Card>
         ) : (
-          <WeekView
+          <CalendarView
             bookings={query.data ?? []}
             rules={availability.data ?? []}
             timeZone={timeZone ?? "UTC"}
+            mode={mode}
+            offset={offset}
+            onNavigate={(next) =>
+              void navigate({
+                search: {
+                  view: VIEW.calendar,
+                  mode: next.mode,
+                  offset: next.offset || undefined,
+                },
+                replace: true,
+              })
+            }
             onOpen={open}
           />
         )

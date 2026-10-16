@@ -1,12 +1,14 @@
+import { cn } from "cn";
+
 /** The Google Meet mark, in its own colours. */
-export function GoogleMeetIcon() {
+export function GoogleMeetIcon({ className = "size-4" }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 22 22"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
-      className="size-4 shrink-0"
+      className={cn(className, "shrink-0")}
     >
       <path
         d="M1.375 7.79159V14.2083L3.66667 14.6666L5.95833 14.2083V7.79159L3.66667 7.33325L1.375 7.79159Z"

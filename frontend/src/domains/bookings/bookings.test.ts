@@ -4,8 +4,12 @@ import type { Booking } from "../../bindings/Booking";
 import {
   agendaDays,
   dayCall,
+  dayOf,
+  daysBetween,
   firstName,
+  lanes,
   matchesSearch,
+  monthGrid,
   splitBookings,
   weekDays,
 } from "./bookings";
@@ -159,5 +163,71 @@ describe("firstName", () => {
   it("takes the first word of a name", () => {
     expect(firstName("  Mia  Chen ")).toBe("Mia");
     expect(firstName("Noor")).toBe("Noor");
+  });
+});
+
+describe("dayOf and daysBetween", () => {
+  it("moves by calendar days across a month end", () => {
+    expect(dayOf(NOW, "UTC", 0)).toEqual({ year: 2026, month: 10, day: 14 });
+    expect(dayOf(NOW, "UTC", 18)).toEqual({ year: 2026, month: 11, day: 1 });
+    expect(daysBetween(dayOf(NOW, "UTC", 0), { year: 2026, month: 11, day: 1 })).toBe(18);
+  });
+
+  it("counts whole days across a clock change", () => {
+    expect(
+      daysBetween({ year: 2026, month: 10, day: 24 }, { year: 2026, month: 10, day: 26 }),
+    ).toBe(2);
+  });
+});
+
+describe("monthGrid", () => {
+  it("lays out six weeks from the Monday on or before the first", () => {
+    const { year, month, days } = monthGrid(NOW, "UTC", 0);
+    expect({ year, month }).toEqual({ year: 2026, month: 10 });
+    expect(days).toHaveLength(42);
+    expect(days[0]).toEqual({ year: 2026, month: 9, day: 28, inMonth: false });
+    expect(days[3]).toEqual({ year: 2026, month: 10, day: 1, inMonth: true });
+  });
+
+  it("starts the week before when the first is a Sunday", () => {
+    // 1 November 2026 is a Sunday.
+    const { month, days } = monthGrid(NOW, "UTC", 1);
+    expect(month).toBe(11);
+    expect(days[0]).toMatchObject({ month: 10, day: 26, inMonth: false });
+    expect(days[6]).toMatchObject({ month: 11, day: 1, inMonth: true });
+  });
+
+  it("moves across a year end and keeps every day across a clock change", () => {
+    expect(monthGrid(NOW, "UTC", 3)).toMatchObject({ year: 2027, month: 1 });
+    const october = monthGrid(NOW, "Europe/Paris", 0).days.map((day) => day.day);
+    expect(october.slice(27, 30)).toEqual([25, 26, 27]);
+  });
+});
+
+describe("lanes", () => {
+  it("keeps calls that do not overlap in one full-width lane", () => {
+    const placed = lanes([
+      { from: 540, to: 570 },
+      { from: 570, to: 600 },
+    ]);
+    expect(placed.map(({ lane, lanes: width }) => [lane, width])).toEqual([
+      [0, 1],
+      [0, 1],
+    ]);
+  });
+
+  it("puts overlapping calls side by side and reuses a free lane", () => {
+    const placed = lanes([
+      { from: 540, to: 600 },
+      { from: 550, to: 580 },
+      { from: 585, to: 620 },
+      { from: 700, to: 730 },
+    ]);
+    expect(placed.map(({ lane, lanes: width }) => [lane, width])).toEqual([
+      [0, 2],
+      [1, 2],
+      [1, 2],
+      [0, 1],
+    ]);
   });
 });

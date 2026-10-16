@@ -102,6 +102,7 @@ cadence/
 | 15 | `PLAN_15_ACCOUNT_SAFETY.md` | password reset and account, rate limits, gap between calls, bookings week view, admin on phones, link previews | 🔄 in progress |
 | 16 | `PLAN_16_HARDENING.md` | seed out of production, stored call length and overlap lock, session versions, email worker claiming, Google timeouts, frontend bug and accessibility fixes | 🔄 in progress |
 | 17 | `PLAN_17_INTEGRATIONS.md` | Integrations page, Google Calendar moved there, default meeting app (Google Meet or own link), Outlook/Apple/Zoom/Teams shown as coming soon | 🔄 in progress |
+| 18 | `PLAN_18_APPS_AND_CALENDAR.md` | App store, app pages and Installed apps under an Apps nav group; bookings calendar with day, week and month | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 
@@ -127,7 +128,7 @@ booking query and URL. Plan 9 restyles what Plans 7 and 8 built.
 Teams (as in team scheduling), round robin, payments, recurring bookings,
 public API keys, SMS, WhatsApp, Discord, i18n, and native mobile apps. Revisit
 after multi-host onboarding. Outlook, CalDAV, Zoom and Microsoft Teams
-meetings are follow-ups to Plan 17.
+meetings are follow-ups to Plans 17 and 18.
 
 ## Working agreement
 

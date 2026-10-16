@@ -1,9 +1,14 @@
 import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
 import { cn } from "cn";
-import type { LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRight, type LucideIcon } from "lucide-react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import type { SessionUser } from "../../bindings/SessionUser";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../../components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -16,8 +21,12 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "../../components/ui/sidebar";
 import { hasAdminAccess } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
@@ -27,12 +36,17 @@ import { SEGMENT, SEGMENT_ON, SEGMENT_TRACK } from "./segmented-control";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
-export type NavItem = {
+type NavLink = {
   title: string;
   to: LinkProps["to"] & string;
-  icon: LucideIcon;
   /** Match the path exactly, for an index page that prefixes its siblings. */
   exact?: boolean;
+};
+
+export type NavItem = NavLink & {
+  icon: LucideIcon;
+  /** Pages under this one, shown as a group that opens and closes. */
+  items?: NavLink[];
 };
 
 export type NavSection = { label?: string; items: NavItem[] };
@@ -64,10 +78,78 @@ function AreaSwitch({ current }: { current: Area }) {
   );
 }
 
-function isActive(pathname: string, item: NavItem) {
+function isActive(pathname: string, item: NavLink) {
   return item.exact
     ? pathname === item.to
     : pathname === item.to || pathname.startsWith(`${item.to}/`);
+}
+
+/** The page a path is on: the most specific link that matches it. */
+function activeLink<T extends NavLink>(pathname: string, links: T[]): T | undefined {
+  return links
+    .filter((link) => isActive(pathname, link))
+    .sort((a, b) => b.to.length - a.to.length)[0];
+}
+
+/** A nav item with pages under it. Collapsed to icons, it opens its first page. */
+function NavGroup({
+  item,
+  items,
+  pathname,
+}: {
+  item: NavItem;
+  items: NavLink[];
+  pathname: string;
+}) {
+  const { state, isMobile } = useSidebar();
+  const active = isActive(pathname, item);
+  const current = activeLink(pathname, items);
+  const [open, setOpen] = useState(active);
+  // Arriving at one of its pages from elsewhere opens the group.
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
+  const Icon = item.icon;
+
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
+          <Link to={items[0]?.to ?? item.to}>
+            <Icon />
+            <span>{item.title}</span>
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  }
+
+  return (
+    <Collapsible asChild open={open} onOpenChange={setOpen} className="group/collapsible">
+      <SidebarMenuItem>
+        <CollapsibleTrigger asChild>
+          <SidebarMenuButton tooltip={item.title}>
+            <Icon />
+            <span>{item.title}</span>
+            <ChevronRight className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+          </SidebarMenuButton>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <SidebarMenuSub>
+            {items.map((sub) => (
+              <SidebarMenuSubItem key={sub.to}>
+                <SidebarMenuSubButton asChild isActive={sub === current}>
+                  <Link to={sub.to}>
+                    <span>{sub.title}</span>
+                  </Link>
+                </SidebarMenuSubButton>
+              </SidebarMenuSubItem>
+            ))}
+          </SidebarMenuSub>
+        </CollapsibleContent>
+      </SidebarMenuItem>
+    </Collapsible>
+  );
 }
 
 export function AppShell({
@@ -89,9 +171,12 @@ export function AppShell({
   children: ReactNode;
 }) {
   const { pathname } = useLocation();
-  const current = sections
-    .flatMap((section) => section.items)
-    .find((item) => isActive(pathname, item));
+  const current = activeLink(
+    pathname,
+    sections.flatMap((section) =>
+      section.items.flatMap((item) => [...(item.items ?? []), item]),
+    ),
+  );
 
   return (
     <SidebarProvider>
@@ -127,6 +212,16 @@ export function AppShell({
               <SidebarGroupContent>
                 <SidebarMenu>
                   {section.items.map((item) => {
+                    if (item.items) {
+                      return (
+                        <NavGroup
+                          key={item.to}
+                          item={item}
+                          items={item.items}
+                          pathname={pathname}
+                        />
+                      );
+                    }
                     const Icon = item.icon;
                     return (
                       <SidebarMenuItem key={item.to}>

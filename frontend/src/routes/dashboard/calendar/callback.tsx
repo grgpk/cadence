@@ -16,7 +16,7 @@ function GoogleCalendarCallbackPage() {
     <GoogleCalendarCallback
       code={Route.useSearch().code}
       state={Route.useSearch().state}
-      returnTo={ROUTES.dashboardIntegrations}
+      returnTo={ROUTES.dashboardAppsInstalled}
     />
   );
 }

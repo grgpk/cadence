@@ -1,29 +1,40 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ArrowRight } from "lucide-react";
 
-import { Skeleton } from "../../components/ui/skeleton";
-import { hostSettingsQuery } from "../../domains/dashboard/host-api";
-import { CallFlow } from "../../domains/integrations/call-flow";
-import {
-  COMING_SOON_CALENDARS,
-  COMING_SOON_CONFERENCING,
-} from "../../domains/integrations/catalog";
-import { ComingSoon } from "../../domains/integrations/coming-soon";
-import { callPlace } from "../../domains/integrations/conferencing";
-import { ConferencingForm } from "../../domains/integrations/conferencing-form";
-import { GoogleCalendarConnection } from "../../domains/integrations/google-calendar-connection";
-import { ErrorState } from "../../domains/shared/error-state";
-import { PageHeader } from "../../domains/shared/page-header";
-import { PanelCard } from "../../domains/shared/panel-card";
-import { bookingPageQuery } from "../../domains/widget/cadence-api";
-import { APP_NAME } from "../../lib/config";
+import { Button } from "../../../components/ui/button";
+import { Skeleton } from "../../../components/ui/skeleton";
+import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
+import { CallFlow } from "../../../domains/integrations/call-flow";
+import { APP_CATEGORY, type AppCategory } from "../../../domains/integrations/catalog";
+import { callPlace } from "../../../domains/integrations/conferencing";
+import { ConferencingForm } from "../../../domains/integrations/conferencing-form";
+import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
+import { ErrorState } from "../../../domains/shared/error-state";
+import { PageHeader } from "../../../domains/shared/page-header";
+import { PanelCard } from "../../../domains/shared/panel-card";
+import { bookingPageQuery } from "../../../domains/widget/cadence-api";
+import { APP_NAME } from "../../../lib/config";
+import { ROUTES } from "../../../lib/routes";
 
-export const Route = createFileRoute("/dashboard/integrations")({
-  head: () => ({ meta: [{ title: `Integrations | ${APP_NAME}` }] }),
-  component: IntegrationsPage,
+export const Route = createFileRoute("/dashboard/apps/installed")({
+  head: () => ({ meta: [{ title: `Installed apps | ${APP_NAME}` }] }),
+  component: InstalledAppsPage,
 });
 
-function IntegrationsPage() {
+/** The way to the store, filtered to the apps that could go in a panel. */
+function MoreApps({ category }: { category: AppCategory }) {
+  return (
+    <Button variant="link" size="sm" className="h-auto p-0 has-[>svg]:px-0" asChild>
+      <Link to={ROUTES.dashboardApps} search={{ category }}>
+        More apps in the App store
+        <ArrowRight />
+      </Link>
+    </Button>
+  );
+}
+
+function InstalledAppsPage() {
   const settings = useQuery(hostSettingsQuery);
   const slug = settings.data?.public_slug;
   const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
@@ -31,7 +42,7 @@ function IntegrationsPage() {
   return (
     <>
       <PageHeader
-        title="Integrations"
+        title="Installed apps"
         description="Connect your calendar and choose where your calls happen."
       />
       {settings.isPending || (slug && page.isPending) ? (
@@ -42,7 +53,7 @@ function IntegrationsPage() {
         </div>
       ) : settings.isError ? (
         <ErrorState
-          title="Your integrations did not load"
+          title="Your apps did not load"
           error={settings.error}
           onRetry={() => void settings.refetch()}
         />
@@ -60,7 +71,7 @@ function IntegrationsPage() {
           <PanelCard
             title="Calendar"
             description="Busy times on your calendar are kept off your booking page, and each new call is added to it."
-            footer={<ComingSoon apps={COMING_SOON_CALENDARS} />}
+            footer={<MoreApps category={APP_CATEGORY.calendar} />}
           >
             <GoogleCalendarConnection slug={settings.data.public_slug} />
           </PanelCard>
@@ -68,7 +79,7 @@ function IntegrationsPage() {
           <PanelCard
             title="Meeting app"
             description="Where new calls happen. People who book get the link in their confirmation. Calls already booked keep theirs."
-            footer={<ComingSoon apps={COMING_SOON_CONFERENCING} />}
+            footer={<MoreApps category={APP_CATEGORY.conferencing} />}
           >
             <ConferencingForm
               saved={settings.data}

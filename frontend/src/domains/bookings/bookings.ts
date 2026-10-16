@@ -71,18 +71,102 @@ export type WeekDay = { year: number; month: number; day: number };
  * falls in, on the clock of `timeZone`.
  */
 export function weekDays(now: number, timeZone: string, offset: number): WeekDay[] {
+  const midnight = todayMidnight(now, timeZone);
+  return Array.from({ length: 7 }, (_, index) =>
+    dayAt(midnight + (index - sinceMonday(midnight) + offset * 7) * DAY_MS),
+  );
+}
+
+// Calendar days as UTC midnights, so adding days never meets a clock change.
+function todayMidnight(now: number, timeZone: string): number {
   const today = zonedTime(new Date(now), timeZone);
-  // Calendar days as UTC midnights, so adding days never meets a clock change.
-  const midnight = Date.UTC(today.year, today.month - 1, today.day);
-  const sinceMonday = (new Date(midnight).getUTCDay() + 6) % 7;
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(midnight + (index - sinceMonday + offset * 7) * DAY_MS);
-    return {
-      year: date.getUTCFullYear(),
-      month: date.getUTCMonth() + 1,
-      day: date.getUTCDate(),
-    };
+  return Date.UTC(today.year, today.month - 1, today.day);
+}
+
+function sinceMonday(midnight: number): number {
+  return (new Date(midnight).getUTCDay() + 6) % 7;
+}
+
+function dayAt(midnight: number): WeekDay {
+  const date = new Date(midnight);
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+  };
+}
+
+/** The day `offset` days from the one `now` falls in, on the clock of `timeZone`. */
+export function dayOf(now: number, timeZone: string, offset: number): WeekDay {
+  return dayAt(todayMidnight(now, timeZone) + offset * DAY_MS);
+}
+
+/** Whole calendar days from `from` to `to`. */
+export function daysBetween(from: WeekDay, to: WeekDay): number {
+  return Math.round(
+    (Date.UTC(to.year, to.month - 1, to.day) -
+      Date.UTC(from.year, from.month - 1, from.day)) /
+      DAY_MS,
+  );
+}
+
+export type MonthDay = WeekDay & { inMonth: boolean };
+
+const MONTH_GRID_DAYS = 42;
+
+/**
+ * The month `offset` months from the one `now` falls in, as six full weeks,
+ * Monday first. Days from the months either side are marked out of it.
+ */
+export function monthGrid(
+  now: number,
+  timeZone: string,
+  offset: number,
+): { year: number; month: number; days: MonthDay[] } {
+  const today = zonedTime(new Date(now), timeZone);
+  const first = Date.UTC(today.year, today.month - 1 + offset, 1);
+  const { year, month } = dayAt(first);
+  const start = first - sinceMonday(first) * DAY_MS;
+  const days = Array.from({ length: MONTH_GRID_DAYS }, (_, index) => {
+    const day = dayAt(start + index * DAY_MS);
+    return { ...day, inMonth: day.month === month };
   });
+  return { year, month, days };
+}
+
+/**
+ * Side-by-side columns for calls that overlap on one day: each call's column
+ * and how many columns its group of overlapping calls needs.
+ */
+export function lanes<T extends { from: number; to: number }>(
+  calls: T[],
+): (T & { lane: number; lanes: number })[] {
+  const sorted = [...calls].sort((a, b) => a.from - b.from || b.to - a.to);
+  const placed: (T & { lane: number; lanes: number })[] = [];
+  let group: (T & { lane: number; lanes: number })[] = [];
+  let groupEnd = Number.NEGATIVE_INFINITY;
+  const closeGroup = () => {
+    const width = Math.max(0, ...group.map((call) => call.lane + 1));
+    for (const call of group) call.lanes = width;
+    group = [];
+  };
+  for (const call of sorted) {
+    if (call.from >= groupEnd) {
+      closeGroup();
+      groupEnd = call.to;
+    }
+    const busy = new Set(
+      group.filter((other) => other.to > call.from).map((other) => other.lane),
+    );
+    let lane = 0;
+    while (busy.has(lane)) lane += 1;
+    const entry = { ...call, lane, lanes: 1 };
+    group.push(entry);
+    placed.push(entry);
+    groupEnd = Math.max(groupEnd, call.to);
+  }
+  closeGroup();
+  return placed;
 }
 
 type AgendaDay = { key: string; label: string; bookings: Booking[] };

@@ -64,7 +64,7 @@ function FixLink({
 }: {
   to:
     | typeof ROUTES.dashboardAvailability
-    | typeof ROUTES.dashboardIntegrations
+    | typeof ROUTES.dashboardAppsInstalled
     | typeof ROUTES.dashboardSettings;
   hash?: string;
   /** The row has a problem and this is how to fix it. */
@@ -177,7 +177,7 @@ export function BookingPageStatus() {
                     ? "Your own meeting link"
                     : "No place to join, so people who book get no link",
               actions: (
-                <FixLink to={ROUTES.dashboardIntegrations} primary={none}>
+                <FixLink to={ROUTES.dashboardAppsInstalled} primary={none}>
                   {none ? "Add a meeting link" : "Change"}
                 </FixLink>
               ),

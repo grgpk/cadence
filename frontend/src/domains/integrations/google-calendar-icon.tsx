@@ -1,7 +1,9 @@
+import { cn } from "cn";
+
 /** A Google Calendar style mark: a page with a blue binding and the day. */
-export function GoogleCalendarIcon() {
+export function GoogleCalendarIcon({ className = "size-5" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5 shrink-0">
+    <svg viewBox="0 0 24 24" aria-hidden="true" className={cn(className, "shrink-0")}>
       <rect
         x="2.5"
         y="3"

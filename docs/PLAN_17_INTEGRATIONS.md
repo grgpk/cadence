@@ -129,11 +129,14 @@ Integrations page and the overview "Calls" row say so.
 
 ## Follow-ups
 
-- Plan 18, Outlook Calendar and Teams via Microsoft Graph: busy times, events,
+- Plan 18 replaced this page with an App store, app pages and Installed apps
+  under a collapsible Apps group. The page body lives on as Installed apps.
+
+- Plan 19, Outlook Calendar and Teams via Microsoft Graph: busy times, events,
   and Teams meetings. This plan brings in a provider-neutral credentials table
   (`calendar_connections` keyed by host and provider) to replace
   `google_calendar_config`.
-- Plan 19, Zoom: OAuth app and a meeting per call, adding `zoom` to
+- Plan 20, Zoom: OAuth app and a meeting per call, adding `zoom` to
   `conferencing_app`.
 - Apple / CalDAV calendars.
 

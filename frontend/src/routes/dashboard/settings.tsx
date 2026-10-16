@@ -394,7 +394,7 @@ function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Your booking page, its rules, what the form asks and how the app looks. Calendars and meeting apps are under Integrations."
+        description="Your booking page, its rules, what the form asks and how the app looks. Calendars and meeting apps are under Apps."
       />
       {query.isPending ? (
         <div className="grid gap-6">

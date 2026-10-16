@@ -32,8 +32,10 @@ import { Route as BookingTokenRouteImport } from './routes/booking/$token'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
-import { Route as DashboardIntegrationsRouteImport } from './routes/dashboard/integrations'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as DashboardAppsIndexRouteImport } from './routes/dashboard/apps/index'
+import { Route as DashboardAppsSlugRouteImport } from './routes/dashboard/apps/$slug'
+import { Route as DashboardAppsInstalledRouteImport } from './routes/dashboard/apps/installed'
 import { Route as DashboardCalendarCallbackRouteImport } from './routes/dashboard/calendar/callback'
 
 const IndexRoute = IndexRouteImport.update({
@@ -151,14 +153,24 @@ const DashboardBookingsRoute = DashboardBookingsRouteImport.update({
   path: '/bookings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
-const DashboardIntegrationsRoute = DashboardIntegrationsRouteImport.update({
-  id: '/integrations',
-  path: '/integrations',
-  getParentRoute: () => DashboardRouteRoute,
-} as any)
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardAppsIndexRoute = DashboardAppsIndexRouteImport.update({
+  id: '/apps/',
+  path: '/apps/',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardAppsSlugRoute = DashboardAppsSlugRouteImport.update({
+  id: '/apps/$slug',
+  path: '/apps/$slug',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardAppsInstalledRoute = DashboardAppsInstalledRouteImport.update({
+  id: '/apps/installed',
+  path: '/apps/installed',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardCalendarCallbackRoute =
@@ -190,11 +202,13 @@ export interface FileRoutesByFullPath {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
+  '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/apps/': typeof DashboardAppsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -216,11 +230,13 @@ export interface FileRoutesByTo {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
+  '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/apps': typeof DashboardAppsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -245,11 +261,13 @@ export interface FileRoutesById {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
-  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/apps/$slug': typeof DashboardAppsSlugRoute
+  '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
+  '/dashboard/apps/': typeof DashboardAppsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -275,11 +293,13 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
+    | '/dashboard/apps/$slug'
+    | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/apps/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -301,11 +321,13 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin'
     | '/dashboard'
+    | '/dashboard/apps/$slug'
+    | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/apps'
   id:
     | '__root__'
     | '/'
@@ -329,11 +351,13 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
-    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
+    | '/dashboard/apps/$slug'
+    | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
+    | '/dashboard/apps/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -514,18 +538,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBookingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
-    '/dashboard/integrations': {
-      id: '/dashboard/integrations'
-      path: '/integrations'
-      fullPath: '/dashboard/integrations'
-      preLoaderRoute: typeof DashboardIntegrationsRouteImport
-      parentRoute: typeof DashboardRouteRoute
-    }
     '/dashboard/settings': {
       id: '/dashboard/settings'
       path: '/settings'
       fullPath: '/dashboard/settings'
       preLoaderRoute: typeof DashboardSettingsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/apps/': {
+      id: '/dashboard/apps/'
+      path: '/apps'
+      fullPath: '/dashboard/apps/'
+      preLoaderRoute: typeof DashboardAppsIndexRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/apps/$slug': {
+      id: '/dashboard/apps/$slug'
+      path: '/apps/$slug'
+      fullPath: '/dashboard/apps/$slug'
+      preLoaderRoute: typeof DashboardAppsSlugRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/dashboard/apps/installed': {
+      id: '/dashboard/apps/installed'
+      path: '/apps/installed'
+      fullPath: '/dashboard/apps/installed'
+      preLoaderRoute: typeof DashboardAppsInstalledRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/dashboard/calendar/callback': {
@@ -567,19 +605,23 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface DashboardRouteRouteChildren {
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
-  DashboardIntegrationsRoute: typeof DashboardIntegrationsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  DashboardAppsSlugRoute: typeof DashboardAppsSlugRoute
+  DashboardAppsInstalledRoute: typeof DashboardAppsInstalledRoute
   DashboardCalendarCallbackRoute: typeof DashboardCalendarCallbackRoute
+  DashboardAppsIndexRoute: typeof DashboardAppsIndexRoute
 }
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
-  DashboardIntegrationsRoute: DashboardIntegrationsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  DashboardAppsSlugRoute: DashboardAppsSlugRoute,
+  DashboardAppsInstalledRoute: DashboardAppsInstalledRoute,
   DashboardCalendarCallbackRoute: DashboardCalendarCallbackRoute,
+  DashboardAppsIndexRoute: DashboardAppsIndexRoute,
 }
 
 const DashboardRouteRouteWithChildren = DashboardRouteRoute._addFileChildren(

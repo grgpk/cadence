@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Card } from "../../components/ui/card";
 
-/** A titled group of controls, as on the Settings and Integrations pages. */
+/** A titled group of controls, as on the Settings and Installed apps pages. */
 export function PanelCard({
   id,
   title,
