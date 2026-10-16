@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { APP_CATEGORY, APP_SLUG, APPS, filterApps, isInstalled } from "./catalog";
+import {
+  APP_CATEGORY,
+  APP_SLUG,
+  APP_TONE,
+  APPS,
+  appState,
+  filterApps,
+  isInstalled,
+} from "./catalog";
 import { CONFERENCING_APP } from "./conferencing";
 
 const MEET = { conferencing_app: CONFERENCING_APP.googleMeet, meeting_link: null };
@@ -45,5 +53,26 @@ describe("filterApps", () => {
     const calendars = filterApps(APPS, "", APP_CATEGORY.calendar);
     expect(calendars.every((app) => app.category === APP_CATEGORY.calendar)).toBe(true);
     expect(calendars).toHaveLength(3);
+  });
+});
+
+describe("appState", () => {
+  it("says what an app is doing", () => {
+    expect(appState(APP_SLUG.googleCalendar, MEET, true)).toEqual({
+      tone: APP_TONE.on,
+      text: "Busy times blocked",
+    });
+    expect(appState(APP_SLUG.customLink, LINK, false)).toEqual({
+      tone: APP_TONE.on,
+      text: "zoom.us/j/1",
+    });
+    expect(appState(APP_SLUG.customLink, MEET, true).tone).toBe(APP_TONE.off);
+  });
+
+  it("warns when Meet is picked without a calendar to make its links", () => {
+    expect(appState(APP_SLUG.googleMeet, MEET, false)).toEqual({
+      tone: APP_TONE.warn,
+      text: "Needs Google Calendar",
+    });
   });
 });

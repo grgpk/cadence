@@ -152,6 +152,36 @@ export function isInstalled(
   }
 }
 
+export const APP_TONE = { on: "on", warn: "warn", off: "off" } as const;
+export type AppTone = (typeof APP_TONE)[keyof typeof APP_TONE];
+
+/** "zoom.us/j/123" for "https://zoom.us/j/123": the part a host recognises. */
+function shortLink(link: string): string {
+  return link.replace(/^https?:\/\//, "").replace(/\/$/, "");
+}
+
+/** What an app is doing for the host right now, in a few words. */
+export function appState(
+  slug: AppSlug,
+  settings: Pick<HostSettings, "conferencing_app" | "meeting_link">,
+  calendarConnected: boolean,
+): { tone: AppTone; text: string } {
+  if (!isInstalled(slug, settings, calendarConnected)) {
+    return { tone: APP_TONE.off, text: "Not set up" };
+  }
+  switch (slug) {
+    case APP_SLUG.googleCalendar:
+      return { tone: APP_TONE.on, text: "Busy times blocked" };
+    case APP_SLUG.googleMeet:
+      // The same rule as `callPlace`: Meet needs a calendar to make its links.
+      return calendarConnected
+        ? { tone: APP_TONE.on, text: "New link for each call" }
+        : { tone: APP_TONE.warn, text: "Needs Google Calendar" };
+    default:
+      return { tone: APP_TONE.on, text: shortLink(settings.meeting_link ?? "") };
+  }
+}
+
 /** Apps whose name or summary contains `search`, in `category` when one is picked. */
 export function filterApps(
   apps: readonly AppEntry[],

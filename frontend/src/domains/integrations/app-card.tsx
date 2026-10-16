@@ -1,10 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Link as LinkIcon } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
 import { ROUTES } from "../../lib/routes";
-import { APP_CATEGORY, type AppCategory, type AppEntry, CATEGORY_INFO } from "./catalog";
+import {
+  APP_CATEGORY,
+  APP_TONE,
+  type AppCategory,
+  type AppEntry,
+  type AppTone,
+  CATEGORY_INFO,
+} from "./catalog";
 
 const LOGO_SIZES = {
   sm: { box: "size-9 rounded-lg", icon: "size-5" },
@@ -47,33 +54,60 @@ export function AppStatus({ app, installed }: { app: AppEntry; installed: boolea
 
 const FOCUS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
-/** One app in the store. The whole card opens its page. */
-export function AppCard({ app, installed }: { app: AppEntry; installed: boolean }) {
+const TONE_DOT: Record<AppTone, string> = {
+  [APP_TONE.on]: "bg-success",
+  [APP_TONE.warn]: "bg-warning",
+  [APP_TONE.off]: "border border-muted-foreground/50",
+};
+
+/** One app in the store, with what it is doing for the host. The whole card opens its page. */
+export function AppCard({
+  app,
+  state,
+}: {
+  app: AppEntry;
+  state: { tone: AppTone; text: string };
+}) {
   return (
     <Link
       to={ROUTES.dashboardApp}
       params={{ slug: app.slug }}
       className={cn(
-        "group flex flex-col rounded-xl border bg-card text-card-foreground shadow-xs transition-colors hover:border-foreground/30",
+        "flex flex-col rounded-xl border bg-card text-card-foreground shadow-xs transition-colors hover:border-foreground/30",
         FOCUS,
       )}
     >
-      <div className="flex flex-1 flex-col p-5">
-        <div className="flex items-start justify-between gap-3">
+      <div className="flex flex-1 flex-col gap-4 p-5">
+        <div className="flex items-center gap-3">
           <AppLogo app={app} />
-          <AppStatus app={app} installed={installed} />
+          <div className="min-w-0">
+            <h3 className="truncate font-display font-wide text-lg font-semibold tracking-tight">
+              {app.name}
+            </h3>
+            <p className="text-sm text-muted-foreground">
+              {CATEGORY_INFO[app.category].name}
+            </p>
+          </div>
         </div>
-        <h3 className="mt-5 font-display font-wide text-lg font-semibold tracking-tight">
-          {app.name}
-        </h3>
-        <p className="mt-1.5 line-clamp-3 text-sm leading-relaxed text-muted-foreground">
+        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
           {app.summary}
         </p>
       </div>
-      <div className="flex items-center justify-between border-t px-5 py-3 text-sm">
-        <span className="text-muted-foreground">{CATEGORY_INFO[app.category].name}</span>
-        <span className="inline-flex items-center gap-0.5 font-medium">
-          {installed ? "Manage" : "Set up"}
+      <div className="flex items-center justify-between gap-3 border-t px-5 py-3 text-sm">
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-2",
+            state.tone === APP_TONE.off ? "text-muted-foreground" : "font-medium",
+          )}
+        >
+          <span
+            aria-hidden="true"
+            className={cn("size-2 shrink-0 rounded-full", TONE_DOT[state.tone])}
+          />
+          <span className="truncate">{state.text}</span>
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-0.5 font-medium">
+          {state.tone === APP_TONE.off ? "Set up" : "Manage"}
           <ChevronRight className="size-4 text-muted-foreground" />
         </span>
       </div>
@@ -116,16 +150,18 @@ function CalendarSketch() {
   );
 }
 
-/** A booked call turning into the link people join it from. */
+/** A booked call and the link people join it from. */
 function ConferencingSketch() {
   return (
     <div aria-hidden="true" className="flex h-9 items-center gap-2">
-      <span className="flex h-full w-1/4 items-center rounded-sm bg-primary px-2 text-xs font-semibold text-primary-foreground">
-        Ana
+      <span className="flex h-full shrink-0 flex-col justify-center rounded-sm border-l-4 border-noon bg-primary px-2 text-[0.6875rem] leading-tight text-primary-foreground">
+        <span className="font-semibold">Ana</span>
+        <span className="text-clock opacity-80">10:00</span>
       </span>
       <span className="h-px flex-1 border-t border-dashed border-foreground/40" />
-      <span className="flex h-7 items-center rounded-full border bg-card px-2.5 text-xs text-muted-foreground">
-        meet.link/ana
+      <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-full border bg-card px-2.5 text-xs text-muted-foreground">
+        <LinkIcon className="size-3 shrink-0" />
+        <span className="truncate">meet.google.com/ana-call</span>
       </span>
     </div>
   );
@@ -156,12 +192,14 @@ export function CategoryTile({
       aria-pressed={selected}
       onClick={onToggle}
       className={cn(
-        "grid gap-5 rounded-xl border bg-muted/40 p-5 text-left transition-colors hover:border-foreground/30",
+        "grid gap-4 rounded-xl border bg-muted/40 p-4 text-left transition-colors hover:border-foreground/30",
         selected && "border-foreground bg-card hover:border-foreground",
         FOCUS,
       )}
     >
-      <Sketch />
+      <div className="rounded-lg border bg-background p-3">
+        <Sketch />
+      </div>
       <span className="flex items-end justify-between gap-3">
         <span>
           <span className="block font-display font-wide text-lg font-semibold tracking-tight">

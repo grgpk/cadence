@@ -11,11 +11,12 @@ import {
   type AppCategory,
   type AppEntry,
   APPS,
+  appState,
   filterApps,
-  isInstalled,
 } from "../../../domains/integrations/catalog";
 import { EmptyState } from "../../../domains/shared/empty-state";
 import { PageHeader } from "../../../domains/shared/page-header";
+import { CONFERENCING_APP } from "../../../domains/integrations/conferencing";
 import { bookingPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 
@@ -35,11 +36,11 @@ export const Route = createFileRoute("/dashboard/apps/")({
 function AppGrid({
   title,
   apps,
-  installed,
+  stateOf,
 }: {
   title: string;
   apps: AppEntry[];
-  installed: (app: AppEntry) => boolean;
+  stateOf: (app: AppEntry) => ReturnType<typeof appState>;
 }) {
   if (apps.length === 0) return null;
   return (
@@ -47,7 +48,7 @@ function AppGrid({
       <h2 className="text-lg font-semibold">{title}</h2>
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {apps.map((app) => (
-          <AppCard key={app.slug} app={app} installed={installed(app)} />
+          <AppCard key={app.slug} app={app} state={stateOf(app)} />
         ))}
       </div>
     </section>
@@ -63,10 +64,15 @@ function AppStorePage() {
   const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
 
   const apps = filterApps(APPS, search, category);
-  const installed = (app: AppEntry) =>
-    settings.data
-      ? isInstalled(app.slug, settings.data, page.data?.calendar_connected ?? false)
-      : false;
+  const stateOf = (app: AppEntry) =>
+    appState(
+      app.slug,
+      settings.data ?? {
+        conferencing_app: CONFERENCING_APP.customLink,
+        meeting_link: null,
+      },
+      page.data?.calendar_connected ?? false,
+    );
 
   return (
     <>
@@ -111,7 +117,7 @@ function AppStorePage() {
       <AppGrid
         title="Available"
         apps={apps.filter((app) => app.available)}
-        installed={installed}
+        stateOf={stateOf}
       />
       {apps.some((app) => !app.available) ? (
         <section className="grid gap-3">
