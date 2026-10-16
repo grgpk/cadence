@@ -7,6 +7,12 @@ use cadence_backend::domain::{
         AvailabilityRule, AvailabilityRuleInput, DateOverride, DateOverrideInput, HoursRange,
         TimeSlot,
     },
+    billing::{
+        models::BillingSummary,
+        plans::{
+            BillingInterval, Entitlements, Plan, PlanOffer, PlanPrice, Reminder, SubscriptionStatus,
+        },
+    },
     bookings::models::{
         Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
         ManagedBooking, RescheduleRequest,
@@ -83,6 +89,14 @@ fn export_bindings() {
         ("VisitFunnel", VisitFunnel::export()),
         ("EmailState", EmailState::export()),
         ("AdminEmail", AdminEmail::export()),
+        ("Plan", Plan::export()),
+        ("BillingInterval", BillingInterval::export()),
+        ("SubscriptionStatus", SubscriptionStatus::export()),
+        ("Reminder", Reminder::export()),
+        ("Entitlements", Entitlements::export()),
+        ("PlanPrice", PlanPrice::export()),
+        ("PlanOffer", PlanOffer::export()),
+        ("BillingSummary", BillingSummary::export()),
     ];
     for (name, export) in exports {
         assert!(export.is_ok(), "{name} did not export");

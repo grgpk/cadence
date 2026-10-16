@@ -53,6 +53,13 @@ INSERT INTO roleaccesses (unid, created_at, role, grantedto_unid) VALUES
     )
 ON CONFLICT DO NOTHING;
 
+-- One account per plan: root has no row (Free), the host is on a Pro trial,
+-- the admin has a comped Business plan.
+INSERT INTO subscriptions (user_unid, plan, status, trial_ends_at) VALUES
+    ('00000000-0000-4000-8000-100000000003', 'pro', 'trialing', now() + interval '10 days'),
+    ('00000000-0000-4000-8000-100000000002', 'business', 'comped', NULL)
+ON CONFLICT DO NOTHING;
+
 -- Public booking widget configuration.
 INSERT INTO widget_settings (
     host_unid,

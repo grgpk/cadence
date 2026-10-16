@@ -23,6 +23,12 @@ Content-Type: application/json
 ### Current session
 GET {{baseUrl}}/api/auth/me
 
+### Plans and prices (public)
+GET {{baseUrl}}/api/billing/plans
+
+### My plan, trial and bookings this month
+GET {{baseUrl}}/api/billing/me
+
 ### Change my name
 PUT {{baseUrl}}/api/auth/me
 Content-Type: application/json

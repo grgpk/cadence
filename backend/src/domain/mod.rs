@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod availability;
+pub mod billing;
 pub mod bookings;
 pub mod bug_reports;
 pub mod calling_visits;
