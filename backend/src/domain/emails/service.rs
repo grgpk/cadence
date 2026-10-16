@@ -26,6 +26,10 @@ pub const HOST_BOOKING_RESCHEDULED_TEMPLATE: &str = "host_booking_rescheduled";
 pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
 
 const DEFAULT_APP_URL: &str = "http://localhost:3000";
+/// The header logo travels inside each email, because mail clients cannot
+/// fetch images from a local or not-yet-deployed site.
+pub const LOGO_CID: &str = "cadence-logo";
+pub const LOGO_PNG: &[u8] = include_bytes!("logo.png");
 /// Frontend routes the emails link to.
 const MANAGE_PATH: &str = "/booking";
 const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
@@ -493,7 +497,7 @@ fn html_body(content: &Content) -> String {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{PAGE}" style="background-color:{PAGE};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;font-family:{FONT};color:{INK};">
-<tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle"><img src="{app_url}/logo-email.png" width="18" height="18" alt="" style="display:block;border:0;"></td><td valign="middle" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
+<tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle"><img src="cid:{LOGO_CID}" width="18" height="18" alt="" style="display:block;border:0;"></td><td valign="middle" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
 <tr><td bgcolor="{CARD}" style="background-color:{CARD};border:1px solid {BORDER};border-radius:12px;padding:32px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td style="padding:0 0 8px;font-size:15px;line-height:22px;color:{MUTED};">{greeting}</td></tr>
@@ -508,7 +512,6 @@ fn html_body(content: &Content) -> String {
 </body>
 </html>
 "#,
-        app_url = app_url(),
         footer = content.footer,
     )
 }

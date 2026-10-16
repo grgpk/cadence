@@ -3,7 +3,7 @@ use std::time::Duration as StdDuration;
 use chrono::Utc;
 use lettre::{
     AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor,
-    message::{Mailbox, MultiPart},
+    message::{Attachment, Mailbox, MultiPart, SinglePart, header::ContentType},
     transport::smtp::authentication::Credentials,
 };
 use sqlx::PgPool;
@@ -130,11 +130,23 @@ impl Mailer for SmtpMailer {
         let recipient = recipient
             .parse::<Mailbox>()
             .map_err(|error| error.to_string())?;
+        let png = ContentType::parse("image/png").map_err(|error| error.to_string())?;
         let message = Message::builder()
             .from(self.from.clone())
             .to(recipient)
             .subject(email.subject)
-            .multipart(MultiPart::alternative_plain_html(email.text, email.html))
+            .multipart(
+                MultiPart::alternative()
+                    .singlepart(SinglePart::plain(email.text))
+                    .multipart(
+                        MultiPart::related()
+                            .singlepart(SinglePart::html(email.html))
+                            .singlepart(
+                                Attachment::new_inline(service::LOGO_CID.to_owned())
+                                    .body(service::LOGO_PNG.to_vec(), png),
+                            ),
+                    ),
+            )
             .map_err(|error| error.to_string())?;
         self.transport
             .send(message)
