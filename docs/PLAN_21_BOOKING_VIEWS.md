@@ -46,7 +46,8 @@ the list stacks with 3 chips a row.
   open then, and Morning / Afternoon / Evening rows in the phase colors.
 - The week is seven days in a row, starting on the first open day, not on a
   Monday, so it never opens on days that are already gone. ‹ › skip stretches
-  with nothing open.
+  with nothing open. A day picked on the month calendar opens the week that
+  holds it, so Fri Oct 23 shows Oct 17 – 23, not a week starting on Friday.
 - `?view=week` and `?view=list` open the page on that view (month needs no
   value), so a host can share a link that opens on a given view, and a
   refresh keeps the view.

@@ -7,10 +7,12 @@ import { Button } from "../../components/ui/button";
 import {
   addDays,
   dayKey,
+  firstOpenFrom,
   longDayLabel,
   shortWeekday,
   weekDays,
   weekLabel,
+  weekAround,
   weekTimetable,
   type CivilDay,
   type SlotDay,
@@ -28,15 +30,6 @@ const WEEK_DAYS = 7;
  */
 const FADE_OUT =
   "[mask-image:linear-gradient(to_right,black_calc(100%-1.25rem),transparent)] @[760px]:[mask-image:linear-gradient(to_bottom,black_calc(100%-2rem),transparent)]";
-
-/**
- * The first open day on or after `day`, or the first one at all. A week starts
- * there rather than on a Monday, so it never opens on days already gone.
- */
-function firstOpenFrom(days: SlotDay[], day: CivilDay | null): SlotDay | null {
-  const from = day ? dayKey(day) : "";
-  return days.find((open) => open.key >= from) ?? days[0] ?? null;
-}
 
 /**
  * Seven days in a row as a timetable, for a visitor who wants to compare days
@@ -67,7 +60,7 @@ export function WeekSlots({
   const { picked, pick } = usePick(onPick);
   const today = dayKey(zonedTime(new Date(), timeZone));
 
-  const shownWeek = (days: SlotDay[]) => chosenWeek ?? firstOpenFrom(days, initialDay);
+  const shownWeek = (days: SlotDay[]) => chosenWeek ?? weekAround(days, initialDay);
 
   return (
     <SlotsFrame

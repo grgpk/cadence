@@ -130,3 +130,31 @@ export function weekTimetable(
   });
   return [...rows.values()].sort((a, b) => a.minutes - b.minutes);
 }
+
+/**
+ * The first open day on or after `day`, or the first one at all. A week starts
+ * there rather than on a Monday, so it never opens on days already gone.
+ */
+export function firstOpenFrom(days: SlotDay[], day: CivilDay | null): SlotDay | null {
+  const from = day ? dayKey(day) : "";
+  return days.find((open) => open.key >= from) ?? days[0] ?? null;
+}
+
+/**
+ * The start of the week that holds `day`, stepping a week at a time from the
+ * first open day as the arrows do. A day picked on the month calendar then
+ * lands inside the week instead of opening one that starts on it.
+ */
+export function weekAround(days: SlotDay[], day: CivilDay | null): SlotDay | null {
+  let start = firstOpenFrom(days, null);
+  if (!day) return start;
+  const target = dayKey(day);
+  while (start) {
+    const weekEnd = dayKey(addDays(start, WEEK_DAYS));
+    if (target < weekEnd) break;
+    const next = days.find((open) => open.key >= weekEnd);
+    if (!next) break;
+    start = next;
+  }
+  return start;
+}
