@@ -113,7 +113,9 @@ pub async fn find_page(
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
                   w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
                   w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,
-                  w.is_active AS accepting_bookings
+                  w.is_active AS accepting_bookings,
+                  -- Set from the host's plan by the service.
+                  false AS "full!", true AS "show_branding!"
            FROM widget_settings w JOIN users u ON u.unid = w.host_unid
            WHERE (w.public_slug = $1 OR w.host_unid = $2) AND u.status = $3"#,
         public_slug,

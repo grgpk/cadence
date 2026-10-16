@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
-import { TrialBanner } from "../../domains/billing/trial-banner";
+import { PlanBanner } from "../../domains/billing/plan-banner";
 import { DASHBOARD_NAV } from "../../domains/dashboard/routes";
 import { AppShell } from "../../domains/shared/app-shell";
 import { NOINDEX_META } from "../../lib/config";
@@ -24,7 +24,7 @@ function DashboardLayout() {
       area="Dashboard"
       sections={DASHBOARD_NAV}
     >
-      <TrialBanner />
+      <PlanBanner />
       <Outlet />
     </AppShell>
   );

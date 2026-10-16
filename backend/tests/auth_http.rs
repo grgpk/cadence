@@ -208,8 +208,9 @@ async fn a_forgotten_password_is_reset_once_through_the_emailed_link(pool: PgPoo
     assert_eq!(status, StatusCode::OK);
     assert_eq!(known, unknown);
     let queued = sqlx::query_scalar!(
+        // Registering also queued the trial notice, weeks ahead.
         r#"SELECT template || ' -> ' || email AS "line!" FROM email_queue
-           WHERE booking_unid IS NULL"#
+           WHERE booking_unid IS NULL AND template <> 'trial_ending'"#
     )
     .fetch_all(&pool)
     .await

@@ -19,6 +19,9 @@ pub enum AppError {
     Unauthorized,
     #[error("forbidden")]
     Forbidden,
+    /// The host's plan does not include a feature they tried to turn on.
+    #[error("plan_required: {0}")]
+    PlanRequired(&'static str),
     #[error("not found")]
     NotFound,
     #[error("conflict: {0}")]
@@ -45,7 +48,7 @@ impl IntoResponse for AppError {
         let status = match self {
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
-            Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::Forbidden | Self::PlanRequired(_) => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,

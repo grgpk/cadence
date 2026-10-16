@@ -11,6 +11,8 @@ import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
+import { billingQuery } from "../../domains/billing/billing-api";
+import { PlanNotice } from "../../domains/billing/plan-notice";
 import { AccountSection } from "../../domains/dashboard/account-section";
 import { AppearanceSection } from "../../domains/dashboard/appearance-section";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
@@ -82,6 +84,10 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
   const [slugError, setSlugError] = useState<string | null>(null);
   const [confirmingLink, setConfirmingLink] = useState(false);
   const update = (patch: Partial<HostSettings>) => setValues({ ...values, ...patch });
+  // Questions saved under a paid plan stay saved and can be turned off;
+  // turning on a new one needs a plan with questions.
+  const billing = useQuery(billingQuery);
+  const questionsLocked = billing.data?.entitlements.custom_questions === false;
 
   // Settings can change behind the form (a refetch, another tab). Follow them
   // while nothing here has been edited; local edits are never thrown away.
@@ -119,7 +125,11 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
         document.getElementById(`${ID}-slug`)?.focus();
         return;
       }
-      toast.error(`Changes were not saved. ${errorMessage(error)}`);
+      toast.error(
+        `Changes were not saved. ${errorMessage(error, {
+          403: "Your plan does not include your own booking questions.",
+        })}`,
+      );
     },
   });
 
@@ -339,6 +349,12 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
         description="The form always asks for a name, email and phone number. Turn on anything else you want to know before a call."
       >
         <div className="grid gap-4">
+          {questionsLocked ? (
+            <PlanNotice>
+              Your own questions come with Pro. Any you set before stay saved and are
+              asked again when you upgrade.
+            </PlanNotice>
+          ) : null}
           {QUESTIONS.map((question) => (
             <div key={question.flag} className="flex items-center justify-between gap-4">
               <Label htmlFor={`${ID}-${question.flag}`} className="font-normal">
@@ -347,6 +363,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
               <Switch
                 id={`${ID}-${question.flag}`}
                 checked={values[question.flag]}
+                disabled={questionsLocked && !saved[question.flag]}
                 onCheckedChange={(checked) => update({ [question.flag]: checked })}
               />
             </div>

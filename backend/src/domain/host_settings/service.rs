@@ -1,3 +1,4 @@
+use chrono::Utc;
 use reqwest::Url;
 use sqlx::PgPool;
 use time_tz::timezones;
@@ -8,7 +9,7 @@ use super::{
     models::{AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostSettings},
 };
 use crate::{
-    domain::auth::models::UserRecord,
+    domain::{auth::models::UserRecord, billing::service as billing},
     error::{AppError, AppResult},
 };
 
@@ -59,6 +60,18 @@ pub async fn update(
     settings.title = settings.title.trim().to_owned();
     settings.description = settings.description.trim().to_owned();
     validate(&settings)?;
+    let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
+    if !entitlements.custom_questions {
+        // Questions saved under a paid plan stay saved; new ones need one.
+        let saved = db::find(pool, host_unid).await?.ok_or(AppError::NotFound)?;
+        if asks(&settings)
+            .into_iter()
+            .zip(asks(&saved))
+            .any(|(now, before)| now && !before)
+        {
+            return Err(AppError::PlanRequired("custom booking questions"));
+        }
+    }
     match db::update(pool, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
         Ok(None) => Err(AppError::NotFound),
@@ -95,16 +108,17 @@ pub async fn set_conferencing(
 /// Resolves a public link to its page for reading. A paused page is shown
 /// with `accepting_bookings` off; unknown and banned hosts look the same.
 pub async fn display_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
-    db::find_page(pool, Some(&slug.to_lowercase()), None)
+    let page = db::find_page(pool, Some(&slug.to_lowercase()), None)
         .await?
-        .ok_or(AppError::NotFound)
+        .ok_or(AppError::NotFound)?;
+    with_plan(pool, page).await
 }
 
 /// Resolves a public link to a page that can be booked right now. A paused
-/// page looks unknown here.
+/// page, and one with no bookings left this month, looks unknown here.
 pub async fn bookable_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> {
     let page = display_page(pool, slug).await?;
-    if page.accepting_bookings {
+    if page.accepting_bookings && !page.full {
         Ok(page)
     } else {
         Err(AppError::NotFound)
@@ -113,9 +127,37 @@ pub async fn bookable_page(pool: &PgPool, slug: &str) -> AppResult<BookingPage> 
 
 /// The page an existing call was booked through, paused or not.
 pub async fn page_of_host(pool: &PgPool, host_unid: Uuid) -> AppResult<BookingPage> {
-    db::find_page(pool, None, Some(host_unid))
+    let page = db::find_page(pool, None, Some(host_unid))
         .await?
-        .ok_or(AppError::NotFound)
+        .ok_or(AppError::NotFound)?;
+    with_plan(pool, page).await
+}
+
+/// The page as the host's plan lets it run. Nothing is cleared: questions a
+/// plan leaves out are kept, only not asked, and come back with an upgrade.
+async fn with_plan(pool: &PgPool, mut page: BookingPage) -> AppResult<BookingPage> {
+    let entitlements = billing::entitlements_for(pool, page.host_unid, Utc::now()).await?;
+    if !entitlements.custom_questions {
+        page.ask_currently_working_on = false;
+        page.ask_how_heard_about_us = false;
+        page.ask_what_stopping_you = false;
+        page.ask_investment_comfort = false;
+        page.ask_urgency_level = false;
+    }
+    page.show_branding = !entitlements.hide_branding;
+    page.full = billing::monthly_limit_reached(pool, page.host_unid, &entitlements).await?;
+    Ok(page)
+}
+
+/// The booking form questions a page asks, in one order.
+const fn asks(settings: &HostSettings) -> [bool; 5] {
+    [
+        settings.ask_currently_working_on,
+        settings.ask_how_heard_about_us,
+        settings.ask_what_stopping_you,
+        settings.ask_investment_comfort,
+        settings.ask_urgency_level,
+    ]
 }
 
 pub async fn list_hosts(pool: &PgPool) -> AppResult<Vec<AdminHost>> {

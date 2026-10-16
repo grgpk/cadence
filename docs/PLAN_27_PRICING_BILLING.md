@@ -1,6 +1,6 @@
 # Plan 27: pricing, plans and billing
 
-Status: in progress. Milestones 1–3 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), and Stripe Checkout, the Customer Portal and signed webhooks, tested against a fake Stripe. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
+Status: in progress. Milestones 1–4 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), Stripe Checkout, the Customer Portal and signed webhooks (tested against a fake Stripe), and the Free plan's limits with their emails. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
 
 ## Goal
 
@@ -30,7 +30,7 @@ What the exploration found:
 | Bookings per month (host timezone) | 25 | unlimited | unlimited |
 | Invitee reminders | 24h | 24h, 2h, 30m | 24h, 2h, 30m |
 | Custom booking questions (`ask_*`) | – | yes | yes |
-| Custom accent colour | – | yes | yes |
+| Custom accent colour (soon) | – | yes | yes |
 | "Booked with Cadence" badge | shown | hidden | hidden |
 | Google Calendar, Meet, own link, date overrides, reschedule/cancel links | yes | yes | yes |
 | Event types | 1 | 1 | unlimited (Plan 28) |
@@ -102,16 +102,19 @@ The domain follows the usual `routes -> handlers -> service -> db` layering.
 
 The rule is "keep the data, stop applying it".
 
-- **Bookings** (`bookings/service.rs`, booking creation): when `max_bookings_per_month` is reached, count the host's non-cancelled bookings this month in the host's timezone and return a typed `BookingLimitReached` error, which the handler maps to 409. The public booking page then shows its existing paused-style state, worded "not taking bookings right now". The host gets one `host_booking_limit` email through `email_queue` at the limit.
-- **Reminders** (`emails/service.rs::queue_for_invitee`): queue only the reminders in `entitlements.reminders`.
-- **Public booking page payload**:
-  - `ask_*` flags are ANDed with `custom_questions`.
-  - `accent_color` falls back to the default without `custom_accent`.
-  - A new `show_branding` flag is added.
-- **Host settings save** (`host_settings/service.rs`):
-  - Turning on a gated feature without the entitlement is refused with a typed `PlanRequired(feature)` error, mapped to 403 with the code `plan_required`.
-  - Values already saved are never cleared.
-- **Trial ending:** `start_trial` queues a `trial_ending` email for `trial_ends_at - 3 days`. Delivery skips it if the user has subscribed by then.
+- **The page carries the plan** (`host_settings::service::with_plan`): every page load applies the host's entitlements, so bookings, slots, leads and the public payload all see the same thing.
+  - `full`: Free's 25 calls this month (non-cancelled, booked this calendar month in the host's timezone) are used up. `bookable_page` then answers 404, as for a paused page, so slots, new bookings and the form close. Moving an existing call still works. The public page shows its "not taking bookings right now" card.
+  - `ask_*` flags are switched off without `custom_questions`; the saved settings keep them.
+  - `show_branding`: the Cadence logo under the booking card, hidden on paid plans.
+  - Two calls booked at the same moment at 24 can both get through; the limit is a business limit, not a lock.
+- **Reminders** (`emails/service.rs::queue_for_invitee`): `booked` and `rescheduled` take the plan's reminders and queue only those.
+- **Accent colour:** `widget_settings.accent_color` is stored but nothing reads or sets it, so there is nothing to gate. The pricing page marks it "Soon".
+- **Host settings save** (`host_settings/service.rs`): turning on a question that was off, without `custom_questions`, is refused with `AppError::PlanRequired` (403). Questions already on can stay on or be turned off. Settings shows a "Pro" notice and disables the switches it cannot turn on.
+- **Account notices** (`emails::service::AccountNotice`, through `email_queue`):
+  - `trial_ending`: queued at sign-up for 3 days before the trial ends; taken back when a Stripe subscription becomes active.
+  - `host_booking_limit`: once, when the call just booked is the month's last.
+  - `payment_failed`: once, when a subscription turns `past_due`.
+- **Dashboard banner** (`domains/billing/plan-banner.tsx`): a failed payment, a full month, or the last 5 days of a trial.
 
 ## Frontend
 
@@ -186,7 +189,7 @@ Files:
 1. ✅ **Catalog and trial:** the migration, `plans.rs`, `effective_plan`, `GET /api/billing/plans` and `/me`, the trial on registration, bindings, and the seed.
 2. ✅ **Public pricing page:** the route, components, nav links, FAQ and comparison table. CTAs go to register.
 3. ✅ **Stripe:** checkout, portal, the webhook with signature and idempotency, the `/dashboard/billing` page, and the trial banner.
-4. **Enforcement:** the booking limit, reminders, public page flags, the branding badge, the `PlanGate` UI, `PlanRequired` errors, and the trial-ending, limit and payment-failed emails.
+4. ✅ **Enforcement:** the booking limit, reminders, public page flags, the branding badge, the `PlanGate` UI, `PlanRequired` errors, and the trial-ending, limit and payment-failed emails.
 5. **Admin:** the plan column, comp/revoke, and an MRR-free summary (counts per plan).
 6. **Plan 28:** event types.
 7. **Plan 29:** webhooks.

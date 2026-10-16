@@ -102,7 +102,14 @@ pub async fn create_host(
     )
     .fetch_one(&mut *transaction)
     .await?;
-    billing::start_trial(&mut transaction, user.unid, Utc::now()).await?;
+    billing::start_trial(
+        &mut transaction,
+        user.unid,
+        &user.email,
+        &user.full_name,
+        Utc::now(),
+    )
+    .await?;
     transaction.commit().await?;
 
     assemble(pool, user).await

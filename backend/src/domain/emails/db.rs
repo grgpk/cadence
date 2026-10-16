@@ -119,6 +119,24 @@ pub async fn delete(connection: &mut PgConnection, id: Uuid) -> Result<(), sqlx:
         .map(|_| ())
 }
 
+/// Drops an account notice to `email` that has not gone out yet.
+pub async fn drop_unsent_to(
+    connection: &mut PgConnection,
+    email: &str,
+    template: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM email_queue
+         WHERE email = $1 AND template = $2 AND booking_unid IS NULL AND sent_at IS NULL
+         RETURNING 1",
+        email,
+        template,
+    )
+    .fetch_all(connection)
+    .await
+    .map(|_| ())
+}
+
 /// Drops emails that went out long ago.
 pub async fn delete_old_sent(pool: &PgPool) -> Result<(), sqlx::Error> {
     sqlx::query_scalar!(

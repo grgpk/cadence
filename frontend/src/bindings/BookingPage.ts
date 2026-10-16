@@ -8,4 +8,13 @@ export type BookingPage = { host_name: string, title: string, description: strin
 /**
  * `false` while the host has paused the page.
  */
-accepting_bookings: boolean, };
+accepting_bookings: boolean, 
+/**
+ * The host's plan has no bookings left this month. Calls already booked
+ * can still move; new ones wait for next month.
+ */
+full: boolean, 
+/**
+ * The Cadence logo under the card. Paid plans leave it off.
+ */
+show_branding: boolean, };

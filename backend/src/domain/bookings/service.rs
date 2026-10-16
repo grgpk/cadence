@@ -13,6 +13,7 @@ use super::{
 use crate::{
     domain::{
         availability::models::TimeSlot,
+        billing::service as billing,
         emails::service::{self as emails, CancelledBy},
         google_calendar::calendar::{HostCalendar, NewEvent},
         host_settings::{
@@ -123,8 +124,24 @@ pub async fn create(
         }
         None => booking,
     };
-    emails::booked(&mut transaction, &booking, page, now).await?;
+    let entitlements = billing::entitlements_for(pool, host_unid, now).await?;
+    emails::booked(
+        &mut transaction,
+        &booking,
+        page,
+        entitlements.reminders,
+        now,
+    )
+    .await?;
     transaction.commit().await?;
+    billing::notice_if_full(
+        pool,
+        host_unid,
+        &entitlements,
+        &page.host_email,
+        &page.host_name,
+    )
+    .await?;
     let manage_token = booking.manage_token.clone();
     Ok(CreatedBooking {
         booking,
@@ -253,7 +270,15 @@ pub async fn reschedule(
         }
         Err(error) => return Err(AppError::Database(error)),
     };
-    emails::rescheduled(&mut transaction, &booking, &page, now).await?;
+    let entitlements = billing::entitlements_for(pool, booking.host_unid, now).await?;
+    emails::rescheduled(
+        &mut transaction,
+        &booking,
+        &page,
+        entitlements.reminders,
+        now,
+    )
+    .await?;
     transaction.commit().await?;
 
     // The call has moved either way; the calendar follows when it can.

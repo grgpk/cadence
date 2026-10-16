@@ -1,15 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CircleAlert, Clock } from "lucide-react";
+import { CalendarOff, CircleAlert, Clock } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
 import { ROUTES } from "../../lib/routes";
 import { billingQuery } from "./billing-api";
-import { STATUS, TRIAL_WARNING_DAYS, trialDaysLeft } from "./billing";
+import { bookingUsage, STATUS, TRIAL_WARNING_DAYS, trialDaysLeft } from "./billing";
 
-/** Above every dashboard page: a trial about to end, or a payment that failed. */
-export function TrialBanner() {
+/**
+ * Above every dashboard page: a payment that failed, a month with no
+ * bookings left, or a trial about to end.
+ */
+export function PlanBanner() {
   const { data: summary } = useQuery(billingQuery);
   if (!summary) return null;
 
@@ -22,6 +25,24 @@ export function TrialBanner() {
           <p>Update your card to keep your plan.</p>
           <Button variant="outline" size="sm" className="mt-2" asChild>
             <Link to={ROUTES.dashboardBilling}>Go to billing</Link>
+          </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (bookingUsage(summary) === 1) {
+    return (
+      <Alert>
+        <CalendarOff className="size-4" />
+        <AlertTitle>Your booking page is full for this month</AlertTitle>
+        <AlertDescription>
+          <p>
+            Free takes {summary.entitlements.max_bookings_per_month} bookings a month.
+            Calls already booked still stand and can still move.
+          </p>
+          <Button size="sm" className="mt-2" asChild>
+            <Link to={ROUTES.dashboardBilling}>Upgrade</Link>
           </Button>
         </AlertDescription>
       </Alert>

@@ -14,6 +14,7 @@ use cadence_backend::{
     build_app,
     domain::{
         auth::service::make_token,
+        billing::plans::Reminder,
         bookings,
         emails::{
             self,
@@ -1602,7 +1603,9 @@ async fn an_unknown_template_fails_without_holding_up_the_queue(pool: PgPool) {
                   || ' later=' || (send_at > now())::text
                   || ' error=' || COALESCE(last_error, '-')
                   || ' payload=' || (payload IS NOT NULL)::text AS "row!"
-           FROM email_queue ORDER BY template"#,
+           FROM email_queue
+           -- Every new host also has a trial notice waiting.
+           WHERE template <> 'trial_ending' ORDER BY template"#,
     )
     .fetch_all(&pool)
     .await
@@ -1655,7 +1658,9 @@ async fn emails_about_a_cancelled_call_are_dropped(pool: PgPool) {
     // What was not sent is gone, so no list shows it as sent or waiting.
     let left = sqlx::query_scalar!(
         r#"SELECT template || ' sent=' || (sent_at IS NOT NULL)::text AS "row!"
-           FROM email_queue ORDER BY template"#,
+           FROM email_queue
+           -- Every new host also has a trial notice waiting.
+           WHERE template <> 'trial_ending' ORDER BY template"#,
     )
     .fetch_all(&pool)
     .await
@@ -1713,10 +1718,13 @@ async fn the_sweep_removes_what_nothing_reads_any_more(pool: PgPool) {
 
     worker::sweep(&pool).await;
 
-    let emails = sqlx::query_scalar!("SELECT email FROM email_queue ORDER BY email")
-        .fetch_all(&pool)
-        .await
-        .expect("queue is readable");
+    // Every host registered here also has a trial notice waiting, weeks ahead.
+    let emails = sqlx::query_scalar!(
+        "SELECT email FROM email_queue WHERE template <> 'trial_ending' ORDER BY email"
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
     assert_eq!(
         emails,
         ["recent@example.com", "waiting@example.com"],
@@ -2352,7 +2360,7 @@ async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
 
     // Booked 3 hours ahead: the 24 hour reminder is already past.
     let now = start - Duration::hours(3);
-    emails::service::booked(&mut connection, &booking, &page, now)
+    emails::service::booked(&mut connection, &booking, &page, &Reminder::ALL, now)
         .await
         .expect("queued");
     assert_eq!(
@@ -2367,7 +2375,7 @@ async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
 
     // Moved, seen from 30 hours ahead: what waited is replaced, every reminder is ahead.
     let now = start - Duration::hours(30);
-    emails::service::rescheduled(&mut connection, &booking, &page, now)
+    emails::service::rescheduled(&mut connection, &booking, &page, &Reminder::ALL, now)
         .await
         .expect("queued");
     assert_eq!(
@@ -2416,4 +2424,135 @@ async fn the_email_worker_stops_when_told_and_not_a_minute_later(pool: PgPool) {
         stopped.is_ok(),
         "the worker kept sleeping after being told to stop"
     );
+}
+
+/// Ends the host's Pro trial: they are on Free from now on.
+async fn end_trial(pool: &PgPool, host: &Host) {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET trial_ends_at = now() - interval '1 minute'
+         WHERE user_unid = $1 RETURNING 1",
+        host.unid,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the host has a trial");
+}
+
+/// `count` calls booked this month, in the past so they hold no open time.
+async fn past_calls_this_month(pool: &PgPool, host: &Host, count: i32) {
+    sqlx::query_scalar!(
+        r#"INSERT INTO bookings (host_unid, slot_start, slot_end, invitee_name, invitee_email)
+           SELECT $1, now() - make_interval(hours => n + 1), now() - make_interval(hours => n),
+                  'Past caller', 'past@example.com'
+           FROM generate_series(1, $2) AS n
+           RETURNING 1"#,
+        host.unid,
+        count,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("calls are written");
+}
+
+async fn account_notices(pool: &PgPool, template: &str) -> i64 {
+    sqlx::query_scalar!(
+        r#"SELECT count(*) AS "count!" FROM email_queue
+           WHERE template = $1 AND booking_unid IS NULL AND sent_at IS NULL"#,
+        template,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("queue is readable")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_free_host_sends_one_reminder_and_shows_the_logo(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let page = format!("/api/hosts/{slug}");
+    assert_eq!(
+        get(&app, &page, None).await.1["show_branding"],
+        false,
+        "Pro trial"
+    );
+
+    end_trial(&pool, &host).await;
+    assert_eq!(get(&app, &page, None).await.1["show_branding"], true);
+    // The last open time is days ahead, so every reminder would still be ahead.
+    let start = *slots(&app, &slug).await.last().expect("open times");
+    let (unid, _) = book(&app, &slug, start).await;
+
+    assert_eq!(
+        waiting_emails(&pool, unid).await,
+        [
+            "booking_confirmation -> ada@example.com",
+            "host_new_booking -> nino@example.com",
+            "reminder_24h -> ada@example.com",
+        ]
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_free_page_takes_no_new_calls_once_the_month_is_full(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    end_trial(&pool, &host).await;
+    past_calls_this_month(&pool, &host, 24).await;
+    let open = slots(&app, &slug).await;
+    let (first, second) = (open[0], open[1]);
+
+    // The 25th call fills the month, and the host hears of it once.
+    let (_, token) = book(&app, &slug, first).await;
+    assert_eq!(account_notices(&pool, "host_booking_limit").await, 1);
+
+    let (status, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(page["full"], true);
+    assert_eq!(
+        page["accepting_bookings"], true,
+        "the host did not pause it"
+    );
+    let (status, _) = get(&app, &format!("/api/hosts/{slug}/slots"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let path = format!("/api/hosts/{slug}/bookings");
+    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(second, None))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // A call already booked can still move.
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/manage/{token}/reschedule"),
+        None,
+        Some(json!({ "slot_start": second })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn questions_need_a_paid_plan_and_stay_saved_without_one(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let mut asking = settings(&app, &host).await;
+    asking["ask_urgency_level"] = json!(true);
+    let (status, _) = save_settings(&app, &host, &asking).await;
+    assert_eq!(status, StatusCode::OK, "the trial includes questions");
+
+    end_trial(&pool, &host).await;
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(page["ask_urgency_level"], false, "not asked on Free");
+    let mut saved = settings(&app, &host).await;
+    assert_eq!(saved["ask_urgency_level"], true, "still saved");
+
+    saved["title"] = json!("Intro call");
+    let (status, _) = save_settings(&app, &host, &saved).await;
+    assert_eq!(status, StatusCode::OK, "other changes still save");
+    saved["ask_investment_comfort"] = json!(true);
+    let (status, _) = save_settings(&app, &host, &saved).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    saved["ask_investment_comfort"] = json!(false);
+    saved["ask_urgency_level"] = json!(false);
+    let (status, _) = save_settings(&app, &host, &saved).await;
+    assert_eq!(status, StatusCode::OK, "turning one off is fine");
 }

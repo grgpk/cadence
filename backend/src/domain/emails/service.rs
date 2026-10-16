@@ -11,6 +11,7 @@ use super::{
 };
 use crate::{
     domain::{
+        billing::plans::Reminder,
         bookings::models::{Booking, BookingStatus},
         host_settings::models::BookingPage,
     },
@@ -29,8 +30,11 @@ pub const BOOKING_RESCHEDULED_TEMPLATE: &str = "booking_rescheduled";
 pub const HOST_NEW_BOOKING_TEMPLATE: &str = "host_new_booking";
 pub const HOST_BOOKING_CANCELLED_TEMPLATE: &str = "host_booking_cancelled";
 pub const HOST_BOOKING_RESCHEDULED_TEMPLATE: &str = "host_booking_rescheduled";
-/// The only email that is not about a call.
+/// The account emails: not about a call.
 pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
+pub const TRIAL_ENDING_TEMPLATE: &str = "trial_ending";
+pub const HOST_BOOKING_LIMIT_TEMPLATE: &str = "host_booking_limit";
+pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
 
 const DEFAULT_APP_URL: &str = "http://localhost:3000";
 /// The header logo travels inside each email, because mail clients cannot
@@ -41,6 +45,7 @@ pub const LOGO_PNG: &[u8] = include_bytes!("logo.png");
 const MANAGE_PATH: &str = "/booking";
 const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
 const RESET_PASSWORD_PATH: &str = "/reset-password";
+const BILLING_PATH: &str = "/dashboard/billing";
 /// The calendar entry's name when the page title and host are unknown.
 const CALENDAR_TITLE: &str = "Cadence call";
 const UTC: &str = "UTC";
@@ -148,6 +153,52 @@ pub async fn queue_password_reset(
     .map_err(Into::into)
 }
 
+/// What a host is told about their plan.
+#[derive(Clone, Copy)]
+pub enum AccountNotice {
+    /// A few days before the Pro trial ends.
+    TrialEnding,
+    /// The Free plan's bookings for the month are used up.
+    BookingLimit,
+    /// A renewal failed; Stripe is retrying it.
+    PaymentFailed,
+}
+
+impl AccountNotice {
+    const fn template(self) -> &'static str {
+        match self {
+            Self::TrialEnding => TRIAL_ENDING_TEMPLATE,
+            Self::BookingLimit => HOST_BOOKING_LIMIT_TEMPLATE,
+            Self::PaymentFailed => PAYMENT_FAILED_TEMPLATE,
+        }
+    }
+}
+
+/// Queues a notice about the host's plan, to go out at `send_at`.
+pub async fn queue_account_notice(
+    connection: &mut PgConnection,
+    notice: AccountNotice,
+    email: &str,
+    full_name: &str,
+    send_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&AccountEmail {
+        name: Some(full_name.to_owned()),
+        billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
+    })?;
+    db::queue(connection, None, email, notice.template(), send_at, payload).await
+}
+
+/// Takes back a notice that has not gone out, such as the trial ending for
+/// a host who has since paid.
+pub async fn drop_account_notice(
+    connection: &mut PgConnection,
+    notice: AccountNotice,
+    email: &str,
+) -> Result<(), sqlx::Error> {
+    db::drop_unsent_to(connection, email, notice.template()).await
+}
+
 /// Who called a call off decides who still has to hear about it.
 #[derive(Clone, Copy)]
 pub enum CancelledBy {
@@ -156,11 +207,13 @@ pub enum CancelledBy {
 }
 
 /// A call was booked: the invitee gets the confirmation and the reminders
-/// still ahead of the call, and the host hears of it.
+/// the host's plan sends that are still ahead of the call, and the host
+/// hears of it.
 pub async fn booked(
     connection: &mut PgConnection,
     booking: &Booking,
     page: &BookingPage,
+    reminders: &[Reminder],
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     queue_for_invitee(
@@ -168,6 +221,7 @@ pub async fn booked(
         booking,
         page,
         BOOKING_CONFIRMATION_TEMPLATE,
+        reminders,
         now,
     )
     .await?;
@@ -180,10 +234,19 @@ pub async fn rescheduled(
     connection: &mut PgConnection,
     booking: &Booking,
     page: &BookingPage,
+    reminders: &[Reminder],
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     db::drop_unsent(connection, booking.unid).await?;
-    queue_for_invitee(connection, booking, page, BOOKING_RESCHEDULED_TEMPLATE, now).await?;
+    queue_for_invitee(
+        connection,
+        booking,
+        page,
+        BOOKING_RESCHEDULED_TEMPLATE,
+        reminders,
+        now,
+    )
+    .await?;
     queue_for_host(
         connection,
         booking,
@@ -230,22 +293,31 @@ pub async fn cancelled(
     }
 }
 
+/// A reminder's template and how long before the call it goes out.
+const fn reminder_email(reminder: Reminder) -> (&'static str, Duration) {
+    match reminder {
+        Reminder::Before24h => (REMINDER_24H_TEMPLATE, Duration::hours(24)),
+        Reminder::Before2h => (REMINDER_2H_TEMPLATE, Duration::hours(2)),
+        Reminder::Before30m => (REMINDER_30MIN_TEMPLATE, Duration::minutes(30)),
+    }
+}
+
 /// The notice the invitee gets now, and the reminders that are still ahead.
 async fn queue_for_invitee(
     connection: &mut PgConnection,
     booking: &Booking,
     page: &BookingPage,
     notice: &str,
+    reminders: &[Reminder],
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     let payload = payload_of(&InviteeEmail::of(booking, page))?;
     let start = booking.slot_start;
-    for (template, send_at) in [
-        (notice, now),
-        (REMINDER_24H_TEMPLATE, start - Duration::hours(24)),
-        (REMINDER_2H_TEMPLATE, start - Duration::hours(2)),
-        (REMINDER_30MIN_TEMPLATE, start - Duration::minutes(30)),
-    ] {
+    let reminders = reminders.iter().map(|reminder| {
+        let (template, before) = reminder_email(*reminder);
+        (template, start - before)
+    });
+    for (template, send_at) in std::iter::once((notice, now)).chain(reminders) {
         if send_at >= now {
             db::queue(
                 connection,
@@ -376,6 +448,15 @@ struct ResetEmail {
     reset_url: Option<String>,
 }
 
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct AccountEmail {
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    billing_url: Option<String>,
+}
+
 /// A field that does not read as its type counts as missing, instead of
 /// making the whole email unreadable.
 fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
@@ -471,6 +552,9 @@ struct Content {
 pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> {
     let content = match template {
         PASSWORD_RESET_TEMPLATE => reset_content(&read(payload)),
+        TRIAL_ENDING_TEMPLATE | HOST_BOOKING_LIMIT_TEMPLATE | PAYMENT_FAILED_TEMPLATE => {
+            account_content(template, &read(payload))
+        }
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE => host_content(template, &read(payload)),
@@ -498,6 +582,43 @@ fn reset_content(email: &ResetEmail) -> Content {
         manage_url: None,
         note: Some("If you did not ask for this, ignore this email; your password stays the same."),
         footer: "You are getting this because a password reset was requested for your Cadence account.",
+    }
+}
+
+fn account_content(template: &str, email: &AccountEmail) -> Content {
+    let (headline, details, button) = match template {
+        TRIAL_ENDING_TEMPLATE => (
+            "Your Pro trial ends in 3 days",
+            "After that your page moves to Free: 25 bookings a month and one reminder. \
+             Your settings stay saved. Pick a plan to keep everything as it is.",
+            "Pick a plan",
+        ),
+        HOST_BOOKING_LIMIT_TEMPLATE => (
+            "Your booking page is full for this month",
+            "You have used the 25 bookings Free gives each month, so your page takes no \
+             new calls until next month. Calls already booked still stand, and people can \
+             still move them. Upgrade to take bookings again today.",
+            "Upgrade",
+        ),
+        _ => (
+            "Your Cadence payment failed",
+            "We could not charge your card for your plan. Stripe will try again over the \
+             next few days. Update your card so your plan keeps running.",
+            "Update your card",
+        ),
+    };
+    Content {
+        headline: headline.to_owned(),
+        greeting: greeting(text(email.name.as_ref())),
+        when: None,
+        details: vec![details.to_owned()],
+        buttons: link(email.billing_url.as_ref())
+            .map(|url| (button, url.to_owned()))
+            .into_iter()
+            .collect(),
+        manage_url: None,
+        note: None,
+        footer: "You are getting this because you have a Cadence account.",
     }
 }
 
@@ -938,6 +1059,34 @@ mod tests {
             );
             assert!(!email.html.contains("<b>"), "{template}");
             assert!(!email.html.contains("& co"), "{template}");
+        }
+    }
+
+    #[test]
+    fn account_notices_greet_the_host_and_link_to_billing() {
+        let payload =
+            json!({ "name": HOSTILE, "billing_url": "https://cadence.example/dashboard/billing" });
+        for (template, subject) in [
+            (TRIAL_ENDING_TEMPLATE, "Your Pro trial ends in 3 days"),
+            (
+                HOST_BOOKING_LIMIT_TEMPLATE,
+                "Your booking page is full for this month",
+            ),
+            (PAYMENT_FAILED_TEMPLATE, "Your Cadence payment failed"),
+        ] {
+            let email = email(template, &payload);
+            assert_eq!(email.subject, subject);
+            assert!(
+                email.html.contains(&format!(">Hi {HOSTILE_ESCAPED},</td>")),
+                "{template}"
+            );
+            assert!(
+                email
+                    .text
+                    .contains("https://cadence.example/dashboard/billing"),
+                "{template}"
+            );
+            assert!(!email.html.contains("<b>"), "{template}");
         }
     }
 

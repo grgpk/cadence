@@ -327,3 +327,29 @@ async fn the_portal_needs_a_stripe_customer(pool: PgPool) {
 
     assert_eq!(status, StatusCode::CONFLICT);
 }
+
+async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<String> {
+    sqlx::query_scalar!(
+        r#"SELECT e.template AS "template!" FROM email_queue e JOIN users u ON u.email = e.email
+           WHERE u.unid = $1 AND e.booking_unid IS NULL AND e.sent_at IS NULL
+           ORDER BY e.template"#,
+        user,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("queue is readable")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn paying_takes_back_the_trial_notice_and_a_failed_renewal_is_told_once(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, _) = register(&app, "ada@example.com").await;
+    assert_eq!(waiting_notices(&pool, unid).await, ["trial_ending"]);
+
+    subscription_event(&app, "evt_1", "created", 100, unid, PRO_MONTH, "active").await;
+    assert!(waiting_notices(&pool, unid).await.is_empty());
+
+    subscription_event(&app, "evt_2", "updated", 200, unid, PRO_MONTH, "past_due").await;
+    subscription_event(&app, "evt_3", "updated", 300, unid, PRO_MONTH, "past_due").await;
+    assert_eq!(waiting_notices(&pool, unid).await, ["payment_failed"]);
+}

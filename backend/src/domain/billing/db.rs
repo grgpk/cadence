@@ -116,13 +116,15 @@ pub struct SyncedSubscription<'a> {
     pub event_at: DateTime<Utc>,
 }
 
-/// Mirrors a Stripe subscription onto the host's row. An event older than
-/// the last one applied changes nothing, and neither does the end of a
-/// subscription the host has since replaced.
+/// Mirrors a Stripe subscription onto the host's row.
+///
+/// An event older than the last one applied changes nothing, and neither
+/// does the end of a subscription the host has since replaced; both return
+/// `false`.
 pub async fn sync_subscription(
     connection: &mut PgConnection,
     synced: &SyncedSubscription<'_>,
-) -> Result<(), sqlx::Error> {
+) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
         "INSERT INTO subscriptions (user_unid, plan, status, billing_interval, current_period_end,
                                     cancel_at_period_end, stripe_customer_id, stripe_subscription_id,
@@ -155,5 +157,37 @@ pub async fn sync_subscription(
     )
     .fetch_optional(connection)
     .await
-    .map(|_| ())
+    .map(|row| row.is_some())
+}
+
+/// The stored status before an event changes it.
+pub async fn status(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+) -> Result<Option<SubscriptionStatus>, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT status AS "status: SubscriptionStatus" FROM subscriptions WHERE user_unid = $1"#,
+        user_unid,
+    )
+    .fetch_optional(connection)
+    .await
+}
+
+/// Where and how to write to a host.
+pub struct Contact {
+    pub email: String,
+    pub full_name: String,
+}
+
+pub async fn contact(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+) -> Result<Option<Contact>, sqlx::Error> {
+    sqlx::query_as!(
+        Contact,
+        "SELECT email, full_name FROM users WHERE unid = $1",
+        user_unid,
+    )
+    .fetch_optional(connection)
+    .await
 }

@@ -9,22 +9,78 @@ use super::{
     stripe::{CheckoutRequest, Payments, PaymentsError},
 };
 use crate::{
-    domain::{auth::models::UserRecord, emails::service::app_url},
+    domain::{
+        auth::models::UserRecord,
+        emails::service::{self as emails, AccountNotice, app_url},
+    },
     error::{AppError, AppResult},
 };
+
+/// How many days before a trial ends its host is told.
+const TRIAL_NOTICE_DAYS: i64 = 3;
 
 /// Where Stripe sends a host back to.
 const BILLING_PATH: &str = "/dashboard/billing";
 const PRICING_PATH: &str = "/pricing";
 const PAYMENTS_OFF: &str = "payments are not set up on this server";
 
-/// Every new host starts on a Pro trial, no card needed.
+/// Every new host starts on a Pro trial, no card needed, and hears a few
+/// days before it ends.
 pub async fn start_trial(
     connection: &mut PgConnection,
     user_unid: Uuid,
+    email: &str,
+    full_name: &str,
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
-    db::start_trial(connection, user_unid, now + Duration::days(TRIAL_DAYS)).await
+    let ends_at = now + Duration::days(TRIAL_DAYS);
+    db::start_trial(connection, user_unid, ends_at).await?;
+    let notice_at = ends_at - Duration::days(TRIAL_NOTICE_DAYS);
+    emails::queue_account_notice(
+        connection,
+        AccountNotice::TrialEnding,
+        email,
+        full_name,
+        notice_at,
+    )
+    .await
+}
+
+/// Whether the host's plan has no bookings left this month.
+pub async fn monthly_limit_reached(
+    pool: &PgPool,
+    host_unid: Uuid,
+    entitlements: &Entitlements,
+) -> Result<bool, sqlx::Error> {
+    let Some(limit) = entitlements.max_bookings_per_month else {
+        return Ok(false);
+    };
+    Ok(db::bookings_this_month(pool, host_unid).await? >= i64::from(limit))
+}
+
+/// Tells the host once a month, when the call just booked used the month up.
+pub async fn notice_if_full(
+    pool: &PgPool,
+    host_unid: Uuid,
+    entitlements: &Entitlements,
+    email: &str,
+    full_name: &str,
+) -> Result<(), sqlx::Error> {
+    let Some(limit) = entitlements.max_bookings_per_month else {
+        return Ok(());
+    };
+    if db::bookings_this_month(pool, host_unid).await? != i64::from(limit) {
+        return Ok(());
+    }
+    let mut connection = pool.acquire().await?;
+    emails::queue_account_notice(
+        &mut connection,
+        AccountNotice::BookingLimit,
+        email,
+        full_name,
+        Utc::now(),
+    )
+    .await
 }
 
 /// What the host's plan allows right now.
@@ -184,7 +240,8 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
         .current_period_end
         .or_else(|| item.and_then(|item| item.current_period_end))
         .and_then(instant);
-    db::sync_subscription(
+    let before = db::status(&mut transaction, user_unid).await?;
+    let applied = db::sync_subscription(
         &mut transaction,
         &SyncedSubscription {
             user_unid,
@@ -199,7 +256,37 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
         },
     )
     .await?;
+    if applied {
+        notify(&mut transaction, user_unid, before, status).await?;
+    }
     Ok(transaction.commit().await?)
+}
+
+/// A host who pays no longer needs the trial reminder; a host whose renewal
+/// just failed needs to hear it once.
+async fn notify(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    before: Option<SubscriptionStatus>,
+    now: SubscriptionStatus,
+) -> Result<(), sqlx::Error> {
+    let Some(contact) = db::contact(connection, user_unid).await? else {
+        return Ok(());
+    };
+    if is_billed(now) {
+        emails::drop_account_notice(connection, AccountNotice::TrialEnding, &contact.email).await?;
+    }
+    if now == SubscriptionStatus::PastDue && before != Some(SubscriptionStatus::PastDue) {
+        emails::queue_account_notice(
+            connection,
+            AccountNotice::PaymentFailed,
+            &contact.email,
+            &contact.full_name,
+            Utc::now(),
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
