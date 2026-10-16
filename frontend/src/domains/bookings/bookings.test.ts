@@ -5,6 +5,7 @@ import {
   agendaDays,
   dayCall,
   dayOf,
+  dayPlan,
   daysBetween,
   firstName,
   lanes,
@@ -229,5 +230,48 @@ describe("lanes", () => {
       [1, 2],
       [0, 1],
     ]);
+  });
+});
+
+describe("dayPlan", () => {
+  const all = [
+    booking("tomorrow", "2026-10-15T09:00:00Z", "confirmed"),
+    booking("afternoon", "2026-10-14T15:00:00Z", "confirmed"),
+    booking("under-way", "2026-10-14T11:45:00Z", "confirmed"),
+    booking("morning", "2026-10-14T08:00:00Z", "confirmed"),
+    booking("called-off", "2026-10-14T13:00:00Z", "cancelled"),
+    booking("called-off-later", "2026-10-16T09:00:00Z", "cancelled"),
+  ];
+
+  it("lists today's calls in time order, cancelled ones included", () => {
+    expect(ids(dayPlan(all, "UTC", NOW).today)).toEqual([
+      "morning",
+      "under-way",
+      "called-off",
+      "afternoon",
+    ]);
+  });
+
+  it("picks the call under way and the next live call today", () => {
+    const plan = dayPlan(all, "UTC", NOW);
+    expect(plan.current?.unid).toBe("under-way");
+    expect(plan.next?.unid).toBe("afternoon");
+  });
+
+  it("has no next call once today's calls are over", () => {
+    const plan = dayPlan(all, "UTC", Date.parse("2026-10-14T18:00:00Z"));
+    expect(plan.current).toBeNull();
+    expect(plan.next).toBeNull();
+  });
+
+  it("keeps later days apart, without cancelled calls", () => {
+    expect(ids(dayPlan(all, "UTC", NOW).later)).toEqual(["tomorrow"]);
+  });
+
+  it("reads today on the host's clock", () => {
+    // 23:30 in UTC on the 14th is already the 15th in Tbilisi.
+    const late = [booking("late", "2026-10-14T23:30:00Z", "confirmed")];
+    expect(ids(dayPlan(late, "Asia/Tbilisi", NOW).later)).toEqual(["late"]);
+    expect(ids(dayPlan(late, "UTC", NOW).today)).toEqual(["late"]);
   });
 });

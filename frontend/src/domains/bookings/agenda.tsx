@@ -11,7 +11,7 @@ import { dayPhase, zonedTime } from "../widget/zoned-time";
 import { agendaDays, isCancelled } from "./bookings";
 
 /** One call, with the color of the part of the day it falls in. */
-function AgendaRow({
+export function AgendaRow({
   booking,
   timeZone,
   now,

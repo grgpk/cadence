@@ -235,3 +235,33 @@ export function sameDay(a: WeekDay, b: WeekDay): boolean {
 export function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? "";
 }
+
+const MINUTE_MS = 60_000;
+
+/**
+ * What the overview reads off the calls, on the clock of `timeZone`: every
+ * call today in time order (cancelled ones too), the call under way, the next
+ * call to start today, and calls still to come on later days, soonest first.
+ */
+export function dayPlan(
+  bookings: Booking[],
+  timeZone: string,
+  now: number,
+): { today: Booking[]; current: Booking | null; next: Booking | null; later: Booking[] } {
+  const todayKey = dayKey(new Date(now), timeZone);
+  const sorted = [...bookings].sort((a, b) => a.slot_start.localeCompare(b.slot_start));
+  const isToday = (booking: Booking) =>
+    dayKey(new Date(booking.slot_start), timeZone) === todayKey;
+  const start = (booking: Booking) => new Date(booking.slot_start).getTime();
+  const live = sorted.filter((booking) => !isCancelled(booking));
+  return {
+    today: sorted.filter(isToday),
+    current:
+      live.find(
+        (booking) =>
+          start(booking) <= now && now < start(booking) + booking.minutes * MINUTE_MS,
+      ) ?? null,
+    next: live.find((booking) => start(booking) > now && isToday(booking)) ?? null,
+    later: live.filter((booking) => start(booking) > now && !isToday(booking)),
+  };
+}

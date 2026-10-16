@@ -1,190 +1,178 @@
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle, Copy, ExternalLink } from "lucide-react";
-import type { ReactNode } from "react";
+import { AlertTriangle } from "lucide-react";
 
+import type { ConferencingApp } from "../../bindings/ConferencingApp";
+import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { zoneName } from "../../lib/format";
-import { bookingPath, ROUTES } from "../../lib/routes";
+import { ROUTES } from "../../lib/routes";
 import { callPlace, CONFERENCING_APP } from "../integrations/conferencing";
 import { bookingPageQuery } from "../widget/cadence-api";
-import { copyBookingLink } from "./booking-link";
 import { availabilityQuery, hostSettingsQuery } from "./host-api";
 import { callLengthLabel, daysLabel } from "./hours-labels";
 import { SETTINGS_SECTIONS } from "./routes";
 
-function Row({
-  label,
-  query,
-  children,
+type Problem = {
+  message: string;
+  fix: {
+    label: string;
+    to:
+      | typeof ROUTES.dashboardAvailability
+      | typeof ROUTES.dashboardAppsInstalled
+      | typeof ROUTES.dashboardSettings;
+    hash?: string;
+  };
+};
+
+/** What stops people from booking, or from joining a call they booked, and how to fix it. */
+export function bookingPageProblems({
+  paused,
+  hasHours,
+  place,
 }: {
-  label: string;
-  /** What the row reads from. The row shows its loading and failure itself. */
-  query: Pick<UseQueryResult, "isPending" | "isError" | "refetch">;
-  children: () => { value: ReactNode; problem?: boolean; actions: ReactNode };
-}) {
-  const row = query.isPending || query.isError ? null : children();
-  return (
-    <div className="grid gap-x-4 gap-y-2 px-5 py-3.5 sm:grid-cols-[6rem_minmax(0,1fr)_auto] sm:items-center">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="flex min-w-0 items-center gap-2 text-sm font-medium">
-        {query.isPending ? (
-          <Skeleton className="h-5 w-48" />
-        ) : row ? (
-          <>
-            {row.problem ? (
-              <AlertTriangle className="size-4 shrink-0 text-warning" />
-            ) : null}
-            <span className="min-w-0 truncate">{row.value}</span>
-          </>
-        ) : (
-          <span className="font-normal text-destructive">Did not load</span>
-        )}
-      </dd>
-      <dd className="flex flex-wrap gap-2">
-        {row ? (
-          row.actions
-        ) : query.isError ? (
-          <Button variant="outline" size="sm" onClick={() => void query.refetch()}>
-            Try again
-          </Button>
-        ) : null}
-      </dd>
-    </div>
-  );
+  paused: boolean;
+  hasHours: boolean;
+  place: ConferencingApp | null;
+}): Problem[] {
+  const problems: Problem[] = [];
+  if (paused) {
+    problems.push({
+      message: "Your booking page is paused, so nobody can book you.",
+      fix: {
+        label: "Take bookings again",
+        to: ROUTES.dashboardSettings,
+        hash: SETTINGS_SECTIONS.rules,
+      },
+    });
+  }
+  if (!hasHours) {
+    problems.push({
+      message: "You have no hours set, so your link has no times to offer.",
+      fix: { label: "Set your hours", to: ROUTES.dashboardAvailability },
+    });
+  }
+  if (place === null) {
+    problems.push({
+      message: "There is no place to join, so people who book get no call link.",
+      fix: { label: "Add a meeting link", to: ROUTES.dashboardAppsInstalled },
+    });
+  }
+  return problems;
 }
 
-function FixLink({
-  to,
-  hash,
-  primary = false,
-  children,
-}: {
-  to:
-    | typeof ROUTES.dashboardAvailability
-    | typeof ROUTES.dashboardAppsInstalled
-    | typeof ROUTES.dashboardSettings;
-  hash?: string;
-  /** The row has a problem and this is how to fix it. */
-  primary?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <Button variant={primary ? "default" : "outline"} size="sm" asChild>
-      <Link to={to} hash={hash}>
-        {children}
-      </Link>
-    </Button>
-  );
-}
-
-/** Everything a booking page needs to work, with its current state and where to change it. */
-export function BookingPageStatus() {
+/** The booking page as the overview reports it, from the queries it already shares. */
+function useBookingPageState() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const slug = settings.data?.public_slug;
-  const paused = settings.data?.is_active === false;
   const page = useQuery({ ...bookingPageQuery(slug ?? ""), enabled: Boolean(slug) });
-  // Where calls happen needs both the saved link and the calendar state.
-  const calls = settings.isError ? settings : page;
+  const rules = availability.data ?? [];
+  const place = settings.data
+    ? callPlace({
+        app: settings.data.conferencing_app,
+        calendarConnected: page.data?.calendar_connected ?? false,
+        hasLink: Boolean(settings.data.meeting_link),
+      })
+    : null;
+  // A paused page answers as not found. Without the page, Google Meet is unknown,
+  // and that is the only case where "no place to join" could be wrong.
+  const placeKnown =
+    page.isSuccess ||
+    place !== null ||
+    settings.data?.conferencing_app !== CONFERENCING_APP.googleMeet;
+  const pending =
+    settings.isPending || availability.isPending || (Boolean(slug) && page.isPending);
+  const failed = settings.isError || availability.isError;
+  return {
+    pending,
+    failed,
+    retry: () => {
+      void settings.refetch();
+      void availability.refetch();
+    },
+    problems:
+      pending || failed || !settings.data
+        ? []
+        : bookingPageProblems({
+            paused: settings.data.is_active === false,
+            hasHours: rules.length > 0,
+            place: placeKnown ? place : CONFERENCING_APP.googleMeet,
+          }),
+    summary:
+      pending || failed || !settings.data
+        ? null
+        : [
+            rules.length > 0 ? `${daysLabel(rules)}, ${callLengthLabel(rules)}` : null,
+            zoneName(settings.data.timezone),
+            place === CONFERENCING_APP.googleMeet
+              ? "Google Meet links"
+              : place === CONFERENCING_APP.customLink
+                ? "Your own meeting link"
+                : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+  };
+}
 
+/** Only when something is wrong: what it is, and the one place that fixes it. */
+export function SetupProblems() {
+  const { problems } = useBookingPageState();
+  if (problems.length === 0) return null;
   return (
-    <Card className="gap-0 overflow-hidden py-0">
-      <h2 className="border-b px-5 py-3.5 font-semibold">Your booking page</h2>
-      <dl className="divide-y">
-        <Row label="Link" query={settings}>
-          {() => ({
-            problem: paused,
-            value: paused
-              ? "Paused: your link says you are not taking bookings"
-              : `${window.location.host}${bookingPath(slug ?? "")}`,
-            actions: (
-              <>
-                {paused ? (
-                  <FixLink
-                    to={ROUTES.dashboardSettings}
-                    hash={SETTINGS_SECTIONS.rules}
-                    primary
-                  >
-                    Take bookings again
-                  </FixLink>
-                ) : null}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => slug && copyBookingLink(slug)}
-                >
-                  <Copy />
-                  Copy
-                </Button>
-                {slug ? (
-                  <Button variant="outline" size="sm" asChild>
-                    <Link to={ROUTES.bookingPage} params={{ slug }} target="_blank">
-                      <ExternalLink />
-                      Open
-                    </Link>
-                  </Button>
-                ) : null}
-              </>
-            ),
-          })}
-        </Row>
-        <Row label="Hours" query={availability}>
-          {() => {
-            const rules = availability.data ?? [];
-            const none = rules.length === 0;
-            return {
-              problem: none,
-              value: none
-                ? "No hours set, so your link has no times to offer"
-                : `${daysLabel(rules)}, ${callLengthLabel(rules)}`,
-              actions: (
-                <FixLink to={ROUTES.dashboardAvailability} primary={none}>
-                  {none ? "Set your hours" : "Edit hours"}
-                </FixLink>
-              ),
-            };
-          }}
-        </Row>
-        <Row label="Timezone" query={settings}>
-          {() => ({
-            value: settings.data && zoneName(settings.data.timezone),
-            actions: (
-              <FixLink to={ROUTES.dashboardSettings} hash={SETTINGS_SECTIONS.time}>
-                Change
-              </FixLink>
-            ),
-          })}
-        </Row>
-        <Row label="Calls" query={calls}>
-          {() => {
-            const place = settings.data
-              ? callPlace({
-                  app: settings.data.conferencing_app,
-                  calendarConnected: page.data?.calendar_connected ?? false,
-                  hasLink: Boolean(settings.data.meeting_link),
-                })
-              : null;
-            const none = place === null;
-            return {
-              problem: none,
-              value:
-                place === CONFERENCING_APP.googleMeet
-                  ? "A new Google Meet link for each call"
-                  : place === CONFERENCING_APP.customLink
-                    ? "Your own meeting link"
-                    : "No place to join, so people who book get no link",
-              actions: (
-                <FixLink to={ROUTES.dashboardAppsInstalled} primary={none}>
-                  {none ? "Add a meeting link" : "Change"}
-                </FixLink>
-              ),
-            };
-          }}
-        </Row>
-      </dl>
-    </Card>
+    <Alert className="border-warning/50 bg-warning/10">
+      <AlertTriangle className="text-warning" />
+      <AlertTitle>
+        {problems.length === 1
+          ? "Your booking page needs one fix"
+          : `Your booking page needs ${problems.length} fixes`}
+      </AlertTitle>
+      <AlertDescription className="mt-1 gap-2 text-foreground">
+        {problems.map((problem) => (
+          <div
+            key={problem.message}
+            className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2"
+          >
+            <p>{problem.message}</p>
+            <Button size="sm" asChild>
+              <Link to={problem.fix.to} hash={problem.fix.hash}>
+                {problem.fix.label}
+              </Link>
+            </Button>
+          </div>
+        ))}
+      </AlertDescription>
+    </Alert>
+  );
+}
+
+/** How the booking page is set up, in one quiet line under the calls. */
+export function SetupSummary() {
+  const { pending, failed, retry, summary } = useBookingPageState();
+  return (
+    <footer className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t pt-4 text-sm text-muted-foreground">
+      {pending ? (
+        <Skeleton className="h-5 w-64" />
+      ) : failed ? (
+        <p className="text-destructive">Your booking page setup did not load.</p>
+      ) : (
+        <p className="min-w-0">{summary}</p>
+      )}
+      <div className="flex flex-wrap gap-1">
+        {failed ? (
+          <Button variant="outline" size="sm" onClick={retry}>
+            Try again
+          </Button>
+        ) : null}
+        <Button variant="ghost" size="sm" asChild>
+          <Link to={ROUTES.dashboardAvailability}>Edit hours</Link>
+        </Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link to={ROUTES.dashboardSettings}>Settings</Link>
+        </Button>
+      </div>
+    </footer>
   );
 }
