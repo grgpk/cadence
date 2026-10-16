@@ -137,6 +137,7 @@ jobs:
             docker-compose.prod.yml
             nginx.prod.conf
             nginx.prod.bootstrap.conf
+            scripts/backup-db.sh
 
       - name: Configure SSH
         env:
@@ -160,6 +161,9 @@ jobs:
           "${SCP[@]}" docker-compose.prod.yml root@"$SERVER_IP":"$DEPLOY_DIR/docker-compose.prod.yml"
           "${SCP[@]}" nginx.prod.conf root@"$SERVER_IP":"$DEPLOY_DIR/nginx.prod.conf"
           "${SCP[@]}" nginx.prod.bootstrap.conf root@"$SERVER_IP":"$DEPLOY_DIR/nginx.prod.bootstrap.conf"
+          "${SSH[@]}" "install -d -m 700 '$DEPLOY_DIR/scripts'"
+          "${SCP[@]}" scripts/backup-db.sh root@"$SERVER_IP":"$DEPLOY_DIR/scripts/backup-db.sh"
+          "${SSH[@]}" "chmod 700 '$DEPLOY_DIR/scripts/backup-db.sh'"
 
       - name: Login to Docker Hub on server
         env:

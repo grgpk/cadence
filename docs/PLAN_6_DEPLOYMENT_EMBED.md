@@ -9,8 +9,9 @@ an approved external website without exposing the host dashboard.
 
 ## Current gap
 
-Production Docker images, registry deploy, SSH container swap, TLS config, and
-server environment bootstrap now exist. Embed, backups, and frame policy remain.
+Production Docker images, registry deploy, SSH container swap, TLS config,
+server environment bootstrap, and nightly DB backups now exist. Embed and frame
+policy remain.
 
 ## Approach
 
@@ -25,7 +26,8 @@ server environment bootstrap now exist. Embed, backups, and frame policy remain.
 
 - D0: production env contract and builds, done.
 - D1: TLS, reverse proxy, registry deploy script, done.
-- D2: backups, iframe and origin policy.
+- D2: backups done (`scripts/backup-db.sh`, nightly cron,
+  `scripts/pull-backup.sh`); iframe and origin policy remain.
 - D3: CI deploy and rollback check, in progress.
 
 ## Definition of done

@@ -80,3 +80,40 @@ curl -fsS https://bookcadence.app/health
 
 Production migrations run when backend starts. Add new migration files; never
 edit one already applied. Revert bad deploy by reverting commit on `main`.
+
+## Backups
+
+`scripts/backup-db.sh` runs on the server. It dumps the `db` container with
+`pg_dump --format=custom` into `/root/cadence-backups/` (root-only, UTC
+timestamped) and deletes dumps older than 14 days. Deploy copies it to
+`/root/cadence/scripts/`. Override with `BACKUP_DIR` and `BACKUP_KEEP_DAYS`.
+
+Schedule it once per server, nightly at 03:15 server time:
+
+```sh
+ssh root@37.27.157.169 "echo '15 3 * * * root /root/cadence/scripts/backup-db.sh >> /var/log/cadence-backup.log 2>&1' > /etc/cron.d/cadence-backup"
+```
+
+Run one now, or pull the newest dump to `./backups/` (gitignored):
+
+```sh
+ssh root@37.27.157.169 /root/cadence/scripts/backup-db.sh
+./scripts/pull-backup.sh
+```
+
+Check a dump locally by restoring it into a scratch database:
+
+```sh
+createdb -h 127.0.0.1 -U postgres cadence_restore_test
+pg_restore -h 127.0.0.1 -U postgres -d cadence_restore_test --no-owner backups/cadence_<timestamp>.dump
+```
+
+Restore production only on purpose. This replaces existing objects. Containers
+are found by compose labels because `docker compose` on the server needs the
+deploy-time image variables:
+
+```sh
+ssh root@37.27.157.169 'docker stop "$(docker ps -aq --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=backend)"'
+ssh root@37.27.157.169 'docker exec -i "$(docker ps -q --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=db)" sh -c '\''pg_restore -U "$POSTGRES_USER" -d "$POSTGRES_DB" --clean --if-exists --no-owner'\''' < backups/cadence_<timestamp>.dump
+ssh root@37.27.157.169 'docker start "$(docker ps -aq --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=backend)"'
+```
