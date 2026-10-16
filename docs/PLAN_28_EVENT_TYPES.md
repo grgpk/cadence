@@ -37,7 +37,13 @@ description, booking rules and questions.
 
 ## Data model
 
-Folded into the CREATE migrations (local databases are reset):
+`migrations/0018_create_event_types.sql`, a new migration so a database
+that already ran 0007 and 0009 keeps its data: it creates `event_types`, turns
+every host's page into their first type at `/call` (same title, description,
+rules and questions; length left to the hours, as before), links every
+booking to it, then drops the moved columns from `widget_settings`. Checked on
+a copy of the dev data from before Plan 28: an upgraded and a fresh database
+end with the same columns, constraints and indexes.
 
 ```
 widget_settings  host_unid PK, public_slug, timezone, is_active,

@@ -3,9 +3,6 @@ CREATE TABLE bookings (
     host_unid           UUID NOT NULL REFERENCES users(unid) ON DELETE RESTRICT,
     lead_unid           UUID REFERENCES leads(unid) ON DELETE SET NULL,
     calling_visit_unid  UUID REFERENCES calling_visits(unid) ON DELETE SET NULL,
-    -- The kind of call booked. A deleted type leaves its calls in place;
-    -- they are read with the host's first type then.
-    event_type_unid     UUID REFERENCES event_types(unid) ON DELETE SET NULL,
     slot_start          TIMESTAMPTZ NOT NULL,
     -- A call keeps the length it was booked with, whatever happens to the
     -- host's hours or timezone later.
