@@ -160,10 +160,11 @@ impl GoogleCalendarClient {
         Ok(events)
     }
 
-    /// Create an event with Google Meet
+    /// Create an event, with a Google Meet when `with_meet` is set.
     #[allow(clippy::too_many_arguments)]
-    pub async fn create_event_with_meet(
+    pub async fn create_event(
         &self,
+        with_meet: bool,
         date: &str,
         time: &str,
         duration_minutes: i64,
@@ -176,7 +177,7 @@ impl GoogleCalendarClient {
         let start_datetime = format!("{date}T{time}:00");
         let end_datetime = calculate_end_time(time, duration_minutes, date);
 
-        let event_body = serde_json::json!({
+        let mut event_body = serde_json::json!({
             "summary": summary,
             "description": description,
             "start": { "dateTime": start_datetime, "timeZone": timezone },
@@ -184,13 +185,15 @@ impl GoogleCalendarClient {
             "attendees": [
                 { "email": attendee_email, "displayName": attendee_name }
             ],
-            "conferenceData": {
+        });
+        if with_meet {
+            event_body["conferenceData"] = serde_json::json!({
                 "createRequest": {
                     "requestId": uuid::Uuid::new_v4().to_string(),
                     "conferenceSolutionKey": { "type": "hangoutsMeet" }
                 }
-            }
-        });
+            });
+        }
 
         let url = format!(
             "{}/calendars/{}/events?conferenceDataVersion=1&sendUpdates=all",

@@ -3,6 +3,7 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { AvailabilityRuleInput } from "../../bindings/AvailabilityRuleInput";
 import type { CalendarEvent } from "../../bindings/CalendarEvent";
+import type { ConferencingUpdate } from "../../bindings/ConferencingUpdate";
 import type { GoogleCalendarLoginRequest } from "../../bindings/GoogleCalendarLoginRequest";
 import type { GoogleOAuthConfigResponse } from "../../bindings/GoogleOAuthConfigResponse";
 import type { HostSettings } from "../../bindings/HostSettings";
@@ -21,6 +22,13 @@ export function saveHostSettings(settings: HostSettings): Promise<HostSettings> 
   return api<HostSettings>(HOST_SETTINGS_PATH, {
     method: "PUT",
     body: JSON.stringify(settings),
+  });
+}
+
+export function saveConferencing(update: ConferencingUpdate): Promise<HostSettings> {
+  return api<HostSettings>("/api/host/conferencing", {
+    method: "PUT",
+    body: JSON.stringify(update),
   });
 }
 

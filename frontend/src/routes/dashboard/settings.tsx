@@ -15,7 +15,6 @@ import { Textarea } from "../../components/ui/textarea";
 import { AccountSection } from "../../domains/dashboard/account-section";
 import { AppearanceSection } from "../../domains/dashboard/appearance-section";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
-import { GoogleCalendarConnection } from "../../domains/dashboard/google-calendar-connection";
 import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { ConfirmDialog } from "../../domains/shared/confirm-dialog";
@@ -45,13 +44,11 @@ const SECTION_TITLES = {
   [SETTINGS_SECTIONS.bookingPage]: "Booking page",
   [SETTINGS_SECTIONS.time]: "Time",
   [SETTINGS_SECTIONS.rules]: "Booking rules",
-  [SETTINGS_SECTIONS.calls]: "Where calls happen",
   [SETTINGS_SECTIONS.questions]: "Questions to ask",
   [SETTINGS_SECTIONS.appearance]: "Theme",
   [SETTINGS_SECTIONS.account]: "Account",
 } as const;
 type SectionId = keyof typeof SECTION_TITLES;
-const SECURE_LINK_PREFIX = "https://";
 /** The same limits the API enforces. */
 const NOTICE_HOURS = { min: 0, max: 168 };
 const WINDOW_DAYS = { min: 1, max: 90 };
@@ -146,9 +143,6 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
     enableBeforeUnload: !unchanged,
   });
   const linkChanged = values.public_slug !== saved.public_slug;
-  const meetingLink = values.meeting_link?.trim() ?? "";
-  const meetingLinkInvalid =
-    meetingLink !== "" && !meetingLink.startsWith(SECURE_LINK_PREFIX);
 
   return (
     <form
@@ -345,39 +339,6 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
       </Section>
 
       <Section
-        id={SETTINGS_SECTIONS.calls}
-        description="People who book you are sent a link to join. Connect Google Calendar for a new Google Meet link per call, or give one link of your own."
-      >
-        <GoogleCalendarConnection slug={saved.public_slug} />
-
-        <div className="flex items-center gap-3 text-sm text-muted-foreground">
-          <span aria-hidden="true" className="h-px flex-1 bg-border" />
-          or
-          <span aria-hidden="true" className="h-px flex-1 bg-border" />
-        </div>
-
-        <Field
-          id={`${ID}-meeting-link`}
-          label="Meeting link"
-          optional
-          error={meetingLinkInvalid ? "Use a link that starts with https://" : null}
-          help="Such as a Zoom or Meet room. Used when Google Calendar is not connected."
-        >
-          <Input
-            id={`${ID}-meeting-link`}
-            type="url"
-            inputMode="url"
-            maxLength={500}
-            placeholder="https://zoom.us/j/123456789"
-            value={values.meeting_link ?? ""}
-            aria-invalid={meetingLinkInvalid}
-            aria-describedby={fieldHelpId(`${ID}-meeting-link`)}
-            onChange={(event) => update({ meeting_link: event.target.value || null })}
-          />
-        </Field>
-      </Section>
-
-      <Section
         id={SETTINGS_SECTIONS.questions}
         description="The form always asks for a name, email and phone number. Turn on anything else you want to know before a call."
       >
@@ -410,7 +371,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
           >
             Discard
           </Button>
-          <Button type="submit" disabled={save.isPending || meetingLinkInvalid}>
+          <Button type="submit" disabled={save.isPending}>
             {save.isPending ? <Loader2 className="animate-spin" /> : null}
             {save.isPending ? "Saving" : "Save changes"}
           </Button>
@@ -437,7 +398,7 @@ function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Your booking page, where calls happen, what the form asks and how the app looks."
+        description="Your booking page, its rules, what the form asks and how the app looks. Calendars and meeting apps are under Integrations."
       />
       {query.isPending ? (
         <div className="grid gap-6">

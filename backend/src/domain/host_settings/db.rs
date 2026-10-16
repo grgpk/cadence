@@ -1,13 +1,13 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{AdminHost, BookingPage, HostSettings};
+use super::models::{AdminHost, BookingPage, ConferencingApp, HostSettings};
 use crate::domain::auth::models::USER_STATUS_ACTIVE;
 
 pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        "SELECT public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,
+        "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
                 ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                 minimum_notice_hours, booking_window_days, buffer_minutes, is_active
          FROM widget_settings WHERE host_unid = $1",
@@ -28,7 +28,7 @@ pub async fn insert(
         HostSettings,
         "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)
          ON CONFLICT (host_unid) DO NOTHING
-         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
                    ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                    minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
         host_unid,
@@ -48,11 +48,11 @@ pub async fn update(
         HostSettings,
         "UPDATE widget_settings SET public_slug = $2, title = $3, description = $4, timezone = $5,
                 ask_currently_working_on = $6, ask_how_heard_about_us = $7, ask_what_stopping_you = $8,
-                ask_investment_comfort = $9, ask_urgency_level = $10, meeting_link = $11,
-                minimum_notice_hours = $12, booking_window_days = $13, is_active = $14,
-                buffer_minutes = $15, updated_at = now()
+                ask_investment_comfort = $9, ask_urgency_level = $10,
+                minimum_notice_hours = $11, booking_window_days = $12, is_active = $13,
+                buffer_minutes = $14, updated_at = now()
          WHERE host_unid = $1
-         RETURNING public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
                    ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
                    minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
         host_unid,
@@ -65,11 +65,33 @@ pub async fn update(
         settings.ask_what_stopping_you,
         settings.ask_investment_comfort,
         settings.ask_urgency_level,
-        settings.meeting_link,
         settings.minimum_notice_hours,
         settings.booking_window_days,
         settings.is_active,
         settings.buffer_minutes,
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Where the host's calls happen. Kept apart from `update` so the Settings
+/// form and the Integrations page never overwrite each other.
+pub async fn set_conferencing(
+    pool: &PgPool,
+    host_unid: Uuid,
+    app: ConferencingApp,
+    meeting_link: Option<&str>,
+) -> Result<Option<HostSettings>, sqlx::Error> {
+    sqlx::query_as!(
+        HostSettings,
+        "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()
+         WHERE host_unid = $1
+         RETURNING public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,
+                   ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,
+                   minimum_notice_hours, booking_window_days, buffer_minutes, is_active",
+        host_unid,
+        app.as_str(),
+        meeting_link,
     )
     .fetch_optional(pool)
     .await
@@ -89,7 +111,7 @@ pub async fn find_page(
                   w.ask_currently_working_on, w.ask_how_heard_about_us, w.ask_what_stopping_you,
                   w.ask_investment_comfort, w.ask_urgency_level,
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
-                  w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
+                  w.conferencing_app, w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
                   w.minimum_notice_hours, w.booking_window_days, w.buffer_minutes,
                   w.is_active AS accepting_bookings
            FROM widget_settings w JOIN users u ON u.unid = w.host_unid

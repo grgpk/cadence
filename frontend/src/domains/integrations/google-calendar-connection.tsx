@@ -6,13 +6,13 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { ConfirmDialog } from "../shared/confirm-dialog";
-import { bookingPageQuery } from "../widget/cadence-api";
 import {
   calendarEventsQuery,
   connectGoogleCalendar,
   disconnectGoogleCalendar,
-} from "./host-api";
+} from "../dashboard/host-api";
+import { ConfirmDialog } from "../shared/confirm-dialog";
+import { bookingPageQuery } from "../widget/cadence-api";
 
 /** The host's Google Calendar link: its state and the one action that changes it. */
 export function GoogleCalendarConnection({ slug }: { slug: string }) {
@@ -55,8 +55,7 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
   );
 
   return (
-    <div className="grid gap-1.5">
-      <p className="text-sm leading-none font-medium">Google Calendar</p>
+    <>
       <div className="flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2">
         {events.isPending || (events.isError && page.isPending) ? (
           <Skeleton className="h-9 w-48" />
@@ -103,19 +102,15 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
           </>
         )}
       </div>
-      <p className="text-sm text-muted-foreground">
-        Keeps your busy times off your booking page and adds a Google Meet link to each
-        call.
-      </p>
       <ConfirmDialog
         open={confirming}
         onOpenChange={setConfirming}
         title="Disconnect Google Calendar?"
-        description="New calls stop getting a Google Meet link, and your busy times no longer block your booking page."
+        description="New calls stop getting a Google Meet link and use your own link instead, if you set one. Your busy times no longer block your booking page."
         confirmLabel="Disconnect"
         destructive
         onConfirm={() => disconnect.mutate()}
       />
-    </div>
+    </>
   );
 }

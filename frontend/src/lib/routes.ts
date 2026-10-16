@@ -13,6 +13,7 @@ export const ROUTES = {
   dashboard: "/dashboard",
   dashboardBookings: "/dashboard/bookings",
   dashboardAvailability: "/dashboard/availability",
+  dashboardIntegrations: "/dashboard/integrations",
   dashboardSettings: "/dashboard/settings",
   admin: "/admin",
 } as const;

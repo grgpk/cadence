@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{AdminHost, BookingPage, HostSettings},
+    models::{AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostSettings},
 };
 use crate::{
     domain::auth::models::UserRecord,
@@ -58,10 +58,6 @@ pub async fn update(
     settings.public_slug = settings.public_slug.trim().to_lowercase();
     settings.title = settings.title.trim().to_owned();
     settings.description = settings.description.trim().to_owned();
-    settings.meeting_link = settings
-        .meeting_link
-        .map(|link| link.trim().to_owned())
-        .filter(|link| !link.is_empty());
     validate(&settings)?;
     match db::update(pool, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
@@ -71,6 +67,29 @@ pub async fn update(
         }
         Err(error) => Err(error.into()),
     }
+}
+
+/// Picks where the host's calls happen.
+///
+/// A custom link needs the link. Google Meet may be picked before a calendar
+/// is connected: until then, and whenever Google makes no Meet, calls use the
+/// host's own link.
+pub async fn set_conferencing(
+    pool: &PgPool,
+    user: &UserRecord,
+    update: ConferencingUpdate,
+) -> AppResult<HostSettings> {
+    let meeting_link = clean_meeting_link(update.meeting_link)?;
+    if update.app == ConferencingApp::CustomLink && meeting_link.is_none() {
+        return Err(AppError::BadRequest(
+            "a custom link needs a meeting link".to_owned(),
+        ));
+    }
+    // The row exists once the host has opened their settings; make sure of it.
+    get_or_create(pool, user).await?;
+    db::set_conferencing(pool, user.unid, update.app, meeting_link.as_deref())
+        .await?
+        .ok_or(AppError::NotFound)
 }
 
 /// Resolves a public link to its page for reading. A paused page is shown
@@ -122,13 +141,6 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
     if !is_known_timezone(&settings.timezone) {
         return Err(AppError::BadRequest("timezone is invalid".to_owned()));
     }
-    if let Some(link) = &settings.meeting_link
-        && !is_valid_meeting_link(link)
-    {
-        return Err(AppError::BadRequest(
-            "meeting link must be an https URL".to_owned(),
-        ));
-    }
     if !(0..=NOTICE_HOURS_MAX).contains(&settings.minimum_notice_hours) {
         return Err(AppError::BadRequest(
             "minimum notice must be 0 to 168 hours".to_owned(),
@@ -150,6 +162,19 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
 /// Whether `name` is an IANA timezone this server can compute with.
 pub fn is_known_timezone(name: &str) -> bool {
     timezones::get_by_name(name).is_some()
+}
+
+/// Trims the link; an empty one is no link.
+fn clean_meeting_link(link: Option<String>) -> AppResult<Option<String>> {
+    let link = link
+        .map(|link| link.trim().to_owned())
+        .filter(|link| !link.is_empty());
+    match link {
+        Some(link) if !is_valid_meeting_link(&link) => Err(AppError::BadRequest(
+            "meeting link must be an https URL".to_owned(),
+        )),
+        link => Ok(link),
+    }
 }
 
 fn is_valid_meeting_link(link: &str) -> bool {
@@ -252,6 +277,24 @@ mod tests {
         }
         let long = format!("https://example.com/{}", "a".repeat(MEETING_LINK_MAX));
         assert!(!is_valid_meeting_link(&long));
+    }
+
+    #[test]
+    fn meeting_link_is_trimmed_and_empty_means_none() {
+        assert_eq!(clean_meeting_link(Some("  ".to_owned())).unwrap(), None);
+        assert_eq!(
+            clean_meeting_link(Some(" https://zoom.us/j/1 ".to_owned())).unwrap(),
+            Some("https://zoom.us/j/1".to_owned())
+        );
+        assert!(clean_meeting_link(Some("http://zoom.us/j/1".to_owned())).is_err());
+    }
+
+    #[test]
+    fn conferencing_app_matches_its_column_values() {
+        assert_eq!(ConferencingApp::GoogleMeet.as_str(), "google_meet");
+        assert_eq!(ConferencingApp::CustomLink.as_str(), "custom_link");
+        let json = serde_json::to_string(&ConferencingApp::CustomLink).unwrap();
+        assert_eq!(json, "\"custom_link\"");
     }
 
     #[test]

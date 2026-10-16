@@ -5,6 +5,39 @@ use uuid::Uuid;
 
 use crate::domain::auth::models::UserStatus;
 
+/// The values of the `widget_conferencing_app` check: where every call of a
+/// host happens. The column stays a string for sqlx.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../../frontend/src/bindings/ConferencingApp.ts")]
+pub enum ConferencingApp {
+    /// A Meet made with the Google Calendar event.
+    GoogleMeet,
+    /// The host's own `meeting_link`.
+    CustomLink,
+}
+
+impl ConferencingApp {
+    /// The value as the `conferencing_app` column stores it.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::GoogleMeet => "google_meet",
+            Self::CustomLink => "custom_link",
+        }
+    }
+}
+
+/// What the host picks on the Integrations page.
+#[derive(Debug, Deserialize, TS)]
+#[ts(
+    export,
+    export_to = "../../frontend/src/bindings/ConferencingUpdate.ts"
+)]
+pub struct ConferencingUpdate {
+    pub app: ConferencingApp,
+    pub meeting_link: Option<String>,
+}
+
 /// A host's own booking page settings. Read and written by the host only.
 /// Each `ask_*` flag is an independent switch for one form question.
 #[allow(clippy::struct_excessive_bools)]
@@ -16,7 +49,11 @@ pub struct HostSettings {
     pub description: String,
     pub timezone: String,
     /// Where calls happen when Google Calendar does not supply a Meet link.
+    /// Read only here; written through `ConferencingUpdate`.
     pub meeting_link: Option<String>,
+    /// Read only here; written through `ConferencingUpdate`.
+    #[ts(as = "ConferencingApp")]
+    pub conferencing_app: String,
     pub ask_currently_working_on: bool,
     pub ask_how_heard_about_us: bool,
     pub ask_what_stopping_you: bool,
@@ -57,6 +94,8 @@ pub struct BookingPage {
     pub ask_investment_comfort: bool,
     pub ask_urgency_level: bool,
     pub calendar_connected: bool,
+    #[ts(as = "ConferencingApp")]
+    pub conferencing_app: String,
     /// The link itself is only given to someone who has booked.
     #[serde(skip)]
     #[ts(skip)]

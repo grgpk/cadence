@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT public_slug, title, description, timezone, meeting_link, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                minimum_notice_hours, booking_window_days, buffer_minutes, is_active\n         FROM widget_settings WHERE host_unid = $1",
+  "query": "SELECT public_slug, title, description, timezone, meeting_link, conferencing_app, ask_currently_working_on, ask_how_heard_about_us,\n                ask_what_stopping_you, ask_investment_comfort, ask_urgency_level,\n                minimum_notice_hours, booking_window_days, buffer_minutes, is_active\n         FROM widget_settings WHERE host_unid = $1",
   "describe": {
     "columns": [
       {
@@ -60,6 +60,17 @@
       },
       {
         "ordinal": 5,
+        "name": "conferencing_app",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "conferencing_app"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
         "name": "ask_currently_working_on",
         "type_info": "Bool",
         "origin": {
@@ -70,7 +81,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "ask_how_heard_about_us",
         "type_info": "Bool",
         "origin": {
@@ -81,7 +92,7 @@
         }
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "ask_what_stopping_you",
         "type_info": "Bool",
         "origin": {
@@ -92,7 +103,7 @@
         }
       },
       {
-        "ordinal": 8,
+        "ordinal": 9,
         "name": "ask_investment_comfort",
         "type_info": "Bool",
         "origin": {
@@ -103,7 +114,7 @@
         }
       },
       {
-        "ordinal": 9,
+        "ordinal": 10,
         "name": "ask_urgency_level",
         "type_info": "Bool",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "minimum_notice_hours",
         "type_info": "Int4",
         "origin": {
@@ -125,7 +136,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "booking_window_days",
         "type_info": "Int4",
         "origin": {
@@ -136,7 +147,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "buffer_minutes",
         "type_info": "Int4",
         "origin": {
@@ -147,7 +158,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "is_active",
         "type_info": "Bool",
         "origin": {
@@ -177,8 +188,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "2934af3e27a6054d9b46f99390497f74d14bcb9aa10c3a42867030f23ca97cc8"
+  "hash": "5e365730b1c92ac28ba65bf5165cd99a9b5e54ad118e6e710bc4084fbd7fe30e"
 }

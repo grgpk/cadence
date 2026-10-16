@@ -16,7 +16,9 @@ use cadence_backend::domain::{
     google_calendar::models::{
         CalendarEvent, EventDateTime, GoogleCalendarLoginRequest, GoogleOAuthConfigResponse,
     },
-    host_settings::models::{AdminHost, BookingPage, HostSettings},
+    host_settings::models::{
+        AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostSettings,
+    },
     leads::models::{Lead, LeadQualification, LeadUpdate, SubmitLeadRequest},
     roleaccesses::models::{AdminRoleAccess, RoleAccess},
 };
@@ -58,6 +60,8 @@ fn export_bindings() {
     assert!(Lead::export().is_ok());
     assert!(SubmitLeadRequest::export().is_ok());
     assert!(RoleAccess::export().is_ok());
+    assert!(ConferencingApp::export().is_ok());
+    assert!(ConferencingUpdate::export().is_ok());
     assert!(HostSettings::export().is_ok());
     assert!(BookingPage::export().is_ok());
     assert!(AdminHost::export().is_ok());

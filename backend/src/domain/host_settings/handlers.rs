@@ -4,7 +4,7 @@ use axum::{
 };
 
 use super::{
-    models::{AdminHost, BookingPage, HostSettings},
+    models::{AdminHost, BookingPage, ConferencingUpdate, HostSettings},
     service,
 };
 use crate::{
@@ -34,6 +34,16 @@ pub async fn update(
     service::get_or_create(&state.pool, &user.user).await?;
     Ok(Json(
         service::update(&state.pool, user.user.unid, settings).await?,
+    ))
+}
+
+pub async fn set_conferencing(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(update): Json<ConferencingUpdate>,
+) -> AppResult<Json<HostSettings>> {
+    Ok(Json(
+        service::set_conferencing(&state.pool, &user.user, update).await?,
     ))
 }
 

@@ -8,6 +8,7 @@ import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { zoneName } from "../../lib/format";
 import { bookingPath, ROUTES } from "../../lib/routes";
+import { callPlace, CONFERENCING_APP } from "../integrations/conferencing";
 import { bookingPageQuery } from "../widget/cadence-api";
 import { copyBookingLink } from "./booking-link";
 import { availabilityQuery, hostSettingsQuery } from "./host-api";
@@ -61,7 +62,10 @@ function FixLink({
   primary = false,
   children,
 }: {
-  to: typeof ROUTES.dashboardAvailability | typeof ROUTES.dashboardSettings;
+  to:
+    | typeof ROUTES.dashboardAvailability
+    | typeof ROUTES.dashboardIntegrations
+    | typeof ROUTES.dashboardSettings;
   hash?: string;
   /** The row has a problem and this is how to fix it. */
   primary?: boolean;
@@ -156,22 +160,24 @@ export function BookingPageStatus() {
         </Row>
         <Row label="Calls" query={calls}>
           {() => {
-            const hasCalendar = page.data?.calendar_connected ?? false;
-            const hasLink = Boolean(settings.data?.meeting_link);
-            const none = !hasCalendar && !hasLink;
+            const place = settings.data
+              ? callPlace({
+                  app: settings.data.conferencing_app,
+                  calendarConnected: page.data?.calendar_connected ?? false,
+                  hasLink: Boolean(settings.data.meeting_link),
+                })
+              : null;
+            const none = place === null;
             return {
               problem: none,
-              value: hasCalendar
-                ? "A new Google Meet link for each call"
-                : hasLink
-                  ? "Your own meeting link"
-                  : "No place to join, so people who book get no link",
+              value:
+                place === CONFERENCING_APP.googleMeet
+                  ? "A new Google Meet link for each call"
+                  : place === CONFERENCING_APP.customLink
+                    ? "Your own meeting link"
+                    : "No place to join, so people who book get no link",
               actions: (
-                <FixLink
-                  to={ROUTES.dashboardSettings}
-                  hash={SETTINGS_SECTIONS.calls}
-                  primary={none}
-                >
+                <FixLink to={ROUTES.dashboardIntegrations} primary={none}>
                   {none ? "Add a meeting link" : "Change"}
                 </FixLink>
               ),

@@ -248,10 +248,13 @@ fn event_instant(value: &EventDateTime, timezone: &str) -> Option<DateTime<Utc>>
     local_to_utc(date.and_time(NaiveTime::MIN), timezone)
 }
 
-/// Creates the calendar event and its Meet link for a booked call.
-pub async fn create_meet_event(
+/// Creates the calendar event for a booked call, and its Meet link when
+/// `with_meet` is set.
+#[allow(clippy::too_many_arguments)]
+pub async fn create_event(
     pool: &PgPool,
     host_unid: Uuid,
+    with_meet: bool,
     start: DateTime<Utc>,
     minutes: i32,
     summary: &str,
@@ -260,7 +263,8 @@ pub async fn create_meet_event(
 ) -> Result<BookingResult, anyhow::Error> {
     let access_token = get_google_access_token(pool, host_unid).await?;
     GoogleCalendarClient::new(access_token)
-        .create_event_with_meet(
+        .create_event(
+            with_meet,
             &start.format("%Y-%m-%d").to_string(),
             &start.format("%H:%M").to_string(),
             i64::from(minutes),

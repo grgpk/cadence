@@ -72,7 +72,13 @@ GET {{baseUrl}}/api/host/settings
 PUT {{baseUrl}}/api/host/settings
 Content-Type: application/json
 
-{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"buffer_minutes":0,"is_active":true}
+{"public_slug":"cadence-host","title":"Book a call","description":"","timezone":"Europe/Paris","meeting_link":null,"conferencing_app":"google_meet","ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"minimum_notice_hours":4,"booking_window_days":7,"buffer_minutes":0,"is_active":true}
+
+### Where my calls happen (google_meet or custom_link; custom_link needs the link)
+PUT {{baseUrl}}/api/host/conferencing
+Content-Type: application/json
+
+{"app":"custom_link","meeting_link":"https://zoom.us/j/123456789"}
 
 ### Public booking page (accepting_bookings is false while paused)
 GET {{baseUrl}}/api/hosts/{{slug}}

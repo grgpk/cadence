@@ -32,6 +32,7 @@ import { Route as BookingTokenRouteImport } from './routes/booking/$token'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
+import { Route as DashboardIntegrationsRouteImport } from './routes/dashboard/integrations'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardCalendarCallbackRouteImport } from './routes/dashboard/calendar/callback'
 
@@ -150,6 +151,11 @@ const DashboardBookingsRoute = DashboardBookingsRouteImport.update({
   path: '/bookings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardIntegrationsRoute = DashboardIntegrationsRouteImport.update({
+  id: '/integrations',
+  path: '/integrations',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -184,6 +190,7 @@ export interface FileRoutesByFullPath {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
+  '/dashboard/integrations': typeof DashboardIntegrationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
@@ -266,6 +275,7 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin'
     | '/dashboard'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/booking/$token'
     | '/dashboard/availability'
     | '/dashboard/bookings'
+    | '/dashboard/integrations'
     | '/dashboard/settings'
     | '/admin/'
     | '/dashboard/'
@@ -502,6 +514,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardBookingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/integrations': {
+      id: '/dashboard/integrations'
+      path: '/integrations'
+      fullPath: '/dashboard/integrations'
+      preLoaderRoute: typeof DashboardIntegrationsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/settings': {
       id: '/dashboard/settings'
       path: '/settings'
@@ -548,6 +567,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 interface DashboardRouteRouteChildren {
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
+  DashboardIntegrationsRoute: typeof DashboardIntegrationsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   DashboardCalendarCallbackRoute: typeof DashboardCalendarCallbackRoute
@@ -556,6 +576,7 @@ interface DashboardRouteRouteChildren {
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
+  DashboardIntegrationsRoute: DashboardIntegrationsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   DashboardCalendarCallbackRoute: DashboardCalendarCallbackRoute,

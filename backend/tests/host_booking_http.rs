@@ -126,6 +126,22 @@ async fn save_settings(app: &Router, host: &Host, settings: &Value) -> (StatusCo
     .await
 }
 
+async fn save_conferencing(
+    app: &Router,
+    host: &Host,
+    conferencing_app: &str,
+    meeting_link: Option<&str>,
+) -> (StatusCode, Value) {
+    send(
+        app,
+        Method::PUT,
+        "/api/host/conferencing",
+        Some(&host.cookie),
+        Some(json!({ "app": conferencing_app, "meeting_link": meeting_link })),
+    )
+    .await
+}
+
 fn slug(settings: &Value) -> &str {
     settings["public_slug"]
         .as_str()
@@ -496,28 +512,45 @@ async fn a_hosts_own_meeting_link_is_validated_and_kept_private(pool: PgPool) {
     let host = register(&app, "Ada Lovelace", "ada@example.com").await;
     let saved = settings(&app, &host).await;
     assert_eq!(saved["meeting_link"], Value::Null);
+    assert_eq!(saved["conferencing_app"], "google_meet");
 
     let too_long = format!("https://example.com/{}", "a".repeat(500));
     for bad in ["http://zoom.us/j/1", "not a url", too_long.as_str()] {
-        let mut changed = saved.clone();
-        changed["meeting_link"] = json!(bad);
-        let (status, _) = save_settings(&app, &host, &changed).await;
+        let (status, _) = save_conferencing(&app, &host, "custom_link", Some(bad)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
     }
+    // A custom link needs the link.
+    let (status, _) = save_conferencing(&app, &host, "custom_link", Some("  ")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
 
-    let mut changed = saved.clone();
-    changed["meeting_link"] = json!("  https://zoom.us/j/123456789 ");
-    let (status, with_link) = save_settings(&app, &host, &changed).await;
+    let (status, with_link) = save_conferencing(
+        &app,
+        &host,
+        "custom_link",
+        Some("  https://zoom.us/j/123456789 "),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(with_link["meeting_link"], "https://zoom.us/j/123456789");
+    assert_eq!(with_link["conferencing_app"], "custom_link");
 
     let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
     assert_eq!(page["has_meeting_link"], true);
+    assert_eq!(page["conferencing_app"], "custom_link");
     assert!(page.get("meeting_link").is_none());
     assert!(!page.to_string().contains("zoom.us"));
 
-    changed["meeting_link"] = json!("");
-    let (status, cleared) = save_settings(&app, &host, &changed).await;
+    // The Settings form cannot overwrite the link it no longer shows.
+    let mut stale = with_link.clone();
+    stale["meeting_link"] = Value::Null;
+    stale["conferencing_app"] = json!("google_meet");
+    let (status, kept) = save_settings(&app, &host, &stale).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(kept["meeting_link"], "https://zoom.us/j/123456789");
+    assert_eq!(kept["conferencing_app"], "custom_link");
+
+    // Meet may be picked before a calendar is connected.
+    let (status, cleared) = save_conferencing(&app, &host, "google_meet", Some("")).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(cleared["meeting_link"], Value::Null);
     let (_, page) = get(&app, "/api/hosts/ada-lovelace", None).await;
@@ -529,9 +562,7 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
     const LINK: &str = "https://zoom.us/j/123456789";
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let mut host_settings = settings(&app, &host).await;
-    host_settings["meeting_link"] = json!(LINK);
-    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    let (status, _) = save_conferencing(&app, &host, "google_meet", Some(LINK)).await;
     assert_eq!(status, StatusCode::OK);
 
     let start = slots(&app, &slug).await[0];
@@ -1884,9 +1915,7 @@ async fn a_cancelled_call_no_longer_shows_where_to_join(pool: PgPool) {
     const LINK: &str = "https://zoom.us/j/123456789";
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
-    let mut host_settings = settings(&app, &host).await;
-    host_settings["meeting_link"] = json!(LINK);
-    let (status, _) = save_settings(&app, &host, &host_settings).await;
+    let (status, _) = save_conferencing(&app, &host, "custom_link", Some(LINK)).await;
     assert_eq!(status, StatusCode::OK);
     let start = slots(&app, &slug).await[0];
     let (_, token) = book(&app, &slug, start).await;

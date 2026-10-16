@@ -20,7 +20,10 @@ use crate::{
             REMINDER_24H_TEMPLATE, REMINDER_30MIN_TEMPLATE,
         },
         google_calendar::service as google_calendar,
-        host_settings::{models::BookingPage, service as host_settings},
+        host_settings::{
+            models::{BookingPage, ConferencingApp},
+            service as host_settings,
+        },
         leads::service as leads,
     },
     error::{AppError, AppResult},
@@ -186,7 +189,8 @@ pub async fn create(
         &request.timezone,
         &request.invitee_name,
         &request.invitee_email,
-        // Replaced below by Google's Meet link when there is one.
+        // Replaced below by Google's Meet link when the host picked Meet and
+        // Google made one.
         page.meeting_link.as_deref(),
     )
     .await
@@ -204,9 +208,10 @@ pub async fn create(
     transaction.commit().await?;
 
     let event = if page.calendar_connected {
-        google_calendar::create_meet_event(
+        google_calendar::create_event(
             pool,
             host_unid,
+            page.conferencing_app == ConferencingApp::GoogleMeet.as_str(),
             booking.slot_start,
             booking.minutes,
             &format!("{} with {}", page.title, request.invitee_name),

@@ -15,6 +15,9 @@ CREATE TABLE widget_settings (
     -- A host's own place to meet (Zoom, a personal Meet room, any https
     -- link), used when Google Calendar does not create a Meet link.
     meeting_link            TEXT,
+    -- Where every call happens: a Google Meet made with the calendar event,
+    -- or the host's own `meeting_link`.
+    conferencing_app        TEXT NOT NULL DEFAULT 'google_meet',
     -- Booking form questions, all hidden until the host turns them on.
     -- Names follow the `leads` columns they gate.
     ask_currently_working_on BOOLEAN NOT NULL DEFAULT false,
@@ -24,6 +27,7 @@ CREATE TABLE widget_settings (
     ask_urgency_level       BOOLEAN NOT NULL DEFAULT false,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT widget_conferencing_app CHECK (conferencing_app IN ('google_meet', 'custom_link')),
     CONSTRAINT widget_duration CHECK (duration_minutes BETWEEN 5 AND 240),
     CONSTRAINT widget_buffer CHECK (buffer_minutes BETWEEN 0 AND 240),
     CONSTRAINT widget_notice CHECK (minimum_notice_hours BETWEEN 0 AND 720),

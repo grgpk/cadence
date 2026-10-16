@@ -1,4 +1,4 @@
-import { CalendarCheck, Clock, LayoutDashboard, Settings } from "lucide-react";
+import { Blocks, CalendarCheck, Clock, LayoutDashboard, Settings } from "lucide-react";
 
 import { ROUTES } from "../../lib/routes";
 import type { NavSection } from "../shared/app-shell";
@@ -9,6 +9,7 @@ export const DASHBOARD_NAV: NavSection[] = [
       { title: "Overview", to: ROUTES.dashboard, icon: LayoutDashboard, exact: true },
       { title: "Bookings", to: ROUTES.dashboardBookings, icon: CalendarCheck },
       { title: "Availability", to: ROUTES.dashboardAvailability, icon: Clock },
+      { title: "Integrations", to: ROUTES.dashboardIntegrations, icon: Blocks },
       { title: "Settings", to: ROUTES.dashboardSettings, icon: Settings },
     ],
   },
@@ -19,7 +20,6 @@ export const SETTINGS_SECTIONS = {
   bookingPage: "booking-page",
   time: "time",
   rules: "rules",
-  calls: "calls",
   questions: "questions",
   appearance: "appearance",
   account: "account",
