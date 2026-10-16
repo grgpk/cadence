@@ -1,19 +1,14 @@
-use chrono::{DateTime, Duration, NaiveDate, NaiveTime, Utc};
+use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::availability::service::local_to_utc;
 use crate::domain::google_calendar::client::{GoogleCalendarClient, http_client};
 use crate::domain::google_calendar::db::GoogleCalendarDb;
 use crate::domain::google_calendar::environment::Environment;
 use crate::domain::google_calendar::models::{
-    BookingResult, CalendarEvent, EventDateTime, GoogleOAuthConfigResponse, GoogleTokenResponse,
+    CalendarEvent, GoogleOAuthConfigResponse, GoogleTokenResponse,
 };
 
-/// Free time kept on both sides of a calendar event.
-pub const EVENT_BUFFER_MINUTES: i64 = 15;
-/// Google returns event times with their own offsets; the query window is UTC.
-const QUERY_TIMEZONE: &str = "UTC";
 /// How long a host has to come back from Google's consent screen.
 const OAUTH_STATE_MINUTES: i64 = 10;
 const OAUTH_STATE_REFUSED: &str = "this Google sign-in has expired, connect Google Calendar again";
@@ -145,15 +140,14 @@ pub async fn disconnect_google_calendar(
     Ok(())
 }
 
-pub async fn get_google_access_token(
-    pool: &PgPool,
-    host_unid: Uuid,
-) -> Result<String, anyhow::Error> {
-    let config = GoogleCalendarDb::get(pool, host_unid)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Google Calendar not connected"))?;
+/// A working access token for the host's calendar, refreshed when it has
+/// expired. `None` when the host has not connected one.
+pub async fn access_token(pool: &PgPool, host_unid: Uuid) -> Result<Option<String>, anyhow::Error> {
+    let Some(config) = GoogleCalendarDb::get(pool, host_unid).await? else {
+        return Ok(None);
+    };
     if !GoogleCalendarDb::is_expired(config.expires_at) {
-        return Ok(config.access_token);
+        return Ok(Some(config.access_token));
     }
 
     let (client_id, _) = google_oauth_config()?;
@@ -191,121 +185,18 @@ pub async fn get_google_access_token(
         );
     GoogleCalendarDb::update_access_token(pool, host_unid, &refresh.access_token, expires_at)
         .await?;
-    Ok(refresh.access_token)
+    Ok(Some(refresh.access_token))
 }
 
 pub async fn get_calendar_events(
     pool: &PgPool,
     host_unid: Uuid,
 ) -> Result<Vec<CalendarEvent>, anyhow::Error> {
-    let access_token = get_google_access_token(pool, host_unid).await?;
+    let access_token = access_token(pool, host_unid)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Google Calendar not connected"))?;
     GoogleCalendarClient::new(access_token)
         .get_upcoming_events(7)
-        .await
-        .map_err(|error| anyhow::anyhow!(error.to_string()))
-}
-
-/// Busy time on the host's Google Calendar between two instants, padded by
-/// the event buffer. All-day events block the whole day in `timezone`.
-///
-/// `own_events` are the ids of events Cadence made for its own calls. They
-/// are left out: those calls already close their times by the host's rule.
-pub async fn busy_intervals(
-    pool: &PgPool,
-    host_unid: Uuid,
-    timezone: &str,
-    from: DateTime<Utc>,
-    to: DateTime<Utc>,
-    own_events: &[&str],
-) -> Result<Vec<(DateTime<Utc>, DateTime<Utc>)>, anyhow::Error> {
-    let access_token = get_google_access_token(pool, host_unid).await?;
-    // One day of slack on each side so all-day events in any timezone are included.
-    let start_date = (from - Duration::days(1)).format("%Y-%m-%d").to_string();
-    let end_date = (to + Duration::days(1)).format("%Y-%m-%d").to_string();
-    let events = GoogleCalendarClient::new(access_token)
-        .get_events_between(&start_date, &end_date, QUERY_TIMEZONE)
-        .await
-        .map_err(|error| anyhow::anyhow!(error.to_string()))?;
-    let buffer = Duration::minutes(EVENT_BUFFER_MINUTES);
-    Ok(events
-        .iter()
-        .filter(|event| !own_events.contains(&event.id.as_str()))
-        .filter_map(|event| {
-            let start = event_instant(event.start.as_ref()?, timezone)?;
-            let end = event_instant(event.end.as_ref()?, timezone)?;
-            Some((start - buffer, end + buffer))
-        })
-        .collect())
-}
-
-fn event_instant(value: &EventDateTime, timezone: &str) -> Option<DateTime<Utc>> {
-    if let Some(date_time) = &value.date_time {
-        return DateTime::parse_from_rfc3339(date_time)
-            .ok()
-            .map(|instant| instant.with_timezone(&Utc));
-    }
-    let date = NaiveDate::parse_from_str(value.date.as_deref()?, "%Y-%m-%d").ok()?;
-    local_to_utc(date.and_time(NaiveTime::MIN), timezone)
-}
-
-/// Creates the calendar event for a booked call, and its Meet link when
-/// `with_meet` is set.
-#[allow(clippy::too_many_arguments)]
-pub async fn create_event(
-    pool: &PgPool,
-    host_unid: Uuid,
-    with_meet: bool,
-    start: DateTime<Utc>,
-    minutes: i32,
-    summary: &str,
-    attendee_name: &str,
-    attendee_email: &str,
-) -> Result<BookingResult, anyhow::Error> {
-    let access_token = get_google_access_token(pool, host_unid).await?;
-    GoogleCalendarClient::new(access_token)
-        .create_event(
-            with_meet,
-            &start.format("%Y-%m-%d").to_string(),
-            &start.format("%H:%M").to_string(),
-            i64::from(minutes),
-            QUERY_TIMEZONE,
-            summary,
-            &format!("Booking by {attendee_name} ({attendee_email})"),
-            attendee_email,
-            attendee_name,
-        )
-        .await
-        .map_err(|error| anyhow::anyhow!(error.to_string()))
-}
-
-/// Takes a cancelled call off the host's calendar.
-pub async fn delete_event(
-    pool: &PgPool,
-    host_unid: Uuid,
-    event_id: &str,
-) -> Result<(), anyhow::Error> {
-    let access_token = get_google_access_token(pool, host_unid).await?;
-    GoogleCalendarClient::new(access_token)
-        .delete_event(event_id)
-        .await
-        .map_err(|error| anyhow::anyhow!(error.to_string()))
-}
-
-/// Moves a rescheduled call on the host's calendar.
-pub async fn move_event(
-    pool: &PgPool,
-    host_unid: Uuid,
-    event_id: &str,
-    start: DateTime<Utc>,
-    minutes: i32,
-) -> Result<(), anyhow::Error> {
-    let access_token = get_google_access_token(pool, host_unid).await?;
-    GoogleCalendarClient::new(access_token)
-        .update_event_time(
-            event_id,
-            start,
-            start + Duration::minutes(i64::from(minutes)),
-        )
         .await
         .map_err(|error| anyhow::anyhow!(error.to_string()))
 }

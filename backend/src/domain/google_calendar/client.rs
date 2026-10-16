@@ -341,3 +341,32 @@ struct ConferenceEntryPoint {
     entry_point_type: Option<String>,
     uri: Option<String>,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::calculate_end_time;
+
+    #[test]
+    fn an_end_time_adds_the_length_to_the_start() {
+        assert_eq!(
+            calculate_end_time("09:30", 45, "2026-10-05"),
+            "2026-10-05T10:15:00"
+        );
+    }
+
+    #[test]
+    fn a_call_running_past_midnight_ends_the_next_day() {
+        assert_eq!(
+            calculate_end_time("23:30", 60, "2026-12-31"),
+            "2027-01-01T00:30:00"
+        );
+    }
+
+    #[test]
+    fn an_unreadable_start_is_used_as_the_end() {
+        assert_eq!(
+            calculate_end_time("9am", 30, "2026-10-05"),
+            "2026-10-05T9am:00"
+        );
+    }
+}

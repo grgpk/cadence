@@ -76,6 +76,7 @@ pub async fn set_calendar_event(
 }
 
 /// A call that still holds its time.
+#[derive(Debug, Clone)]
 pub struct BookedCall {
     pub unid: Uuid,
     pub slot_start: DateTime<Utc>,

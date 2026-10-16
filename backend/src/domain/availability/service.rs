@@ -57,8 +57,17 @@ const OVERRIDE_DAYS_AHEAD: i64 = 366;
 /// The host's dates with their own hours, from yesterday on. Yesterday in UTC
 /// is still today somewhere.
 pub async fn list_overrides(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<DateOverride>> {
-    let from = Utc::now().date_naive() - Duration::days(1);
-    let rows = db::list_overrides(pool, host_unid, from).await?;
+    overrides_around(pool, host_unid, Utc::now().date_naive()).await
+}
+
+/// The dates with their own hours from the day before `today` on: a local
+/// date can still be running somewhere when it is already over in UTC.
+pub async fn overrides_around(
+    pool: &PgPool,
+    host_unid: Uuid,
+    today: NaiveDate,
+) -> AppResult<Vec<DateOverride>> {
+    let rows = db::list_overrides(pool, host_unid, today - Duration::days(1)).await?;
     Ok(group_overrides(rows))
 }
 

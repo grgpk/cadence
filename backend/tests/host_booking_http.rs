@@ -19,7 +19,10 @@ use cadence_backend::{
             service::RenderedEmail,
             worker::{self, Mailer},
         },
-        google_calendar::db::GoogleCalendarDb,
+        google_calendar::{
+            calendar::{HostCalendar, InMemoryCalendar},
+            db::GoogleCalendarDb,
+        },
         leads,
     },
 };
@@ -45,9 +48,19 @@ struct Host {
 }
 
 fn app(pool: &PgPool) -> Router {
+    app_with_calendar(pool).0
+}
+
+/// The app with a calendar the test can connect hosts to, fill and read back.
+fn app_with_calendar(pool: &PgPool) -> (Router, InMemoryCalendar) {
     // JWT_SECRET lives in the workspace .env, next to DATABASE_URL.
     dotenvy::dotenv().ok();
-    build_app(AppState { pool: pool.clone() })
+    let calendar = InMemoryCalendar::new();
+    let app = build_app(AppState {
+        pool: pool.clone(),
+        calendar: HostCalendar::InMemory(calendar.clone()),
+    });
+    (app, calendar)
 }
 
 async fn send(
@@ -600,13 +613,16 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
     assert_eq!(confirmations, Some(1));
 }
 
+/// Which times these rules open is the slot policy's to test (`bookings/slots.rs`);
+/// here only what a host can save and what a visitor can see of it.
 #[sqlx::test(migrations = "../migrations")]
-async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
+async fn booking_rules_are_checked_and_stay_off_the_public_page(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     let mut rules = settings(&app, &host).await;
     assert_eq!(rules["minimum_notice_hours"], 4);
     assert_eq!(rules["booking_window_days"], 7);
+    assert_eq!(rules["buffer_minutes"], 0, "no gap until chosen");
     assert_eq!(rules["is_active"], true);
 
     for (field, bad) in [
@@ -614,6 +630,8 @@ async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
         ("minimum_notice_hours", 169),
         ("booking_window_days", 0),
         ("booking_window_days", 91),
+        ("buffer_minutes", -1),
+        ("buffer_minutes", 121),
     ] {
         let mut changed = rules.clone();
         changed[field] = json!(bad);
@@ -622,28 +640,19 @@ async fn slots_stay_inside_the_hosts_window_and_notice(pool: PgPool) {
     }
 
     rules["booking_window_days"] = json!(2);
+    rules["minimum_notice_hours"] = json!(24);
+    rules["buffer_minutes"] = json!(15);
     let (status, saved) = save_settings(&app, &host, &rules).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(saved, rules);
-    let near = slots(&app, &slug).await;
-    // One call a day, from 4 hours out to 2 days out.
-    assert!((1..=2).contains(&near.len()), "{} slots", near.len());
-    for start in &near {
-        assert!(*start < Utc::now() + Duration::days(2), "{start}");
-    }
     let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
     assert_eq!(page["booking_window_days"], 2);
     assert!(page.get("minimum_notice_hours").is_none());
-
-    rules["booking_window_days"] = json!(7);
-    rules["minimum_notice_hours"] = json!(72);
-    let (status, _) = save_settings(&app, &host, &rules).await;
-    assert_eq!(status, StatusCode::OK);
-    let far = slots(&app, &slug).await;
-    assert!((3..=4).contains(&far.len()), "{} slots", far.len());
-    for start in &far {
-        assert!(*start > Utc::now() + Duration::hours(71), "{start}");
-        assert!(!near.contains(start), "{start}");
+    assert!(page.get("buffer_minutes").is_none());
+    // The saved rules reach the open times: one call a day, a day out at the earliest.
+    for start in slots(&app, &slug).await {
+        assert!(start > Utc::now() + Duration::hours(23), "{start}");
+        assert!(start < Utc::now() + Duration::days(2), "{start}");
     }
 }
 
@@ -1824,122 +1833,6 @@ async fn a_calendar_is_connected_only_with_the_state_its_host_was_given(pool: Pg
     assert!(spend("adas-state").await.expect("readable").is_some());
 }
 
-/// The open times of a host with half-hour calls, as "HH:MM" on the host's
-/// clock in Tbilisi (UTC+4) for the day `day` falls on.
-async fn half_hours_on(app: &Router, slug: &str, day: DateTime<Utc>) -> Vec<String> {
-    let (status, slots) = get(app, &format!("/api/hosts/{slug}/slots"), None).await;
-    assert_eq!(status, StatusCode::OK);
-    slots
-        .as_array()
-        .expect("slots are a list")
-        .iter()
-        .map(|slot| {
-            serde_json::from_value::<DateTime<Utc>>(slot["start"].clone())
-                .expect("slot has a start")
-        })
-        .filter(|start| start.date_naive() == day.date_naive())
-        .map(|start| (start + Duration::hours(4)).format("%H:%M").to_string())
-        .collect()
-}
-
-#[sqlx::test(migrations = "../migrations")]
-async fn a_buffer_keeps_time_free_around_every_booked_call(pool: PgPool) {
-    let app = app(&pool);
-    let host = register(&app, "Nino Tbilisi", "nino@example.com").await;
-    let mut host_settings = settings(&app, &host).await;
-    assert_eq!(host_settings["buffer_minutes"], 0, "no buffer until chosen");
-    host_settings["timezone"] = json!("Asia/Tbilisi");
-    let (status, _) = save_settings(&app, &host, &host_settings).await;
-    assert_eq!(status, StatusCode::OK);
-    for weekday in 0..7 {
-        let (status, _) = send(
-            &app,
-            Method::POST,
-            "/api/availability",
-            Some(&host.cookie),
-            Some(json!({
-                "weekday": weekday,
-                "start_time": "09:00:00",
-                "end_time": "12:00:00",
-                "slot_minutes": 30,
-            })),
-        )
-        .await;
-        assert_eq!(status, StatusCode::CREATED);
-    }
-    let slug = slug(&host_settings).to_owned();
-    let path = format!("/api/hosts/{slug}/bookings");
-    let (_, page) = get(&app, &format!("/api/hosts/{slug}"), None).await;
-    assert!(page.get("buffer_minutes").is_none());
-
-    // 10:00 in Tbilisi, three days out: a whole day inside the window.
-    let ten = (Utc::now() + Duration::days(3))
-        .date_naive()
-        .and_hms_opt(6, 0, 0)
-        .expect("06:00 exists")
-        .and_utc();
-    let half_hour = Duration::minutes(30);
-    let all = ["09:00", "09:30", "10:00", "10:30", "11:00", "11:30"];
-    assert_eq!(half_hours_on(&app, &slug, ten).await, all);
-
-    let (_, token) = book(&app, &slug, ten).await;
-    assert_eq!(
-        half_hours_on(&app, &slug, ten).await,
-        ["09:00", "09:30", "10:30", "11:00", "11:30"],
-        "without a buffer only the booked time closes"
-    );
-
-    for bad in [-1, 121] {
-        host_settings["buffer_minutes"] = json!(bad);
-        let (status, _) = save_settings(&app, &host, &host_settings).await;
-        assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
-    }
-    host_settings["buffer_minutes"] = json!(15);
-    let (status, saved) = save_settings(&app, &host, &host_settings).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(saved["buffer_minutes"], 15);
-    assert_eq!(
-        half_hours_on(&app, &slug, ten).await,
-        ["09:00", "11:00", "11:30"],
-        "the calls right before and after would leave no gap"
-    );
-    for start in [ten - half_hour, ten + half_hour] {
-        let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
-        assert_eq!(status, StatusCode::CONFLICT, "{start}");
-    }
-
-    // The call's own time does not stop it from moving half an hour.
-    let (status, moved) = send(
-        &app,
-        Method::POST,
-        &format!("/api/manage/{token}/reschedule"),
-        None,
-        Some(json!({ "slot_start": ten + half_hour })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(moved["slot_start"], json!(ten + half_hour));
-    assert_eq!(
-        half_hours_on(&app, &slug, ten).await,
-        ["09:00", "09:30", "11:30"]
-    );
-
-    // A second call still has to keep the gap from the first.
-    let (other, other_token) = book(&app, &slug, ten - half_hour).await;
-    assert_eq!(half_hours_on(&app, &slug, ten).await, ["11:30"]);
-    let (status, _) = send(
-        &app,
-        Method::POST,
-        &format!("/api/manage/{other_token}/reschedule"),
-        None,
-        Some(json!({ "slot_start": ten })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CONFLICT, "too close to the other call");
-    let (_, mine) = get(&app, &format!("/api/bookings/{other}"), Some(&host.cookie)).await;
-    assert_eq!(mine["booking"]["slot_start"], json!(ten - half_hour));
-}
-
 #[sqlx::test(migrations = "../migrations")]
 async fn a_booking_with_bad_details_is_refused_and_takes_no_time(pool: PgPool) {
     let app = app(&pool);
@@ -2353,7 +2246,7 @@ async fn a_call_can_move_onto_its_own_time_but_not_onto_anothers(pool: PgPool) {
     let app = app(&pool);
     // Hour-long calls starting every half hour from 09:00 to 11:00.
     let hours = [("09:00:00", "12:00:00", 60), ("09:30:00", "11:30:00", 60)];
-    let (host, slug) = host_in_tbilisi(&app, 0, &hours).await;
+    let (_, slug) = host_in_tbilisi(&app, 0, &hours).await;
     let at = |hour, minute| tbilisi(3, hour, minute);
     let (_, token) = book(&app, &slug, at(10, 0)).await;
     book(&app, &slug, at(9, 0)).await;
@@ -2367,22 +2260,95 @@ async fn a_call_can_move_onto_its_own_time_but_not_onto_anothers(pool: PgPool) {
         "runs over the 09:00 call"
     );
     assert_eq!(try_to_move(&app, &token, at(10, 0)).await, StatusCode::OK);
-
-    // With a gap, the call's own time still does not count against it...
-    let mut with_gap = settings(&app, &host).await;
-    with_gap["buffer_minutes"] = json!(30);
-    let (status, _) = save_settings(&app, &host, &with_gap).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(open_on(&app, &slug, at(9, 0)).await, Vec::<String>::new());
-    assert_eq!(try_to_move(&app, &token, at(11, 0)).await, StatusCode::OK);
-    assert_eq!(try_to_move(&app, &token, at(10, 30)).await, StatusCode::OK);
-    // ...and the other call's time does.
-    assert_eq!(
-        try_to_move(&app, &token, at(10, 0)).await,
-        StatusCode::CONFLICT,
-        "starts the minute the 09:00 call ends"
-    );
+    // How a gap treats a moving call is the slot policy's to test; this is the wiring.
     let (_, call) = get(&app, &format!("/api/manage/{token}"), None).await;
-    assert_eq!(call["slot_start"], json!(at(10, 30)));
+    assert_eq!(call["slot_start"], json!(at(10, 0)));
     assert_eq!(call["minutes"], 60);
+}
+
+/// The confirmation email waiting for a call, as its payload.
+async fn confirmation_payload(pool: &PgPool, booking_unid: Uuid) -> Value {
+    sqlx::query_scalar!(
+        "SELECT payload FROM email_queue WHERE booking_unid = $1 AND template = 'booking_confirmation'",
+        booking_unid,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the confirmation is queued")
+    .unwrap_or(Value::Null)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_busy_calendar_closes_nearby_times_and_a_broken_one_does_not_stop_bookings(pool: PgPool) {
+    let (app, calendar) = app_with_calendar(&pool);
+    let (host, slug) = host_in_tbilisi(&app, 0, &[("09:00:00", "13:00:00", 60)]).await;
+    let all = ["09:00/60", "10:00/60", "11:00/60", "12:00/60"];
+    let nine = tbilisi(3, 9, 0);
+    assert_eq!(
+        open_on(&app, &slug, nine).await,
+        all,
+        "no calendar, nothing busy"
+    );
+
+    // A dentist from 10:00 to 10:30, with 15 minutes kept on both sides.
+    calendar.connect(host.unid);
+    calendar.add_busy(host.unid, "dentist", tbilisi(3, 10, 0), tbilisi(3, 10, 30));
+    assert_eq!(
+        open_on(&app, &slug, nine).await,
+        ["11:00/60", "12:00/60"],
+        "09:00 would end as the dentist starts"
+    );
+    assert_eq!(try_to_book(&app, &slug, nine).await, StatusCode::CONFLICT);
+
+    // A calendar that cannot be read leaves the hours open and still books.
+    calendar.fail(true);
+    assert_eq!(open_on(&app, &slug, nine).await, all);
+    let (unid, _) = book(&app, &slug, nine).await;
+    assert!(calendar.events(host.unid).is_empty(), "no event was made");
+    let (_, detail) = get(&app, &format!("/api/bookings/{unid}"), Some(&host.cookie)).await;
+    assert_eq!(detail["booking"]["google_event_id"], Value::Null);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_connected_calendar_keeps_an_event_that_follows_the_call(pool: PgPool) {
+    let (app, calendar) = app_with_calendar(&pool);
+    let (host, slug) = host_in_tbilisi(&app, 0, &[("09:00:00", "13:00:00", 60)]).await;
+    calendar.connect(host.unid);
+    let ten = tbilisi(3, 10, 0);
+
+    let (unid, token) = book(&app, &slug, ten).await;
+    let events = calendar.events(host.unid);
+    assert_eq!(events.len(), 1);
+    let event = &events[0];
+    assert_eq!((event.start, event.minutes), (ten, 60));
+    assert_eq!(event.invitee_email, "ada@example.com");
+    // The host chose Google Meet: its link is the one the invitee gets.
+    let meet = event.meet_link.clone().expect("Meet was asked for");
+    let (_, call) = get(&app, &format!("/api/manage/{token}"), None).await;
+    assert_eq!(call["meeting_url"], json!(meet));
+    assert_eq!(
+        confirmation_payload(&pool, unid).await["meeting_url"],
+        json!(meet)
+    );
+
+    // The call's own event does not close more than the call does.
+    assert_eq!(
+        open_on(&app, &slug, ten).await,
+        ["09:00/60", "11:00/60", "12:00/60"]
+    );
+
+    let twelve = tbilisi(3, 12, 0);
+    assert_eq!(try_to_move(&app, &token, twelve).await, StatusCode::OK);
+    assert_eq!(calendar.events(host.unid)[0].start, twelve);
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/manage/{token}/cancel"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(calendar.events(host.unid)[0].deleted);
 }

@@ -3,8 +3,9 @@ use serde_json::json;
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
+use super::slots::{self, Reserved, SLOT_TAKEN};
 use super::{
-    db::{self, BookedCall},
+    db,
     models::{
         Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
         ManagedBooking, RescheduleRequest,
@@ -12,14 +13,14 @@ use super::{
 };
 use crate::{
     domain::{
-        availability::{models::TimeSlot, service as availability},
+        availability::models::TimeSlot,
         emails::service::{
             self as emails, BOOKING_CANCELLED_TEMPLATE, BOOKING_CONFIRMATION_TEMPLATE,
             BOOKING_RESCHEDULED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE,
             HOST_BOOKING_RESCHEDULED_TEMPLATE, HOST_NEW_BOOKING_TEMPLATE, REMINDER_2H_TEMPLATE,
             REMINDER_24H_TEMPLATE, REMINDER_30MIN_TEMPLATE,
         },
-        google_calendar::service as google_calendar,
+        google_calendar::calendar::{HostCalendar, NewEvent},
         host_settings::{
             models::{BookingPage, ConferencingApp},
             service as host_settings,
@@ -30,7 +31,6 @@ use crate::{
     validation::is_valid_email,
 };
 
-const SLOT_TAKEN: &str = "this time is no longer available";
 const ALREADY_CANCELLED: &str = "this call is already cancelled";
 const ALREADY_STARTED: &str = "this call has already started";
 const INVITEE_NAME_MAX: usize = 120;
@@ -40,136 +40,22 @@ pub struct BookingsService;
 /// Times a visitor can still book: the host's hours inside their booking
 /// window, minus the notice period, minus calls already booked, minus busy
 /// time on a connected calendar.
-///
-/// The host's buffer keeps that much time free around both.
-pub async fn public_slots(pool: &PgPool, page: &BookingPage) -> AppResult<Vec<TimeSlot>> {
-    open_slots(pool, page, None).await
-}
-
-/// `moving` is the call being rescheduled: its own time does not close the
-/// times next to it.
-async fn open_slots(
+pub async fn public_slots(
     pool: &PgPool,
+    calendar: &HostCalendar,
     page: &BookingPage,
-    moving: Option<Uuid>,
 ) -> AppResult<Vec<TimeSlot>> {
-    let now = Utc::now();
-    let from = now + Duration::hours(i64::from(page.minimum_notice_hours));
-    let to = now + Duration::days(i64::from(page.booking_window_days));
-    let buffer = buffer_of(page);
-    let rules = availability::list(pool, page.host_unid).await?;
-    let overrides = availability::list_overrides(pool, page.host_unid).await?;
-    let mut slots = availability::slots_between(&rules, &overrides, &page.timezone, from, to);
-
-    // A call just outside the window still closes the times next to it.
-    let reach = buffer + Duration::minutes(i64::from(availability::SLOT_MINUTES_MAX));
-    let booked = {
-        let mut connection = pool.acquire().await?;
-        db::booked_between(&mut connection, page.host_unid, from - reach, to + reach).await?
-    };
-    slots.retain(|slot| is_free(slot, &booked, buffer, moving));
-
-    if page.calendar_connected {
-        // The events Cadence made are the calls above, not more busy time.
-        let own_events: Vec<&str> = booked
-            .iter()
-            .filter_map(|call| call.google_event_id.as_deref())
-            .collect();
-        // A broken calendar connection must not take the booking page down.
-        match google_calendar::busy_intervals(
-            pool,
-            page.host_unid,
-            &page.timezone,
-            from,
-            to,
-            &own_events,
-        )
-        .await
-        {
-            Ok(busy) => {
-                // Calendar events arrive with their own fixed buffer; the
-                // host's buffer only adds what that leaves missing.
-                let extra = (buffer - Duration::minutes(google_calendar::EVENT_BUFFER_MINUTES))
-                    .max(Duration::zero());
-                slots.retain(|slot| {
-                    !busy.iter().any(|(busy_start, busy_end)| {
-                        too_close(slot, *busy_start, *busy_end, extra)
-                    })
-                });
-            }
-            Err(error) => tracing::error!(%error, "calendar busy times were not loaded"),
-        }
-    }
-    Ok(slots)
-}
-
-fn buffer_of(page: &BookingPage) -> Duration {
-    Duration::minutes(i64::from(page.buffer_minutes))
-}
-
-fn end_of(slot: &TimeSlot) -> DateTime<Utc> {
-    slot.start + Duration::minutes(i64::from(slot.minutes))
-}
-
-/// Whether a call in `slot` would leave less than `buffer` free before or
-/// after something that runs from `busy_start` to `busy_end`. Without a
-/// buffer that is plain overlap.
-fn too_close(
-    slot: &TimeSlot,
-    busy_start: DateTime<Utc>,
-    busy_end: DateTime<Utc>,
-    buffer: Duration,
-) -> bool {
-    slot.start < busy_end + buffer && end_of(slot) > busy_start - buffer
-}
-
-/// The one rule for two calls of a host: none may be too close to another.
-/// Open times are listed with it and calls are booked and moved with it.
-fn is_free(slot: &TimeSlot, booked: &[BookedCall], buffer: Duration, moving: Option<Uuid>) -> bool {
-    !booked.iter().any(|call| {
-        Some(call.unid) != moving && too_close(slot, call.slot_start, call.slot_end, buffer)
-    })
-}
-
-/// Makes `slot` safe to write inside a transaction: every other booking or
-/// move for this host waits, and the calls are read again now that nothing
-/// can change them.
-async fn claim(
-    connection: &mut PgConnection,
-    page: &BookingPage,
-    slot: &TimeSlot,
-    moving: Option<Uuid>,
-) -> AppResult<()> {
-    db::lock_host(connection, page.host_unid).await?;
-    let buffer = buffer_of(page);
-    let booked = db::booked_between(
-        connection,
-        page.host_unid,
-        slot.start - buffer,
-        end_of(slot) + buffer,
-    )
-    .await?;
-    if is_free(slot, &booked, buffer, moving) {
-        Ok(())
-    } else {
-        Err(AppError::Conflict(SLOT_TAKEN.to_owned()))
-    }
+    slots::open_slots(pool, calendar, page, Utc::now(), None).await
 }
 
 pub async fn create(
     pool: &PgPool,
+    calendar: &HostCalendar,
     page: &BookingPage,
     request: CreateBookingRequest,
 ) -> AppResult<CreatedBooking> {
     validate(&request)?;
     let host_unid = page.host_unid;
-    let Some(slot) = public_slots(pool, page)
-        .await?
-        .into_iter()
-        .find(|slot| slot.start == request.slot_start)
-    else {
-        return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
-    };
     if let Some(lead_unid) = request.lead_unid
         && leads::get(pool, host_unid, lead_unid).await?.is_none()
     {
@@ -178,15 +64,17 @@ pub async fn create(
 
     // The call is written before the calendar hears of it, so a refused
     // booking never leaves an event and an invite behind.
-    let mut transaction = pool.begin().await?;
-    claim(&mut transaction, page, &slot, None).await?;
+    let Reserved {
+        mut transaction,
+        slot,
+    } = slots::reserve(pool, calendar, page, request.slot_start, Utc::now(), None).await?;
     let booking = match db::create(
         &mut transaction,
         host_unid,
         request.lead_unid,
         request.calling_visit_unid,
         slot.start,
-        end_of(&slot),
+        slots::end_of(&slot),
         &request.timezone,
         &request.invitee_name,
         &request.invitee_email,
@@ -208,23 +96,23 @@ pub async fn create(
     };
     transaction.commit().await?;
 
-    let event = if page.calendar_connected {
-        google_calendar::create_event(
-            pool,
+    // A booking without a calendar event is still a booking.
+    let event = calendar
+        .create_event(
             host_unid,
-            page.conferencing_app == ConferencingApp::GoogleMeet.as_str(),
-            booking.slot_start,
-            booking.minutes,
-            &format!("{} with {}", page.title, request.invitee_name),
-            &request.invitee_name,
-            &request.invitee_email,
+            NewEvent {
+                start: booking.slot_start,
+                minutes: booking.minutes,
+                title: &format!("{} with {}", page.title, request.invitee_name),
+                invitee_name: &request.invitee_name,
+                invitee_email: &request.invitee_email,
+                with_meet: page.conferencing_app == ConferencingApp::GoogleMeet.as_str(),
+            },
         )
         .await
         .inspect_err(|error| tracing::error!(%error, "calendar event was not created"))
         .ok()
-    } else {
-        None
-    };
+        .flatten();
 
     // The emails carry the final meeting link, so they are queued with it.
     let mut transaction = pool.begin().await?;
@@ -329,18 +217,24 @@ enum CancelledBy {
 }
 
 /// A host calls off their own call: the invitee is told.
-pub async fn cancel(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Booking> {
+pub async fn cancel(
+    pool: &PgPool,
+    calendar: &HostCalendar,
+    host_unid: Uuid,
+    unid: Uuid,
+) -> AppResult<Booking> {
     let booking = db::find(pool, host_unid, unid)
         .await?
         .ok_or(AppError::NotFound)?;
     let page = host_settings::page_of_host(pool, host_unid).await?;
-    cancel_call(pool, &booking, &page, CancelledBy::Host).await
+    cancel_call(pool, calendar, &booking, &page, CancelledBy::Host).await
 }
 
 /// Calls off a call that has not started: the slot opens again, waiting
 /// emails are dropped and the other side is told.
 async fn cancel_call(
     pool: &PgPool,
+    calendar: &HostCalendar,
     booking: &Booking,
     page: &BookingPage,
     cancelled_by: CancelledBy,
@@ -379,7 +273,7 @@ async fn cancel_call(
     // The call is cancelled either way; a stale calendar event must not undo
     // that. The event id stays on the row, so it can still be found.
     if let Some(event_id) = &booking.google_event_id
-        && let Err(error) = google_calendar::delete_event(pool, booking.host_unid, event_id).await
+        && let Err(error) = calendar.delete_event(booking.host_unid, event_id).await
     {
         tracing::warn!(%error, booking_unid = %booking.unid, "calendar event of a cancelled call was not deleted");
     }
@@ -393,9 +287,13 @@ pub async fn managed(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
 }
 
 /// The invitee calls off their own call: the host is told.
-pub async fn cancel_managed(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
+pub async fn cancel_managed(
+    pool: &PgPool,
+    calendar: &HostCalendar,
+    token: &str,
+) -> AppResult<ManagedBooking> {
     let (booking, page) = find_managed(pool, token).await?;
-    let booking = cancel_call(pool, &booking, &page, CancelledBy::Invitee).await?;
+    let booking = cancel_call(pool, calendar, &booking, &page, CancelledBy::Invitee).await?;
     Ok(managed_booking(booking, page))
 }
 
@@ -403,37 +301,45 @@ pub async fn cancel_managed(pool: &PgPool, token: &str) -> AppResult<ManagedBook
 /// link; its waiting emails are replaced and both sides are told.
 pub async fn reschedule(
     pool: &PgPool,
+    calendar: &HostCalendar,
     token: &str,
     request: RescheduleRequest,
 ) -> AppResult<ManagedBooking> {
     let (booking, page) = find_managed(pool, token).await?;
     ensure_can_change(&booking)?;
-    // A paused page offers nothing. The call does not close the times next
-    // to it, but its own time is not another time.
-    let slot = if page.accepting_bookings && request.slot_start != booking.slot_start {
-        open_slots(pool, &page, Some(booking.unid))
-            .await?
-            .into_iter()
-            .find(|slot| slot.start == request.slot_start)
-    } else {
-        None
-    };
-    let Some(slot) = slot else {
+    // The call does not close the times next to it, but its own time is not
+    // another time.
+    if request.slot_start == booking.slot_start {
         return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
+    }
+    let Reserved {
+        mut transaction,
+        slot,
+    } = slots::reserve(
+        pool,
+        calendar,
+        &page,
+        request.slot_start,
+        Utc::now(),
+        Some(booking.unid),
+    )
+    .await?;
+    let booking = match db::reschedule(
+        &mut transaction,
+        booking.unid,
+        slot.start,
+        slots::end_of(&slot),
+    )
+    .await
+    {
+        Ok(Some(value)) => value,
+        // Another request may have cancelled it since the read above.
+        Ok(None) => return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned())),
+        Err(error) if is_unique_violation(&error) => {
+            return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
+        }
+        Err(error) => return Err(AppError::Database(error)),
     };
-
-    let mut transaction = pool.begin().await?;
-    claim(&mut transaction, &page, &slot, Some(booking.unid)).await?;
-    let booking =
-        match db::reschedule(&mut transaction, booking.unid, slot.start, end_of(&slot)).await {
-            Ok(Some(value)) => value,
-            // Another request may have cancelled it since the read above.
-            Ok(None) => return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned())),
-            Err(error) if is_unique_violation(&error) => {
-                return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
-            }
-            Err(error) => return Err(AppError::Database(error)),
-        };
     db::delete_unsent_emails(&mut transaction, booking.unid).await?;
     queue_invitee_emails(
         &mut transaction,
@@ -455,14 +361,14 @@ pub async fn reschedule(
 
     // The call has moved either way; the calendar follows when it can.
     if let Some(event_id) = &booking.google_event_id
-        && let Err(error) = google_calendar::move_event(
-            pool,
-            booking.host_unid,
-            event_id,
-            booking.slot_start,
-            booking.minutes,
-        )
-        .await
+        && let Err(error) = calendar
+            .move_event(
+                booking.host_unid,
+                event_id,
+                booking.slot_start,
+                booking.minutes,
+            )
+            .await
     {
         tracing::warn!(%error, booking_unid = %booking.unid, "calendar event was not moved");
     }

@@ -3,6 +3,7 @@ use std::env;
 use anyhow::Context;
 use axum::http::{HeaderValue, Method, header};
 use cadence_backend::app_state::AppState;
+use cadence_backend::domain::google_calendar::calendar::{GoogleCalendar, HostCalendar};
 use cadence_backend::tracing_setup::setup_tracing;
 use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{AllowCredentials, CorsLayer};
@@ -37,7 +38,8 @@ async fn main() -> anyhow::Result<()> {
         .filter_map(|origin| origin.trim().parse().ok())
         .collect();
 
-    let app = cadence_backend::build_app(AppState { pool })
+    let calendar = HostCalendar::Google(GoogleCalendar::new(pool.clone()));
+    let app = cadence_backend::build_app(AppState { pool, calendar })
         .layer(TraceLayer::new_for_http())
         .layer(
             CorsLayer::new()

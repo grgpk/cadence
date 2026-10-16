@@ -14,7 +14,11 @@ use axum::{
 use cadence_backend::{
     app_state::AppState,
     build_app,
-    domain::{auth::service::make_token, rate_limits::service as rate_limits},
+    domain::{
+        auth::service::make_token,
+        google_calendar::calendar::{HostCalendar, InMemoryCalendar},
+        rate_limits::service as rate_limits,
+    },
 };
 use serde_json::{Value, json};
 use sqlx::PgPool;
@@ -32,7 +36,10 @@ const CHANGE_PASSWORD: &str = "/api/auth/password";
 fn app(pool: &PgPool) -> Router {
     // JWT_SECRET lives in the workspace .env, next to DATABASE_URL.
     dotenvy::dotenv().ok();
-    build_app(AppState { pool: pool.clone() })
+    build_app(AppState {
+        pool: pool.clone(),
+        calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
+    })
 }
 
 /// `address` is sent as `x-forwarded-for`; without it the request has no

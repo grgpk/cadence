@@ -35,7 +35,9 @@ pub async fn public_slots(
     )
     .await?;
     let page = host_settings::bookable_page(&state.pool, &slug).await?;
-    Ok(Json(service::public_slots(&state.pool, &page).await?))
+    Ok(Json(
+        service::public_slots(&state.pool, &state.calendar, &page).await?,
+    ))
 }
 
 pub async fn create(
@@ -53,7 +55,7 @@ pub async fn create(
     let page = host_settings::bookable_page(&state.pool, &slug).await?;
     Ok((
         axum::http::StatusCode::CREATED,
-        Json(service::create(&state.pool, &page, request).await?),
+        Json(service::create(&state.pool, &state.calendar, &page, request).await?),
     ))
 }
 
@@ -77,7 +79,7 @@ pub async fn cancel(
     Path(unid): Path<Uuid>,
 ) -> AppResult<Json<Booking>> {
     Ok(Json(
-        service::cancel(&state.pool, user.user.unid, unid).await?,
+        service::cancel(&state.pool, &state.calendar, user.user.unid, unid).await?,
     ))
 }
 
@@ -106,7 +108,9 @@ pub async fn cancel_managed(
         &client_address(&headers),
     )
     .await?;
-    Ok(Json(service::cancel_managed(&state.pool, &token).await?))
+    Ok(Json(
+        service::cancel_managed(&state.pool, &state.calendar, &token).await?,
+    ))
 }
 
 pub async fn reschedule(
@@ -122,7 +126,7 @@ pub async fn reschedule(
     )
     .await?;
     Ok(Json(
-        service::reschedule(&state.pool, &token, request).await?,
+        service::reschedule(&state.pool, &state.calendar, &token, request).await?,
     ))
 }
 
