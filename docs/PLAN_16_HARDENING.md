@@ -32,12 +32,9 @@ most:
 ## What changed
 
 **Seed.** `migrations/9999____seed_data.sql` is now `seeds/dev_seed.sql`,
-re-runnable, applied by `reset_db.sh` and `scripts/seed-dev.sh` only. The
-migrator ignores the recorded 9999. `0024` bans each seed login that still
-has the seed password; nothing is deleted.
+re-runnable, applied by `reset_db.sh` and `scripts/seed-dev.sh` only.
 
-**Calls.** `0026` adds `bookings.slot_end`, backfilled from the rule that
-covered each start. Length is stored at booking and reschedule and exposed as
+**Calls.** `bookings.slot_end` stores each call's end. Length is stored at booking and reschedule and exposed as
 `Booking.minutes`. One rule decides what is free, for both the list of times
 and the booking itself: a new call may not come within the host's gap of
 another live call. Create and reschedule take a per-host transaction lock and
@@ -94,10 +91,15 @@ Reschedule, Join call.
 
 ## Data model
 
-- `0024_ban_seed_logins.sql`
-- `0025_add_session_version.sql`: `users.session_version`
-- `0026_add_booking_end.sql`: `bookings.slot_end`, not null, after start
-- `0027_index_email_queue_booking.sql`
+- `0002_create_users.sql`: `users.session_version`
+- `0009_create_bookings.sql`: `bookings.slot_end`, not null, after start
+- `0010_create_email_queue.sql`: `email_queue_booking_idx`
+
+Migrations were squashed: every `ALTER TABLE` is folded into the
+`CREATE TABLE` it changed, and the files run `0001` to `0015`. This edits
+migrations that had already run, once: every database, local or deployed, is
+dropped and migrated from scratch. The seed-login ban and the `slot_end`
+backfill went with it, since a fresh database has nothing to fix.
 
 ## API
 

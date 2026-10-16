@@ -26,11 +26,7 @@ async fn main() -> anyhow::Result<()> {
     setup_tracing(pool.clone());
 
     info!("Running migrations...");
-    let mut migrator = sqlx::migrate!("../migrations");
-    // The development seed used to be migration 9999 and is now
-    // `seeds/dev_seed.sql`. Databases that recorded it must keep starting.
-    migrator.set_ignore_missing(true);
-    migrator.run(&pool).await?;
+    sqlx::migrate!("../migrations").run(&pool).await?;
     info!("Migrations done ✔");
 
     cadence_backend::domain::emails::worker::start(pool.clone());

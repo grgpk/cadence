@@ -45,32 +45,20 @@ questions the form asks. Hosts never see or change one another's data.
 
 ## Data model
 
-`migrations/0017_add_widget_question_flags.sql`:
+`migrations/0007_create_widget_settings.sql` holds the five
+`ask_* BOOLEAN NOT NULL DEFAULT false` columns and the
+`widget_public_slug_format` check (`^[a-z0-9]+(-[a-z0-9]+)*$`, 3 to 40
+characters).
 
-```sql
-ALTER TABLE widget_settings
-    ADD COLUMN ask_currently_working_on BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN ask_how_heard_about_us   BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN ask_what_stopping_you    BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN ask_investment_comfort   BOOLEAN NOT NULL DEFAULT false,
-    ADD COLUMN ask_urgency_level        BOOLEAN NOT NULL DEFAULT false,
-    ADD CONSTRAINT widget_public_slug_format CHECK (
-        public_slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'
-        AND char_length(public_slug) BETWEEN 3 AND 40
-    );
-```
-
-- Flags are named after the `leads` columns they gate. Existing rows get
-  `false`: a page asks for name, email and phone until its host says more.
-- The migration does not depend on the seed, so it runs before it on a fresh
-  database and after it on an existing one.
+- Flags are named after the `leads` columns they gate. They start `false`:
+  a page asks for name, email and phone until its host says more.
 - New rows are created with `timezone = 'UTC'`, because hours saved before
   this plan were entered as UTC. The host picks their real timezone in
   settings.
 - Slug: slugified full name, else the email's local part, else `host`; on a
   collision a `-xxxx` suffix. The host can change it; old links then 404.
 
-`migrations/0018_add_meeting_link.sql` adds `widget_settings.meeting_link`
+`widget_settings.meeting_link`
 (nullable): the host's own place to meet, such as a Zoom or Meet room. A
 booking's link is Google's Meet link when the calendar is connected and the
 event was created, otherwise this one. It is stored in

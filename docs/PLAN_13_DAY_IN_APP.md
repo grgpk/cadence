@@ -97,10 +97,10 @@ changes is the scale and where each is used.
 
 ## Data model
 
-- `0019_add_booking_window.sql`: `widget_settings.booking_window_days`, default
-  7, checked 1 to 90. `minimum_notice_hours` and `is_active` already existed.
-- `0020_free_cancelled_slots.sql`: the `(host_unid, slot_start)` uniqueness on
-  `bookings` becomes a partial unique index that ignores cancelled rows.
+- `0007_create_widget_settings.sql`: `widget_settings.booking_window_days`,
+  default 7, checked 1 to 90, next to `minimum_notice_hours` and `is_active`.
+- `0009_create_bookings.sql`: the `(host_unid, slot_start)` uniqueness on
+  `bookings` is a partial unique index that ignores cancelled rows.
 
 ## API
 

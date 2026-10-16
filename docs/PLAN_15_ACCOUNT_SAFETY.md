@@ -58,9 +58,9 @@ Sat 10               ░▓Ivo▒▒▒▒▒▒▒▒
 
 ## Data model
 
-- `0022_create_password_resets.sql`: token hash, user, expiry, used_at.
-- `0023_reset_buffer_default.sql`: `buffer_minutes` set to 0 for every host
-  and as the default, so open times only change when a host chooses a gap.
+- `0015_create_password_resets.sql`: token hash, user, expiry, used_at.
+- `0007_create_widget_settings.sql`: `buffer_minutes` defaults to 0, so open
+  times only change when a host chooses a gap.
 
 ## API
 

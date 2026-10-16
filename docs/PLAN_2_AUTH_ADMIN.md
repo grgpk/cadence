@@ -28,7 +28,7 @@ guards live in `frontend/src/routes/__root.tsx` and
 
 - `migrations/0002_create_users.sql`: users, password hash, status.
 - `migrations/0003_create_roleaccesses.sql`: Root, Admin, Host grants.
-- `migrations/9999____seed_data.sql`: local accounts and role grants.
+- `seeds/dev_seed.sql`: local accounts and role grants.
 
 Seed password: `password`.
 

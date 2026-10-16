@@ -716,7 +716,6 @@ async fn login_ignores_the_letter_case_of_the_email(pool: PgPool) {
 }
 
 const SEED: &str = include_str!("../../seeds/dev_seed.sql");
-const BAN_SEED_LOGINS: &str = include_str!("../../migrations/0024_ban_seed_logins.sql");
 
 #[test]
 fn the_development_seed_is_not_a_migration() {
@@ -731,7 +730,7 @@ fn the_development_seed_is_not_a_migration() {
                 .into_owned()
         })
         .collect();
-    assert!(names.len() > 20, "{names:?}");
+    assert!(names.len() > 10, "{names:?}");
     for name in &names {
         assert!(!name.starts_with("9999"), "{name}");
         assert!(!name.contains("seed_data"), "{name}");
@@ -762,7 +761,7 @@ async fn seed_state(pool: &PgPool) -> (Vec<String>, Option<i64>) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
-async fn seed_logins_are_banned_unless_their_password_was_changed(pool: PgPool) {
+async fn the_development_seed_applies_after_migrations_and_again(pool: PgPool) {
     let app = app(&pool);
     let seed = || async {
         sqlx::raw_sql(SEED)
@@ -792,31 +791,15 @@ async fn seed_logins_are_banned_unless_their_password_was_changed(pool: PgPool) 
     seed().await;
     assert_eq!(seed_state(&pool).await, seeded);
 
-    // What the migration does to a database that got the seed as a migration.
-    sqlx::query_scalar!(
-        "UPDATE users SET password_hash = 'changed' WHERE email = 'admin@example.com' RETURNING 1"
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("the admin exists");
-    sqlx::raw_sql(BAN_SEED_LOGINS)
+    // Locally, the seed switches its logins back on.
+    sqlx::query!("UPDATE users SET status = 'Banned'")
         .execute(&pool)
         .await
-        .expect("the migration applies");
-    assert_eq!(
-        seed_state(&pool).await.0,
-        [
-            "admin@example.com Active",
-            "host@example.com Banned",
-            "root@example.com Banned",
-        ]
-    );
+        .expect("users are writable");
     assert_eq!(
         login(&app, "root@example.com", "password").await,
         StatusCode::UNAUTHORIZED
     );
-
-    // Locally, the seed switches its logins back on.
     seed().await;
     assert_eq!(seed_state(&pool).await, seeded);
     assert_eq!(

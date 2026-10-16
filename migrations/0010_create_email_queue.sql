@@ -14,3 +14,7 @@ CREATE TABLE email_queue (
 CREATE INDEX email_queue_pending_idx
     ON email_queue (send_at)
     WHERE sent_at IS NULL;
+
+-- Emails are dropped and replaced per call, and deleting a call cascades
+-- to them.
+CREATE INDEX email_queue_booking_idx ON email_queue (booking_unid);

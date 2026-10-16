@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE users SET status = 'Banned'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "5a47a4a6ae5887ad02b611b8583e0366726b4d5f0785b66da19e3d399c308f8c"
+}

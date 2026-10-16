@@ -32,8 +32,9 @@ TanStack frontend.
 ## Data model
 
 Foundation schema lives in `migrations/0001_enable_extensions.sql` through
-`0014_create_rate_limits.sql`. Each file owns one table or extension concern.
-Development users and grants live in `9999____seed_data.sql`.
+`0015_create_password_resets.sql`. Each file owns one table or extension
+concern and creates it in its final shape, without `ALTER TABLE`.
+Development users and grants live in `seeds/dev_seed.sql`.
 
 ## API
 

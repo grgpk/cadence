@@ -65,8 +65,8 @@ Your call with Giorgi
 
 ## Data model
 
-- `0021_add_booking_manage_token.sql`: `bookings.manage_token`, unique, with a
-  random default, so existing calls get a link too.
+- `0009_create_bookings.sql`: `bookings.manage_token`, unique, with a random
+  default.
 - `APP_URL`: the public site address used in email links. Falls back to the
   first `CORS_ORIGINS` entry.
 
