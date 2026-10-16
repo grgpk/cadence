@@ -1,50 +1,25 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { cn } from "cn";
-import { Loader2, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { Checkbox } from "../../components/ui/checkbox";
-import { Label } from "../../components/ui/label";
+import { DatesCalendar } from "../../domains/availability/dates-calendar";
+import { hoursLabel, roomyWeek, weekTotals } from "../../domains/availability/hours-math";
+import { WeekCanvas } from "../../domains/availability/week-canvas";
+import { daysLabel } from "../../domains/dashboard/hours-labels";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../../components/ui/select";
-import {
+  availabilityOverridesQuery,
   availabilityQuery,
-  createAvailabilityRule,
   hostSettingsQuery,
-  removeAvailabilityRule,
-  updateAvailabilityRule,
 } from "../../domains/dashboard/host-api";
-import { weekHours, type WeekHours } from "../../domains/dashboard/week-hours";
-import { placeOnWeek, WeekRuler } from "../../domains/dashboard/week-grid";
-import { OPEN_STYLES } from "../../domains/landing/day-tape";
-import { phaseSpans } from "../../domains/widget/zoned-time";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
+import { weekHours } from "../../domains/dashboard/week-hours";
 import { ErrorState } from "../../domains/shared/error-state";
-import { Field } from "../../domains/shared/field";
 import { PageHeader } from "../../domains/shared/page-header";
 import { TableSkeleton } from "../../domains/shared/table-skeleton";
-import { TimePicker } from "../../domains/shared/time-picker";
 import { APP_NAME } from "../../lib/config";
-import { errorMessage } from "../../lib/error-message";
-import {
-  clockMinutes,
-  clockTime,
-  formatClock,
-  prefersHour12,
-  weekdayName,
-  zoneName,
-} from "../../lib/format";
-import { QUERY_KEYS } from "../../lib/query-keys";
+import { zoneName } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 
 export const Route = createFileRoute("/dashboard/availability")({
@@ -52,348 +27,41 @@ export const Route = createFileRoute("/dashboard/availability")({
   component: AvailabilityPage,
 });
 
-const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6];
-const SLOT_MINUTES = [15, 20, 30, 45, 60];
-const DEFAULT_HOURS = { start: "09:00", end: "17:00", slotMinutes: 30 };
-/** The latest time the picker offers. */
-const LAST_TIME = "23:45";
-const LAST_HOUR = 23;
-
-/** One hour after `time`, kept inside the day. */
-function hourAfter(time: string): string {
-  const minutes = clockMinutes(time);
-  return minutes >= LAST_HOUR * 60 ? LAST_TIME : clockTime(minutes + 60);
+/** "Open 40 hours a week, Mon to Fri: up to 80 calls of 30 min." */
+function weekSummary(rules: AvailabilityRule[]): string {
+  if (rules.length === 0)
+    return "No weekly hours yet. Drag across a day to open it for calls.";
+  const { minutes, calls } = weekTotals(rules);
+  const lengths = [...new Set(rules.map((rule) => rule.slot_minutes))]
+    .sort((a, b) => a - b)
+    .join(" or ");
+  // "Every day" starts a label, not this sentence.
+  const days = daysLabel(rules).replace(/^Every/, "every");
+  return `Open ${hoursLabel(minutes)} a week, ${days}: up to ${calls} calls of ${lengths} min.`;
 }
 
-/** Day name, the week's ruler, the add button: the same columns in every row. */
-const WEEK_ROW = "grid gap-3 px-5 sm:grid-cols-[7rem_minmax(0,1fr)_7rem]";
-
-/** Adds hours to a day, or changes the hours in `rule`. */
-function HoursForm({
-  weekday,
-  rule,
-  onDone,
-}: {
-  weekday: number;
-  rule?: AvailabilityRule;
-  onDone: () => void;
-}) {
-  const queryClient = useQueryClient();
-  const [start, setStart] = useState(
-    rule ? clockTime(clockMinutes(rule.start_time)) : DEFAULT_HOURS.start,
-  );
-  const [end, setEnd] = useState(
-    rule ? clockTime(clockMinutes(rule.end_time)) : DEFAULT_HOURS.end,
-  );
-  const [slotMinutes, setSlotMinutes] = useState(
-    rule?.slot_minutes ?? DEFAULT_HOURS.slotMinutes,
-  );
-  const [otherDays, setOtherDays] = useState<number[]>([]);
-  const endsAfterStart = start < end;
-  const id = `hours-${weekday}-${rule?.id ?? "new"}`;
-  const hours = (day: number) => ({
-    weekday: day,
-    start_time: `${start}:00`,
-    end_time: `${end}:00`,
-    slot_minutes: slotMinutes,
-  });
-
-  // Days already saved with these exact hours. A retry after one day failed
-  // must not add the others a second time.
-  const savedDays = useRef(new Set<number>());
-  // biome-ignore lint/correctness/useExhaustiveDependencies: different hours are a different save
-  useEffect(() => savedDays.current.clear(), [start, end, slotMinutes]);
-  const formRef = useRef<HTMLFormElement>(null);
-  // The form replaces the control that opened it, so it takes the focus.
-  useEffect(() => formRef.current?.querySelector("button")?.focus(), []);
-
-  const saveHours = useMutation({
-    mutationFn: () =>
-      Promise.all(
-        [weekday, ...otherDays]
-          .filter((day) => !savedDays.current.has(day))
-          .map(async (day) => {
-            if (rule && day === weekday)
-              await updateAvailabilityRule(rule.id, hours(day));
-            else await createAvailabilityRule(hours(day));
-            savedDays.current.add(day);
-          }),
-      ),
-    onSuccess: () => {
-      toast.success(rule ? "Hours saved" : "Hours added");
-      onDone();
-    },
-    onError: (error) =>
-      toast.error(
-        otherDays.length > 0
-          ? `Some days were not saved. ${errorMessage(error)}`
-          : `Hours were not ${rule ? "saved" : "added"}. ${errorMessage(error)}`,
-      ),
-    // Some days may have been saved even when one failed.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability }),
-  });
-  const submitLabel = rule
-    ? saveHours.isPending
-      ? "Saving"
-      : "Save hours"
-    : saveHours.isPending
-      ? "Adding"
-      : "Add hours";
-
+function SectionHead({ title, description }: { title: string; description: string }) {
   return (
-    <form
-      ref={formRef}
-      className="grid gap-3 rounded-lg border bg-muted p-3"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (endsAfterStart) saveHours.mutate();
-      }}
-    >
-      <div className="flex flex-wrap items-end gap-3">
-        <Field id={`${id}-start`} label="From">
-          <TimePicker
-            id={`${id}-start`}
-            value={start}
-            before={LAST_TIME}
-            onChange={(time) => {
-              setStart(time);
-              if (time >= end) setEnd(hourAfter(time));
-            }}
-          />
-        </Field>
-        <Field id={`${id}-end`} label="To">
-          <TimePicker
-            id={`${id}-end`}
-            value={end}
-            after={start}
-            invalid={!endsAfterStart}
-            onChange={setEnd}
-          />
-        </Field>
-        <Field id={`${id}-length`} label="Call length">
-          <Select
-            value={String(slotMinutes)}
-            onValueChange={(value) => setSlotMinutes(Number(value))}
-          >
-            <SelectTrigger id={`${id}-length`} className="w-28 bg-card">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {SLOT_MINUTES.map((minutes) => (
-                <SelectItem key={minutes} value={String(minutes)}>
-                  {minutes} min
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <fieldset className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <legend className="float-left mr-4 text-sm font-medium">Also add to</legend>
-        {WEEKDAYS.filter((day) => day !== weekday).map((day) => (
-          <Label key={day} className="font-normal">
-            <Checkbox
-              className="bg-card"
-              checked={otherDays.includes(day)}
-              onCheckedChange={(checked) =>
-                setOtherDays(
-                  checked === true
-                    ? [...otherDays, day]
-                    : otherDays.filter((other) => other !== day),
-                )
-              }
-            />
-            <span aria-hidden="true">{weekdayName(day).slice(0, 3)}</span>
-            <span className="sr-only">{weekdayName(day)}</span>
-          </Label>
-        ))}
-      </fieldset>
-      {endsAfterStart ? null : (
-        <p role="alert" className="text-sm text-destructive">
-          The end time must be after the start.
-        </p>
-      )}
-      <div className="flex justify-end gap-2">
-        <Button type="button" variant="ghost" onClick={onDone}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={saveHours.isPending || !endsAfterStart}>
-          {saveHours.isPending ? <Loader2 className="animate-spin" /> : null}
-          {submitLabel}
-        </Button>
-      </div>
-    </form>
-  );
-}
-
-/** The id of the chip for one range, so focus can return to it. */
-const chipId = (id: number) => `hours-chip-${id}`;
-
-function DayRow({
-  weekday,
-  rules,
-  week,
-}: {
-  weekday: number;
-  rules: AvailabilityRule[];
-  week: WeekHours;
-}) {
-  const queryClient = useQueryClient();
-  // The form in this row: adding hours, or changing the rule with this id.
-  const [form, setForm] = useState<"add" | number | null>(null);
-  const name = weekdayName(weekday);
-  const addId = `hours-add-${weekday}`;
-  // When the form closes, focus goes back to what opened it, or to "Add hours"
-  // when that range is gone.
-  const opener = useRef<string | null>(null);
-  useEffect(() => {
-    if (form !== null) {
-      opener.current = form === "add" ? addId : chipId(form);
-      return;
-    }
-    if (opener.current === null) return;
-    (document.getElementById(opener.current) ?? document.getElementById(addId))?.focus();
-    opener.current = null;
-  }, [form, addId]);
-
-  const refresh = () =>
-    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.availability });
-
-  const restoreHours = useMutation({
-    mutationFn: createAvailabilityRule,
-    onSuccess: async () => {
-      await refresh();
-      toast.success("Hours put back");
-    },
-    onError: (error) => toast.error(`Hours were not put back. ${errorMessage(error)}`),
-  });
-  const removeHours = useMutation({
-    mutationFn: removeAvailabilityRule,
-    onSuccess: async (_, rule) => {
-      await refresh();
-      toast.success("Hours removed", {
-        action: {
-          label: "Undo",
-          onClick: () =>
-            restoreHours.mutate({
-              weekday: rule.weekday,
-              start_time: rule.start_time,
-              end_time: rule.end_time,
-              slot_minutes: rule.slot_minutes,
-            }),
-        },
-      });
-    },
-    onError: (error) => toast.error(`Hours were not removed. ${errorMessage(error)}`),
-  });
-  const hour12 = prefersHour12();
-  const range = (rule: AvailabilityRule) =>
-    `${formatClock(rule.start_time, hour12)} to ${formatClock(rule.end_time, hour12)}`;
-  const editing = rules.find((rule) => rule.id === form);
-
-  return (
-    <div className={cn(WEEK_ROW, "py-4 sm:items-start")}>
-      <h2 className="pt-2 text-sm font-semibold">{name}</h2>
-      <div className="grid gap-2.5">
-        {/* The same hours as the list under it, so the picture is left to sighted pointer users. */}
-        <div aria-hidden="true" className="relative h-9 rounded-md bg-muted/70">
-          {rules.map((rule) => {
-            const from = clockMinutes(rule.start_time);
-            const to = clockMinutes(rule.end_time);
-            return (
-              <button
-                key={rule.id}
-                type="button"
-                tabIndex={-1}
-                style={placeOnWeek(week, from, to)}
-                onClick={() => setForm(rule.id)}
-                className="absolute inset-y-0 flex items-center overflow-hidden rounded-md"
-              >
-                {phaseSpans(from, to).map((span) => (
-                  <span
-                    key={span.phase}
-                    style={{
-                      left: `${((span.from - from) / (to - from)) * 100}%`,
-                      width: `${((span.to - span.from) / (to - from)) * 100}%`,
-                    }}
-                    className={cn("absolute inset-y-0 border-y", OPEN_STYLES[span.phase])}
-                  />
-                ))}
-                <span className="relative truncate px-2 text-clock text-sm font-medium">
-                  {range(rule)}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-        {rules.length === 0 && form === null ? (
-          <p className="text-sm text-muted-foreground">Unavailable</p>
-        ) : null}
-        {rules.map((rule) =>
-          rule.id === form ? null : (
-            <div key={rule.id} className="flex items-center gap-3 text-sm">
-              <button
-                id={chipId(rule.id)}
-                type="button"
-                aria-label={`Edit ${name} ${range(rule)}`}
-                onClick={() => setForm(rule.id)}
-                className="rounded-md border bg-card px-2.5 py-1 text-clock text-[0.9375rem] font-medium transition-colors outline-none hover:border-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              >
-                {range(rule)}
-              </button>
-              <span className="text-muted-foreground">{rule.slot_minutes} min calls</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Remove ${name} ${range(rule)}`}
-                disabled={removeHours.isPending && removeHours.variables.id === rule.id}
-                onClick={() => removeHours.mutate(rule)}
-              >
-                <X />
-              </Button>
-            </div>
-          ),
-        )}
-        {form === null ? null : (
-          <HoursForm
-            // A different rule is a different form, with its own starting values.
-            key={form}
-            weekday={weekday}
-            rule={editing}
-            onDone={() => setForm(null)}
-          />
-        )}
-      </div>
-      {form === null ? (
-        <Button
-          id={addId}
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="justify-self-start sm:justify-self-end"
-          aria-label={`Add hours on ${name}`}
-          onClick={() => setForm("add")}
-        >
-          <Plus />
-          Add hours
-        </Button>
-      ) : null}
+    <div className="border-b px-5 py-3.5">
+      <h2 className="font-semibold">{title}</h2>
+      <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
     </div>
   );
 }
 
 function AvailabilityPage() {
   const query = useQuery(availabilityQuery);
+  const overrides = useQuery(availabilityOverridesQuery);
   const settings = useQuery(hostSettingsQuery);
-  const timezone = settings.data && zoneName(settings.data.timezone);
+  const timezone = settings.data?.timezone;
+  const week = roomyWeek(weekHours(query.data ?? []));
 
   return (
     <>
       <PageHeader
         title="Availability"
-        description={`The weekly hours when people can book a call with you. Pick a range to change it.${
-          timezone ? ` Times are in ${timezone}.` : ""
+        description={`${query.data ? weekSummary(query.data) : "The hours people can book a call with you."}${
+          timezone ? ` Times are in ${zoneName(timezone)}.` : ""
         }`}
         actions={
           <Button variant="outline" size="sm" asChild>
@@ -410,23 +78,43 @@ function AvailabilityPage() {
           onRetry={() => void query.refetch()}
         />
       ) : (
-        <Card className="gap-0 divide-y overflow-hidden py-0">
-          {query.isPending ? (
-            <TableSkeleton rows={7} />
-          ) : (
-            <>
-              <WeekRuler week={weekHours(query.data)} row={WEEK_ROW} />
-              {WEEKDAYS.map((weekday) => (
-                <DayRow
-                  key={weekday}
-                  weekday={weekday}
-                  rules={query.data.filter((rule) => rule.weekday === weekday)}
-                  week={weekHours(query.data)}
+        <div className="grid gap-6">
+          <Card className="gap-0 py-0">
+            <SectionHead
+              title="Weekly hours"
+              description="Drag across a day to open it. Drag a range to move it, or its ends to stretch it."
+            />
+            {query.isPending ? (
+              <TableSkeleton rows={7} />
+            ) : (
+              <WeekCanvas rules={query.data} week={week} />
+            )}
+          </Card>
+          <Card className="gap-0 py-0">
+            <SectionHead
+              title="Dates"
+              description="Take a date off, or give it other hours. Every other date follows the weekly hours."
+            />
+            {overrides.isError ? (
+              <div className="p-5">
+                <ErrorState
+                  title="Your dates did not load"
+                  error={overrides.error}
+                  onRetry={() => void overrides.refetch()}
                 />
-              ))}
-            </>
-          )}
-        </Card>
+              </div>
+            ) : query.isPending || overrides.isPending || !timezone ? (
+              <TableSkeleton rows={5} />
+            ) : (
+              <DatesCalendar
+                rules={query.data}
+                overrides={overrides.data}
+                timezone={timezone}
+                week={week}
+              />
+            )}
+          </Card>
+        </div>
       )}
     </>
   );

@@ -65,6 +65,24 @@ Content-Type: application/json
 ### Delete availability rule
 DELETE {{baseUrl}}/api/availability/1
 
+### Dates with their own hours, from yesterday on
+GET {{baseUrl}}/api/availability/overrides
+
+### Take a date off (no ranges)
+PUT {{baseUrl}}/api/availability/overrides/2026-10-24
+Content-Type: application/json
+
+{"ranges":[]}
+
+### Give a date other hours
+PUT {{baseUrl}}/api/availability/overrides/2026-10-28
+Content-Type: application/json
+
+{"ranges":[{"start_time":"10:00:00","end_time":"13:00:00","slot_minutes":30}]}
+
+### Put a date back on the weekly hours
+DELETE {{baseUrl}}/api/availability/overrides/2026-10-24
+
 ### My booking page settings (creates the link on first read)
 GET {{baseUrl}}/api/host/settings
 

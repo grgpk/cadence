@@ -3,6 +3,8 @@ import { queryOptions } from "@tanstack/react-query";
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import type { AvailabilityRuleInput } from "../../bindings/AvailabilityRuleInput";
 import type { CalendarEvent } from "../../bindings/CalendarEvent";
+import type { DateOverride } from "../../bindings/DateOverride";
+import type { DateOverrideInput } from "../../bindings/DateOverrideInput";
 import type { ConferencingUpdate } from "../../bindings/ConferencingUpdate";
 import type { GoogleCalendarLoginRequest } from "../../bindings/GoogleCalendarLoginRequest";
 import type { GoogleOAuthConfigResponse } from "../../bindings/GoogleOAuthConfigResponse";
@@ -58,6 +60,27 @@ export function updateAvailabilityRule(
 
 export function removeAvailabilityRule(rule: AvailabilityRule): Promise<void> {
   return api<void>(`${AVAILABILITY_PATH}/${rule.id}`, { method: "DELETE" });
+}
+
+export const availabilityOverridesQuery = queryOptions({
+  queryKey: QUERY_KEYS.availabilityOverrides,
+  queryFn: () => api<DateOverride[]>(`${AVAILABILITY_PATH}/overrides`),
+});
+
+/** Gives `date` its own hours. No ranges takes the whole date off. */
+export function saveDateOverride(
+  date: string,
+  input: DateOverrideInput,
+): Promise<DateOverride> {
+  return api<DateOverride>(`${AVAILABILITY_PATH}/overrides/${date}`, {
+    method: "PUT",
+    body: JSON.stringify(input),
+  });
+}
+
+/** Puts `date` back on the weekly hours. */
+export function removeDateOverride(date: string): Promise<void> {
+  return api<void>(`${AVAILABILITY_PATH}/overrides/${date}`, { method: "DELETE" });
 }
 
 /** Fails when no calendar is connected, so it is asked once and not again. */

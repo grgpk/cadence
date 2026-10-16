@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM availability_overrides WHERE host_unid = $1 AND date = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d4725ba59334246617f832011311fec66339c49f5642b7683837aec55f24d765"
+}

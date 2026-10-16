@@ -4,6 +4,7 @@ export const QUERY_KEYS = {
   managedBooking: (token: string) => ["managed-booking", token] as const,
   bookingDetail: (unid: string) => ["booking-detail", unid] as const,
   availability: ["availability"] as const,
+  availabilityOverrides: ["availability-overrides"] as const,
   hostSettings: ["host-settings"] as const,
   bookingPage: (slug: string) => ["booking-page", slug] as const,
   publicSlots: (slug: string) => ["public-slots", slug] as const,

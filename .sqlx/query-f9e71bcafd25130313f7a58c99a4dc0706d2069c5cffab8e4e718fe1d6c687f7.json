@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT date, start_time, end_time, slot_minutes FROM availability_overrides\n         WHERE host_unid = $1 AND date >= $2 ORDER BY date, start_time NULLS FIRST",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "date",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "availability_overrides",
+            "name": "date"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "start_time",
+        "type_info": "Time",
+        "origin": {
+          "Table": {
+            "table": "availability_overrides",
+            "name": "start_time"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "end_time",
+        "type_info": "Time",
+        "origin": {
+          "Table": {
+            "table": "availability_overrides",
+            "name": "end_time"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "slot_minutes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "availability_overrides",
+            "name": "slot_minutes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "f9e71bcafd25130313f7a58c99a4dc0706d2069c5cffab8e4e718fe1d6c687f7"
+}

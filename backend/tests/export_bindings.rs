@@ -3,7 +3,10 @@ use cadence_backend::domain::{
         ChangePasswordRequest, ForgotPasswordRequest, LoginRequest, RegisterRequest,
         ResetPasswordRequest, Role, SessionUser, UpdateProfileRequest, UserStatus,
     },
-    availability::models::{AvailabilityRule, AvailabilityRuleInput, TimeSlot},
+    availability::models::{
+        AvailabilityRule, AvailabilityRuleInput, DateOverride, DateOverrideInput, HoursRange,
+        TimeSlot,
+    },
     bookings::models::{
         Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
         ManagedBooking, RescheduleRequest,
@@ -38,6 +41,9 @@ fn export_bindings() {
     assert!(AvailabilityRuleInput::export().is_ok());
     assert!(AvailabilityRule::export().is_ok());
     assert!(TimeSlot::export().is_ok());
+    assert!(HoursRange::export().is_ok());
+    assert!(DateOverride::export().is_ok());
+    assert!(DateOverrideInput::export().is_ok());
     assert!(CalendarEvent::export().is_ok());
     assert!(EventDateTime::export().is_ok());
     assert!(GoogleOAuthConfigResponse::export().is_ok());

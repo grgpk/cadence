@@ -11,7 +11,13 @@ import {
   CommandList,
 } from "../../components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
-import { clockMinutes, clockTime, formatClock, prefersHour12 } from "../../lib/format";
+import {
+  clockMinutes,
+  clockTime,
+  formatClock,
+  lengthLabel,
+  prefersHour12,
+} from "../../lib/format";
 
 const STEP_MINUTES = 15;
 const DAY_MINUTES = 24 * 60;
@@ -20,13 +26,6 @@ const DAY_MINUTES = 24 * 60;
 const TIMES = Array.from({ length: DAY_MINUTES / STEP_MINUTES }, (_, index) =>
   clockTime(index * STEP_MINUTES),
 );
-
-/** "45 min", "8 h", "7 h 30 min" */
-function lengthLabel(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const rest = minutes % 60;
-  return [hours ? `${hours} h` : "", rest ? `${rest} min` : ""].filter(Boolean).join(" ");
-}
 
 /** A time of day, picked from a list or typed. Reads and writes a wall-clock "HH:MM". */
 export function TimePicker({

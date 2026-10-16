@@ -102,6 +102,18 @@ INSERT INTO availability (
     (1007, '00000000-0000-4000-8000-100000000003', 6, '10:00', '14:00', 30, now() - interval '20 days')
 ON CONFLICT DO NOTHING;
 
+-- Dates with their own hours: a day off, and a short day. Seeded once.
+INSERT INTO availability_overrides (host_unid, date, start_time, end_time, slot_minutes)
+SELECT host_unid, date, start_time, end_time, slot_minutes
+FROM (VALUES
+    ('00000000-0000-4000-8000-100000000003'::uuid, current_date + 9, NULL::time, NULL::time, NULL::int),
+    ('00000000-0000-4000-8000-100000000003'::uuid, current_date + 12, '10:00'::time, '13:00'::time, 30)
+) AS dates (host_unid, date, start_time, end_time, slot_minutes)
+WHERE NOT EXISTS (
+    SELECT 1 FROM availability_overrides
+    WHERE host_unid = '00000000-0000-4000-8000-100000000003'
+);
+
 -- Funnel visits. Some visitors abandon, some submit, and some book.
 INSERT INTO calling_visits (
     unid,

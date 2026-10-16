@@ -952,6 +952,88 @@ async fn a_host_edits_their_own_hours_in_place(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_date_with_its_own_hours_changes_the_open_times(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let other = register(&app, "Grace Hopper", "grace@example.com").await;
+    // Three days out in Tbilisi (UTC+4), well inside the window and notice.
+    let day = (Utc::now() + Duration::hours(4)).date_naive() + Duration::days(3);
+    let path = format!("/api/availability/overrides/{day}");
+    let on_day = |slots: &[DateTime<Utc>]| -> Vec<u32> {
+        slots
+            .iter()
+            .filter(|start| (**start + Duration::hours(4)).date_naive() == day)
+            .map(|start| start.hour())
+            .collect()
+    };
+    assert_eq!(on_day(&slots(&app, &slug).await), vec![5]);
+
+    let (status, _) = send(
+        &app,
+        Method::PUT,
+        &path,
+        None,
+        Some(json!({ "ranges": [] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = send(
+        &app,
+        Method::PUT,
+        &path,
+        Some(&host.cookie),
+        Some(json!({ "ranges": [] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(on_day(&slots(&app, &slug).await).is_empty(), "off all day");
+
+    let overlapping = json!({ "ranges": [
+        { "start_time": "14:00:00", "end_time": "16:00:00", "slot_minutes": 60 },
+        { "start_time": "15:00:00", "end_time": "17:00:00", "slot_minutes": 60 },
+    ] });
+    let (status, _) = send(
+        &app,
+        Method::PUT,
+        &path,
+        Some(&host.cookie),
+        Some(overlapping),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let afternoon = json!({ "ranges": [
+        { "start_time": "14:00:00", "end_time": "16:00:00", "slot_minutes": 60 },
+    ] });
+    let (status, saved) = send(
+        &app,
+        Method::PUT,
+        &path,
+        Some(&host.cookie),
+        Some(afternoon),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["date"], json!(day));
+    // 14:00 and 15:00 in Tbilisi, in place of the usual 09:00.
+    assert_eq!(on_day(&slots(&app, &slug).await), vec![10, 11]);
+    let (_, listed) = get(&app, "/api/availability/overrides", Some(&host.cookie)).await;
+    assert_eq!(listed, json!([saved]));
+    let (_, theirs) = get(&app, "/api/availability/overrides", Some(&other.cookie)).await;
+    assert_eq!(theirs, json!([]), "another host sees none of it");
+
+    let (status, _) = send(&app, Method::DELETE, &path, Some(&other.cookie), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "another host's date");
+    let (status, _) = send(&app, Method::DELETE, &path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(
+        on_day(&slots(&app, &slug).await),
+        vec![5],
+        "weekly hours again"
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn an_invitee_reads_their_call_through_the_manage_link(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;

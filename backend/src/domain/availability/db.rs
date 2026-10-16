@@ -1,8 +1,8 @@
-use chrono::NaiveTime;
+use chrono::{NaiveDate, NaiveTime};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{AvailabilityRule, AvailabilityRuleInput};
+use super::models::{AvailabilityRule, AvailabilityRuleInput, HoursRange, OverrideRow};
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> Result<Vec<AvailabilityRule>, sqlx::Error> {
     sqlx::query_as!(
@@ -65,6 +65,78 @@ pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> Result<bool, sql
     .fetch_optional(pool)
     .await?;
     Ok(deleted.is_some())
+}
+
+/// The host's date overrides from `from` on, in date and time order.
+pub async fn list_overrides(
+    pool: &PgPool,
+    host_unid: Uuid,
+    from: NaiveDate,
+) -> Result<Vec<OverrideRow>, sqlx::Error> {
+    sqlx::query_as!(
+        OverrideRow,
+        "SELECT date, start_time, end_time, slot_minutes FROM availability_overrides
+         WHERE host_unid = $1 AND date >= $2 ORDER BY date, start_time NULLS FIRST",
+        host_unid,
+        from,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Replaces everything stored for `date`. No ranges stores a day off.
+pub async fn replace_override(
+    pool: &PgPool,
+    host_unid: Uuid,
+    date: NaiveDate,
+    ranges: &[HoursRange],
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query_scalar!(
+        "DELETE FROM availability_overrides WHERE host_unid = $1 AND date = $2 RETURNING id",
+        host_unid,
+        date,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    if ranges.is_empty() {
+        sqlx::query_scalar!(
+            "INSERT INTO availability_overrides (host_unid, date) VALUES ($1, $2) RETURNING id",
+            host_unid,
+            date,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+    }
+    for range in ranges {
+        sqlx::query_scalar!(
+            "INSERT INTO availability_overrides (host_unid, date, start_time, end_time, slot_minutes)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id",
+            host_unid,
+            date,
+            range.start_time,
+            range.end_time,
+            range.slot_minutes,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+    }
+    tx.commit().await
+}
+
+pub async fn delete_override(
+    pool: &PgPool,
+    host_unid: Uuid,
+    date: NaiveDate,
+) -> Result<bool, sqlx::Error> {
+    let deleted = sqlx::query_scalar!(
+        "DELETE FROM availability_overrides WHERE host_unid = $1 AND date = $2 RETURNING id",
+        host_unid,
+        date,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(!deleted.is_empty())
 }
 
 #[allow(dead_code)]

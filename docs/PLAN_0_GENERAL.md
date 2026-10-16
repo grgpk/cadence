@@ -103,6 +103,7 @@ cadence/
 | 16 | `PLAN_16_HARDENING.md` | seed out of production, stored call length and overlap lock, session versions, email worker claiming, Google timeouts, frontend bug and accessibility fixes | 🔄 in progress |
 | 17 | `PLAN_17_INTEGRATIONS.md` | Integrations page, Google Calendar moved there, default meeting app (Google Meet or own link), Outlook/Apple/Zoom/Teams shown as coming soon | 🔄 in progress |
 | 18 | `PLAN_18_APPS_AND_CALENDAR.md` | App store, app pages and Installed apps under an Apps nav group; bookings calendar with day, week and month | 🔄 in progress |
+| 19 | `PLAN_19_AVAILABILITY.md` | weekly hours drawn, moved and stretched on the day tape; dates taken off or given other hours | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

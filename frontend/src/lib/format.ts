@@ -115,6 +115,13 @@ export function formatClock(time: string, hour12: boolean): string {
   return `${hours % 12 || 12}:${String(total % 60).padStart(2, "0")} ${period}`;
 }
 
+/** "45 min", "8 h", "7 h 30 min" */
+export function lengthLabel(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return [hours ? `${hours} h` : "", rest ? `${rest} min` : ""].filter(Boolean).join(" ");
+}
+
 const DAY_HOURS = 24;
 
 /** An hour on a ruler: "14:00", or "2 PM" for someone on a 12 hour clock. */

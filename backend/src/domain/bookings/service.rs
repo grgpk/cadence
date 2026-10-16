@@ -58,7 +58,8 @@ async fn open_slots(
     let to = now + Duration::days(i64::from(page.booking_window_days));
     let buffer = buffer_of(page);
     let rules = availability::list(pool, page.host_unid).await?;
-    let mut slots = availability::slots_between(&rules, &page.timezone, from, to);
+    let overrides = availability::list_overrides(pool, page.host_unid).await?;
+    let mut slots = availability::slots_between(&rules, &overrides, &page.timezone, from, to);
 
     // A call just outside the window still closes the times next to it.
     let reach = buffer + Duration::minutes(i64::from(availability::SLOT_MINUTES_MAX));

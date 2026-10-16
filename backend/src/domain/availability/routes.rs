@@ -16,4 +16,9 @@ pub fn protected_routes() -> Router<AppState> {
             "/api/availability/{id}",
             put(handlers::update).delete(handlers::delete),
         )
+        .route("/api/availability/overrides", get(handlers::list_overrides))
+        .route(
+            "/api/availability/overrides/{date}",
+            put(handlers::save_override).delete(handlers::delete_override),
+        )
 }
