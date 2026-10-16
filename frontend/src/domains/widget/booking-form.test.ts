@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_FORM, type FormValues, formErrors, toggleValue } from "./booking-form";
+import {
+  EMPTY_FORM,
+  type FormValues,
+  formErrors,
+  leadUpdate,
+  queryValue,
+  toggleValue,
+} from "./booking-form";
 
 const NOTHING_ASKED = {
   ask_currently_working_on: false,
@@ -68,5 +75,40 @@ describe("toggleValue", () => {
   it("adds a value that is missing and removes one that is there", () => {
     expect(toggleValue(["Google"], "LinkedIn")).toEqual(["Google", "LinkedIn"]);
     expect(toggleValue(["Google", "LinkedIn"], "Google")).toEqual(["LinkedIn"]);
+  });
+});
+
+describe("leadUpdate", () => {
+  const arrival = { path: "/book/ana", search: "?utm_source=ads&utm_medium=cpc" };
+
+  it("trims the answers and leaves blank ones out", () => {
+    const update = leadUpdate(
+      {
+        ...VALID,
+        firstName: "  Ana ",
+        currentlyWorkingOn: "   ",
+        howHeard: ["A friend", "Search"],
+      },
+      arrival,
+    );
+    expect(update.first_name).toBe("Ana");
+    expect(update.currently_working_on).toBeNull();
+    expect(update.how_heard_about_us).toBe("A friend, Search");
+    expect(update.country_code).toBe("33");
+  });
+
+  it("says where the visitor came from", () => {
+    const update = leadUpdate(VALID, arrival);
+    expect(update.source_page).toBe("/book/ana");
+    expect(update.utm_source).toBe("ads");
+    expect(update.utm_medium).toBe("cpc");
+    expect(update.utm_campaign).toBeNull();
+  });
+});
+
+describe("queryValue", () => {
+  it("reads one value of a query string", () => {
+    expect(queryValue("?utm_source=ads&x=1", "utm_source")).toBe("ads");
+    expect(queryValue("", "utm_source")).toBeNull();
   });
 });

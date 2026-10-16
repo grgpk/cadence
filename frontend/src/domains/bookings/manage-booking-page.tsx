@@ -21,6 +21,7 @@ import {
   managedBookingQuery,
   rescheduleManagedBooking,
 } from "../widget/cadence-api";
+import { bookingFailure } from "../widget/booking-session";
 import { SlotStep, type CalendarView } from "../widget/slot-step";
 import { callEnd, clockLabel, zonedTime } from "../../lib/zoned-time";
 import { BookedStrip } from "./booked-strip";
@@ -72,7 +73,7 @@ function Reschedule({
         queryKey: QUERY_KEYS.publicSlots(booking.slug),
       });
       toast.error(
-        error instanceof ApiError && error.isConflict
+        bookingFailure(error) === "taken"
           ? "That time was just taken. Pick another one."
           : `The call was not rescheduled. ${errorMessage(error)}`,
       );

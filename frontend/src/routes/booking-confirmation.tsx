@@ -3,6 +3,7 @@ import { CalendarPlus, CalendarX, Download, Video } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/public-layout";
+import type { ConfirmationSearch } from "../domains/widget/booking-session";
 import { BookedStrip } from "../domains/bookings/booked-strip";
 import { callEnd, clockLabel } from "../lib/zoned-time";
 import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/booking-confirmation")({
   // The values arrive in the URL, so nothing is shown unless it has the expected shape.
   // Only a Google Meet address can become a button: a crafted URL must not be able
   // to put an arbitrary "join" link on this page.
-  validateSearch: (search) => ({
+  validateSearch: (search): ConfirmationSearch => ({
     start: searchInstant(search.start),
     minutes: searchMinutes(search.minutes, MAX_CALL_MINUTES),
     tz: searchTimezone(search.tz),

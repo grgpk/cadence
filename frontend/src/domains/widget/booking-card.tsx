@@ -5,7 +5,6 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from "re
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Skeleton } from "../../components/ui/skeleton";
-import { ApiError } from "../../lib/api";
 import { prefersHour12 } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ROUTES } from "../../lib/routes";
@@ -16,15 +15,9 @@ import {
   getCountryByAlpha2,
   type CountryTimezone,
 } from "../shared/phone/country";
-import { EMPTY_FORM, leadUpdate, queryValue, type FormValues } from "./booking-form";
-import {
-  createBooking,
-  createCallingVisit,
-  publicSlotsQuery,
-  saveLead,
-  submitLead,
-  updateCallingVisit,
-} from "./cadence-api";
+import { arrivalHere, EMPTY_FORM, type FormValues } from "./booking-form";
+import { bookingFailure, CADENCE_API, createBookingSession } from "./booking-session";
+import { publicSlotsQuery } from "./cadence-api";
 import { BookingSummary } from "./booking-summary";
 import { DetailsStep } from "./details-step";
 import { ListSlots } from "./list-slots";
@@ -75,10 +68,6 @@ function storeForm(slug: string, form: StoredForm | null) {
   }
 }
 
-function ignore() {
-  // Visit tracking and autosave must never interrupt a booking.
-}
-
 function Booking({
   slug,
   page,
@@ -114,9 +103,14 @@ function Booking({
   });
   const [slot, setSlot] = useState<TimeSlot | null>(null);
   const [hour12, setHour12] = useState(initialHour12);
-  const [leadUnid] = useState(() => stored?.leadUnid ?? crypto.randomUUID());
-  const [visitUnid, setVisitUnid] = useState<string | null>(null);
-  const leadSubmitted = useRef(false);
+  // One visit to this page: its visit record, its lead and its booking.
+  const [session] = useState(() =>
+    createBookingSession(CADENCE_API, {
+      slug,
+      leadUnid: stored?.leadUnid ?? crypto.randomUUID(),
+      arrival: arrivalHere(),
+    }),
+  );
   // Set once the visitor moves between steps, so the first render takes no focus.
   const stepChanged = useRef(false);
   const focusStep = useCallback((step: HTMLElement | null) => {
@@ -125,7 +119,7 @@ function Booking({
 
   function changeValues(next: FormValues) {
     setValues(next);
-    storeForm(slug, { leadUnid, values: next });
+    storeForm(slug, { leadUnid: session.leadUnid, values: next });
   }
 
   function showStep(next: TimeSlot | null) {
@@ -134,17 +128,8 @@ function Booking({
   }
 
   useEffect(() => {
-    void createCallingVisit({
-      source_page: window.location.pathname,
-      referer: document.referrer || null,
-      utm_source: queryValue("utm_source"),
-      utm_medium: queryValue("utm_medium"),
-      utm_campaign: queryValue("utm_campaign"),
-      user_agent: navigator.userAgent,
-    })
-      .then((visit) => setVisitUnid(visit.unid))
-      .catch(ignore);
-  }, []);
+    void session.start();
+  }, [session]);
 
   function changeHour12(next: boolean) {
     setHour12(next);
@@ -157,41 +142,16 @@ function Booking({
 
   const book = useMutation({
     mutationFn: async (picked: TimeSlot) => {
-      await saveLead(slug, leadUnid, leadUpdate(values));
-      if (!leadSubmitted.current) {
-        await submitLead(slug, leadUnid, window.location.pathname);
-        leadSubmitted.current = true;
-        if (visitUnid) {
-          void updateCallingVisit(visitUnid, { form_submitted: true }).catch(ignore);
-        }
-      }
-      const booking = await createBooking(slug, {
-        lead_unid: leadUnid,
-        calling_visit_unid: visitUnid,
-        slot_start: picked.start,
+      const search = await session.book({
+        slot: picked,
+        values,
         timezone: timezone.iana,
-        invitee_name: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),
-        invitee_email: values.email.trim(),
+        hour12,
+        hostName: page.host_name,
       });
-      if (visitUnid) {
-        void updateCallingVisit(visitUnid, { booked_call: true }).catch(ignore);
-      }
       storeForm(slug, null);
       // Part of the request, so the button stays busy until the next page is up.
-      await navigate({
-        to: ROUTES.bookingConfirmation,
-        search: {
-          start: booking.slot_start,
-          minutes: picked.minutes,
-          tz: timezone.iana,
-          h12: hour12,
-          meet: booking.meeting_url ?? undefined,
-          link: booking.meeting_url !== null,
-          slug,
-          host: page.host_name,
-          manage: booking.manage_token,
-        },
-      });
+      await navigate({ to: ROUTES.bookingConfirmation, search });
     },
     // The time may have just been taken, so the cached times can no longer be trusted.
     onError: () =>
@@ -199,7 +159,7 @@ function Booking({
   });
   const submitError = !book.error
     ? null
-    : book.error instanceof ApiError && book.error.isConflict
+    : bookingFailure(book.error) === "taken"
       ? "That time was just taken. Go back and pick another one."
       : "The booking did not go through. Try again or pick another time.";
 
@@ -303,7 +263,7 @@ function Booking({
         hour12={hour12}
         values={values}
         onChange={changeValues}
-        onSave={(next) => void saveLead(slug, leadUnid, leadUpdate(next)).catch(ignore)}
+        onSave={(next) => void session.saveDraft(next)}
         onBack={() => showStep(null)}
         onSubmit={() => book.mutate(slot)}
         submitting={book.isPending}

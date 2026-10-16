@@ -100,8 +100,29 @@ export const QUESTIONS: Question[] = [
   },
 ];
 
-export function queryValue(key: string): string | null {
-  return new URLSearchParams(window.location.search).get(key);
+/** Where a visitor landed: the booking page's address, read once. */
+export type Arrival = {
+  /** The path, such as `/book/ana`. */
+  path: string;
+  /** The query string, such as `?utm_source=newsletter`. */
+  search: string;
+  referrer: string;
+  userAgent: string;
+};
+
+/** The address the browser is on now. */
+export function arrivalHere(): Arrival {
+  return {
+    path: window.location.pathname,
+    search: window.location.search,
+    referrer: document.referrer,
+    userAgent: navigator.userAgent,
+  };
+}
+
+/** One value of the query string, such as a UTM tag. */
+export function queryValue(search: string, key: string): string | null {
+  return new URLSearchParams(search).get(key);
 }
 
 function qualification(values: FormValues): LeadUpdate["qualification_status"] {
@@ -110,7 +131,10 @@ function qualification(values: FormValues): LeadUpdate["qualification_status"] {
   return values.investmentComfort === INVESTMENT_OPTIONS[0] ? "NotSure" : "Qualified";
 }
 
-export function leadUpdate(values: FormValues): LeadUpdate {
+export function leadUpdate(
+  values: FormValues,
+  arrival: Pick<Arrival, "path" | "search">,
+): LeadUpdate {
   const country = getCountryByVariant(values.countryVariant);
   return {
     first_name: values.firstName.trim() || null,
@@ -123,10 +147,10 @@ export function leadUpdate(values: FormValues): LeadUpdate {
     how_heard_about_us: values.howHeard.join(", ") || null,
     currently_working_on: values.currentlyWorkingOn.trim() || null,
     urgency_level: values.urgencyLevel || null,
-    source_page: window.location.pathname,
-    utm_source: queryValue("utm_source"),
-    utm_medium: queryValue("utm_medium"),
-    utm_campaign: queryValue("utm_campaign"),
+    source_page: arrival.path,
+    utm_source: queryValue(arrival.search, "utm_source"),
+    utm_medium: queryValue(arrival.search, "utm_medium"),
+    utm_campaign: queryValue(arrival.search, "utm_campaign"),
     qualification_status: qualification(values),
   };
 }
