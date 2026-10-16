@@ -106,7 +106,9 @@ limit answers 403.
 - `/api/hosts/{slug}` lists only bookable types; a Free host lists one.
 - Creating a second type on Pro is refused; on Business it works.
 - The last type cannot be deleted; a booking survives its type's deletion.
-- Frontend: the public route picks list or card; editor validation.
+- Frontend: `event-types.test.ts` (free slug, new type, length text, plan
+  check). The list-or-card choice and the editor are checked in the browser,
+  not by a test.
 
 ## Definition of done
 
