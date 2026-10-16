@@ -27,9 +27,10 @@ const DAY: { hour: number; block: Block | null }[] = [
 ];
 
 export const OPEN_STYLES: Record<DayPhase, string> = {
-  Morning: "border-dawn bg-dawn/35",
-  Afternoon: "border-noon bg-noon/30",
-  Evening: "border-dusk/60 bg-dusk/15",
+  // Dark fills stay thin: thick warm washes turn brown on near-black.
+  Morning: "border-dawn bg-dawn/35 dark:bg-dawn/10",
+  Afternoon: "border-noon bg-noon/30 dark:bg-noon/10",
+  Evening: "border-dusk/60 bg-dusk/15 dark:bg-dusk/20",
 };
 
 const PAUSE_ON_HOVER = "group-hover:[animation-play-state:paused]";

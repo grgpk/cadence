@@ -51,6 +51,9 @@ effect is off under `prefers-reduced-motion`, no hardcoded colors, and
    Cal.com's grays: white and gray-50 under gray-900 ink in light; #101010,
    #1c1c1c and #2b2b2b under white ink in dark. The day colors and the
    signal stay; only the navy tint is gone.
+   On near-black the open-hours fills drop to 10% so they stay a tint, not
+   brown. Each Theme card option previews the overview page (sidebar, day
+   tape with "now", next-up rows) in that theme; System splits it diagonally.
 
 ```
 details step                         confirmation
