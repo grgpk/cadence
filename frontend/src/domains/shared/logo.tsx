@@ -2,17 +2,24 @@ import { cn } from "cn";
 
 import { APP_NAME } from "../../lib/config";
 
-/** Three uneven bars: beats in a rhythm. The middle beat carries the signal color. */
+/** A "C" that is also a clock dial. The signal hand points at "now" where the C opens. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 20 20"
       aria-hidden="true"
+      fill="none"
+      strokeLinecap="round"
       className={cn("size-5 shrink-0", className)}
     >
-      <rect x="2" y="7" width="4" height="11" rx="1.5" className="fill-foreground" />
-      <rect x="8" y="2" width="4" height="16" rx="1.5" className="fill-signal" />
-      <rect x="14" y="10" width="4" height="8" rx="1.5" className="fill-foreground" />
+      <path
+        d="M15.3 4.7A7.5 7.5 0 1 0 15.3 15.3"
+        strokeWidth="2.5"
+        className="stroke-foreground"
+      />
+      <path d="M10 10V6" strokeWidth="2" className="stroke-foreground" />
+      <path d="M10 10H16" strokeWidth="2" className="stroke-signal" />
+      <circle cx="17.25" cy="10" r="1.75" className="fill-signal" />
     </svg>
   );
 }

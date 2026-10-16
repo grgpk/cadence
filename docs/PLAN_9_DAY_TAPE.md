@@ -28,7 +28,7 @@ keyframes in `frontend/src/styles/globals.css`.
 | `--dawn` | morning times |
 | `--noon` | afternoon times, open hours, days that have times |
 | `--dusk` | evening times, the selected day, focus rings |
-| `--signal` | the "now" playhead and the logo's middle bar, nothing else |
+| `--signal` | the "now" playhead and the logo's clock hand, nothing else |
 
 The three day colors carry information: a time's rail tells the visitor
 which part of their own day it falls in.

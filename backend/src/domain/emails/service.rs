@@ -40,7 +40,6 @@ const CARD: &str = "#FFFFFF";
 const INK: &str = "#151B3D";
 const MUTED: &str = "#5F6685";
 const BORDER: &str = "#DFE2EC";
-const SIGNAL: &str = "#F0262D";
 const DAWN: &str = "#FFC79A";
 const NOON: &str = "#F0B030";
 const DUSK: &str = "#5139D6";
@@ -470,11 +469,6 @@ fn html_body(content: &Content) -> String {
             escape(url)
         )
     });
-    let bar = |height: u8, colour: &str| {
-        format!(
-            r#"<td valign="bottom" style="padding:0 3px 0 0;"><div style="width:4px;height:{height}px;background-color:{colour};border-radius:2px;font-size:0;line-height:0;">&nbsp;</div></td>"#
-        )
-    };
     let note = content.note.map(|note| {
         format!(
             r#"<tr><td style="padding:24px 0 0;font-size:14px;line-height:20px;color:{MUTED};">{note}</td></tr>"#
@@ -499,7 +493,7 @@ fn html_body(content: &Content) -> String {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="{PAGE}" style="background-color:{PAGE};">
 <tr><td align="center" style="padding:32px 16px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;font-family:{FONT};color:{INK};">
-<tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>{bars}<td valign="bottom" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
+<tr><td style="padding:0 4px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle"><img src="{app_url}/logo-email.png" width="18" height="18" alt="" style="display:block;border:0;"></td><td valign="middle" style="padding:0 0 0 7px;font-size:18px;line-height:18px;font-weight:700;color:{INK};">Cadence</td></tr></table></td></tr>
 <tr><td bgcolor="{CARD}" style="background-color:{CARD};border:1px solid {BORDER};border-radius:12px;padding:32px 28px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr><td style="padding:0 0 8px;font-size:15px;line-height:22px;color:{MUTED};">{greeting}</td></tr>
@@ -514,7 +508,7 @@ fn html_body(content: &Content) -> String {
 </body>
 </html>
 "#,
-        bars = [bar(12, INK), bar(18, SIGNAL), bar(9, INK)].concat(),
+        app_url = app_url(),
         footer = content.footer,
     )
 }

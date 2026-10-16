@@ -59,7 +59,7 @@ Your call with Giorgi
   email link to it.
 - **Paused page.** "{host} is not taking bookings right now."
 - **Error pages** keep the public header and footer.
-- **Emails.** Text and HTML, one layout: the logo bars, a headline, the call
+- **Emails.** Text and HTML, one layout: the logo (a hosted PNG), a headline, the call
   as a block with the part-of-day color, then buttons. Every value from a
   person is escaped.
 

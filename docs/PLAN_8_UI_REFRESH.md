@@ -33,7 +33,7 @@ design system.
 - **Theme.** Follows the system setting, with a toggle in the public header and
   the app's top bar (moved there from the user menu in Plan 10). `lib/theme.ts` sets the class before paint; no dependency.
 - **Signature.** Days that can be booked carry a small red dot, so the month
-  reads as a rhythm. The logo is three uneven bars for the same reason.
+  reads as a rhythm. The logo is a "C" drawn as a clock dial, its signal hand on "now".
 
 ## Screens
 
