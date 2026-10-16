@@ -1,6 +1,6 @@
 # Plan 27: pricing, plans and billing
 
-Status: in progress. Milestones 1 and 2 are done: the backend serves the plans and each host's plan, new hosts start a 14-day Pro trial, and `/pricing` is live with every CTA going to sign-up. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
+Status: in progress. Milestones 1–3 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), and Stripe Checkout, the Customer Portal and signed webhooks, tested against a fake Stripe. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
 
 ## Goal
 
@@ -74,15 +74,16 @@ The domain follows the usual `routes -> handlers -> service -> db` layering.
   `Plan::entitlements()` is a `const` table. A `PlanCatalog` holds the display prices in cents and the Stripe price ids, read from env.
 - `stripe.rs` is a thin `reqwest` client with two form-encoded calls: create a Checkout Session and create a Portal Session. It also verifies `Stripe-Signature` with HMAC-SHA256 and a 5-minute tolerance.
   - **New deps: `hmac`, `sha2`, `hex`.** We avoid `async-stripe` because it is a very large compile for only two calls and a webhook.
-  - The client sits behind a small `PaymentProvider` trait in `AppState`, the same seam pattern as `HostCalendar`, so HTTP tests can use a fake.
+  - `Payments` (`stripe.rs`) is the seam: Stripe in production, a fake with made-up URLs in tests. `AppState.payments` is `None` when a Stripe key or price is missing; checkout and the portal then answer 503.
 - `service.rs` does four jobs:
   - `entitlements_for(user)` returns the entitlements for a user's effective plan.
   - `start_trial(tx, user)` is called from `auth::service` registration.
-  - `checkout(user, plan, interval)` reuses or creates the Stripe customer, with `metadata.user_unid`, then creates the session in `mode=subscription`. The session returns to `success_url={APP_URL}/dashboard/billing?checkout=done` and `cancel_url={APP_URL}/pricing`.
+  - `checkout(user, plan, interval)` passes the known Stripe customer, or else the host's email so Checkout makes the customer on payment (no customer API call), with `subscription_data.metadata.user_unid`, in `mode=subscription`. A host Stripe already bills gets 409 and goes to the portal. The session returns to `success_url={APP_URL}/dashboard/billing?checkout=done` and `cancel_url={APP_URL}/pricing`.
   - `apply_event(event)` dedupes on `stripe_events` and ignores stale events by comparing `event.created` with `stripe_synced_at`. It handles:
-    - `checkout.session.completed`
-    - `customer.subscription.created`, `.updated` and `.deleted`
-    - `invoice.payment_failed`, which queues a host email
+    - `customer.subscription.created`, `.updated` and `.deleted`; they carry everything, including a failed renewal as `past_due`, so `checkout.session.completed` is not needed
+    - every other event is recorded and acknowledged
+    - The end of a subscription the host has since replaced changes nothing.
+    - The payment-failed host email comes with milestone 4.
   - It maps the Stripe price id to `(plan, interval)`.
 - `routes.rs` exposes these endpoints:
   - `GET  /api/billing/plans` (public): the catalog with prices and entitlements. The pricing page is server-rendered from it.
@@ -184,7 +185,7 @@ Files:
 
 1. ✅ **Catalog and trial:** the migration, `plans.rs`, `effective_plan`, `GET /api/billing/plans` and `/me`, the trial on registration, bindings, and the seed.
 2. ✅ **Public pricing page:** the route, components, nav links, FAQ and comparison table. CTAs go to register.
-3. **Stripe:** checkout, portal, the webhook with signature and idempotency, the `/dashboard/billing` page, and the trial banner.
+3. ✅ **Stripe:** checkout, portal, the webhook with signature and idempotency, the `/dashboard/billing` page, and the trial banner.
 4. **Enforcement:** the booking limit, reminders, public page flags, the branding badge, the `PlanGate` UI, `PlanRequired` errors, and the trial-ending, limit and payment-failed emails.
 5. **Admin:** the plan column, comp/revoke, and an MRR-free summary (counts per plan).
 6. **Plan 28:** event types.

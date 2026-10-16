@@ -1,0 +1,137 @@
+import { describe, expect, it } from "vitest";
+
+import type { BillingSummary } from "../../bindings/BillingSummary";
+import { PLAN } from "../pricing/pricing";
+import {
+  bookingUsage,
+  checkoutIntent,
+  hasPortal,
+  planAction,
+  STATUS,
+  statusLine,
+  trialDaysLeft,
+} from "./billing";
+
+const NOW = Date.parse("2026-10-16T12:00:00Z");
+
+function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
+  return {
+    plan: PLAN.FREE,
+    status: null,
+    interval: null,
+    trial_ends_at: null,
+    current_period_end: null,
+    cancel_at_period_end: false,
+    bookings_this_month: 10,
+    entitlements: {
+      max_bookings_per_month: 25,
+      reminders: ["before_24h"],
+      custom_questions: false,
+      custom_accent: false,
+      hide_branding: false,
+      max_event_types: 1,
+      webhooks: false,
+    },
+    ...overrides,
+  };
+}
+
+describe("checkoutIntent", () => {
+  it("keeps a paid plan with an interval", () => {
+    expect(checkoutIntent({ plan: "pro", interval: "year" })).toEqual({
+      plan: "pro",
+      interval: "year",
+    });
+  });
+
+  it("drops Free, unknown values and half an intent", () => {
+    expect(checkoutIntent({ plan: "free", interval: "month" })).toEqual({});
+    expect(checkoutIntent({ plan: "gold", interval: "month" })).toEqual({});
+    expect(checkoutIntent({ plan: "pro" })).toEqual({});
+  });
+});
+
+describe("planAction", () => {
+  it("sends a free host to checkout for a paid plan", () => {
+    const free = summary();
+    expect(planAction(free, PLAN.FREE)).toBe("current");
+    expect(planAction(free, PLAN.PRO)).toBe("checkout");
+  });
+
+  it("lets a trial keep Pro by paying", () => {
+    const trial = summary({ plan: PLAN.PRO, status: STATUS.TRIALING });
+    expect(planAction(trial, PLAN.PRO)).toBe("checkout");
+    expect(planAction(trial, PLAN.FREE)).toBe("none");
+  });
+
+  it("sends a paying host to the portal for any change", () => {
+    const paying = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE });
+    expect(planAction(paying, PLAN.PRO)).toBe("current");
+    expect(planAction(paying, PLAN.BUSINESS)).toBe("portal");
+    expect(planAction(paying, PLAN.FREE)).toBe("portal");
+  });
+
+  it("lets a host whose subscription ended check out again", () => {
+    const ended = summary({ status: STATUS.CANCELED });
+    expect(planAction(ended, PLAN.BUSINESS)).toBe("checkout");
+    expect(planAction(ended, PLAN.FREE)).toBe("current");
+  });
+});
+
+describe("hasPortal", () => {
+  it("opens for hosts Stripe knows", () => {
+    expect(hasPortal(summary({ status: STATUS.ACTIVE }))).toBe(true);
+    expect(hasPortal(summary({ status: STATUS.CANCELED }))).toBe(true);
+    expect(hasPortal(summary({ status: STATUS.TRIALING }))).toBe(false);
+    expect(hasPortal(summary({ status: STATUS.COMPED }))).toBe(false);
+    expect(hasPortal(summary())).toBe(false);
+  });
+});
+
+describe("trialDaysLeft", () => {
+  it("rounds up and stops at the end", () => {
+    const ends = (iso: string) =>
+      summary({ status: STATUS.TRIALING, trial_ends_at: iso });
+    expect(trialDaysLeft(ends("2026-10-25T11:00:00Z"), NOW)).toBe(9);
+    expect(trialDaysLeft(ends("2026-10-16T13:00:00Z"), NOW)).toBe(1);
+    expect(trialDaysLeft(ends("2026-10-16T11:00:00Z"), NOW)).toBeNull();
+    expect(trialDaysLeft(summary(), NOW)).toBeNull();
+  });
+});
+
+describe("bookingUsage", () => {
+  it("is a share of the limit, capped, and none when unlimited", () => {
+    expect(bookingUsage(summary())).toBe(0.4);
+    expect(bookingUsage(summary({ bookings_this_month: 40 }))).toBe(1);
+    const unlimited = summary();
+    unlimited.entitlements = { ...unlimited.entitlements, max_bookings_per_month: null };
+    expect(bookingUsage(unlimited)).toBeNull();
+  });
+});
+
+describe("statusLine", () => {
+  it("names the trial's days, a renewal and a failed payment", () => {
+    const trial = summary({
+      plan: PLAN.PRO,
+      status: STATUS.TRIALING,
+      trial_ends_at: "2026-10-17T11:00:00Z",
+    });
+    expect(statusLine(trial, NOW)).toMatch(/^1 day left of your Pro trial/);
+    const renewing = summary({
+      plan: PLAN.PRO,
+      status: STATUS.ACTIVE,
+      interval: "year",
+      current_period_end: "2027-10-16T12:00:00Z",
+    });
+    expect(statusLine(renewing, NOW)).toMatch(
+      /^Pro renews yearly on Oct 1[5-7], 2027\.$/,
+    );
+    expect(statusLine({ ...renewing, cancel_at_period_end: true }, NOW)).toMatch(
+      /^Pro ends on .* You move to Free then\.$/,
+    );
+    expect(statusLine(summary({ plan: PLAN.PRO, status: STATUS.PAST_DUE }), NOW)).toMatch(
+      /payment failed/,
+    );
+    expect(statusLine(summary(), NOW)).toMatch(/^Free for as long/);
+  });
+});

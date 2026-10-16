@@ -39,6 +39,7 @@ fn app(pool: &PgPool) -> Router {
     build_app(AppState {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
+        payments: None,
     })
 }
 

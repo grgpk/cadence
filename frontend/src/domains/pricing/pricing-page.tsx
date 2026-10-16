@@ -9,7 +9,7 @@ import { PublicLayout } from "../shared/public-layout";
 import { SegmentedControl } from "../shared/segmented-control";
 import { CompareTable } from "./compare-table";
 import { PlanCard } from "./plan-card";
-import { bestYearlySaving, FEATURED_PLAN, INTERVAL } from "./pricing";
+import { bestYearlySaving, FEATURED_PLAN, INTERVAL, PLAN, PLAN_CTA } from "./pricing";
 import { PricingFaq } from "./pricing-faq";
 
 export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
@@ -47,6 +47,22 @@ export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
                 offer={offer}
                 interval={interval}
                 featured={offer.plan === FEATURED_PLAN}
+                action={
+                  <Button
+                    variant={offer.plan === FEATURED_PLAN ? "default" : "outline"}
+                    asChild
+                  >
+                    <Link
+                      to={ROUTES.register}
+                      // A paid pick is carried through sign-up to checkout.
+                      search={
+                        offer.plan === PLAN.FREE ? {} : { plan: offer.plan, interval }
+                      }
+                    >
+                      {PLAN_CTA[offer.plan]}
+                    </Link>
+                  </Button>
+                }
               />
             ))}
           </div>

@@ -56,6 +56,11 @@ export function formatDateTime(
   }).format(new Date(value));
 }
 
+/** "Oct 14, 2026" */
+export function formatDate(value: string, timeZone?: string): string {
+  return dateFormatter(LOCALE, { dateStyle: "medium", timeZone }).format(new Date(value));
+}
+
 /** "Wed, Oct 14" */
 export function formatDay(value: string, timeZone?: string): string {
   return dateFormatter(LOCALE, {

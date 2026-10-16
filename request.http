@@ -29,6 +29,15 @@ GET {{baseUrl}}/api/billing/plans
 ### My plan, trial and bookings this month
 GET {{baseUrl}}/api/billing/me
 
+### Stripe Checkout for a paid plan (503 without Stripe keys, 409 when already paying)
+POST {{baseUrl}}/api/billing/checkout
+Content-Type: application/json
+
+{"plan":"pro","interval":"year"}
+
+### Stripe Customer Portal (409 before the first payment)
+POST {{baseUrl}}/api/billing/portal
+
 ### Change my name
 PUT {{baseUrl}}/api/auth/me
 Content-Type: application/json

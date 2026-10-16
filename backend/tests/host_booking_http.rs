@@ -60,6 +60,7 @@ fn app_with_calendar(pool: &PgPool) -> (Router, InMemoryCalendar) {
     let app = build_app(AppState {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(calendar.clone()),
+        payments: None,
     });
     (app, calendar)
 }

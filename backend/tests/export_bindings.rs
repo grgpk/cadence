@@ -8,7 +8,7 @@ use cadence_backend::domain::{
         TimeSlot,
     },
     billing::{
-        models::BillingSummary,
+        models::{BillingSummary, RedirectUrl, StartCheckout},
         plans::{
             BillingInterval, Entitlements, Plan, PlanOffer, PlanPrice, Reminder, SubscriptionStatus,
         },
@@ -97,6 +97,8 @@ fn export_bindings() {
         ("PlanPrice", PlanPrice::export()),
         ("PlanOffer", PlanOffer::export()),
         ("BillingSummary", BillingSummary::export()),
+        ("StartCheckout", StartCheckout::export()),
+        ("RedirectUrl", RedirectUrl::export()),
     ];
     for (name, export) in exports {
         assert!(export.is_ok(), "{name} did not export");

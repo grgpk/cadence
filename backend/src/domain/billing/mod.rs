@@ -4,3 +4,4 @@ pub mod models;
 pub mod plans;
 pub mod routes;
 pub mod service;
+pub mod stripe;

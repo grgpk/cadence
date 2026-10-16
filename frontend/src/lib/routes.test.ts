@@ -7,6 +7,7 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/dashboard")).toBe(true);
     expect(isProtectedPath("/dashboard/settings")).toBe(true);
     expect(isProtectedPath("/admin/leads")).toBe(true);
+    expect(isProtectedPath(ROUTES.dashboardBilling)).toBe(true);
   });
 
   it("leaves public and unknown pages open", () => {

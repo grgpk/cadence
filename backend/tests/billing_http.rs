@@ -1,5 +1,5 @@
-//! Plans over HTTP: the public catalog, and the Pro trial every new host
-//! starts on.
+//! Plans over HTTP: the public catalog, the Pro trial every new host starts
+//! on, checkout and the portal against a fake Stripe, and Stripe's events.
 
 // Clippy's test escapes cover `#[test]` functions only; the helpers here are test code too.
 #![allow(clippy::expect_used, clippy::indexing_slicing)]
@@ -14,6 +14,10 @@ use cadence_backend::{
     build_app,
     domain::{
         auth::service::make_token,
+        billing::{
+            plans::{BillingInterval, Plan},
+            stripe::{Payments, PriceIds, sign},
+        },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
 };
@@ -25,13 +29,79 @@ use uuid::Uuid;
 
 const PLANS: &str = "/api/billing/plans";
 const ME: &str = "/api/billing/me";
+const CHECKOUT: &str = "/api/billing/checkout";
+const PORTAL: &str = "/api/billing/portal";
+const WEBHOOK: &str = "/api/billing/webhook";
+const WEBHOOK_SECRET: &str = "whsec_test";
+const BUSINESS_YEAR: &str = "price_business_year";
+const PRO_MONTH: &str = "price_pro_month";
 
-fn app(pool: &PgPool) -> Router {
+fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
     dotenvy::dotenv().ok();
     build_app(AppState {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
+        payments,
     })
+}
+
+fn app(pool: &PgPool) -> Router {
+    let prices = PriceIds::new(vec![
+        (Plan::Pro, BillingInterval::Month, PRO_MONTH.to_owned()),
+        (
+            Plan::Business,
+            BillingInterval::Year,
+            BUSINESS_YEAR.to_owned(),
+        ),
+    ]);
+    app_with(pool, Some(Payments::fake(WEBHOOK_SECRET, prices)))
+}
+
+/// Posts a `customer.subscription.*` event, signed now.
+async fn subscription_event(
+    app: &Router,
+    event_id: &str,
+    kind: &str,
+    created: i64,
+    user: Uuid,
+    price: &str,
+    status: &str,
+) -> StatusCode {
+    let event = json!({
+        "id": event_id,
+        "type": format!("customer.subscription.{kind}"),
+        "created": created,
+        "data": { "object": {
+            "id": "sub_1",
+            "customer": "cus_1",
+            "status": status,
+            "cancel_at_period_end": false,
+            "metadata": { "user_unid": user.to_string() },
+            "items": { "data": [{ "price": { "id": price }, "current_period_end": 1_900_000_000 }] },
+        }},
+    });
+    webhook(app, &event.to_string(), WEBHOOK_SECRET).await
+}
+
+async fn webhook(app: &Router, body: &str, secret: &str) -> StatusCode {
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri(WEBHOOK)
+        .header(
+            "stripe-signature",
+            sign(secret, body.as_bytes(), Utc::now()),
+        )
+        .body(Body::from(body.to_owned()))
+        .expect("request is well formed");
+    app.clone()
+        .oneshot(request)
+        .await
+        .expect("router responds")
+        .status()
+}
+
+async fn summary(app: &Router, cookie: &str) -> Value {
+    send(app, Method::GET, ME, Some(cookie), None).await.1
 }
 
 async fn send(
@@ -136,4 +206,124 @@ async fn an_ended_trial_is_free(pool: PgPool) {
 async fn the_summary_needs_a_session(pool: PgPool) {
     let (status, _) = send(&app(&pool), Method::GET, ME, None, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn checkout_sends_the_host_to_stripe_for_a_paid_plan(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+
+    let (status, body) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(json!({ "plan": "business", "interval": "year" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        body["url"],
+        format!("https://checkout.stripe.test/{unid}/{BUSINESS_YEAR}")
+    );
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(json!({ "plan": "free", "interval": "month" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn without_stripe_keys_checkout_is_unavailable(pool: PgPool) {
+    let app = app_with(&pool, None);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+    let body = json!({ "plan": "pro", "interval": "month" });
+
+    let (status, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(body)).await;
+
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_event_with_a_wrong_signature_is_refused(pool: PgPool) {
+    let app = app(&pool);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+    let body = json!({ "id": "evt_1", "type": "customer.subscription.created", "created": 1,
+                       "data": { "object": {} } })
+    .to_string();
+
+    assert_eq!(
+        webhook(&app, &body, "whsec_wrong").await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(summary(&app, &cookie).await["status"], "trialing");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_paid_subscription_sets_the_plan_until_it_ends(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+
+    let status =
+        subscription_event(&app, "evt_1", "created", 100, unid, BUSINESS_YEAR, "active").await;
+    assert_eq!(status, StatusCode::OK);
+    let paid = summary(&app, &cookie).await;
+    assert_eq!(paid["plan"], "business");
+    assert_eq!(paid["status"], "active");
+    assert_eq!(paid["interval"], "year");
+    assert!(paid["current_period_end"].is_string());
+
+    // Paying hosts change plans in the portal, not with a second checkout.
+    let body = json!({ "plan": "pro", "interval": "month" });
+    let (status, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(body)).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, portal) = send(&app, Method::POST, PORTAL, Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(portal["url"], "https://billing.stripe.test/cus_1");
+
+    subscription_event(
+        &app,
+        "evt_2",
+        "deleted",
+        200,
+        unid,
+        BUSINESS_YEAR,
+        "canceled",
+    )
+    .await;
+    let ended = summary(&app, &cookie).await;
+    assert_eq!(ended["plan"], "free");
+    assert_eq!(ended["status"], "canceled");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_repeated_or_late_event_changes_nothing(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    subscription_event(&app, "evt_1", "updated", 200, unid, PRO_MONTH, "active").await;
+
+    // Stripe sent the same event again, this time saying something else.
+    let status =
+        subscription_event(&app, "evt_1", "updated", 200, unid, PRO_MONTH, "past_due").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(summary(&app, &cookie).await["status"], "active");
+
+    // An older event arrives after a newer one.
+    subscription_event(&app, "evt_0", "created", 100, unid, BUSINESS_YEAR, "active").await;
+    assert_eq!(summary(&app, &cookie).await["plan"], "pro");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_portal_needs_a_stripe_customer(pool: PgPool) {
+    let app = app(&pool);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+
+    let (status, _) = send(&app, Method::POST, PORTAL, Some(&cookie), None).await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
 }

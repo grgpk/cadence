@@ -3,6 +3,7 @@ import { cn } from "cn";
 import type { BookingStatus } from "../../bindings/BookingStatus";
 import type { EmailState } from "../../bindings/EmailState";
 import type { LeadQualification } from "../../bindings/LeadQualification";
+import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
 import type { UserStatus } from "../../bindings/UserStatus";
 import { Badge } from "../../components/ui/badge";
 
@@ -39,6 +40,15 @@ export const EMAIL_STATUS: Record<EmailState, Status> = {
 export const USER_STATUS: Record<UserStatus, Status> = {
   Active: { label: "Active", tone: "positive" },
   Banned: { label: "Banned", tone: "negative" },
+};
+
+export const SUBSCRIPTION_STATUS: Record<SubscriptionStatus, Status> = {
+  trialing: { label: "Trial", tone: "neutral" },
+  active: { label: "Active", tone: "positive" },
+  past_due: { label: "Payment failed", tone: "negative" },
+  canceled: { label: "Ended", tone: "neutral" },
+  incomplete: { label: "Not paid", tone: "caution" },
+  comped: { label: "Comped", tone: "positive" },
 };
 
 export function StatusBadge<T extends string>({

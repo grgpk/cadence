@@ -1,17 +1,14 @@
-import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
 import { Check } from "lucide-react";
+import type { ReactNode } from "react";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Badge } from "../../components/ui/badge";
-import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
-import { ROUTES } from "../../lib/routes";
 import {
   formatCents,
   INTERVAL,
-  PLAN_CTA,
   PLAN_HIGHLIGHTS,
   PLAN_NAMES,
   PLAN_TAGLINES,
@@ -22,10 +19,15 @@ export function PlanCard({
   offer,
   interval,
   featured,
+  badge = "Most popular",
+  action,
 }: {
   offer: PlanOffer;
   interval: BillingInterval;
   featured: boolean;
+  badge?: string;
+  /** The button: sign up on the pricing page, checkout on the billing page. */
+  action: ReactNode;
 }) {
   const price = priceFor(offer, interval);
   return (
@@ -39,7 +41,7 @@ export function PlanCard({
         <h2 className="font-display font-wide text-xl font-bold">
           {PLAN_NAMES[offer.plan]}
         </h2>
-        {featured ? <Badge>Most popular</Badge> : null}
+        {featured ? <Badge>{badge}</Badge> : null}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINES[offer.plan]}</p>
 
@@ -57,9 +59,7 @@ export function PlanCard({
             : "Billed monthly"}
       </p>
 
-      <Button className="mt-6" variant={featured ? "default" : "outline"} asChild>
-        <Link to={ROUTES.register}>{PLAN_CTA[offer.plan]}</Link>
-      </Button>
+      <div className="mt-6 grid">{action}</div>
 
       <ul className="mt-6 grid gap-2.5 text-sm">
         {PLAN_HIGHLIGHTS[offer.plan].map((line) => (

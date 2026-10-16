@@ -52,3 +52,108 @@ pub async fn bookings_this_month(pool: &PgPool, host_unid: Uuid) -> Result<i64, 
     .fetch_one(pool)
     .await
 }
+
+/// What a host has on file with Stripe.
+pub struct StripeAccount {
+    pub status: SubscriptionStatus,
+    pub customer_id: Option<String>,
+    pub subscription_id: Option<String>,
+}
+
+pub async fn stripe_account(
+    pool: &PgPool,
+    user_unid: Uuid,
+) -> Result<Option<StripeAccount>, sqlx::Error> {
+    sqlx::query_as!(
+        StripeAccount,
+        r#"SELECT status AS "status: SubscriptionStatus",
+                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id
+           FROM subscriptions WHERE user_unid = $1"#,
+        user_unid,
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Records a Stripe event as seen. `false` when it was seen before.
+pub async fn record_event(
+    connection: &mut PgConnection,
+    id: &str,
+    kind: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO stripe_events (id, type) VALUES ($1, $2) ON CONFLICT DO NOTHING RETURNING 1",
+        id,
+        kind,
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|row| row.is_some())
+}
+
+pub async fn user_by_customer(
+    connection: &mut PgConnection,
+    customer_id: &str,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT user_unid FROM subscriptions WHERE stripe_customer_id = $1",
+        customer_id,
+    )
+    .fetch_optional(connection)
+    .await
+}
+
+/// A Stripe subscription as one event saw it.
+pub struct SyncedSubscription<'a> {
+    pub user_unid: Uuid,
+    pub plan: Plan,
+    pub status: SubscriptionStatus,
+    pub interval: BillingInterval,
+    pub current_period_end: Option<DateTime<Utc>>,
+    pub cancel_at_period_end: bool,
+    pub customer_id: &'a str,
+    pub subscription_id: &'a str,
+    pub event_at: DateTime<Utc>,
+}
+
+/// Mirrors a Stripe subscription onto the host's row. An event older than
+/// the last one applied changes nothing, and neither does the end of a
+/// subscription the host has since replaced.
+pub async fn sync_subscription(
+    connection: &mut PgConnection,
+    synced: &SyncedSubscription<'_>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO subscriptions (user_unid, plan, status, billing_interval, current_period_end,
+                                    cancel_at_period_end, stripe_customer_id, stripe_subscription_id,
+                                    stripe_synced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         ON CONFLICT (user_unid) DO UPDATE SET
+             plan = EXCLUDED.plan, status = EXCLUDED.status,
+             billing_interval = EXCLUDED.billing_interval,
+             current_period_end = EXCLUDED.current_period_end,
+             cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+             stripe_customer_id = EXCLUDED.stripe_customer_id,
+             stripe_subscription_id = EXCLUDED.stripe_subscription_id,
+             stripe_synced_at = EXCLUDED.stripe_synced_at,
+             updated_at = now()
+         WHERE (subscriptions.stripe_synced_at IS NULL
+                OR subscriptions.stripe_synced_at <= EXCLUDED.stripe_synced_at)
+           AND (EXCLUDED.status <> 'canceled'
+                OR subscriptions.stripe_subscription_id IS NULL
+                OR subscriptions.stripe_subscription_id = EXCLUDED.stripe_subscription_id)
+         RETURNING 1",
+        synced.user_unid,
+        synced.plan.as_str(),
+        synced.status.as_str(),
+        synced.interval.as_str(),
+        synced.current_period_end,
+        synced.cancel_at_period_end,
+        synced.customer_id,
+        synced.subscription_id,
+        synced.event_at,
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|_| ())
+}

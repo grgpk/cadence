@@ -32,6 +32,7 @@ import { Route as BookSlugRouteImport } from './routes/book/$slug'
 import { Route as BookingTokenRouteImport } from './routes/booking/$token'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/availability'
+import { Route as DashboardBillingRouteImport } from './routes/dashboard/billing'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardAppsIndexRouteImport } from './routes/dashboard/apps/index'
@@ -154,6 +155,11 @@ const DashboardAvailabilityRoute = DashboardAvailabilityRouteImport.update({
   path: '/availability',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardBillingRoute = DashboardBillingRouteImport.update({
+  id: '/billing',
+  path: '/billing',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardBookingsRoute = DashboardBookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
@@ -208,6 +214,7 @@ export interface FileRoutesByFullPath {
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
+  '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
@@ -237,6 +244,7 @@ export interface FileRoutesByTo {
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
+  '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin': typeof AdminIndexRoute
@@ -269,6 +277,7 @@ export interface FileRoutesById {
   '/book/$slug': typeof BookSlugRoute
   '/booking/$token': typeof BookingTokenRoute
   '/dashboard/availability': typeof DashboardAvailabilityRoute
+  '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/admin/': typeof AdminIndexRoute
@@ -302,6 +311,7 @@ export interface FileRouteTypes {
     | '/book/$slug'
     | '/booking/$token'
     | '/dashboard/availability'
+    | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
     | '/admin/'
@@ -331,6 +341,7 @@ export interface FileRouteTypes {
     | '/book/$slug'
     | '/booking/$token'
     | '/dashboard/availability'
+    | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
     | '/admin'
@@ -362,6 +373,7 @@ export interface FileRouteTypes {
     | '/book/$slug'
     | '/booking/$token'
     | '/dashboard/availability'
+    | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
     | '/admin/'
@@ -551,6 +563,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAvailabilityRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/billing': {
+      id: '/dashboard/billing'
+      path: '/billing'
+      fullPath: '/dashboard/billing'
+      preLoaderRoute: typeof DashboardBillingRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/dashboard/bookings': {
       id: '/dashboard/bookings'
       path: '/bookings'
@@ -624,6 +643,7 @@ const AdminRouteRouteWithChildren = AdminRouteRoute._addFileChildren(
 
 interface DashboardRouteRouteChildren {
   DashboardAvailabilityRoute: typeof DashboardAvailabilityRoute
+  DashboardBillingRoute: typeof DashboardBillingRoute
   DashboardBookingsRoute: typeof DashboardBookingsRoute
   DashboardSettingsRoute: typeof DashboardSettingsRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
@@ -635,6 +655,7 @@ interface DashboardRouteRouteChildren {
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAvailabilityRoute: DashboardAvailabilityRoute,
+  DashboardBillingRoute: DashboardBillingRoute,
   DashboardBookingsRoute: DashboardBookingsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,

@@ -3,6 +3,7 @@ use std::env;
 use anyhow::Context;
 use axum::http::{HeaderValue, Method, header};
 use cadence_backend::app_state::AppState;
+use cadence_backend::domain::billing::stripe::Payments;
 use cadence_backend::domain::google_calendar::calendar::{GoogleCalendar, HostCalendar};
 use cadence_backend::tracing_setup::setup_tracing;
 use sqlx::postgres::PgPoolOptions;
@@ -40,29 +41,37 @@ async fn main() -> anyhow::Result<()> {
         .collect();
 
     let calendar = HostCalendar::Google(GoogleCalendar::new(pool.clone()));
-    let app = cadence_backend::build_app(AppState { pool, calendar })
-        .layer(TraceLayer::new_for_http())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(cors_origins)
-                .allow_methods([
-                    Method::GET,
-                    Method::POST,
-                    Method::PUT,
-                    Method::PATCH,
-                    Method::DELETE,
-                    Method::OPTIONS,
-                ])
-                .allow_headers([
-                    header::CONTENT_TYPE,
-                    header::AUTHORIZATION,
-                    header::COOKIE,
-                    header::ACCEPT,
-                ])
-                .allow_credentials(AllowCredentials::yes()),
-        )
-        .layer(PropagateRequestIdLayer::x_request_id())
-        .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
+    let payments = Payments::from_env();
+    if payments.is_none() {
+        info!("Stripe keys or prices are not set: payments are off");
+    }
+    let app = cadence_backend::build_app(AppState {
+        pool,
+        calendar,
+        payments,
+    })
+    .layer(TraceLayer::new_for_http())
+    .layer(
+        CorsLayer::new()
+            .allow_origin(cors_origins)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PUT,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers([
+                header::CONTENT_TYPE,
+                header::AUTHORIZATION,
+                header::COOKIE,
+                header::ACCEPT,
+            ])
+            .allow_credentials(AllowCredentials::yes()),
+    )
+    .layer(PropagateRequestIdLayer::x_request_id())
+    .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
 
     let address = "0.0.0.0:3001";
     info!(%address, "Listening");

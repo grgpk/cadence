@@ -18,6 +18,7 @@ export const ROUTES = {
   dashboardAppsInstalled: "/dashboard/apps/installed",
   dashboardApp: "/dashboard/apps/$slug",
   dashboardSettings: "/dashboard/settings",
+  dashboardBilling: "/dashboard/billing",
   admin: "/admin",
 } as const;
 

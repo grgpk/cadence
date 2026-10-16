@@ -6,6 +6,7 @@ import type { RegisterRequest } from "../bindings/RegisterRequest";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { checkoutIntent } from "../domains/billing/billing";
 import { AuthCard, PasswordInput } from "../domains/shared/auth-card";
 import { ConsentNotice } from "../domains/shared/consent-notice";
 import { RouteError } from "../domains/shared/not-found";
@@ -20,8 +21,14 @@ const REGISTER_ERRORS = {
 };
 
 export const Route = createFileRoute("/register")({
-  beforeLoad: async () => {
-    if (await getSessionUser()) throw redirect({ to: ROUTES.dashboard });
+  // `?plan=&interval=` from the pricing page: after sign-up, billing offers it.
+  validateSearch: checkoutIntent,
+  beforeLoad: async ({ search }) => {
+    if (await getSessionUser()) {
+      throw search.plan
+        ? redirect({ to: ROUTES.dashboardBilling, search })
+        : redirect({ to: ROUTES.dashboard });
+    }
   },
   head: () => ({ meta: [{ title: `Create account | ${APP_NAME}` }, NOINDEX_META] }),
   component: RegisterPage,
@@ -29,6 +36,7 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
+  const intent = Route.useSearch();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const registerMutation = useMutation({
@@ -40,7 +48,11 @@ function RegisterPage() {
     onSuccess: () => {
       // Anything cached belongs to whoever used this tab before.
       queryClient.clear();
-      void navigate({ to: ROUTES.dashboard });
+      void navigate(
+        intent.plan
+          ? { to: ROUTES.dashboardBilling, search: intent }
+          : { to: ROUTES.dashboard },
+      );
     },
   });
 

@@ -25,6 +25,9 @@ pub enum AppError {
     Conflict(String),
     #[error("too many attempts, try again in a few minutes")]
     TooManyRequests,
+    /// A feature this server is not set up for, such as payments without keys.
+    #[error("unavailable: {0}")]
+    Unavailable(String),
     #[error("database failure")]
     Database(#[source] sqlx::Error),
     #[error("internal failure")]
@@ -46,6 +49,7 @@ impl IntoResponse for AppError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
+            Self::Unavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Database(ref error) => {
                 tracing::error!(%error, "database error");
                 StatusCode::INTERNAL_SERVER_ERROR

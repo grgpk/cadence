@@ -1,6 +1,7 @@
 import {
   CalendarCheck,
   Clock,
+  CreditCard,
   LayoutDashboard,
   LayoutGrid,
   Settings,
@@ -25,6 +26,7 @@ export const DASHBOARD_NAV: NavSection[] = [
         ],
       },
       { title: "Settings", to: ROUTES.dashboardSettings, icon: Settings },
+      { title: "Billing", to: ROUTES.dashboardBilling, icon: CreditCard },
     ],
   },
 ];
