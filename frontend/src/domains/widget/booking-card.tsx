@@ -278,6 +278,7 @@ function Booking({
                 slug={slug}
                 timeZone={timezone.iana}
                 emptyDescription={emptyDescription}
+                windowDays={page.booking_window_days}
                 hour12={hour12}
                 onHour12Change={changeHour12}
                 onPick={pickTime}

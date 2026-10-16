@@ -96,3 +96,37 @@ export function sharedLength(slots: TimeSlot[]): number | null {
   const lengths = new Set(slots.map((slot) => slot.minutes));
   return lengths.size === 1 ? (slots[0]?.minutes ?? null) : null;
 }
+
+/** One time of day across a week: the open slot on each day, or `null`. */
+type TimetableRow = {
+  /** Minutes since the visitor's midnight. */
+  minutes: number;
+  cells: (TimeSlot | null)[];
+};
+
+/**
+ * A week's open times as rows, one per time of day, so the same time lines up
+ * across days. A wall time that happens twice on one day, when clocks go
+ * back, keeps the first slot.
+ */
+export function weekTimetable(
+  days: SlotDay[],
+  week: CivilDay[],
+  timeZone: string,
+): TimetableRow[] {
+  const byKey = new Map(days.map((day) => [day.key, day]));
+  const rows = new Map<number, TimetableRow>();
+  week.forEach((day, column) => {
+    for (const slot of byKey.get(dayKey(day))?.slots ?? []) {
+      const { hour, minute } = zonedTime(new Date(slot.start), timeZone);
+      const minutes = hour * 60 + minute;
+      let row = rows.get(minutes);
+      if (!row) {
+        row = { minutes, cells: week.map(() => null) };
+        rows.set(minutes, row);
+      }
+      row.cells[column] ??= slot;
+    }
+  });
+  return [...rows.values()].sort((a, b) => a.minutes - b.minutes);
+}

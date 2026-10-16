@@ -32,6 +32,7 @@ export function TimeChip({
   hour12,
   picked,
   onPick,
+  dayLabel,
   className,
 }: {
   slot: TimeSlot;
@@ -39,10 +40,13 @@ export function TimeChip({
   hour12: boolean;
   picked: boolean;
   onPick: (slot: TimeSlot) => void;
+  /** Read out with the time where the day is not in a heading nearby. */
+  dayLabel?: string;
   className?: string;
 }) {
   const start = new Date(slot.start);
   const styles = PHASE_STYLES[dayPhase(zonedTime(start, timeZone).hour)];
+  const time = clockLabel(start, timeZone, hour12);
   return (
     <Button
       type="button"
@@ -52,6 +56,7 @@ export function TimeChip({
         picked && styles.picked,
         className,
       )}
+      aria-label={dayLabel ? `${dayLabel}, ${time}` : undefined}
       onClick={() => onPick(slot)}
     >
       <span
@@ -62,7 +67,7 @@ export function TimeChip({
           picked ? "w-full" : "w-[3px] group-hover:w-1.5",
         )}
       />
-      <span className="relative">{clockLabel(start, timeZone, hour12)}</span>
+      <span className="relative">{time}</span>
     </Button>
   );
 }

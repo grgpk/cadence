@@ -8,6 +8,7 @@ import {
   slotsByDay,
   weekDays,
   weekLabel,
+  weekTimetable,
 } from "./slot-days";
 
 const slot = (start: string) => ({ start, minutes: 30 });
@@ -83,4 +84,37 @@ it("knows the call length only when every time agrees", () => {
     sharedLength([slot("2026-10-17T12:00:00Z"), { start: "x", minutes: 45 }]),
   ).toBeNull();
   expect(sharedLength([])).toBeNull();
+});
+
+describe("weekTimetable", () => {
+  const week = weekDays({ year: 2026, month: 10, day: 17 });
+
+  it("lines the same time up across days, earliest row first", () => {
+    const days = slotsByDay(
+      [
+        slot("2026-10-17T14:00:00Z"),
+        slot("2026-10-19T09:00:00Z"),
+        slot("2026-10-19T14:00:00Z"),
+      ],
+      "UTC",
+    );
+    const rows = weekTimetable(days, week, "UTC");
+    expect(rows.map((row) => row.minutes)).toEqual([9 * 60, 14 * 60]);
+    expect(rows[0]?.cells.map((cell) => cell?.start ?? null)).toEqual([
+      null,
+      null,
+      "2026-10-19T09:00:00Z",
+      null,
+      null,
+      null,
+      null,
+    ]);
+    expect(rows[1]?.cells[0]?.start).toBe("2026-10-17T14:00:00Z");
+    expect(rows[1]?.cells[2]?.start).toBe("2026-10-19T14:00:00Z");
+  });
+
+  it("leaves out days past the week", () => {
+    const days = slotsByDay([slot("2026-10-30T09:00:00Z")], "UTC");
+    expect(weekTimetable(days, week, "UTC")).toEqual([]);
+  });
 });

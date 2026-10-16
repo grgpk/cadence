@@ -29,16 +29,21 @@ in the summary column.
 │ host       │ Oct 17 – 23                ‹ ›   12h | 24h   │
 │ title      │ Sat   Sun   Mon   Tue   Wed   Thu   Fri      │
 │ ◷ 30 min   │ 17    18    19    20    21    22    23       │
-│ 🌐 tz      │ ▌12:00▌12:00▌11:00▌11:00 …                    │
+│ 🌐 tz      │ ● Morning                                    │
+│            │   ─     ─   ▌11:00▌11:00▌11:00▌11:00▌11:00     │
+│            │ ● Afternoon                                  │
+│            │ ▌12:00▌12:00▌12:00▌12:00 …                    │
 │[Month|Week|List]                                          │
 └────────────┴──────────────────────────────────────────────┘
 List: "Soonest open times", then Tomorrow / Sunday, October 18 / …, each
-day two rows of chips and "Show all 16 times", 5 days at a time with
-"Show more days".
+day with all its times, 5 days at a time with "Show more days".
 Below 760px the week is day columns to swipe through (the next one peeks in);
 the list stacks with 3 chips a row.
 ```
 
+- The week is a timetable: one row per time of day, so the same time lines up
+  across days ("Tuesday at 2" is a glance across), a dash where a day is not
+  open then, and Morning / Afternoon / Evening rows in the phase colors.
 - The week is seven days in a row, starting on the first open day, not on a
   Monday, so it never opens on days that are already gone. ‹ › skip stretches
   with nothing open.
@@ -49,6 +54,11 @@ the list stacks with 3 chips a row.
 - The switch (`view-switch.tsx`) is three equal parts filling the column, with
   one highlight that slides between them. A switched view slides in like a step.
 - On phones the page starts at the top instead of centering the card.
+- Beside the summary, week and list both scroll inside the card (day headings
+  stay pinned, the last times fade out), so all three views keep the card about
+  the month calendar's height and the page does not move. On a phone the page
+  scrolls as usual.
+- The list ends with "Those are all the open times in the next N days."
 
 ## Implementation
 
@@ -61,7 +71,7 @@ the list stacks with 3 chips a row.
 ## Tests
 
 - `slot-days.test.ts`: grouping across zones and a DST change, week span and
-  labels, Today/Tomorrow, layout guard, call length.
+  labels, Today/Tomorrow, layout guard, call length, timetable rows.
 
 ## Definition of done
 

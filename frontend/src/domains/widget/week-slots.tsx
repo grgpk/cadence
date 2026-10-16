@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState, type CSSProperties } from "react";
+import { Fragment, useState, type CSSProperties } from "react";
 
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { Button } from "../../components/ui/button";
@@ -11,12 +11,14 @@ import {
   shortWeekday,
   weekDays,
   weekLabel,
+  weekTimetable,
   type CivilDay,
   type SlotDay,
 } from "./slot-days";
 import { SlotsFrame } from "./slots-frame";
+import { PHASE_STYLES } from "./slot-step";
 import { TimeChip, usePick } from "./time-chip";
-import { zonedTime } from "./zoned-time";
+import { dayPhase, zonedTime } from "./zoned-time";
 
 const WEEK_DAYS = 7;
 
@@ -37,8 +39,9 @@ function firstOpenFrom(days: SlotDay[], day: CivilDay | null): SlotDay | null {
 }
 
 /**
- * Seven days in a row side by side, each with its open times, for a visitor who wants
- * to see the whole week before choosing.
+ * Seven days in a row as a timetable, for a visitor who wants to compare days
+ * before choosing: each row is one time of day, so "Tuesday at 2" is a glance
+ * across.
  */
 export function WeekSlots({
   slug,
@@ -119,35 +122,36 @@ export function WeekSlots({
       }}
     >
       {(days) => {
-        const week = shownWeek(days);
-        if (!week) return null;
-        const byKey = new Map(days.map((day) => [day.key, day]));
+        const start = shownWeek(days);
+        if (!start) return null;
+        const week = weekDays(start);
+        const rows = weekTimetable(days, week, timeZone);
+        const openColumns = week.map((_, column) =>
+          rows.some((row) => row.cells[column] !== null),
+        );
         return (
           // On a phone the days are columns to swipe through, edge to edge.
           // Beside the summary all seven fit and the week scrolls down inside
           // the card; the negative margin moves that scrollbar to the card's edge.
           <div
-            key={dayKey(week)}
+            key={dayKey(start)}
             style={{ "--step-from": `${direction}rem` } as CSSProperties}
             className={cn(
-              "-mx-5 flex snap-x snap-mandatory scroll-px-5 gap-2 overflow-x-auto px-5 pb-1 motion-safe:animate-step-in @[760px]:mx-0 @[760px]:-mr-4 @[760px]:grid @[760px]:max-h-[26rem] @[760px]:snap-none @[760px]:grid-cols-7 @[760px]:overflow-x-visible @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pl-0 @[760px]:pb-8",
+              "-mx-5 snap-x snap-mandatory scroll-px-5 overflow-x-auto px-5 pb-1 motion-safe:animate-step-in @[760px]:mx-0 @[760px]:-mr-4 @[760px]:max-h-[23rem] @[760px]:snap-none @[760px]:overflow-y-auto @[760px]:pr-4 @[760px]:pl-0 @[760px]:pb-8",
               FADE_OUT,
             )}
           >
-            {weekDays(week).map((day) => {
-              const key = dayKey(day);
-              const open = byKey.get(key);
-              const isToday = key === today;
-              return (
-                <section
-                  key={key}
-                  aria-label={longDayLabel(day)}
-                  className="grid w-[5.75rem] shrink-0 snap-start content-start gap-2 @[760px]:w-auto"
-                >
+            {/* One row per time of day, so a time lines up across the week. */}
+            <div className="grid w-max grid-cols-[repeat(7,5.75rem)] gap-2 @[760px]:w-auto @[760px]:grid-cols-7">
+              {week.map((day, column) => {
+                const key = dayKey(day);
+                const isToday = key === today;
+                return (
                   <h3
+                    key={key}
                     className={cn(
-                      "flex flex-col items-center bg-card pb-1 text-sm @[760px]:sticky @[760px]:top-0 @[760px]:z-10",
-                      !open && "text-muted-foreground/60",
+                      "flex snap-start flex-col items-center bg-card pb-1 text-sm @[760px]:sticky @[760px]:top-0 @[760px]:z-10",
+                      !openColumns[column] && "text-muted-foreground/60",
                     )}
                   >
                     <span className="text-xs font-medium text-muted-foreground">
@@ -163,30 +167,58 @@ export function WeekSlots({
                     </span>
                     {isToday ? <span className="sr-only">Today</span> : null}
                   </h3>
-                  {open ? (
-                    <ul className="grid gap-2">
-                      {open.slots.map((slot) => (
-                        <li key={slot.start}>
-                          <TimeChip
-                            slot={slot}
-                            timeZone={timeZone}
-                            hour12={hour12}
-                            picked={picked === slot.start}
-                            onPick={pick}
-                            // Seven columns get narrow before the card is wide.
-                            className="@[760px]:text-sm @[960px]:text-[0.9375rem]"
+                );
+              })}
+              {rows.map((row, index) => {
+                const phase = dayPhase(Math.floor(row.minutes / 60));
+                const startsPhase =
+                  index === 0 ||
+                  dayPhase(Math.floor((rows[index - 1]?.minutes ?? 0) / 60)) !== phase;
+                return (
+                  <Fragment key={row.minutes}>
+                    {startsPhase ? (
+                      <p className="col-span-full pt-2 text-xs font-medium text-muted-foreground">
+                        {/* Stays at the left edge while a phone swipes through days. */}
+                        <span className="sticky left-0 inline-flex items-center gap-2">
+                          <span
+                            aria-hidden="true"
+                            className={cn(
+                              "size-2 rounded-full",
+                              PHASE_STYLES[phase].rail,
+                            )}
                           />
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="text-center text-sm text-muted-foreground/70">
-                      No times
-                    </p>
-                  )}
-                </section>
-              );
-            })}
+                          {phase}
+                        </span>
+                      </p>
+                    ) : null}
+                    {row.cells.map((slot, column) =>
+                      slot ? (
+                        <TimeChip
+                          key={slot.start}
+                          slot={slot}
+                          timeZone={timeZone}
+                          hour12={hour12}
+                          picked={picked === slot.start}
+                          onPick={pick}
+                          dayLabel={longDayLabel(week[column] ?? start)}
+                          // Seven columns get narrow before the card is wide.
+                          className="@[760px]:text-sm @[960px]:text-[0.9375rem]"
+                        />
+                      ) : (
+                        // Not open at this time on this day; a column is a fixed day of this week.
+                        <span
+                          key={column}
+                          aria-hidden="true"
+                          className="flex h-10 items-center justify-center"
+                        >
+                          <span className="h-px w-3 bg-border" />
+                        </span>
+                      ),
+                    )}
+                  </Fragment>
+                );
+              })}
+            </div>
           </div>
         );
       }}
