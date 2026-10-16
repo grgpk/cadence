@@ -11,6 +11,7 @@ import { Label } from "../../components/ui/label";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
 import { formatDay } from "../../lib/format";
+import { ConsentNotice } from "../shared/consent-notice";
 import { Field, fieldHelpId } from "../shared/field";
 import {
   DEFAULT_TIMEZONE,
@@ -361,6 +362,8 @@ export function DetailsStep({
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
         ) : null}
+
+        <ConsentNotice />
 
         <div className="flex items-center justify-between gap-3 border-t pt-5">
           <Button type="button" variant="ghost" onClick={onBack}>

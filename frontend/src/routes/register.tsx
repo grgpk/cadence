@@ -7,6 +7,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { AuthCard, PasswordInput } from "../domains/shared/auth-card";
+import { ConsentNotice } from "../domains/shared/consent-notice";
 import { RouteError } from "../domains/shared/not-found";
 import { api } from "../lib/api";
 import { getSessionUser } from "../lib/auth";
@@ -94,6 +95,7 @@ function RegisterPage() {
           At least 8 characters.
         </p>
       </div>
+      <ConsentNotice />
       <Button className="mt-2 w-full" disabled={registerMutation.isPending}>
         {registerMutation.isPending ? <Loader2 className="animate-spin" /> : null}
         {registerMutation.isPending ? "Creating account" : "Create account"}
