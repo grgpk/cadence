@@ -43,6 +43,14 @@ effect is off under `prefers-reduced-motion`, no hardcoded colors, and
 3. **Day to night.** The theme toggle opens the new theme as a circle from the
    button, using `--reveal-x`, `--reveal-y` and `--reveal-r` set at click time
    and scoped by `data-theme-switch` on `<html>`.
+4. **Theme card.** Settings has a Theme card, like Cal.com's: System, Light or
+   Dark, saved per device in `localStorage`. A device that never chose gets
+   Dark. The card and the top bar toggle read one store, so they never
+   disagree, and System follows the OS live.
+5. **Cal.com neutrals.** Paper, ink, surfaces, borders and focus rings use
+   Cal.com's grays: white and gray-50 under gray-900 ink in light; #101010,
+   #1c1c1c and #2b2b2b under white ink in dark. The day colors and the
+   signal stay; only the navy tint is gone.
 
 ```
 details step                         confirmation
@@ -84,7 +92,10 @@ while the router is pending, starting after 150ms so quick changes stay clean.
   including the reduced-motion ones.
 - `router.tsx`: `defaultViewTransition`.
 - `routes/__root.tsx`: `NavigationProgress`.
-- `lib/theme.ts`, `domains/shared/ThemeToggle.tsx`: the reveal.
+- `hooks/theme.ts`, `domains/shared/theme-toggle.tsx`: the reveal; the
+  preference store (`useSyncExternalStore`) and the dark default.
+- `domains/dashboard/appearance-section.tsx`: the Theme card. Its previews use
+  the real tokens through `.light` and `.dark` classes in `globals.css`.
 - `domains/landing/`: spool wrapper, entrance, closing band.
 - `domains/widget/`: `SlotStep` (first-month jump, stagger), `BookingCard`
   (skeleton), `DetailsStep` and `routes/booking-confirmation.tsx` (the morph).
@@ -108,6 +119,8 @@ while the router is pending, starting after 150ms so quick changes stay clean.
     the block drops in instead.
   - Toggle the theme from the landing header and the dashboard top bar, by
     mouse and by keyboard.
+  - Clear storage: the app loads dark with no flash. Pick each option in the
+    Theme card; the top bar icon follows, and a second tab follows too.
   - Move between dashboard pages; throttle the network to see the top line.
   - A host whose first open time is next month opens on that month.
 - With reduced motion on: no spool, morph, reveal or cross-fade, and popovers

@@ -49,7 +49,7 @@ export const Route = createRootRoute({
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "theme-color", content: "#151b3d" },
+      { name: "theme-color", content: "#101010" },
     ],
     links: [
       { rel: "icon", href: "/favicon.svg" },

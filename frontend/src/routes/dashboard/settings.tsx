@@ -13,6 +13,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
 import { Textarea } from "../../components/ui/textarea";
 import { AccountSection } from "../../domains/dashboard/account-section";
+import { AppearanceSection } from "../../domains/dashboard/appearance-section";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
 import { GoogleCalendarConnection } from "../../domains/dashboard/google-calendar-connection";
 import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
@@ -46,6 +47,7 @@ const SECTION_TITLES = {
   [SETTINGS_SECTIONS.rules]: "Booking rules",
   [SETTINGS_SECTIONS.calls]: "Where calls happen",
   [SETTINGS_SECTIONS.questions]: "Questions to ask",
+  [SETTINGS_SECTIONS.appearance]: "Theme",
   [SETTINGS_SECTIONS.account]: "Account",
 } as const;
 type SectionId = keyof typeof SECTION_TITLES;
@@ -435,7 +437,7 @@ function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Your booking page, where calls happen and what the form asks."
+        description="Your booking page, where calls happen, what the form asks and how the app looks."
       />
       {query.isPending ? (
         <div className="grid gap-6">
@@ -454,6 +456,12 @@ function SettingsPage() {
         <div className="grid items-start gap-10 xl:grid-cols-[minmax(0,42rem)_minmax(0,1fr)]">
           <div className="grid max-w-2xl gap-6">
             <SettingsForm saved={query.data} />
+            <Section
+              id={SETTINGS_SECTIONS.appearance}
+              description="How the app looks on this device. Saves on its own."
+            >
+              <AppearanceSection />
+            </Section>
             {user ? (
               <Section
                 id={SETTINGS_SECTIONS.account}
