@@ -107,6 +107,7 @@ cadence/
 | 20 | `PLAN_20_OVERVIEW_FOCUS.md` | overview leads with setup problems and the call that matters now; one Today card; date overrides on the day strip | 🔄 in progress |
 | 21 | `PLAN_21_BOOKING_VIEWS.md` | booking page gets week and list views beside the month calendar; `?view=` opens one | 🔄 in progress |
 | 22 | `PLAN_22_SLOT_POLICY.md` | one slot policy module decides and reserves open times; host calendar behind a seam with Google and in-memory adapters | 🔄 in progress |
+| 23 | `PLAN_23_EMAIL_QUEUE.md` | the email queue decides which emails a booked, moved or cancelled call sends; typed payloads; one writer of the queue | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

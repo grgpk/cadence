@@ -7,20 +7,39 @@ use uuid::Uuid;
 /// content is being refused, and another try will not change that.
 pub const MAX_ATTEMPTS: i32 = 20;
 
-/// Queues an email that belongs to no booking, to be sent right away.
+/// Queues an email to go out at `send_at`. `booking_unid` ties it to a call,
+/// so it can be dropped when the call moves or is cancelled.
 pub async fn queue(
     connection: &mut PgConnection,
+    booking_unid: Option<Uuid>,
     email: &str,
     template: &str,
+    send_at: DateTime<Utc>,
     payload: Value,
 ) -> Result<(), sqlx::Error> {
     sqlx::query_scalar!(
-        "INSERT INTO email_queue (email, template, send_at, payload) VALUES ($1, $2, now(), $3) RETURNING 1",
+        "INSERT INTO email_queue (booking_unid, email, template, send_at, payload) VALUES ($1, $2, $3, $4, $5) RETURNING 1",
+        booking_unid,
         email,
         template,
+        send_at,
         payload,
     )
     .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Drops the emails a call still has waiting, such as its reminders.
+pub async fn drop_unsent(
+    connection: &mut PgConnection,
+    booking_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM email_queue WHERE booking_unid = $1 AND sent_at IS NULL RETURNING 1",
+        booking_unid,
+    )
+    .fetch_all(connection)
     .await
     .map(|_| ())
 }

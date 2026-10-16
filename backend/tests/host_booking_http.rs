@@ -14,16 +14,17 @@ use cadence_backend::{
     build_app,
     domain::{
         auth::service::make_token,
+        bookings,
         emails::{
             self,
-            service::RenderedEmail,
+            service::{CancelledBy, RenderedEmail},
             worker::{self, Mailer},
         },
         google_calendar::{
             calendar::{HostCalendar, InMemoryCalendar},
             db::GoogleCalendarDb,
         },
-        leads,
+        host_settings, leads,
     },
 };
 use chrono::{DateTime, Duration, Timelike, Utc};
@@ -1089,16 +1090,14 @@ async fn an_invitee_reads_their_call_through_the_manage_link(pool: PgPool) {
     }
 
     // The host hears about the new call; the invitee's emails carry the link.
-    assert_eq!(
-        waiting_emails(&pool, unid).await,
-        [
-            "booking_confirmation -> ada@example.com",
-            "host_new_booking -> nino@example.com",
-            "reminder_24h -> ada@example.com",
-            "reminder_2h -> ada@example.com",
-            "reminder_30min -> ada@example.com",
-        ]
-    );
+    // Which emails a booking sends, and when, is the email queue's to test.
+    let waiting = waiting_emails(&pool, unid).await;
+    for email in [
+        "booking_confirmation -> ada@example.com",
+        "host_new_booking -> nino@example.com",
+    ] {
+        assert!(waiting.iter().any(|line| line == email), "{email}");
+    }
     let without_link = sqlx::query_scalar!(
         "SELECT count(*) FROM email_queue
          WHERE booking_unid = $1 AND email = 'ada@example.com'
@@ -1213,26 +1212,14 @@ async fn an_invitee_moves_their_call_to_another_open_time(pool: PgPool) {
     let (_, mine) = get(&app, "/api/bookings", Some(&host.cookie)).await;
     assert_eq!(mine.as_array().map(Vec::len), Some(2), "moved, not copied");
 
-    // The old emails are replaced: both sides are told and the reminders
-    // follow the new time.
-    assert_eq!(
-        waiting_emails(&pool, unid).await,
-        [
-            "booking_rescheduled -> ada@example.com",
-            "host_booking_rescheduled -> nino@example.com",
-            "reminder_24h -> ada@example.com",
-            "reminder_2h -> ada@example.com",
-            "reminder_30min -> ada@example.com",
-        ]
-    );
-    let reminder = sqlx::query_scalar!(
-        "SELECT send_at FROM email_queue WHERE booking_unid = $1 AND template = 'reminder_30min'",
-        unid,
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("queue is readable");
-    assert_eq!(reminder, new - Duration::minutes(30));
+    // The old emails are replaced and both sides are told.
+    let waiting = waiting_emails(&pool, unid).await;
+    for email in [
+        "booking_rescheduled -> ada@example.com",
+        "host_booking_rescheduled -> nino@example.com",
+    ] {
+        assert!(waiting.iter().any(|line| line == email), "{email}");
+    }
     let stale = sqlx::query_scalar!(
         "SELECT count(*) FROM email_queue
          WHERE booking_unid = $1 AND (payload->>'slot_start')::timestamptz <> $2",
@@ -1631,27 +1618,15 @@ async fn an_unknown_template_fails_without_holding_up_the_queue(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
-async fn emails_about_a_started_or_cancelled_call_are_dropped(pool: PgPool) {
+async fn emails_about_a_cancelled_call_are_dropped(pool: PgPool) {
+    // Which emails a started or cancelled call still sends is `delivery`'s to
+    // test; here, that the call's status reaches the worker from its row.
     let app = app(&pool);
     let (_, slug) = host_with_hours(&app, "nino@example.com").await;
-    let open = slots(&app, &slug).await;
-    let [.., started_at, cancelled_at] = open[..] else {
-        panic!("the host has at least two open times");
-    };
-
-    // The worker was down past the start of this call.
-    let (started, _) = book(&app, &slug, started_at).await;
-    make_due(&pool, started).await;
-    sqlx::query_scalar!(
-        "UPDATE bookings SET slot_start = now() - interval '1 minute' WHERE unid = $1 RETURNING 1",
-        started,
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("booking exists");
+    let start = *slots(&app, &slug).await.last().expect("open times");
 
     // This call was cancelled with its emails still waiting.
-    let (cancelled, _) = book(&app, &slug, cancelled_at).await;
+    let (cancelled, _) = book(&app, &slug, start).await;
     make_due(&pool, cancelled).await;
     sqlx::query_scalar!(
         "UPDATE bookings SET status = 'cancelled', cancelled_at = now() WHERE unid = $1 RETURNING 1",
@@ -1674,12 +1649,7 @@ async fn emails_about_a_started_or_cancelled_call_are_dropped(pool: PgPool) {
     worker::process_due(&pool, &outbox).await;
     assert_eq!(
         outbox.sent(),
-        [
-            // A late "you booked" still says something true; a late reminder does not.
-            "Ada Lovelace booked a call -> nino@example.com",
-            "Your call was cancelled -> ada@example.com",
-            "Your call with Nino Tbilisi is booked -> ada@example.com",
-        ]
+        ["Your call was cancelled -> ada@example.com"]
     );
     // What was not sent is gone, so no list shows it as sent or waiting.
     let left = sqlx::query_scalar!(
@@ -1689,14 +1659,7 @@ async fn emails_about_a_started_or_cancelled_call_are_dropped(pool: PgPool) {
     .fetch_all(&pool)
     .await
     .expect("queue is readable");
-    assert_eq!(
-        left,
-        [
-            "booking_cancelled sent=true",
-            "booking_confirmation sent=true",
-            "host_new_booking sent=true",
-        ]
-    );
+    assert_eq!(left, ["booking_cancelled sent=true"]);
 }
 
 #[sqlx::test(migrations = "../migrations")]
@@ -2351,4 +2314,91 @@ async fn a_connected_calendar_keeps_an_event_that_follows_the_call(pool: PgPool)
     .await;
     assert_eq!(status, StatusCode::OK);
     assert!(calendar.events(host.unid)[0].deleted);
+}
+
+/// A booked call as the email queue is told about it, with nothing waiting:
+/// the emails the booking itself queued are dropped first.
+async fn call_with_empty_queue(
+    pool: &PgPool,
+    app: &Router,
+    start: DateTime<Utc>,
+) -> (
+    bookings::models::Booking,
+    host_settings::models::BookingPage,
+) {
+    let (host, slug) = host_in_tbilisi(app, 0, &[("09:00:00", "13:00:00", 60)]).await;
+    let (unid, _) = book(app, &slug, start).await;
+    let booking = bookings::db::find(pool, host.unid, unid)
+        .await
+        .expect("bookings are readable")
+        .expect("the call exists");
+    let page = host_settings::service::page_of_host(pool, host.unid)
+        .await
+        .expect("the page exists");
+    let mut connection = pool.acquire().await.expect("a connection");
+    emails::db::drop_unsent(&mut connection, unid)
+        .await
+        .expect("queue is writable");
+    (booking, page)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
+    let app = app(&pool);
+    let start = tbilisi(3, 10, 0);
+    let (booking, page) = call_with_empty_queue(&pool, &app, start).await;
+    let mut connection = pool.acquire().await.expect("a connection");
+
+    // Booked 3 hours ahead: the 24 hour reminder is already past.
+    let now = start - Duration::hours(3);
+    emails::service::booked(&mut connection, &booking, &page, now)
+        .await
+        .expect("queued");
+    assert_eq!(
+        waiting_emails(&pool, booking.unid).await,
+        [
+            "booking_confirmation -> ada@example.com",
+            "host_new_booking -> nino@example.com",
+            "reminder_2h -> ada@example.com",
+            "reminder_30min -> ada@example.com",
+        ]
+    );
+
+    // Moved, seen from 30 hours ahead: what waited is replaced, every reminder is ahead.
+    let now = start - Duration::hours(30);
+    emails::service::rescheduled(&mut connection, &booking, &page, now)
+        .await
+        .expect("queued");
+    assert_eq!(
+        waiting_emails(&pool, booking.unid).await,
+        [
+            "booking_rescheduled -> ada@example.com",
+            "host_booking_rescheduled -> nino@example.com",
+            "reminder_24h -> ada@example.com",
+            "reminder_2h -> ada@example.com",
+            "reminder_30min -> ada@example.com",
+        ]
+    );
+    let reminder = sqlx::query_scalar!(
+        "SELECT send_at FROM email_queue WHERE booking_unid = $1 AND template = 'reminder_30min'",
+        booking.unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(reminder, start - Duration::minutes(30));
+
+    // Cancelled: nothing waiting goes out; the side that did not cancel is told.
+    for (by, told) in [
+        (CancelledBy::Host, "booking_cancelled -> ada@example.com"),
+        (
+            CancelledBy::Invitee,
+            "host_booking_cancelled -> nino@example.com",
+        ),
+    ] {
+        emails::service::cancelled(&mut connection, &booking, &page, by, now)
+            .await
+            .expect("queued");
+        assert_eq!(waiting_emails(&pool, booking.unid).await, [told]);
+    }
 }

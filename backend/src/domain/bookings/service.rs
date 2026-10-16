@@ -1,6 +1,5 @@
-use chrono::{DateTime, Duration, Utc};
-use serde_json::json;
-use sqlx::{PgConnection, PgPool};
+use chrono::Utc;
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::slots::{self, Reserved, SLOT_TAKEN};
@@ -14,12 +13,7 @@ use super::{
 use crate::{
     domain::{
         availability::models::TimeSlot,
-        emails::service::{
-            self as emails, BOOKING_CANCELLED_TEMPLATE, BOOKING_CONFIRMATION_TEMPLATE,
-            BOOKING_RESCHEDULED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE,
-            HOST_BOOKING_RESCHEDULED_TEMPLATE, HOST_NEW_BOOKING_TEMPLATE, REMINDER_2H_TEMPLATE,
-            REMINDER_24H_TEMPLATE, REMINDER_30MIN_TEMPLATE,
-        },
+        emails::service::{self as emails, CancelledBy},
         google_calendar::calendar::{HostCalendar, NewEvent},
         host_settings::{
             models::{BookingPage, ConferencingApp},
@@ -55,6 +49,7 @@ pub async fn create(
     request: CreateBookingRequest,
 ) -> AppResult<CreatedBooking> {
     validate(&request)?;
+    let now = Utc::now();
     let host_unid = page.host_unid;
     if let Some(lead_unid) = request.lead_unid
         && leads::get(pool, host_unid, lead_unid).await?.is_none()
@@ -67,7 +62,7 @@ pub async fn create(
     let Reserved {
         mut transaction,
         slot,
-    } = slots::reserve(pool, calendar, page, request.slot_start, Utc::now(), None).await?;
+    } = slots::reserve(pool, calendar, page, request.slot_start, now, None).await?;
     let booking = match db::create(
         &mut transaction,
         host_unid,
@@ -128,68 +123,13 @@ pub async fn create(
         }
         None => booking,
     };
-    queue_invitee_emails(
-        &mut transaction,
-        &booking,
-        page,
-        BOOKING_CONFIRMATION_TEMPLATE,
-    )
-    .await?;
-    db::queue_email(
-        &mut transaction,
-        booking.unid,
-        &page.host_email,
-        HOST_NEW_BOOKING_TEMPLATE,
-        Utc::now(),
-        host_payload(&booking, page),
-    )
-    .await?;
+    emails::booked(&mut transaction, &booking, page, now).await?;
     transaction.commit().await?;
     let manage_token = booking.manage_token.clone();
     Ok(CreatedBooking {
         booking,
         manage_token,
     })
-}
-
-/// Queues the email that tells the invitee about their call now, and the
-/// reminders that are still ahead of it.
-async fn queue_invitee_emails(
-    connection: &mut PgConnection,
-    booking: &Booking,
-    page: &BookingPage,
-    notice_template: &str,
-) -> Result<(), sqlx::Error> {
-    let payload = invitee_payload(booking, page);
-    let now = Utc::now();
-    for (template, send_at) in [
-        (notice_template, now),
-        (
-            REMINDER_24H_TEMPLATE,
-            booking.slot_start - Duration::hours(24),
-        ),
-        (
-            REMINDER_2H_TEMPLATE,
-            booking.slot_start - Duration::hours(2),
-        ),
-        (
-            REMINDER_30MIN_TEMPLATE,
-            booking.slot_start - Duration::minutes(30),
-        ),
-    ] {
-        if send_at >= now {
-            db::queue_email(
-                connection,
-                booking.unid,
-                &booking.invitee_email,
-                template,
-                send_at,
-                payload.clone(),
-            )
-            .await?;
-        }
-    }
-    Ok(())
 }
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Booking>> {
@@ -207,13 +147,6 @@ pub async fn detail(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<Boo
         None => None,
     };
     Ok(BookingDetail { booking, lead })
-}
-
-/// Who called a call off decides who still has to hear about it.
-#[derive(Clone, Copy)]
-enum CancelledBy {
-    Host,
-    Invitee,
 }
 
 /// A host calls off their own call: the invitee is told.
@@ -246,28 +179,7 @@ async fn cancel_call(
     let Some(booking) = db::cancel(&mut transaction, booking.host_unid, booking.unid).await? else {
         return Err(AppError::Conflict(ALREADY_CANCELLED.to_owned()));
     };
-    db::delete_unsent_emails(&mut transaction, booking.unid).await?;
-    let (email, template, payload) = match cancelled_by {
-        CancelledBy::Host => (
-            booking.invitee_email.as_str(),
-            BOOKING_CANCELLED_TEMPLATE,
-            invitee_payload(&booking, page),
-        ),
-        CancelledBy::Invitee => (
-            page.host_email.as_str(),
-            HOST_BOOKING_CANCELLED_TEMPLATE,
-            host_payload(&booking, page),
-        ),
-    };
-    db::queue_email(
-        &mut transaction,
-        booking.unid,
-        email,
-        template,
-        Utc::now(),
-        payload,
-    )
-    .await?;
+    emails::cancelled(&mut transaction, &booking, page, cancelled_by, Utc::now()).await?;
     transaction.commit().await?;
 
     // The call is cancelled either way; a stale calendar event must not undo
@@ -307,6 +219,7 @@ pub async fn reschedule(
 ) -> AppResult<ManagedBooking> {
     let (booking, page) = find_managed(pool, token).await?;
     ensure_can_change(&booking)?;
+    let now = Utc::now();
     // The call does not close the times next to it, but its own time is not
     // another time.
     if request.slot_start == booking.slot_start {
@@ -320,7 +233,7 @@ pub async fn reschedule(
         calendar,
         &page,
         request.slot_start,
-        Utc::now(),
+        now,
         Some(booking.unid),
     )
     .await?;
@@ -340,23 +253,7 @@ pub async fn reschedule(
         }
         Err(error) => return Err(AppError::Database(error)),
     };
-    db::delete_unsent_emails(&mut transaction, booking.unid).await?;
-    queue_invitee_emails(
-        &mut transaction,
-        &booking,
-        &page,
-        BOOKING_RESCHEDULED_TEMPLATE,
-    )
-    .await?;
-    db::queue_email(
-        &mut transaction,
-        booking.unid,
-        &page.host_email,
-        HOST_BOOKING_RESCHEDULED_TEMPLATE,
-        Utc::now(),
-        host_payload(&booking, &page),
-    )
-    .await?;
+    emails::rescheduled(&mut transaction, &booking, &page, now).await?;
     transaction.commit().await?;
 
     // The call has moved either way; the calendar follows when it can.
@@ -416,34 +313,6 @@ fn managed_booking(booking: Booking, page: BookingPage) -> ManagedBooking {
         title: page.title,
         slug: page.public_slug,
     }
-}
-
-/// What an email to the invitee says, in the invitee's own timezone.
-fn invitee_payload(booking: &Booking, page: &BookingPage) -> serde_json::Value {
-    json!({
-        "name": booking.invitee_name,
-        "slot_start": booking.slot_start,
-        "timezone": booking.timezone,
-        "meeting_url": booking.meeting_url,
-        "host_name": page.host_name,
-        "title": page.title,
-        "minutes": booking.minutes,
-        "manage_url": emails::manage_url(&booking.manage_token),
-    })
-}
-
-/// What an email to the host says, in the host's own timezone.
-fn host_payload(booking: &Booking, page: &BookingPage) -> serde_json::Value {
-    json!({
-        "name": booking.invitee_name,
-        "invitee_email": booking.invitee_email,
-        "slot_start": booking.slot_start,
-        "timezone": page.timezone,
-        "host_name": page.host_name,
-        "title": page.title,
-        "minutes": booking.minutes,
-        "bookings_url": emails::host_bookings_url(),
-    })
 }
 
 impl BookingsService {

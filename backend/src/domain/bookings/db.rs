@@ -198,38 +198,3 @@ impl BookingsDb {
         .await
     }
 }
-
-pub async fn queue_email(
-    connection: &mut PgConnection,
-    booking_unid: Uuid,
-    email: &str,
-    template: &str,
-    send_at: DateTime<Utc>,
-    payload: Value,
-) -> Result<(), sqlx::Error> {
-    sqlx::query_scalar!(
-        "INSERT INTO email_queue (booking_unid, email, template, send_at, payload) VALUES ($1, $2, $3, $4, $5) RETURNING 1",
-        booking_unid,
-        email,
-        template,
-        send_at,
-        payload,
-    )
-    .fetch_one(connection)
-    .await
-    .map(|_| ())
-}
-
-/// Drops the emails a booking still has waiting, such as its reminders.
-pub async fn delete_unsent_emails(
-    connection: &mut PgConnection,
-    booking_unid: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query_scalar!(
-        "DELETE FROM email_queue WHERE booking_unid = $1 AND sent_at IS NULL RETURNING 1",
-        booking_unid,
-    )
-    .fetch_all(connection)
-    .await
-    .map(|_| ())
-}

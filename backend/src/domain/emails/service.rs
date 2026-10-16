@@ -1,5 +1,6 @@
 use chrono::{DateTime, Duration, Utc};
-use serde_json::{Value, json};
+use serde::{Deserialize, Deserializer, Serialize, de::DeserializeOwned};
+use serde_json::Value;
 use sqlx::{PgConnection, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::format_description};
 use time_tz::{OffsetDateTimeExt, timezones};
@@ -8,7 +9,13 @@ use super::{
     db::{self, PendingEmail},
     models::{AdminEmail, EmailState},
 };
-use crate::{domain::bookings::models::BookingStatus, error::AppResult};
+use crate::{
+    domain::{
+        bookings::models::{Booking, BookingStatus},
+        host_settings::models::BookingPage,
+    },
+    error::AppResult,
+};
 
 pub const BOOKING_CONFIRMATION_TEMPLATE: &str = "booking_confirmation";
 pub const REMINDER_24H_TEMPLATE: &str = "reminder_24h";
@@ -125,14 +132,278 @@ pub async fn queue_password_reset(
     full_name: &str,
     token: &str,
 ) -> AppResult<()> {
+    let payload = payload_of(&ResetEmail {
+        name: Some(full_name.to_owned()),
+        reset_url: Some(reset_password_url(token)),
+    })?;
     db::queue(
         connection,
+        None,
         email,
         PASSWORD_RESET_TEMPLATE,
-        json!({ "name": full_name, "reset_url": reset_password_url(token) }),
+        Utc::now(),
+        payload,
     )
     .await
     .map_err(Into::into)
+}
+
+/// Who called a call off decides who still has to hear about it.
+#[derive(Clone, Copy)]
+pub enum CancelledBy {
+    Host,
+    Invitee,
+}
+
+/// A call was booked: the invitee gets the confirmation and the reminders
+/// still ahead of the call, and the host hears of it.
+pub async fn booked(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    queue_for_invitee(
+        connection,
+        booking,
+        page,
+        BOOKING_CONFIRMATION_TEMPLATE,
+        now,
+    )
+    .await?;
+    queue_for_host(connection, booking, page, HOST_NEW_BOOKING_TEMPLATE, now).await
+}
+
+/// A call moved: the reminders for its old time go, and both sides hear of
+/// the new one.
+pub async fn rescheduled(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    db::drop_unsent(connection, booking.unid).await?;
+    queue_for_invitee(connection, booking, page, BOOKING_RESCHEDULED_TEMPLATE, now).await?;
+    queue_for_host(
+        connection,
+        booking,
+        page,
+        HOST_BOOKING_RESCHEDULED_TEMPLATE,
+        now,
+    )
+    .await
+}
+
+/// A call was called off: nothing still waiting goes out, and the side that
+/// did not cancel is told.
+pub async fn cancelled(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    by: CancelledBy,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    db::drop_unsent(connection, booking.unid).await?;
+    match by {
+        CancelledBy::Host => {
+            let payload = payload_of(&InviteeEmail::of(booking, page))?;
+            db::queue(
+                connection,
+                Some(booking.unid),
+                &booking.invitee_email,
+                BOOKING_CANCELLED_TEMPLATE,
+                now,
+                payload,
+            )
+            .await
+        }
+        CancelledBy::Invitee => {
+            queue_for_host(
+                connection,
+                booking,
+                page,
+                HOST_BOOKING_CANCELLED_TEMPLATE,
+                now,
+            )
+            .await
+        }
+    }
+}
+
+/// The notice the invitee gets now, and the reminders that are still ahead.
+async fn queue_for_invitee(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    notice: &str,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&InviteeEmail::of(booking, page))?;
+    let start = booking.slot_start;
+    for (template, send_at) in [
+        (notice, now),
+        (REMINDER_24H_TEMPLATE, start - Duration::hours(24)),
+        (REMINDER_2H_TEMPLATE, start - Duration::hours(2)),
+        (REMINDER_30MIN_TEMPLATE, start - Duration::minutes(30)),
+    ] {
+        if send_at >= now {
+            db::queue(
+                connection,
+                Some(booking.unid),
+                &booking.invitee_email,
+                template,
+                send_at,
+                payload.clone(),
+            )
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+async fn queue_for_host(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    template: &str,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&HostEmail::of(booking, page))?;
+    db::queue(
+        connection,
+        Some(booking.unid),
+        &page.host_email,
+        template,
+        now,
+        payload,
+    )
+    .await
+}
+
+fn payload_of(email: &impl Serialize) -> Result<Value, sqlx::Error> {
+    serde_json::to_value(email).map_err(|error| sqlx::Error::Encode(Box::new(error)))
+}
+
+/// What an email to the invitee says, in the invitee's own timezone.
+///
+/// The same type writes the queue row and reads it back. Every field is
+/// optional and read on its own: rows queued before a field existed, or
+/// with a value that no longer reads, still render with what they have.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct InviteeEmail {
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    slot_start: Option<DateTime<Utc>>,
+    #[serde(deserialize_with = "lenient")]
+    timezone: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    meeting_url: Option<String>,
+    /// Rows queued before the host's own link existed named it this.
+    #[serde(deserialize_with = "lenient", skip_serializing)]
+    meet_link: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    host_name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    title: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    minutes: Option<i64>,
+    #[serde(deserialize_with = "lenient")]
+    manage_url: Option<String>,
+}
+
+impl InviteeEmail {
+    fn of(booking: &Booking, page: &BookingPage) -> Self {
+        Self {
+            name: Some(booking.invitee_name.clone()),
+            slot_start: Some(booking.slot_start),
+            timezone: Some(booking.timezone.clone()),
+            meeting_url: booking.meeting_url.clone(),
+            meet_link: None,
+            host_name: Some(page.host_name.clone()),
+            title: Some(page.title.clone()),
+            minutes: Some(i64::from(booking.minutes)),
+            manage_url: Some(manage_url(&booking.manage_token)),
+        }
+    }
+}
+
+/// What an email to the host says, in the host's own timezone.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct HostEmail {
+    /// The invitee's name.
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    invitee_email: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    slot_start: Option<DateTime<Utc>>,
+    #[serde(deserialize_with = "lenient")]
+    timezone: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    host_name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    title: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    minutes: Option<i64>,
+    #[serde(deserialize_with = "lenient")]
+    bookings_url: Option<String>,
+}
+
+impl HostEmail {
+    fn of(booking: &Booking, page: &BookingPage) -> Self {
+        Self {
+            name: Some(booking.invitee_name.clone()),
+            invitee_email: Some(booking.invitee_email.clone()),
+            slot_start: Some(booking.slot_start),
+            timezone: Some(page.timezone.clone()),
+            host_name: Some(page.host_name.clone()),
+            title: Some(page.title.clone()),
+            minutes: Some(i64::from(booking.minutes)),
+            bookings_url: Some(host_bookings_url()),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct ResetEmail {
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    reset_url: Option<String>,
+}
+
+/// A field that does not read as its type counts as missing, instead of
+/// making the whole email unreadable.
+fn lenient<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: DeserializeOwned,
+{
+    Ok(Option::<Value>::deserialize(deserializer)?
+        .and_then(|value| serde_json::from_value(value).ok()))
+}
+
+/// A stored payload as `T`. Anything that is not an object reads as empty.
+fn read<T: DeserializeOwned + Default>(payload: Option<&Value>) -> T {
+    payload
+        .and_then(|value| serde_json::from_value(value.clone()).ok())
+        .unwrap_or_default()
+}
+
+/// A field with something in it.
+fn text(value: Option<&String>) -> Option<&str> {
+    value
+        .map(String::as_str)
+        .filter(|value| !value.trim().is_empty())
+}
+
+/// A field that holds a web link.
+fn link(value: Option<&String>) -> Option<&str> {
+    text(value).filter(|url| url.starts_with("https://") || url.starts_with("http://"))
 }
 
 pub async fn forget_old_sent(pool: &PgPool) -> AppResult<()> {
@@ -198,117 +469,134 @@ struct Content {
 /// only `name`, `slot_start`, `timezone` and `meeting_url`; whatever is
 /// missing is left out.
 pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> {
-    let text = |key: &str| {
-        payload
-            .and_then(|value| value.get(key))
-            .and_then(Value::as_str)
-            .filter(|value| !value.trim().is_empty())
-    };
-    let link = |key: &str| {
-        text(key).filter(|url| url.starts_with("https://") || url.starts_with("http://"))
-    };
-    if template == PASSWORD_RESET_TEMPLATE {
-        return Some(rendered(Content {
-            headline: "Reset your Cadence password".to_owned(),
-            greeting: greeting(text("name")),
-            when: None,
-            details: vec!["This link works for one hour and can be used once.".to_owned()],
-            buttons: link("reset_url")
-                .map(|url| ("Choose a new password", url.to_owned()))
-                .into_iter()
-                .collect(),
-            manage_url: None,
-            note: Some(
-                "If you did not ask for this, ignore this email; your password stays the same.",
-            ),
-            footer: "You are getting this because a password reset was requested for your Cadence account.",
-        }));
-    }
-    let host = text("host_name");
-    let with_host = host.map(|name| format!(" with {name}")).unwrap_or_default();
-    let invitee = text("name");
-    let who = invitee.unwrap_or("Someone");
-    let (for_host, headline) = match template {
-        BOOKING_CONFIRMATION_TEMPLATE => (false, format!("Your call{with_host} is booked")),
-        REMINDER_24H_TEMPLATE => (false, format!("Your call{with_host} is tomorrow")),
-        REMINDER_2H_TEMPLATE => (false, format!("Your call{with_host} starts in 2 hours")),
-        REMINDER_30MIN_TEMPLATE => (false, format!("Your call{with_host} starts in 30 minutes")),
-        BOOKING_CANCELLED_TEMPLATE => (false, format!("Your call{with_host} was cancelled")),
-        BOOKING_RESCHEDULED_TEMPLATE => (false, format!("Your call{with_host} was moved")),
-        HOST_NEW_BOOKING_TEMPLATE => (true, format!("{who} booked a call")),
-        HOST_BOOKING_CANCELLED_TEMPLATE => (true, format!("{who} cancelled their call")),
-        HOST_BOOKING_RESCHEDULED_TEMPLATE => (true, format!("{who} moved their call")),
+    let content = match template {
+        PASSWORD_RESET_TEMPLATE => reset_content(&read(payload)),
+        HOST_NEW_BOOKING_TEMPLATE
+        | HOST_BOOKING_CANCELLED_TEMPLATE
+        | HOST_BOOKING_RESCHEDULED_TEMPLATE => host_content(template, &read(payload)),
+        BOOKING_CONFIRMATION_TEMPLATE
+        | REMINDER_24H_TEMPLATE
+        | REMINDER_2H_TEMPLATE
+        | REMINDER_30MIN_TEMPLATE
+        | BOOKING_CANCELLED_TEMPLATE
+        | BOOKING_RESCHEDULED_TEMPLATE => invitee_content(template, &read(payload)),
         _ => return None,
     };
-    let minutes = payload
-        .and_then(|value| value.get("minutes"))
-        .and_then(Value::as_i64)
-        .filter(|minutes| *minutes > 0);
-    let when = When::new(text("slot_start"), text("timezone").unwrap_or(UTC), minutes);
-    let title = text("title");
-
-    let content = if for_host {
-        Content {
-            greeting: greeting(host),
-            details: [
-                invitee.map(|name| match text("invitee_email") {
-                    Some(email) => format!("{name} ({email})"),
-                    None => name.to_owned(),
-                }),
-                title.map(str::to_owned),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
-            buttons: link("bookings_url")
-                .map(|url| ("Open your bookings", url.to_owned()))
-                .into_iter()
-                .collect(),
-            manage_url: None,
-            note: None,
-            footer: "You are getting this because someone used your Cadence booking page.",
-            headline,
-            when: Some(when),
-        }
-    } else {
-        let call = match (title, host) {
-            (Some(title), Some(host)) => Some(format!("{title} with {host}")),
-            (Some(title), None) => Some(title.to_owned()),
-            (None, Some(host)) => Some(format!("With {host}")),
-            (None, None) => None,
-        };
-        // A cancelled call has nothing left to join, save or change.
-        let live = template != BOOKING_CANCELLED_TEMPLATE;
-        // Emails queued before the host's own link existed used `meet_link`.
-        let join = link("meeting_url")
-            .or_else(|| link("meet_link"))
-            .filter(|_| live);
-        let calendar = when
-            .calendar_dates
-            .as_deref()
-            .filter(|_| live)
-            .map(|dates| {
-                google_calendar_url(call.as_deref().unwrap_or(CALENDAR_TITLE), dates, join)
-            });
-        Content {
-            greeting: greeting(invitee),
-            buttons: [
-                join.map(|url| ("Join the call", url.to_owned())),
-                calendar.map(|url| ("Add to Google Calendar", url)),
-            ]
-            .into_iter()
-            .flatten()
-            .collect(),
-            manage_url: link("manage_url").filter(|_| live).map(str::to_owned),
-            note: None,
-            footer: "You are getting this because a call was booked with your email address.",
-            details: call.into_iter().collect(),
-            headline,
-            when: Some(when),
-        }
-    };
-
     Some(rendered(content))
+}
+
+fn reset_content(email: &ResetEmail) -> Content {
+    Content {
+        headline: "Reset your Cadence password".to_owned(),
+        greeting: greeting(text(email.name.as_ref())),
+        when: None,
+        details: vec!["This link works for one hour and can be used once.".to_owned()],
+        buttons: link(email.reset_url.as_ref())
+            .map(|url| ("Choose a new password", url.to_owned()))
+            .into_iter()
+            .collect(),
+        manage_url: None,
+        note: Some("If you did not ask for this, ignore this email; your password stays the same."),
+        footer: "You are getting this because a password reset was requested for your Cadence account.",
+    }
+}
+
+/// When a call happens, from what an email payload says about it.
+fn when_of(
+    slot_start: Option<DateTime<Utc>>,
+    timezone: Option<&String>,
+    minutes: Option<i64>,
+) -> When {
+    let start = slot_start.map(|start| start.to_rfc3339());
+    When::new(
+        start.as_deref(),
+        text(timezone).unwrap_or(UTC),
+        minutes.filter(|minutes| *minutes > 0),
+    )
+}
+
+fn host_content(template: &str, email: &HostEmail) -> Content {
+    let invitee = text(email.name.as_ref());
+    let who = invitee.unwrap_or("Someone");
+    let headline = match template {
+        HOST_NEW_BOOKING_TEMPLATE => format!("{who} booked a call"),
+        HOST_BOOKING_CANCELLED_TEMPLATE => format!("{who} cancelled their call"),
+        _ => format!("{who} moved their call"),
+    };
+    Content {
+        greeting: greeting(text(email.host_name.as_ref())),
+        details: [
+            invitee.map(|name| match text(email.invitee_email.as_ref()) {
+                Some(address) => format!("{name} ({address})"),
+                None => name.to_owned(),
+            }),
+            text(email.title.as_ref()).map(str::to_owned),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        buttons: link(email.bookings_url.as_ref())
+            .map(|url| ("Open your bookings", url.to_owned()))
+            .into_iter()
+            .collect(),
+        manage_url: None,
+        note: None,
+        footer: "You are getting this because someone used your Cadence booking page.",
+        headline,
+        when: Some(when_of(
+            email.slot_start,
+            email.timezone.as_ref(),
+            email.minutes,
+        )),
+    }
+}
+
+fn invitee_content(template: &str, email: &InviteeEmail) -> Content {
+    let host = text(email.host_name.as_ref());
+    let with_host = host.map(|name| format!(" with {name}")).unwrap_or_default();
+    let headline = match template {
+        BOOKING_CONFIRMATION_TEMPLATE => format!("Your call{with_host} is booked"),
+        REMINDER_24H_TEMPLATE => format!("Your call{with_host} is tomorrow"),
+        REMINDER_2H_TEMPLATE => format!("Your call{with_host} starts in 2 hours"),
+        REMINDER_30MIN_TEMPLATE => format!("Your call{with_host} starts in 30 minutes"),
+        BOOKING_CANCELLED_TEMPLATE => format!("Your call{with_host} was cancelled"),
+        _ => format!("Your call{with_host} was moved"),
+    };
+    let when = when_of(email.slot_start, email.timezone.as_ref(), email.minutes);
+    let call = match (text(email.title.as_ref()), host) {
+        (Some(title), Some(host)) => Some(format!("{title} with {host}")),
+        (Some(title), None) => Some(title.to_owned()),
+        (None, Some(host)) => Some(format!("With {host}")),
+        (None, None) => None,
+    };
+    // A cancelled call has nothing left to join, save or change.
+    let live = template != BOOKING_CANCELLED_TEMPLATE;
+    let join = link(email.meeting_url.as_ref())
+        .or_else(|| link(email.meet_link.as_ref()))
+        .filter(|_| live);
+    let calendar = when
+        .calendar_dates
+        .as_deref()
+        .filter(|_| live)
+        .map(|dates| google_calendar_url(call.as_deref().unwrap_or(CALENDAR_TITLE), dates, join));
+    Content {
+        greeting: greeting(text(email.name.as_ref())),
+        buttons: [
+            join.map(|url| ("Join the call", url.to_owned())),
+            calendar.map(|url| ("Add to Google Calendar", url)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect(),
+        manage_url: link(email.manage_url.as_ref())
+            .filter(|_| live)
+            .map(str::to_owned),
+        note: None,
+        footer: "You are getting this because a call was booked with your email address.",
+        details: call.into_iter().collect(),
+        headline,
+        when: Some(when),
+    }
 }
 
 fn rendered(content: Content) -> RenderedEmail {
@@ -534,6 +822,8 @@ fn escape(value: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     #[test]
@@ -854,5 +1144,127 @@ mod tests {
             )
             .expect("preview can be written");
         }
+    }
+
+    fn pending(
+        template: &str,
+        call_start: Option<DateTime<Utc>>,
+        status: Option<&str>,
+    ) -> PendingEmail {
+        PendingEmail {
+            id: uuid::Uuid::nil(),
+            email: "ada@example.com".to_owned(),
+            template: template.to_owned(),
+            payload: Some(invitee_payload("Nino")),
+            call_start,
+            call_status: status.map(str::to_owned),
+        }
+    }
+
+    fn sends(email: &PendingEmail, now: DateTime<Utc>) -> bool {
+        matches!(delivery(email, now), Delivery::Send(_))
+    }
+
+    #[test]
+    fn a_cancelled_call_only_sends_word_of_the_cancellation() {
+        let now = Utc::now();
+        let ahead = Some(now + Duration::days(1));
+        let cancelled = Some(BookingStatus::Cancelled.as_str());
+        for template in [
+            BOOKING_CONFIRMATION_TEMPLATE,
+            REMINDER_24H_TEMPLATE,
+            BOOKING_RESCHEDULED_TEMPLATE,
+            HOST_NEW_BOOKING_TEMPLATE,
+        ] {
+            assert!(
+                !sends(&pending(template, ahead, cancelled), now),
+                "{template}"
+            );
+        }
+        for template in [BOOKING_CANCELLED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE] {
+            assert!(
+                sends(&pending(template, ahead, cancelled), now),
+                "{template}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_started_call_drops_its_reminders_but_not_its_news() {
+        let now = Utc::now();
+        let started = Some(now - Duration::minutes(1));
+        let confirmed = Some(BookingStatus::Confirmed.as_str());
+        for template in [
+            REMINDER_24H_TEMPLATE,
+            REMINDER_2H_TEMPLATE,
+            REMINDER_30MIN_TEMPLATE,
+        ] {
+            assert!(
+                !sends(&pending(template, started, confirmed), now),
+                "{template}"
+            );
+        }
+        for template in [BOOKING_CONFIRMATION_TEMPLATE, HOST_NEW_BOOKING_TEMPLATE] {
+            assert!(
+                sends(&pending(template, started, confirmed), now),
+                "{template}"
+            );
+        }
+        // Still ahead, a reminder goes out.
+        let ahead = Some(now + Duration::minutes(29));
+        assert!(sends(
+            &pending(REMINDER_30MIN_TEMPLATE, ahead, confirmed),
+            now
+        ));
+    }
+
+    #[test]
+    fn an_email_about_no_call_is_sent_and_an_unknown_one_is_reported() {
+        let now = Utc::now();
+        let mut reset = pending(PASSWORD_RESET_TEMPLATE, None, None);
+        reset.payload = Some(reset_payload("Ada"));
+        assert!(sends(&reset, now));
+        assert!(matches!(
+            delivery(&pending("newsletter", None, None), now),
+            Delivery::UnknownTemplate
+        ));
+    }
+
+    #[test]
+    fn a_field_that_no_longer_reads_is_left_out_not_fatal() {
+        let mut payload = invitee_payload("Nino");
+        payload["minutes"] = json!("thirty");
+        payload["host_name"] = json!(42);
+        let rendered = email(BOOKING_CONFIRMATION_TEMPLATE, &payload);
+        assert_eq!(rendered.subject, "Your call is booked");
+        assert!(rendered.text.contains("09:00 (Europe/Paris)"));
+        // Not an object at all: the email still goes out, with what it can say.
+        let rendered = email(BOOKING_CONFIRMATION_TEMPLATE, &json!("garbage"));
+        assert!(rendered.text.contains("The time you booked"));
+    }
+
+    #[test]
+    fn a_payload_written_by_the_queue_reads_back_as_written() {
+        let written = InviteeEmail {
+            name: Some("Ada".to_owned()),
+            slot_start: Some(Utc::now()),
+            timezone: Some("Europe/Paris".to_owned()),
+            meeting_url: None,
+            meet_link: None,
+            host_name: Some("Nino".to_owned()),
+            title: Some("Intro call".to_owned()),
+            minutes: Some(30),
+            manage_url: Some("https://cadence.example/booking/abc".to_owned()),
+        };
+        let stored = payload_of(&written).expect("serialises");
+        assert!(
+            stored.get("meet_link").is_none(),
+            "the old name is only read"
+        );
+        assert_eq!(stored["meeting_url"], Value::Null);
+        let read: InviteeEmail = read(Some(&stored));
+        assert_eq!(read.name, written.name);
+        assert_eq!(read.minutes, Some(30));
+        assert_eq!(read.manage_url, written.manage_url);
     }
 }
