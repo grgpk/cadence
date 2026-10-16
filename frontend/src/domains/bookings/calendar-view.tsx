@@ -142,8 +142,7 @@ export function CalendarView({
   return (
     <Card className="gap-0 overflow-hidden py-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b py-2 pr-3 pl-5">
-        <div className="flex items-center gap-1">
-          <h2 className="mr-2 font-semibold">{label}</h2>
+        <div className="flex min-w-0 items-center gap-1">
           <Button
             type="button"
             variant="outline"
@@ -171,6 +170,9 @@ export function CalendarView({
           >
             <ChevronRight />
           </Button>
+          <h2 className="ml-2 truncate font-semibold tabular-nums" aria-live="polite">
+            {label}
+          </h2>
         </div>
         <SegmentedControl
           label="Calendar range"
