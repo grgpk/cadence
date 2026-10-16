@@ -7,25 +7,32 @@ import { ROUTES } from "../../lib/routes";
 import { Logo } from "../shared/logo";
 import { ThemeToggle } from "../shared/theme-toggle";
 import { BookingCard } from "./booking-card";
+import type { SlotLayout } from "./slot-days";
 
 /** A host's public link. The card is the page; everything else stays out of the way. */
 export function PublicBookingPage({
   slug,
   page,
   initialCountryAlpha2,
+  layout,
+  onLayoutChange,
 }: {
   slug: string;
   page: BookingPage;
   initialCountryAlpha2?: string | null;
+  layout: SlotLayout;
+  onLayoutChange: (layout: SlotLayout) => void;
 }) {
   return (
     <div className="flex min-h-svh flex-col">
-      <main className="mx-auto flex w-full max-w-[66rem] flex-1 flex-col justify-center px-4 py-8 sm:px-6 sm:py-12">
+      <main className="mx-auto flex w-full max-w-[66rem] flex-1 flex-col px-4 py-4 sm:justify-center sm:px-6 sm:py-12">
         {page.accepting_bookings ? (
           <BookingCard
             slug={slug}
             page={page}
             initialCountryAlpha2={initialCountryAlpha2}
+            layout={layout}
+            onLayoutChange={onLayoutChange}
           />
         ) : (
           <div className="mx-auto w-full max-w-md rounded-2xl border bg-card p-8 text-center">

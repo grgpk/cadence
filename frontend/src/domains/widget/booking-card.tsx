@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
@@ -20,17 +20,25 @@ import { EMPTY_FORM, leadUpdate, queryValue, type FormValues } from "./booking-f
 import {
   createBooking,
   createCallingVisit,
+  publicSlotsQuery,
   saveLead,
   submitLead,
   updateCallingVisit,
 } from "./cadence-api";
 import { BookingSummary } from "./booking-summary";
 import { DetailsStep } from "./details-step";
+import { ListSlots } from "./list-slots";
+import { sharedLength, type SlotLayout } from "./slot-days";
 import { SlotStep, type CalendarView } from "./slot-step";
 import { TimezoneCombobox } from "./timezone-combobox";
+import { ViewSwitch } from "./view-switch";
+import { WeekSlots } from "./week-slots";
 import { zonedTime } from "./zoned-time";
 
 const HOUR12_KEY = "cadence-hour12";
+
+/** A switched view slides in a little from the right, the same move as each step. */
+const VIEW_IN = { "--step-from": "0.5rem" } as CSSProperties;
 
 function initialHour12(): boolean {
   try {
@@ -75,13 +83,19 @@ function Booking({
   slug,
   page,
   countryVariant,
+  layout,
+  onLayoutChange,
 }: {
   slug: string;
   page: BookingPage;
   countryVariant: string;
+  layout: SlotLayout;
+  onLayoutChange: (layout: SlotLayout) => void;
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // Shared with whichever view shows the times; read here for the call length.
+  const slots = useQuery(publicSlotsQuery(slug));
   const [stored] = useState(() => storedForm(slug));
   const [values, setValues] = useState<FormValues>({
     ...EMPTY_FORM,
@@ -189,6 +203,30 @@ function Booking({
       ? "That time was just taken. Go back and pick another one."
       : "The booking did not go through. Try again or pick another time.";
 
+  const emptyDescription = `${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`;
+  const pickTime = (picked: TimeSlot) => {
+    book.reset();
+    showStep(picked);
+  };
+  const summary = (callMinutes: number | null) => (
+    <BookingSummary
+      page={page}
+      minutes={callMinutes}
+      timezone={
+        <TimezoneCombobox
+          selected={timezone}
+          hour12={hour12}
+          onSelect={(next) => {
+            setTimezone(next);
+            setView({ ...view, day: null });
+          }}
+        />
+      }
+    >
+      <ViewSwitch value={layout} onChange={onLayoutChange} />
+    </BookingSummary>
+  );
+
   // Each step slides in from the side it lives on: details to the right of times.
   return slot === null ? (
     <section
@@ -199,35 +237,55 @@ function Booking({
       style={{ "--step-from": "-1rem" } as CSSProperties}
       className="outline-none motion-safe:animate-step-in"
     >
-      <SlotStep
-        slug={slug}
-        timeZone={timezone.iana}
-        emptyDescription={`${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`}
-        summary={(callMinutes) => (
-          <BookingSummary
-            page={page}
-            minutes={callMinutes}
-            timezone={
-              <TimezoneCombobox
-                selected={timezone}
-                hour12={hour12}
-                onSelect={(next) => {
-                  setTimezone(next);
-                  setView({ ...view, day: null });
-                }}
-              />
-            }
+      {layout === "month" ? (
+        // The month card has its own summary column, so all of it comes in.
+        <div key="month" style={VIEW_IN} className="motion-safe:animate-step-in">
+          <SlotStep
+            slug={slug}
+            timeZone={timezone.iana}
+            emptyDescription={emptyDescription}
+            summary={summary}
+            view={view}
+            onViewChange={setView}
+            hour12={hour12}
+            onHour12Change={changeHour12}
+            onPick={pickTime}
           />
-        )}
-        view={view}
-        onViewChange={setView}
-        hour12={hour12}
-        onHour12Change={changeHour12}
-        onPick={(picked) => {
-          book.reset();
-          showStep(picked);
-        }}
-      />
+        </div>
+      ) : (
+        <div className="grid divide-y @[760px]:grid-cols-[15rem_minmax(0,1fr)] @[760px]:divide-x @[760px]:divide-y-0">
+          <div className="p-5 @[760px]:p-6">
+            {summary(sharedLength(slots.data ?? []))}
+          </div>
+          {/* The summary stays put; only the times come in, so its switch can slide. */}
+          <div
+            key={layout}
+            style={VIEW_IN}
+            className="min-w-0 motion-safe:animate-step-in"
+          >
+            {layout === "week" ? (
+              <WeekSlots
+                slug={slug}
+                timeZone={timezone.iana}
+                initialDay={view.day === null ? null : { ...view, day: view.day }}
+                emptyDescription={emptyDescription}
+                hour12={hour12}
+                onHour12Change={changeHour12}
+                onPick={pickTime}
+              />
+            ) : (
+              <ListSlots
+                slug={slug}
+                timeZone={timezone.iana}
+                emptyDescription={emptyDescription}
+                hour12={hour12}
+                onHour12Change={changeHour12}
+                onPick={pickTime}
+              />
+            )}
+          </div>
+        </div>
+      )}
     </section>
   ) : (
     <section
@@ -258,10 +316,15 @@ export function BookingCard({
   slug,
   page,
   initialCountryAlpha2,
+  layout,
+  onLayoutChange,
 }: {
   slug: string;
   page: BookingPage;
   initialCountryAlpha2?: string | null;
+  /** How the open times are laid out: the month calendar, a week, or a list. */
+  layout: SlotLayout;
+  onLayoutChange: (layout: SlotLayout) => void;
 }) {
   // Timezone, today's date and the clock format only exist in the browser, so the
   // card renders after mount instead of guessing them on the server.
@@ -275,7 +338,13 @@ export function BookingCard({
     <div className="@container w-full">
       <div className="overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-12px_rgb(0_0_0/0.14)]">
         {mounted ? (
-          <Booking slug={slug} page={page} countryVariant={countryVariant} />
+          <Booking
+            slug={slug}
+            page={page}
+            countryVariant={countryVariant}
+            layout={layout}
+            onLayoutChange={onLayoutChange}
+          />
         ) : (
           // The same three columns as the times step, so the card keeps its shape.
           <div

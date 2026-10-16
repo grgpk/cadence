@@ -3,10 +3,20 @@ import { createFileRoute, notFound } from "@tanstack/react-router";
 import { RouteError } from "../../domains/shared/not-found";
 import { getBookingPage } from "../../domains/widget/cadence-api";
 import { PublicBookingPage } from "../../domains/widget/public-booking-page";
+import {
+  DEFAULT_SLOT_LAYOUT,
+  isSlotLayout,
+  type SlotLayout,
+} from "../../domains/widget/slot-days";
 import { APP_NAME } from "../../lib/config";
 import { getVisitorCountry } from "../../lib/visitor";
 
 export const Route = createFileRoute("/book/$slug")({
+  // `?view=week` or `?view=list` opens the page on that layout; month needs no value.
+  validateSearch: (search): { view?: SlotLayout } =>
+    isSlotLayout(search.view) && search.view !== DEFAULT_SLOT_LAYOUT
+      ? { view: search.view }
+      : {},
   loader: async ({ params }) => {
     const [country, page] = await Promise.all([
       getVisitorCountry(),
@@ -37,5 +47,20 @@ export const Route = createFileRoute("/book/$slug")({
 function HostBookingPage() {
   const { country, page } = Route.useLoaderData();
   const { slug } = Route.useParams();
-  return <PublicBookingPage slug={slug} page={page} initialCountryAlpha2={country} />;
+  const { view = DEFAULT_SLOT_LAYOUT } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  return (
+    <PublicBookingPage
+      slug={slug}
+      page={page}
+      initialCountryAlpha2={country}
+      layout={view}
+      onLayoutChange={(next) =>
+        void navigate({
+          search: next === DEFAULT_SLOT_LAYOUT ? {} : { view: next },
+          replace: true,
+        })
+      }
+    />
+  );
 }

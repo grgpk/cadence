@@ -25,7 +25,7 @@ import {
 
 export type CalendarView = { year: number; month: number; day: number | null };
 
-const CLOCKS = [
+export const CLOCKS = [
   { value: true, label: "12h" },
   { value: false, label: "24h" },
 ] as const;
