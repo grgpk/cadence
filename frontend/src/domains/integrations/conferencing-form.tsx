@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useBlocker } from "@tanstack/react-router";
-import { AlertTriangle, Link as LinkIcon, Loader2 } from "lucide-react";
+import { cn } from "cn";
+import { AlertTriangle, ExternalLink, Link as LinkIcon, Loader2 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -124,25 +125,34 @@ export function ConferencingForm({
             <RadioGroupItem
               id={`${ID}-${option.value}`}
               value={option.value}
-              className="mt-0.5"
+              className="mt-0.5 motion-safe:[&_svg]:animate-in motion-safe:[&_svg]:zoom-in-0 motion-safe:[&_svg]:duration-200"
             />
           </Label>
         ))}
       </RadioGroup>
 
-      {meetWithoutCalendar ? (
-        <p
-          role="status"
-          className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1"
-        >
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-          <span>
-            Google Meet needs Google Calendar. Until you connect it above, calls use your
-            backup link
-            {trimmed ? "." : ", and without one people who book get no link to join."}
-          </span>
-        </p>
-      ) : null}
+      {/* Folds open and shut, so the fields below slide rather than jump. */}
+      <div
+        aria-hidden={!meetWithoutCalendar}
+        inert={!meetWithoutCalendar}
+        className={cn(
+          "-mt-5 grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out",
+          meetWithoutCalendar
+            ? "mt-0 grid-rows-[1fr] opacity-100"
+            : "grid-rows-[0fr] opacity-0",
+        )}
+      >
+        <div className="overflow-hidden">
+          <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-sm text-warning">
+            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+            <span>
+              Google Meet needs Google Calendar. Until you connect it above, calls use
+              your backup link
+              {trimmed ? "." : ", and without one people who book get no link to join."}
+            </span>
+          </p>
+        </div>
+      </div>
 
       <Field
         id={`${ID}-link`}
@@ -151,18 +161,33 @@ export function ConferencingForm({
         error={linkInvalid ? "Use a link that starts with https://" : null}
         help={copy.help}
       >
-        <Input
-          id={`${ID}-link`}
-          type="url"
-          inputMode="url"
-          maxLength={500}
-          required={app === CONFERENCING_APP.customLink}
-          placeholder="https://zoom.us/j/123456789"
-          value={link}
-          aria-invalid={linkInvalid}
-          aria-describedby={fieldHelpId(`${ID}-link`)}
-          onChange={(event) => setLink(event.target.value)}
-        />
+        <div className="flex gap-2">
+          <Input
+            id={`${ID}-link`}
+            type="url"
+            inputMode="url"
+            maxLength={500}
+            required={app === CONFERENCING_APP.customLink}
+            placeholder="https://zoom.us/j/123456789"
+            value={link}
+            aria-invalid={linkInvalid}
+            aria-describedby={fieldHelpId(`${ID}-link`)}
+            onChange={(event) => setLink(event.target.value)}
+          />
+          {trimmed && !linkInvalid ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-left-1"
+              asChild
+            >
+              <a href={trimmed} target="_blank" rel="noopener noreferrer">
+                <ExternalLink />
+                Try it
+              </a>
+            </Button>
+          ) : null}
+        </div>
       </Field>
 
       {unchanged ? null : (

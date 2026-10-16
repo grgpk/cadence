@@ -111,7 +111,7 @@ export function CallFlow({
           className="ml-5 h-5 w-px sm:ml-0 sm:h-px sm:w-full"
         >
           {live ? (
-            <span className="block size-full origin-top bg-foreground sm:origin-left motion-safe:animate-bar-grow" />
+            <span className="block size-full origin-top bg-foreground motion-safe:animate-bar-grow-y sm:origin-left sm:motion-safe:animate-bar-grow" />
           ) : (
             <span className="block size-full border-l border-dashed border-muted-foreground/50 sm:border-t sm:border-l-0" />
           )}

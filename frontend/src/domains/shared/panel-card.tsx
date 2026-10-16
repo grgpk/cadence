@@ -18,13 +18,16 @@ export function PanelCard({
   children: ReactNode;
 }) {
   return (
-    <Card id={id} className="scroll-mt-16 gap-0 overflow-hidden py-0">
+    // No overflow clipping: a sticky save bar inside must be free to stick.
+    <Card id={id} className="scroll-mt-16 gap-0 py-0">
       <div className="border-b px-5 py-3.5">
         <h2 className="font-semibold">{title}</h2>
         <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
       </div>
       <div className="grid gap-5 p-5">{children}</div>
-      {footer ? <div className="border-t bg-muted/40 px-5 py-3">{footer}</div> : null}
+      {footer ? (
+        <div className="rounded-b-xl border-t bg-muted/40 px-5 py-3">{footer}</div>
+      ) : null}
     </Card>
   );
 }

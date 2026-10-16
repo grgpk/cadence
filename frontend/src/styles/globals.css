@@ -140,6 +140,7 @@
   --animate-tape-spool: tape-spool 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
   --animate-rise: rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-bar-grow: bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-bar-grow-y: bar-grow-y 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
   --animate-nav-progress: nav-progress 4s cubic-bezier(0.1, 0.7, 0.1, 1) 0.15s both;
 
   /* The track holds the day twice, so half its width is one seamless loop. */
@@ -201,6 +202,13 @@
   @keyframes bar-grow {
     from {
       transform: scaleX(0);
+    }
+  }
+
+  /* `bar-grow` for a rail that runs down instead of across. */
+  @keyframes bar-grow-y {
+    from {
+      transform: scaleY(0);
     }
   }
 

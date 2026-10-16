@@ -97,7 +97,7 @@ export function GoogleCalendarConnection({ slug }: { slug: string }) {
   } else {
     status = (
       <span className="text-muted-foreground">
-        Not connected. Your busy times are not checked.
+        Connect it so nobody can book over your other plans.
       </span>
     );
     actions = (

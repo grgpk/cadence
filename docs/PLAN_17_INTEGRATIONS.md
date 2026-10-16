@@ -49,7 +49,9 @@ would get no link. The other motion responds to what the host does:
 
 - the "Connected" check pops in
 - the picked meeting-app tile highlights
-- the no-calendar warning slides in
+- the no-calendar warning folds open and shut
+- a "Try it" button fades in once the link is a valid https URL
+- the rail draws downward on phones (`bar-grow-y`)
 - the unsaved-changes bar rises, as on Settings
 
 All of it is off under reduced motion.
