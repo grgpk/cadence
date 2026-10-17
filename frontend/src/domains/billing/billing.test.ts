@@ -63,27 +63,37 @@ describe("checkoutIntent", () => {
 describe("planAction", () => {
   it("sends a free host to checkout for a paid plan", () => {
     const free = summary();
-    expect(planAction(free, PLAN.FREE)).toBe("current");
-    expect(planAction(free, PLAN.PRO)).toBe("checkout");
+    expect(planAction(free, PLAN.FREE, "month")).toBe("current");
+    expect(planAction(free, PLAN.PRO, "month")).toBe("checkout");
   });
 
   it("lets a trial keep Pro by paying", () => {
     const trial = summary({ plan: PLAN.PRO, status: STATUS.TRIALING });
-    expect(planAction(trial, PLAN.PRO)).toBe("checkout");
-    expect(planAction(trial, PLAN.FREE)).toBe("none");
+    expect(planAction(trial, PLAN.PRO, "month")).toBe("checkout");
+    expect(planAction(trial, PLAN.FREE, "month")).toBe("none");
   });
 
   it("sends a paying host to the portal for any change", () => {
     const paying = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE });
-    expect(planAction(paying, PLAN.PRO)).toBe("current");
-    expect(planAction(paying, PLAN.BUSINESS)).toBe("portal");
-    expect(planAction(paying, PLAN.FREE)).toBe("portal");
+    expect(planAction(paying, PLAN.PRO, "month")).toBe("current");
+    expect(planAction(paying, PLAN.BUSINESS, "month")).toBe("portal");
+    expect(planAction(paying, PLAN.FREE, "month")).toBe("portal");
+  });
+
+  it("offers a monthly payer the switch on their own card, priced yearly", () => {
+    const monthly = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE, interval: "month" });
+    expect(planAction(monthly, PLAN.PRO, "year")).toBe("yearly");
+    expect(planAction(monthly, PLAN.PRO, "month")).toBe("current");
+    expect(planAction(monthly, PLAN.BUSINESS, "year")).toBe("portal");
+    const yearly = { ...monthly, interval: "year" as const };
+    expect(planAction(yearly, PLAN.PRO, "year")).toBe("current");
+    expect(planAction(yearly, PLAN.PRO, "month")).toBe("current");
   });
 
   it("lets a host whose subscription ended check out again", () => {
     const ended = summary({ status: STATUS.CANCELED });
-    expect(planAction(ended, PLAN.BUSINESS)).toBe("checkout");
-    expect(planAction(ended, PLAN.FREE)).toBe("current");
+    expect(planAction(ended, PLAN.BUSINESS, "month")).toBe("checkout");
+    expect(planAction(ended, PLAN.FREE, "month")).toBe("current");
   });
 });
 

@@ -210,6 +210,7 @@ function PlanButton({
   featured,
   onCheckout,
   onPortal,
+  onYearly,
   pending,
 }: {
   summary: BillingSummary;
@@ -218,10 +219,11 @@ function PlanButton({
   featured: boolean;
   onCheckout: (plan: Plan, interval: BillingInterval) => void;
   onPortal: () => void;
+  onYearly: () => void;
   pending: boolean;
 }) {
   const name = PLAN_NAMES[offer.plan];
-  switch (planAction(summary, offer.plan)) {
+  switch (planAction(summary, offer.plan, interval)) {
     case "current":
       return (
         <Button variant="outline" disabled>
@@ -232,6 +234,13 @@ function PlanButton({
       return (
         <Button variant="outline" onClick={onPortal} disabled={pending}>
           Switch in billing portal
+        </Button>
+      );
+    case "yearly":
+      return (
+        <Button onClick={onYearly} disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : null}
+          Switch to yearly
         </Button>
       );
     case "none":
@@ -306,7 +315,7 @@ export function BillingPage({
   const saving = bestYearlySaving(plans.data ?? []);
   const toYearly = summary ? yearlySwitch(summary, plans.data ?? []) : null;
   const pickedOffer =
-    intent.plan && summary && planAction(summary, intent.plan) === "checkout"
+    intent.plan && summary && planAction(summary, intent.plan, interval) === "checkout"
       ? plans.data?.find((offer) => offer.plan === intent.plan)
       : undefined;
 
@@ -402,6 +411,7 @@ export function BillingPage({
                       checkout.mutate({ plan, interval: chosen })
                     }
                     onPortal={() => portal.mutate()}
+                    onYearly={() => yearly.mutate()}
                     pending={leaving}
                   />
                 }

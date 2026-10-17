@@ -72,10 +72,17 @@ export function trialDaysLeft(summary: BillingSummary, now: number): number | nu
 }
 
 /** What a plan card on the billing page offers this host. */
-type PlanAction = "current" | "checkout" | "portal" | "none";
+type PlanAction = "current" | "checkout" | "portal" | "yearly" | "none";
 
-export function planAction(summary: BillingSummary, plan: Plan): PlanAction {
+/** For the plan's card, with `interval`'s prices showing. */
+export function planAction(
+  summary: BillingSummary,
+  plan: Plan,
+  interval: BillingInterval,
+): PlanAction {
   const onIt = summary.plan === plan;
+  // Their own plan, priced yearly: the one change worth a button.
+  if (onIt && interval === INTERVAL.YEAR && paysMonthly(summary)) return "yearly";
   if (isBilled(summary)) return onIt ? "current" : "portal";
   // A trial is Pro until it ends; keeping Pro still means paying for it.
   if (onIt && summary.status !== STATUS.TRIALING) return "current";
@@ -148,6 +155,15 @@ export function planCounts(
   return counts;
 }
 
+/** Pays monthly and means to stay: who is offered paying yearly. */
+function paysMonthly(summary: BillingSummary): boolean {
+  return (
+    summary.status === STATUS.ACTIVE &&
+    summary.interval === INTERVAL.MONTH &&
+    !summary.cancel_at_period_end
+  );
+}
+
 /** What paying yearly would cost and save, at today's prices. */
 export type YearlySwitch = { plan: Plan; yearCents: number; savedCents: number };
 
@@ -159,13 +175,7 @@ export function yearlySwitch(
   summary: BillingSummary,
   offers: readonly PlanOffer[],
 ): YearlySwitch | null {
-  if (
-    summary.status !== STATUS.ACTIVE ||
-    summary.interval !== INTERVAL.MONTH ||
-    summary.cancel_at_period_end
-  ) {
-    return null;
-  }
+  if (!paysMonthly(summary)) return null;
   const offer = offers.find((candidate) => candidate.plan === summary.plan);
   const year = offer && priceFor(offer, INTERVAL.YEAR);
   const saving = offer && yearlySaving(offer);

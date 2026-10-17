@@ -59,7 +59,10 @@ Billing (monthly Pro)
 ```
 
 - `billing.ts` `yearlySwitch(summary, offers)` decides: active, monthly, not
-  cancelling, and yearly saves something.
+  cancelling (`paysMonthly`), and yearly saves something.
+- The host's own plan card, with the toggle on Yearly, offers the same
+  "Switch to yearly" instead of a disabled "Your plan" (`planAction`
+  returns `"yearly"`).
 - The saving is worked out from today's prices. A host on a locked older
   price sees the real amount on Stripe's screen before agreeing.
 
