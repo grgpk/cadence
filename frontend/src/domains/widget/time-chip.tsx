@@ -58,7 +58,7 @@ export function TimeChip({
       type="button"
       variant="outline"
       className={cn(
-        "group relative h-10 w-full overflow-hidden px-2 text-clock text-[0.9375rem] hover:border-foreground hover:bg-card",
+        "group relative h-10 w-full overflow-hidden px-2 text-clock text-md hover:border-foreground hover:bg-card",
         picked && styles.picked,
         className,
       )}

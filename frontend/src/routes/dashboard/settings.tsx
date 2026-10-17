@@ -8,7 +8,6 @@ import type { HostSettings } from "../../bindings/HostSettings";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
-import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
 import { billingQuery } from "../../domains/billing/billing-api";
 import { AccentField } from "../../domains/dashboard/accent-field";
@@ -21,7 +20,7 @@ import { ConfirmDialog } from "../../domains/shared/confirm-dialog";
 import { ErrorState } from "../../domains/shared/error-state";
 import { Field, fieldHelpId } from "../../domains/shared/field";
 import { PageHeader } from "../../domains/shared/page-header";
-import { PanelCard } from "../../domains/shared/panel-card";
+import { PanelCard, PanelCardSkeleton } from "../../domains/shared/panel-card";
 import {
   ALL_COUNTRY_TIMEZONES,
   detectBrowserCountryTimezone,
@@ -283,10 +282,9 @@ function SettingsPage() {
       />
       {query.isPending ? (
         <div className="grid gap-6">
-          <Skeleton className="h-80 w-full rounded-xl" />
-          <Skeleton className="h-32 w-full rounded-xl" />
-          <Skeleton className="h-40 w-full rounded-xl" />
-          <Skeleton className="h-64 w-full rounded-xl" />
+          <PanelCardSkeleton rows={4} />
+          <PanelCardSkeleton rows={1} />
+          <PanelCardSkeleton rows={2} />
         </div>
       ) : query.isError ? (
         <ErrorState

@@ -17,6 +17,7 @@ import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { weekHours } from "../../domains/dashboard/week-hours";
 import { ErrorState } from "../../domains/shared/error-state";
 import { PageHeader } from "../../domains/shared/page-header";
+import { PanelHeader } from "../../domains/shared/panel-card";
 import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
 import { zoneName } from "../../lib/format";
@@ -38,15 +39,6 @@ function weekSummary(rules: AvailabilityRule[]): string {
   // "Every day" starts a label, not this sentence.
   const days = daysLabel(rules).replace(/^Every/, "every");
   return `Open ${hoursLabel(minutes)} a week, ${days}: up to ${calls} calls of ${lengths} min.`;
-}
-
-function SectionHead({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="border-b px-5 py-3.5">
-      <h2 className="font-semibold">{title}</h2>
-      <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
-    </div>
-  );
 }
 
 function AvailabilityPage() {
@@ -80,7 +72,7 @@ function AvailabilityPage() {
       ) : (
         <div className="grid gap-6">
           <Card className="gap-0 py-0">
-            <SectionHead
+            <PanelHeader
               title="Weekly hours"
               description="Drag across a day to open it. Drag a range to move it, or its ends to stretch it."
             />
@@ -91,7 +83,7 @@ function AvailabilityPage() {
             )}
           </Card>
           <Card className="gap-0 py-0">
-            <SectionHead
+            <PanelHeader
               title="Dates"
               description="Take a date off, or give it other hours. Every other date follows the weekly hours."
             />

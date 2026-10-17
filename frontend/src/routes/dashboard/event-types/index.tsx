@@ -74,6 +74,20 @@ function TypeRow({ kind, hostSlug }: { kind: EventType; hostSlug: string }) {
   );
 }
 
+/** A `TypeRow` while it loads: title, link line and the two buttons. */
+function TypeRowSkeleton() {
+  return (
+    <Card className="flex-row items-center gap-4 px-5 py-4">
+      <div className="grid min-w-0 flex-1 gap-2">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-4 w-64 max-w-full" />
+      </div>
+      <Skeleton className="h-8 w-28" />
+      <Skeleton className="size-9" />
+    </Card>
+  );
+}
+
 function EventTypesPage() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -141,9 +155,10 @@ function EventTypesPage() {
           ))}
         </div>
       ) : (
-        <div className="grid gap-3">
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <Skeleton className="h-20 w-full rounded-xl" />
+        <div className="grid gap-3" role="status" aria-label="Loading">
+          {[0, 1].map((index) => (
+            <TypeRowSkeleton key={index} />
+          ))}
         </div>
       )}
     </>

@@ -125,9 +125,7 @@ function BookingConfirmationPage() {
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Time</dt>
-            <dd className="text-right text-clock text-[0.9375rem] font-medium">
-              {timeRange}
-            </dd>
+            <dd className="text-right text-clock text-md font-medium">{timeRange}</dd>
           </div>
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Timezone</dt>

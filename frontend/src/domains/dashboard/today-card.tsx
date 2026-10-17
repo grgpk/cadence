@@ -19,6 +19,7 @@ import { dayCall, dayPlan, firstName, isCancelled } from "../bookings/bookings";
 import { OPEN_STYLES } from "../landing/day-tape";
 import { HourMark } from "../shared/hour-mark";
 import { NAME_LINK } from "../shared/link-styles";
+import { PanelHeader } from "../shared/panel-card";
 import { phaseSpans, zonedTime } from "../../lib/zoned-time";
 
 const HOUR = 60;
@@ -31,8 +32,8 @@ const NOW_AT = 0.3;
 export function TodayCardSkeleton() {
   return (
     <Card className="gap-0 overflow-hidden py-0" role="status" aria-label="Loading today">
-      <div className="border-b px-5 py-3.5">
-        <Skeleton className="h-6 w-56" />
+      <div className="flex min-h-13 items-center border-b pl-5">
+        <Skeleton className="h-5 w-56" />
       </div>
       <div className="space-y-4 px-5 py-5">
         <Skeleton className="h-9 w-72" />
@@ -177,16 +178,18 @@ export function TodayCard({
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b px-5 py-3.5">
-        <h2 className="font-semibold">Today, {formatLongDay(now, timeZone, false)}</h2>
-        {calls.length === 0 ? null : (
-          <p className="text-sm text-muted-foreground">
-            {callsLeft === 0
-              ? "No calls left today"
-              : `${callsLeft} ${callsLeft === 1 ? "call" : "calls"} left`}
-          </p>
-        )}
-      </div>
+      <PanelHeader
+        title={`Today, ${formatLongDay(now, timeZone, false)}`}
+        action={
+          calls.length === 0 ? null : (
+            <p className="text-right text-sm text-muted-foreground">
+              {callsLeft === 0
+                ? "No calls left today"
+                : `${callsLeft} ${callsLeft === 1 ? "call" : "calls"} left`}
+            </p>
+          )
+        }
+      />
 
       <Spotlight
         current={plan.current}

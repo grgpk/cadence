@@ -3,10 +3,13 @@ import type { ReactNode } from "react";
 export function PageHeader({
   title,
   description,
+  accent,
   actions,
 }: {
   title: string;
   description?: string;
+  /** A small mark under the title, like the overview's time-of-day rail. */
+  accent?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -15,6 +18,7 @@ export function PageHeader({
         <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
           {title}
         </h1>
+        {accent}
         {description ? (
           <p className="mt-1.5 max-w-prose text-sm text-muted-foreground">
             {description}

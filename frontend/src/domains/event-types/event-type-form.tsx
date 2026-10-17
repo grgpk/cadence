@@ -262,7 +262,7 @@ export function EventTypeForm({
                 onChange={(event) =>
                   update({ minimum_notice_hours: event.target.valueAsNumber })
                 }
-                className="w-24 text-clock text-[0.9375rem]"
+                className="w-24 text-clock text-md"
               />
               <span className="text-sm text-muted-foreground">hours</span>
             </div>
@@ -285,7 +285,7 @@ export function EventTypeForm({
                 onChange={(event) =>
                   update({ booking_window_days: event.target.valueAsNumber })
                 }
-                className="w-24 text-clock text-[0.9375rem]"
+                className="w-24 text-clock text-md"
               />
               <span className="text-sm text-muted-foreground">days</span>
             </div>
@@ -309,7 +309,7 @@ export function EventTypeForm({
                 onChange={(event) =>
                   update({ buffer_minutes: event.target.valueAsNumber })
                 }
-                className="w-24 text-clock text-[0.9375rem]"
+                className="w-24 text-clock text-md"
               />
               <span className="text-sm text-muted-foreground">minutes</span>
             </div>

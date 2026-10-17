@@ -68,7 +68,7 @@ const COLUMNS: Column<AdminBugReport>[] = [
   },
   {
     header: "Last seen",
-    className: "text-right text-muted-foreground text-clock text-[0.9375rem]",
+    className: "text-right text-muted-foreground text-clock text-md",
     cell: (report) => formatDateTime(report.created),
   },
 ];

@@ -336,7 +336,7 @@ export function ManageBookingPage({
           <div className="flex justify-between gap-4 px-4 py-3">
             <dt className="text-muted-foreground">Time</dt>
             <dd
-              className={`text-right text-clock text-[0.9375rem] font-medium ${cancelled ? "line-through" : ""}`}
+              className={`text-right text-clock text-md font-medium ${cancelled ? "line-through" : ""}`}
             >
               {timeRange}
             </dd>

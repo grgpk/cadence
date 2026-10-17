@@ -47,7 +47,7 @@ effect is off under `prefers-reduced-motion`, no hardcoded colors, and
    Dark, saved per device in `localStorage`. A device that never chose gets
    Dark. The card and the top bar toggle read one store, so they never
    disagree, and System follows the OS live.
-5. **Cal.com neutrals.** Paper, ink, surfaces, borders and focus rings use
+5. **Cal.com neutrals.** (Plan 40 gives the dark grays a trace of dusk.) Paper, ink, surfaces, borders and focus rings use
    Cal.com's grays: white and gray-50 under gray-900 ink in light; #101010,
    #1c1c1c and #2b2b2b under white ink in dark. The day colors and the
    signal stay; only the navy tint is gone.

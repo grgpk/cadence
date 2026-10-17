@@ -67,7 +67,7 @@ export function TimePicker({
           role="combobox"
           aria-expanded={open}
           aria-invalid={invalid}
-          className="w-32 justify-between bg-card text-clock text-[0.9375rem] font-normal"
+          className="w-32 justify-between bg-card text-clock text-md font-normal"
         >
           {formatClock(value, hour12)}
           <ChevronDown className="text-muted-foreground" />
@@ -84,7 +84,7 @@ export function TimePicker({
                 <CommandItem
                   key={time}
                   value={searchValue(time)}
-                  className="text-clock text-[0.9375rem]"
+                  className="text-clock text-md"
                   onSelect={() => {
                     onChange(time);
                     setOpen(false);

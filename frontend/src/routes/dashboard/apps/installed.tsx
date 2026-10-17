@@ -3,7 +3,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 
 import { Button } from "../../../components/ui/button";
-import { Skeleton } from "../../../components/ui/skeleton";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
 import { CallFlow } from "../../../domains/integrations/call-flow";
 import { APP_CATEGORY, type AppCategory } from "../../../domains/integrations/catalog";
@@ -13,7 +12,7 @@ import { ConferencingForm } from "../../../domains/integrations/conferencing-for
 import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
 import { ErrorState } from "../../../domains/shared/error-state";
 import { PageHeader } from "../../../domains/shared/page-header";
-import { PanelCard } from "../../../domains/shared/panel-card";
+import { PanelCard, PanelCardSkeleton } from "../../../domains/shared/panel-card";
 import { hostPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 import { ROUTES } from "../../../lib/routes";
@@ -48,9 +47,9 @@ function InstalledAppsPage() {
       />
       {settings.isPending || (slug && page.isPending) ? (
         <div className="grid max-w-3xl gap-6">
-          <Skeleton className="h-28 w-full rounded-xl" />
-          <Skeleton className="h-40 w-full rounded-xl" />
-          <Skeleton className="h-72 w-full rounded-xl" />
+          <PanelCardSkeleton rows={1} />
+          <PanelCardSkeleton rows={2} />
+          <PanelCardSkeleton rows={3} />
         </div>
       ) : settings.isError ? (
         <ErrorState

@@ -21,7 +21,7 @@ export function bookingColumns(hostTimezone?: string): Column<Booking>[] {
         return (
           <TwoLine
             primary={
-              <span className="text-clock text-[0.9375rem]">
+              <span className="text-clock text-md">
                 {formatDay(booking.slot_start, zone)},{" "}
                 {formatTime(booking.slot_start, zone)}
               </span>

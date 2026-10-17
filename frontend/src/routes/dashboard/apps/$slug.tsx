@@ -7,7 +7,6 @@ import type { HostSettings } from "../../../bindings/HostSettings";
 
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
-import { Skeleton } from "../../../components/ui/skeleton";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
 import { AppLogo, AppStatus } from "../../../domains/integrations/app-card";
 import { CallFlow } from "../../../domains/integrations/call-flow";
@@ -25,7 +24,7 @@ import { webhooksQuery } from "../../../domains/integrations/webhooks-api";
 import { WebhooksPanel } from "../../../domains/integrations/webhooks-panel";
 import { PLAN_NAMES } from "../../../domains/pricing/pricing";
 import { ErrorState } from "../../../domains/shared/error-state";
-import { PanelCard } from "../../../domains/shared/panel-card";
+import { PanelCard, PanelCardSkeleton } from "../../../domains/shared/panel-card";
 import { hostPageQuery } from "../../../domains/widget/cadence-api";
 import { APP_NAME } from "../../../lib/config";
 import { ROUTES } from "../../../lib/routes";
@@ -97,8 +96,8 @@ function AppDetailsPage() {
             </p>
           ) : loading ? (
             <>
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-64 w-full rounded-xl" />
+              <PanelCardSkeleton rows={1} />
+              <PanelCardSkeleton rows={3} />
             </>
           ) : settings.isError ? (
             <ErrorState

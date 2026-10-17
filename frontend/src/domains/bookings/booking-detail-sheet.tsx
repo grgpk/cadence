@@ -109,7 +109,7 @@ export function BookingDetailSheet({
           </SheetTitle>
           <SheetDescription>
             {booking && zone ? (
-              <span className="text-clock text-[0.9375rem]">
+              <span className="text-clock text-md">
                 {formatDay(booking.slot_start, zone)},{" "}
                 {formatTime(booking.slot_start, zone)}
               </span>
@@ -182,7 +182,7 @@ export function BookingDetailSheet({
                 <div className="grid gap-1 px-4 py-3">
                   <dt className="text-muted-foreground">Their time</dt>
                   <dd>
-                    <span className="text-clock text-[0.9375rem]">
+                    <span className="text-clock text-md">
                       {formatTime(booking.slot_start, booking.timezone)}
                     </span>
                     , {zoneName(booking.timezone)}

@@ -191,7 +191,7 @@ export function WeekSlots({
                           onPick={pick}
                           dayLabel={longDayLabel(week[column] ?? start)}
                           // Seven columns get narrow before the card is wide.
-                          className="@[760px]:text-sm @[960px]:text-[0.9375rem]"
+                          className="@[760px]:text-sm @[960px]:text-md"
                         />
                       ) : (
                         // Not open at this time on this day; a column is a fixed day of this week.

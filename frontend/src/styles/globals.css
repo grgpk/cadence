@@ -7,9 +7,12 @@
 
 :root,
 .light {
-  --radius: 0.625rem;
+  --radius: 0.75rem;
   /* Paper and ink: Cal.com's neutral grays. */
   --background: oklch(1 0 0);
+  /* The dashboard page behind its cards, one step below paper. */
+  --canvas: oklch(0.982 0.004 265);
+  --card-shadow: 0 1px 2px oklch(0.21 0.034 265 / 0.05), 0 1px 1px oklch(0.21 0.034 265 / 0.03);
   --foreground: oklch(0.21 0.034 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.034 265);
@@ -39,11 +42,11 @@
   --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.52 0.13 152);
   --warning: oklch(0.58 0.13 70);
-  --sidebar: oklch(0.985 0.002 247);
+  --sidebar: oklch(0.982 0.004 265);
   --sidebar-foreground: oklch(0.21 0.034 265);
   --sidebar-primary: oklch(0.21 0.034 265);
   --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.928 0.006 265);
+  --sidebar-accent: oklch(0.945 0.005 265);
   --sidebar-accent-foreground: oklch(0.21 0.034 265);
   --sidebar-border: oklch(0.928 0.006 265);
   --sidebar-ring: oklch(0.551 0.027 264);
@@ -51,47 +54,51 @@
 
 .dark {
   color-scheme: dark;
-  --background: oklch(0.173 0 0);
+  /* Night: the grays carry a trace of dusk so dark mode is not dead gray. */
+  --background: oklch(0.185 0.006 280);
+  --canvas: oklch(0.155 0.006 280);
+  --card-shadow: 0 1px 2px oklch(0 0 0 / 0.35), inset 0 1px 0 oklch(1 0 0 / 0.03);
   --foreground: oklch(0.967 0.003 265);
-  --card: oklch(0.173 0 0);
+  --card: oklch(0.185 0.006 280);
   --card-foreground: oklch(0.967 0.003 265);
-  --popover: oklch(0.226 0 0);
+  --popover: oklch(0.235 0.007 280);
   --popover-foreground: oklch(0.967 0.003 265);
   --primary: oklch(1 0 0);
-  --primary-foreground: oklch(0.173 0 0);
-  --secondary: oklch(0.289 0 0);
+  --primary-foreground: oklch(0.185 0.006 280);
+  --secondary: oklch(0.29 0.008 280);
   --secondary-foreground: oklch(0.967 0.003 265);
-  --muted: oklch(0.226 0 0);
-  --muted-foreground: oklch(0.722 0 0);
-  --accent: oklch(0.289 0 0);
+  --muted: oklch(0.235 0.007 280);
+  --muted-foreground: oklch(0.73 0.008 280);
+  --accent: oklch(0.29 0.008 280);
   --accent-foreground: oklch(0.967 0.003 265);
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(0.289 0 0);
-  --input: oklch(0.356 0 0);
-  --ring: oklch(0.457 0 0);
+  --border: oklch(0.29 0.008 280);
+  --input: oklch(0.36 0.008 280);
+  --ring: oklch(0.46 0.01 280);
   --signal: oklch(0.68 0.22 27);
-  --signal-foreground: oklch(0.173 0 0);
+  --signal-foreground: oklch(0.185 0.006 280);
   --dawn: oklch(0.84 0.09 55);
   --noon: oklch(0.82 0.15 80);
   --dusk: oklch(0.55 0.2 282);
-  --day-foreground: oklch(0.173 0 0);
+  --day-foreground: oklch(0.185 0.006 280);
   --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.75 0.15 152);
   --warning: oklch(0.8 0.13 80);
-  --sidebar: oklch(0.2 0 0);
+  --sidebar: oklch(0.165 0.006 280);
   --sidebar-foreground: oklch(0.967 0.003 265);
   --sidebar-primary: oklch(1 0 0);
-  --sidebar-primary-foreground: oklch(0.173 0 0);
-  --sidebar-accent: oklch(0.289 0 0);
+  --sidebar-primary-foreground: oklch(0.185 0.006 280);
+  --sidebar-accent: oklch(0.235 0.007 280);
   --sidebar-accent-foreground: oklch(0.967 0.003 265);
-  --sidebar-border: oklch(0.289 0 0);
-  --sidebar-ring: oklch(0.457 0 0);
+  --sidebar-border: oklch(0.26 0.008 280);
+  --sidebar-ring: oklch(0.46 0.01 280);
 }
 
 @theme inline {
   --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Archivo Variable", "Hanken Grotesk Variable", ui-sans-serif, sans-serif;
   --color-background: var(--background);
+  --color-canvas: var(--canvas);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
@@ -131,6 +138,14 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 2px);
   --radius-2xl: calc(var(--radius) + 6px);
+  /* Cards are rounded-xl, rows inside a card rounded-lg, chips rounded-md. */
+
+  /* The one card shadow. Popovers and sheets keep shadow-lg; nothing else casts one. */
+  --shadow-card: var(--card-shadow);
+
+  /* The step between text-sm and text-base: names and times in lists. */
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.45;
 
   /* Motion. Use with `motion-safe:` so reduced-motion visitors get a still page. */
   --animate-tape-drift: tape-drift 90s linear infinite;

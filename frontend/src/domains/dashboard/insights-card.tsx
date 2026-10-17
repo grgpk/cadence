@@ -8,6 +8,7 @@ import { hourLabel, weekdayName } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { insightsQuery, showUpRate } from "../bookings/bookings";
 import { ErrorState } from "../shared/error-state";
+import { PanelHeader } from "../shared/panel-card";
 
 function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
@@ -26,12 +27,14 @@ export function InsightsCard({ hour12 }: { hour12: boolean }) {
   const rate = week ? showUpRate(week.held, week.no_shows) : null;
   return (
     <Card className="gap-0 overflow-hidden py-0">
-      <div className="flex items-center justify-between gap-4 border-b py-2.5 pr-3 pl-5">
-        <h2 className="font-semibold">Your last 7 days</h2>
-        <Button variant="ghost" size="sm" asChild>
-          <Link to={ROUTES.dashboardBookings}>All bookings</Link>
-        </Button>
-      </div>
+      <PanelHeader
+        title="Your last 7 days"
+        action={
+          <Button variant="ghost" size="sm" asChild>
+            <Link to={ROUTES.dashboardBookings}>All bookings</Link>
+          </Button>
+        }
+      />
       {query.isError ? (
         <div className="p-5">
           <ErrorState

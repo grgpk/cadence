@@ -92,6 +92,10 @@ function activeLink<T extends NavLink>(pathname: string, links: T[]): T | undefi
 }
 
 /** A nav item with pages under it. Collapsed to icons, it opens its first page. */
+/** The page you are on lifts off the sidebar like a card, its icon in dusk. */
+const ACTIVE_NAV =
+  "data-[active=true]:bg-card data-[active=true]:shadow-card data-[active=true]:[&>svg]:text-dusk";
+
 function NavGroup({
   item,
   items,
@@ -114,7 +118,12 @@ function NavGroup({
   if (state === "collapsed" && !isMobile) {
     return (
       <SidebarMenuItem>
-        <SidebarMenuButton asChild isActive={active} tooltip={item.title}>
+        <SidebarMenuButton
+          asChild
+          isActive={active}
+          tooltip={item.title}
+          className={ACTIVE_NAV}
+        >
           <Link to={items[0]?.to ?? item.to}>
             <Icon />
             <span>{item.title}</span>
@@ -229,6 +238,7 @@ export function AppShell({
                           asChild
                           isActive={isActive(pathname, item)}
                           tooltip={item.title}
+                          className={ACTIVE_NAV}
                         >
                           <Link to={item.to}>
                             <Icon />
@@ -247,8 +257,8 @@ export function AppShell({
           <UserMenu user={user} />
         </SidebarFooter>
       </Sidebar>
-      <SidebarInset>
-        <div className="flex h-12 items-center gap-2 border-b bg-card px-3 text-sm">
+      <SidebarInset className="bg-canvas">
+        <div className="flex h-12 items-center gap-2 border-b px-3 text-sm">
           <SidebarTrigger />
           <nav aria-label="Where you are" className="flex min-w-0 items-center gap-2">
             {hasAdminAccess(user) ? (

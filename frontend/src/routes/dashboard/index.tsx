@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, Copy, ExternalLink } from "lucide-react";
+import { cn } from "cn";
 import { useState } from "react";
 
 import { Button } from "../../components/ui/button";
@@ -16,14 +17,18 @@ import {
   availabilityQuery,
   hostSettingsQuery,
 } from "../../domains/dashboard/host-api";
+import { greeting } from "../../domains/dashboard/greeting";
 import { InsightsCard } from "../../domains/dashboard/insights-card";
 import { SwitchingCard } from "../../domains/dashboard/switching-card";
 import { TodayCard, TodayCardSkeleton } from "../../domains/dashboard/today-card";
 import { billingQuery } from "../../domains/billing/billing-api";
 import { useClockPreference } from "../../hooks/use-clock-preference";
+import { useNow } from "../../hooks/use-now";
+import { PHASE_STYLES } from "../../domains/shared/day-phase-styles";
 import { EmptyState } from "../../domains/shared/empty-state";
 import { ErrorState } from "../../domains/shared/error-state";
 import { PageHeader } from "../../domains/shared/page-header";
+import { PanelHeader } from "../../domains/shared/panel-card";
 import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
 import { bookingPath, ROUTES } from "../../lib/routes";
@@ -74,7 +79,9 @@ function DashboardHome() {
   const later = timeZone
     ? dayPlan(bookings.data ?? [], timeZone, Date.now()).later.slice(0, LATER_LIMIT)
     : [];
+  const now = useNow();
   const firstName = user?.full_name.trim().split(/\s+/)[0];
+  const hello = now && timeZone ? greeting(firstName, now, timeZone) : null;
   // Calls are read on the host's clock, so they need the settings too.
   const failed = bookings.isError ? bookings : settings.isError ? settings : null;
   const loading = !failed && (bookings.isPending || settings.isPending);
@@ -82,7 +89,18 @@ function DashboardHome() {
   return (
     <>
       <PageHeader
-        title={firstName ? `Welcome back, ${firstName}` : "Welcome back"}
+        title={hello?.text ?? (firstName ? `Welcome back, ${firstName}` : "Welcome back")}
+        accent={
+          hello ? (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "mt-2 block h-1 w-10 rounded-full",
+                PHASE_STYLES[hello.phase].rail,
+              )}
+            />
+          ) : null
+        }
         actions={<BookingLink slug={slug} />}
       />
 
@@ -114,12 +132,14 @@ function DashboardHome() {
 
       {failed ? null : (
         <Card className="gap-0 overflow-hidden py-0">
-          <div className="flex items-center justify-between gap-4 border-b py-2.5 pr-3 pl-5">
-            <h2 className="font-semibold">Later</h2>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to={ROUTES.dashboardBookings}>All bookings</Link>
-            </Button>
-          </div>
+          <PanelHeader
+            title="Later"
+            action={
+              <Button variant="ghost" size="sm" asChild>
+                <Link to={ROUTES.dashboardBookings}>All bookings</Link>
+              </Button>
+            }
+          />
           {loading ? (
             <TableSkeleton rows={2} />
           ) : later.length === 0 ? (

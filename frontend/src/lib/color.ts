@@ -20,8 +20,8 @@ function contrast(a: string, b: string): number {
   return (light + 0.05) / (dark + 0.05);
 }
 
-/** The dark theme's page, `.dark --background` (oklch 0.173) in globals.css. */
-const DARK_PAGE = "#171717";
+/** The dark theme's page, `.dark --background` (oklch 0.185 0.006 280) in globals.css. */
+const DARK_PAGE = "#121215";
 /** WCAG's least contrast for buttons, focus rings and other UI parts. */
 const UI_CONTRAST = 3;
 

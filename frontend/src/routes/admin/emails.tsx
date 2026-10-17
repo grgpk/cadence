@@ -51,7 +51,7 @@ const COLUMNS: Column<AdminEmail>[] = [
   },
   {
     header: "Sent or due",
-    className: "text-muted-foreground text-clock text-[0.9375rem]",
+    className: "text-muted-foreground text-clock text-md",
     cell: (email) => formatDateTime(email.sent_at ?? email.send_at),
   },
 ];
