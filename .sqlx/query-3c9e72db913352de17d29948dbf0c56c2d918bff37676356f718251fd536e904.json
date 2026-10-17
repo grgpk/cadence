@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions\n         SET status = $4, cancel_at_period_end = false, stripe_synced_at = $3, updated_at = now()\n         WHERE user_unid = $1 AND stripe_subscription_id = $2\n           AND (stripe_synced_at IS NULL OR stripe_synced_at <= $3)\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "3c9e72db913352de17d29948dbf0c56c2d918bff37676356f718251fd536e904"
+}

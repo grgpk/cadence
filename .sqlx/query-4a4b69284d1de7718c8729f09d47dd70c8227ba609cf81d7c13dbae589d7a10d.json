@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE referrals SET referred_credited_at = now()\n         WHERE referred_unid = $1 AND referred_credited_at IS NULL\n         RETURNING referrer_unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "referrer_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "referrals",
+            "name": "referrer_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4a4b69284d1de7718c8729f09d47dd70c8227ba609cf81d7c13dbae589d7a10d"
+}

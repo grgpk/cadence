@@ -310,47 +310,87 @@ pub async fn referrals(pool: &PgPool, user_unid: Uuid) -> AppResult<Referrals> {
     })
 }
 
-/// Credits the invitations around a host who now pays.
+/// Credits the invitations around a host who now pays, after their plan
+/// is saved: Stripe being down delays a credit, never the plan.
 ///
-/// The invitation they came with is credited to both sides, and any credit
-/// they were owed as an inviter is paid now that they have a Stripe account.
-/// Each credit is marked, so it happens once.
-async fn credit_referrals(
-    connection: &mut PgConnection,
+/// The invitation they came with is credited to both sides once an invoice
+/// took real money, and any credit they were owed as an inviter is paid now
+/// that they have a Stripe account. A credit that fails is tried again on
+/// the host's next event.
+async fn reward_referrals(
+    pool: &PgPool,
     payments: &Payments,
     user_unid: Uuid,
     customer: &str,
+    invoice: Option<&str>,
+) {
+    if let Err(error) = credit_referrals(pool, payments, user_unid, customer, invoice).await {
+        tracing::error!(?error, %user_unid, "referral credit not made yet");
+    }
+}
+
+async fn credit_referrals(
+    pool: &PgPool,
+    payments: &Payments,
+    user_unid: Uuid,
+    customer: &str,
+    invoice: Option<&str>,
 ) -> AppResult<()> {
-    let amount = referral_credit_cents();
-    let credit = async |customer: &str, referred: Uuid, side: &str| {
-        payments
-            .credit(
-                customer,
-                amount,
-                "A month of Cadence Pro, for an invitation",
-                &format!("referral-{referred}-{side}"),
-            )
+    let paid = match invoice {
+        Some(invoice) => payments
+            .invoice_paid(invoice)
             .await
-            .map_err(payments_failed)
+            .map_err(payments_failed)?,
+        None => false,
     };
-    if let Some(referral) = db::referral_of(connection, user_unid).await?
-        && !referral.referred_credited
-    {
-        credit(customer, user_unid, "invited").await?;
-        db::mark_referred_credited(connection, user_unid).await?;
-        if let (false, Some(inviter)) = (
-            referral.referrer_credited,
-            referral.referrer_customer.as_deref(),
-        ) {
-            credit(inviter, user_unid, "inviter").await?;
-            db::mark_referrer_credited(connection, user_unid).await?;
+    if paid && let Some(referrer) = db::claim_referred(pool, user_unid).await? {
+        if let Err(error) = month_credit(payments, customer, user_unid, "invited").await {
+            db::release_referred(pool, user_unid).await?;
+            return Err(error);
+        }
+        if let Some(inviter) = db::paying_customer(pool, referrer).await? {
+            credit_inviter(pool, payments, &inviter, user_unid).await?;
         }
     }
-    for referred in db::owed_to_referrer(connection, user_unid).await? {
-        credit(customer, referred, "inviter").await?;
-        db::mark_referrer_credited(connection, referred).await?;
+    for referred in db::owed_to_referrer(pool, user_unid).await? {
+        credit_inviter(pool, payments, customer, referred).await?;
     }
     Ok(())
+}
+
+async fn credit_inviter(
+    pool: &PgPool,
+    payments: &Payments,
+    customer: &str,
+    referred: Uuid,
+) -> AppResult<()> {
+    if !db::claim_referrer(pool, referred).await? {
+        return Ok(());
+    }
+    if let Err(error) = month_credit(payments, customer, referred, "inviter").await {
+        db::release_referrer(pool, referred).await?;
+        return Err(error);
+    }
+    Ok(())
+}
+
+/// One month of Pro on the customer's balance, keyed by the invitation and
+/// the side, so it is made once.
+async fn month_credit(
+    payments: &Payments,
+    customer: &str,
+    referred: Uuid,
+    side: &str,
+) -> AppResult<()> {
+    payments
+        .credit(
+            customer,
+            referral_credit_cents(),
+            "A month of Cadence Pro, for an invitation",
+            &format!("referral-{referred}-{side}"),
+        )
+        .await
+        .map_err(payments_failed)
 }
 
 /// Every host and the plan that applies to them now, newest first.
@@ -461,6 +501,12 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
     let price = item.and_then(|item| payments.prices().plan_of(&item.price));
     let (Some(user_unid), Some((plan, interval))) = (user_unid, price) else {
         tracing::warn!(event = %event.id, "stripe subscription for no known host or price");
+        // An ended subscription ends the host's plan whatever its price, or
+        // a price nobody tagged would keep the plan on for free.
+        if let (true, Some(user_unid)) = (ended, user_unid) {
+            let event_at = instant(event.created).unwrap_or_else(Utc::now);
+            db::end_subscription(&mut transaction, user_unid, &subscription.id, event_at).await?;
+        }
         return Ok(transaction.commit().await?);
     };
     let status = if ended {
@@ -490,17 +536,19 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
     .await?;
     if applied {
         notify(&mut transaction, user_unid, before, status).await?;
-        if status == SubscriptionStatus::Active {
-            credit_referrals(
-                &mut transaction,
-                payments,
-                user_unid,
-                &subscription.customer,
-            )
-            .await?;
-        }
     }
-    Ok(transaction.commit().await?)
+    transaction.commit().await?;
+    if applied && status == SubscriptionStatus::Active {
+        reward_referrals(
+            pool,
+            payments,
+            user_unid,
+            &subscription.customer,
+            subscription.latest_invoice_id(),
+        )
+        .await;
+    }
+    Ok(())
 }
 
 /// A host who pays no longer needs the trial reminder; a host whose renewal

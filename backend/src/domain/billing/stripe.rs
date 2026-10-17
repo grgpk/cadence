@@ -87,8 +87,20 @@ enum Gateway {
         secret_key: Arc<str>,
     },
     /// Remembers the credits it was asked for, so tests can read them.
-    Fake(Arc<Mutex<Vec<Credit>>>),
+    Fake(Arc<Mutex<FakeLedger>>),
 }
+
+/// What the fake gateway remembers: the credits it made, by key, and
+/// whether tests want the next credits to fail.
+#[derive(Debug, Default)]
+struct FakeLedger {
+    credits: Vec<(String, Credit)>,
+    failing: bool,
+}
+
+/// The fake's invoices are paid unless their id says otherwise, as one
+/// fully discounted by a promotion code would be.
+pub const FAKE_UNPAID_INVOICE: &str = "in_unpaid";
 
 /// Money put on a Stripe customer's balance, taken off their next bills.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -253,8 +265,33 @@ impl Payments {
         post(client, secret_key, "/billing_portal/sessions", &form).await
     }
 
-    /// Credit on the customer's balance. `key` makes a retried call (the
-    /// same webhook again) credit once.
+    /// Whether the invoice took real money: a promotion code can make a
+    /// paid plan's first invoice $0.
+    pub async fn invoice_paid(&self, invoice_id: &str) -> Result<bool, PaymentsError> {
+        let Gateway::Stripe { client, secret_key } = &self.gateway else {
+            return Ok(invoice_id != FAKE_UNPAID_INVOICE);
+        };
+        #[derive(Deserialize)]
+        struct Invoice {
+            amount_paid: i64,
+        }
+        let path = format!("/invoices/{invoice_id}");
+        let sent = client
+            .get(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .send()
+            .await;
+        checked(&path, sent)
+            .await?
+            .json::<Invoice>()
+            .await
+            .map(|invoice| invoice.amount_paid > 0)
+            .map_err(|error| PaymentsError::Request(error.into()))
+    }
+
+    /// Credit on the customer's balance, once per `key`. The key is kept
+    /// on the balance transaction, so a credit already made is found and
+    /// not made again, however late a retry comes.
     pub async fn credit(
         &self,
         customer_id: &str,
@@ -264,23 +301,19 @@ impl Payments {
     ) -> Result<(), PaymentsError> {
         let (client, secret_key) = match &self.gateway {
             Gateway::Stripe { client, secret_key } => (client, secret_key),
-            Gateway::Fake(credits) => {
-                if let Ok(mut credits) = credits.lock() {
-                    credits.push(Credit {
-                        customer_id: customer_id.to_owned(),
-                        amount_cents,
-                    });
-                }
-                return Ok(());
-            }
+            Gateway::Fake(ledger) => return fake_credit(ledger, customer_id, amount_cents, key),
         };
         let path = format!("/customers/{customer_id}/balance_transactions");
+        if credited_before(client, secret_key, &path, key).await? {
+            return Ok(());
+        }
         // A negative balance is what the customer is owed.
         let amount = format!("-{amount_cents}");
         let form = [
             ("amount", amount.as_str()),
             ("currency", CURRENCY),
             ("description", description),
+            ("metadata[referral]", key),
         ];
         let sent = client
             .post(format!("{API}{path}"))
@@ -295,11 +328,26 @@ impl Payments {
     /// The fake's credits so far; always empty against Stripe.
     pub fn credits(&self) -> Vec<Credit> {
         match &self.gateway {
-            Gateway::Fake(credits) => credits
+            Gateway::Fake(ledger) => ledger
                 .lock()
-                .map(|credits| credits.clone())
+                .map(|ledger| {
+                    ledger
+                        .credits
+                        .iter()
+                        .map(|(_, credit)| credit.clone())
+                        .collect()
+                })
                 .unwrap_or_default(),
             Gateway::Stripe { .. } => Vec::new(),
+        }
+    }
+
+    /// For tests: makes the fake's credits fail, as Stripe being down would.
+    pub fn fail_credits(&self, failing: bool) {
+        if let Gateway::Fake(ledger) = &self.gateway
+            && let Ok(mut ledger) = ledger.lock()
+        {
+            ledger.failing = failing;
         }
     }
 
@@ -312,6 +360,67 @@ impl Payments {
     ) -> Result<(), BadSignature> {
         signature::verify(&self.webhook_secret, payload, header, now)
     }
+}
+
+fn fake_credit(
+    ledger: &Mutex<FakeLedger>,
+    customer_id: &str,
+    amount_cents: u32,
+    key: &str,
+) -> Result<(), PaymentsError> {
+    let mut ledger = ledger
+        .lock()
+        .map_err(|_| PaymentsError::Request(anyhow::anyhow!("fake ledger poisoned")))?;
+    if ledger.failing {
+        return Err(PaymentsError::Request(anyhow::anyhow!(
+            "fake stripe is down"
+        )));
+    }
+    if !ledger.credits.iter().any(|(made, _)| made == key) {
+        let credit = Credit {
+            customer_id: customer_id.to_owned(),
+            amount_cents,
+        };
+        ledger.credits.push((key.to_owned(), credit));
+    }
+    drop(ledger);
+    Ok(())
+}
+
+#[derive(Deserialize)]
+struct BalanceTransactions {
+    data: Vec<BalanceTransaction>,
+}
+
+#[derive(Deserialize)]
+struct BalanceTransaction {
+    #[serde(default)]
+    metadata: std::collections::HashMap<String, String>,
+}
+
+/// Whether the customer's recent balance already holds the credit `key`.
+async fn credited_before(
+    client: &reqwest::Client,
+    secret_key: &str,
+    path: &str,
+    key: &str,
+) -> Result<bool, PaymentsError> {
+    let sent = client
+        .get(format!("{API}{path}?limit=100"))
+        .bearer_auth(secret_key)
+        .send()
+        .await;
+    let transactions = checked(path, sent)
+        .await?
+        .json::<BalanceTransactions>()
+        .await
+        .map_err(|error| PaymentsError::Request(error.into()))?;
+    Ok(transactions.data.iter().any(|transaction| {
+        transaction
+            .metadata
+            .get("referral")
+            .is_some_and(|made| made == key)
+    }))
 }
 
 #[derive(Deserialize)]

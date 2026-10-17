@@ -163,6 +163,30 @@ pub async fn sync_subscription(
     .map(|row| row.is_some())
 }
 
+/// Cancels the stored plan when it is this Stripe subscription, unless a
+/// newer event was applied.
+pub async fn end_subscription(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    subscription_id: &str,
+    event_at: DateTime<Utc>,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions
+         SET status = $4, cancel_at_period_end = false, stripe_synced_at = $3, updated_at = now()
+         WHERE user_unid = $1 AND stripe_subscription_id = $2
+           AND (stripe_synced_at IS NULL OR stripe_synced_at <= $3)
+         RETURNING 1",
+        user_unid,
+        subscription_id,
+        event_at,
+        SubscriptionStatus::Canceled.as_str(),
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|row| row.is_some())
+}
+
 /// The stored status before an event changes it.
 pub async fn status(
     connection: &mut PgConnection,
@@ -335,39 +359,78 @@ pub async fn record_referral(
     .map(|_| ())
 }
 
-/// The invitation a paying host signed up with.
-pub struct Referral {
-    pub referrer_unid: Uuid,
-    pub referred_credited: bool,
-    pub referrer_credited: bool,
-    /// The inviter's Stripe customer, while they pay.
-    pub referrer_customer: Option<String>,
+/// Claims the invited host's credit before it is made, so two events at
+/// once cannot both make it. Returns the inviter; `None` when there is no
+/// invitation or it was claimed already.
+pub async fn claim_referred(
+    pool: &PgPool,
+    referred_unid: Uuid,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referred_credited_at = now()
+         WHERE referred_unid = $1 AND referred_credited_at IS NULL
+         RETURNING referrer_unid",
+        referred_unid,
+    )
+    .fetch_optional(pool)
+    .await
 }
 
-pub async fn referral_of(
-    connection: &mut PgConnection,
-    referred_unid: Uuid,
-) -> Result<Option<Referral>, sqlx::Error> {
-    sqlx::query_as!(
-        Referral,
-        r#"SELECT r.referrer_unid,
-                  r.referred_credited_at IS NOT NULL AS "referred_credited!",
-                  r.referrer_credited_at IS NOT NULL AS "referrer_credited!",
-                  CASE WHEN s.status = $2 THEN s.stripe_customer_id END AS "referrer_customer?"
-           FROM referrals r
-           LEFT JOIN subscriptions s ON s.user_unid = r.referrer_unid
-           WHERE r.referred_unid = $1"#,
+/// Gives a claim back after Stripe refused the credit; a later event tries again.
+pub async fn release_referred(pool: &PgPool, referred_unid: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referred_credited_at = NULL WHERE referred_unid = $1 RETURNING 1",
         referred_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|_| ())
+}
+
+/// Claims the inviter's credit for one invitation, once the invited host's
+/// was made.
+pub async fn claim_referrer(pool: &PgPool, referred_unid: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referrer_credited_at = now()
+         WHERE referred_unid = $1
+           AND referred_credited_at IS NOT NULL AND referrer_credited_at IS NULL
+         RETURNING 1",
+        referred_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|row| row.is_some())
+}
+
+pub async fn release_referrer(pool: &PgPool, referred_unid: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referrer_credited_at = NULL WHERE referred_unid = $1 RETURNING 1",
+        referred_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|_| ())
+}
+
+/// The host's Stripe customer while they pay, which a credit goes to.
+pub async fn paying_customer(
+    pool: &PgPool,
+    user_unid: Uuid,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT stripe_customer_id FROM subscriptions WHERE user_unid = $1 AND status = $2",
+        user_unid,
         SubscriptionStatus::Active.as_str(),
     )
-    .fetch_optional(connection)
+    .fetch_optional(pool)
     .await
+    .map(Option::flatten)
 }
 
 /// Hosts this inviter brought who have paid, and whose credit to the
 /// inviter is still owed.
 pub async fn owed_to_referrer(
-    connection: &mut PgConnection,
+    pool: &PgPool,
     referrer_unid: Uuid,
 ) -> Result<Vec<Uuid>, sqlx::Error> {
     sqlx::query_scalar!(
@@ -376,34 +439,8 @@ pub async fn owed_to_referrer(
            AND referred_credited_at IS NOT NULL AND referrer_credited_at IS NULL",
         referrer_unid,
     )
-    .fetch_all(connection)
+    .fetch_all(pool)
     .await
-}
-
-pub async fn mark_referred_credited(
-    connection: &mut PgConnection,
-    referred_unid: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query_scalar!(
-        "UPDATE referrals SET referred_credited_at = now() WHERE referred_unid = $1 RETURNING 1",
-        referred_unid,
-    )
-    .fetch_one(connection)
-    .await
-    .map(|_| ())
-}
-
-pub async fn mark_referrer_credited(
-    connection: &mut PgConnection,
-    referred_unid: Uuid,
-) -> Result<(), sqlx::Error> {
-    sqlx::query_scalar!(
-        "UPDATE referrals SET referrer_credited_at = now() WHERE referred_unid = $1 RETURNING 1",
-        referred_unid,
-    )
-    .fetch_one(connection)
-    .await
-    .map(|_| ())
 }
 
 /// A host's invite link and how it has done.

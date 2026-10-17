@@ -110,6 +110,19 @@ pub struct StripeSubscription {
     #[serde(default)]
     pub metadata: HashMap<String, String>,
     pub items: StripeList<StripeSubscriptionItem>,
+    /// The invoice's id, or the invoice itself when expanded. A referral
+    /// credit waits for one that took money.
+    #[serde(default)]
+    pub latest_invoice: Option<serde_json::Value>,
+}
+
+impl StripeSubscription {
+    pub fn latest_invoice_id(&self) -> Option<&str> {
+        match self.latest_invoice.as_ref()? {
+            serde_json::Value::String(id) => Some(id),
+            invoice => invoice.get("id")?.as_str(),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]

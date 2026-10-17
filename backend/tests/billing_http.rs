@@ -17,7 +17,7 @@ use cadence_backend::{
         auth::service::make_token,
         billing::{
             plans::{BillingInterval, Plan},
-            stripe::{Credit, Payments, PriceIds},
+            stripe::{Credit, FAKE_UNPAID_INVOICE, Payments, PriceIds},
         },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
@@ -363,6 +363,11 @@ async fn a_monthly_payer_switches_to_yearly_on_stripes_confirm_screen(pool: PgPo
 
 /// The host starts paying monthly Pro as Stripe customer `customer`.
 async fn pays(app: &Router, event_id: &str, user: Uuid, customer: &str) {
+    pays_invoice(app, event_id, user, customer, "in_paid").await;
+}
+
+/// The same, with the subscription's latest invoice named.
+async fn pays_invoice(app: &Router, event_id: &str, user: Uuid, customer: &str, invoice: &str) {
     let event = json!({
         "id": event_id,
         "type": "customer.subscription.updated",
@@ -374,6 +379,7 @@ async fn pays(app: &Router, event_id: &str, user: Uuid, customer: &str) {
             "cancel_at_period_end": false,
             "metadata": { "user_unid": user.to_string() },
             "items": { "data": [{ "price": { "id": PRO_MONTH }, "current_period_end": 1_900_000_000 }] },
+            "latest_invoice": invoice,
         }},
     });
     assert_eq!(
@@ -448,6 +454,91 @@ async fn an_invitation_credits_both_hosts_a_month_once_each_pays(pool: PgPool) {
     pays(&app, "evt_3", ben, "cus_ben").await;
     pays(&app, "evt_4", ada, "cus_ada").await;
     assert_eq!(payments.credits(), vec![month("cus_ben"), month("cus_ada")]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_ended_subscription_ends_the_plan_even_with_a_price_nobody_knows(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    subscription_event(&app, "evt_1", "created", 100, unid, PRO_MONTH, "active").await;
+
+    let status = subscription_event(
+        &app,
+        "evt_2",
+        "deleted",
+        200,
+        unid,
+        "price_untagged",
+        "canceled",
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+    let ended = summary(&app, &cookie).await;
+    assert_eq!(ended["plan"], "free");
+    assert_eq!(ended["status"], "canceled");
+}
+
+/// Ada invites Ben; returns their ids and Ada's cookie.
+async fn invitation(app: &Router) -> (Uuid, String, Uuid) {
+    let (ada, ada_cookie) = register(app, "ada@example.com").await;
+    let (_, settings) = send(
+        app,
+        Method::GET,
+        "/api/host/settings",
+        Some(&ada_cookie),
+        None,
+    )
+    .await;
+    let code = settings["public_slug"].as_str().expect("a link").to_owned();
+    let (status, ben) = send(
+        app,
+        Method::POST,
+        "/api/auth/register",
+        None,
+        Some(
+            json!({ "email": "ben@example.com", "password": "password123",
+                     "full_name": "Ben Ito", "referred_by": code }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let ben = serde_json::from_value(ben["unid"].clone()).expect("user has an id");
+    (ada, ada_cookie, ben)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_invitation_pays_out_only_after_real_money(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (_, _, ben) = invitation(&app).await;
+
+    // A promotion code made Ben's first invoice $0: no credit yet.
+    pays_invoice(&app, "evt_1", ben, "cus_ben", FAKE_UNPAID_INVOICE).await;
+    assert!(payments.credits().is_empty());
+
+    // His next invoice takes money.
+    pays_invoice(&app, "evt_2", ben, "cus_ben", "in_second").await;
+    assert_eq!(payments.credits().len(), 1);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn stripe_refusing_a_credit_never_holds_up_the_plan(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (_, _, ben) = invitation(&app).await;
+    let ben_cookie = format!("session={}", make_token(ben, 0).expect("JWT_SECRET is set"));
+
+    payments.fail_credits(true);
+    pays(&app, "evt_1", ben, "cus_ben").await;
+    assert_eq!(summary(&app, &ben_cookie).await["status"], "active");
+    assert!(payments.credits().is_empty());
+
+    // The next event, with Stripe back, makes the credit once.
+    payments.fail_credits(false);
+    pays(&app, "evt_2", ben, "cus_ben").await;
+    pays(&app, "evt_3", ben, "cus_ben").await;
+    assert_eq!(payments.credits().len(), 1);
 }
 
 async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<String> {
