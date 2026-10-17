@@ -21,6 +21,7 @@ export const Route = createFileRoute("/dashboard/event-types/$unid")({
 
 function EventTypePage() {
   const { unid } = Route.useParams();
+  const { user } = Route.useRouteContext();
   const types = useQuery(eventTypesQuery);
   const settings = useQuery(hostSettingsQuery);
   const kind = types.data?.find((candidate) => candidate.unid === unid);
@@ -51,6 +52,8 @@ function EventTypePage() {
           <EventTypeForm
             key={kind.unid}
             saved={kind}
+            hostName={user?.full_name ?? "You"}
+            accent={settings.data.accent_color}
             hostSlug={settings.data.public_slug}
             isLast={types.data.length <= 1}
           />

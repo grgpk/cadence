@@ -55,6 +55,16 @@ None. `HostPage` already has the host name, accent and event types.
   `animate-collapsible-down/up` from tw-animate-css. The shadcn primitive is
   unchanged.
 
+## Event types pages
+
+- The list is one card of rows. The whole row opens the call (the title link
+  stretches over it); copying the link stays its own button, an icon on
+  phones. Length and "Off" or "Needs Pro" show as chips. Rows no longer push
+  the page wider than a phone.
+- The edit page shows `TypePreview` beside the form from `xl` up: the call as
+  visitors read it, in the host's accent, with the booking rules in plain
+  words. It follows the form as the host types, and says when the call is off.
+
 ## Tests
 
 No logic changed. Frontend checks, plus a browser pass: hover and tab through

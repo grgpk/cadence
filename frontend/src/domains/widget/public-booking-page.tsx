@@ -21,7 +21,7 @@ import type { SlotLayout } from "./slot-days";
  * rings. Light and dark pages each get a version that stands out on them,
  * with text chosen for contrast; `.host-accent` in globals.css picks one.
  */
-function accentStyle(accent: string | null): CSSProperties | undefined {
+export function accentStyle(accent: string | null): CSSProperties | undefined {
   if (!accent) return undefined;
   const dark = forDarkPage(accent);
   return {
