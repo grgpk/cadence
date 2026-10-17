@@ -35,7 +35,8 @@ import { placeOnWeek } from "../dashboard/week-grid";
 import { weekHours, type WeekHours } from "../dashboard/week-hours";
 import { OPEN_STYLES } from "../landing/day-tape";
 import { SegmentedControl } from "../shared/segmented-control";
-import { phaseSpans, zonedTime } from "../../lib/zoned-time";
+import { callEnd, dayPhase, phaseSpans, zonedTime } from "../../lib/zoned-time";
+import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { dayCall, isCancelled, lanes } from "./bookings";
 
 export const CALENDAR_MODE = { day: "day", week: "week", month: "month" } as const;
@@ -225,7 +226,13 @@ function TimeGrid({
           {days.map((day) => {
             const isToday = sameDay(day, today);
             return (
-              <div key={dayKey(day)} className="grid justify-items-center gap-0.5 py-2">
+              <div
+                key={dayKey(day)}
+                className={cn(
+                  "grid justify-items-center gap-0.5 py-2",
+                  daysBetween(today, day) < 0 && "opacity-50",
+                )}
+              >
                 <span
                   className={cn(
                     "text-xs font-medium tracking-wide uppercase",
@@ -265,6 +272,14 @@ function TimeGrid({
               isToday &&
               nowMinutes >= hours.first * HOUR &&
               nowMinutes <= hours.last * HOUR;
+            // How far down the column time has already gone: all of a past day, today up to now.
+            const ahead = daysBetween(today, day);
+            const pastUntil =
+              ahead < 0
+                ? hours.last * HOUR
+                : ahead === 0
+                  ? Math.min(Math.max(nowMinutes, hours.first * HOUR), hours.last * HOUR)
+                  : null;
             return (
               <div
                 key={dayKey(day)}
@@ -284,14 +299,25 @@ function TimeGrid({
                           key={`${rule.id}-${span.phase}`}
                           aria-hidden="true"
                           style={{ top: place.left, height: place.width }}
+                          // Open hours sit behind the calls: a hint, not a fill.
                           className={cn(
-                            "absolute inset-x-0 border-0",
+                            "absolute inset-x-0 border-0 opacity-45",
                             OPEN_STYLES[span.phase],
                           )}
                         />
                       );
                     }),
                   )}
+                {pastUntil !== null && pastUntil > hours.first * HOUR ? (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      top: 0,
+                      height: placeOnWeek(hours, hours.first * HOUR, pastUntil).width,
+                    }}
+                    className="absolute inset-x-0 bg-background/45"
+                  />
+                ) : null}
                 {hourList.map((hour, index) => (
                   <span
                     key={hour}
@@ -303,14 +329,20 @@ function TimeGrid({
                 {lanes(callsOn(day)).map(({ booking, from, to, lane, lanes: width }) => {
                   const place = placeOnWeek(hours, from, to);
                   const time = formatTime(booking.slot_start, timeZone);
+                  const end = formatTime(
+                    callEnd(booking.slot_start, booking.minutes).toISOString(),
+                    timeZone,
+                  );
                   const past = new Date(booking.slot_start).getTime() < now;
+                  // A call of 45 minutes or more has room to say when it ends.
+                  const roomy = to - from >= 45;
                   return (
                     <button
                       key={booking.unid}
                       type="button"
                       onClick={() => onOpen(booking)}
-                      aria-label={`${booking.invitee_name}, ${time}`}
-                      title={`${booking.invitee_name}, ${time}`}
+                      aria-label={`${booking.invitee_name}, ${time} to ${end}`}
+                      title={`${booking.invitee_name}, ${time} to ${end}`}
                       style={{
                         top: place.left,
                         height: place.width,
@@ -328,7 +360,9 @@ function TimeGrid({
                       <span className="truncate font-semibold">
                         {booking.invitee_name}
                       </span>
-                      <span className="text-clock truncate opacity-80">{time}</span>
+                      <span className="text-clock truncate opacity-80">
+                        {roomy ? `${time} to ${end}` : time}
+                      </span>
                     </button>
                   );
                 })}
@@ -353,6 +387,11 @@ function TimeGrid({
       ) : null}
     </div>
   );
+}
+
+/** A call's dot, in the color of the part of the day it starts in. */
+function phaseDot(call: Call): string {
+  return PHASE_STYLES[dayPhase(Math.floor(call.from / HOUR))].rail;
 }
 
 /** A month as six weeks of days, each listing its first few calls. */
@@ -387,12 +426,13 @@ function MonthGrid({
         {days.map((day, index) => {
           const calls = [...callsOn(day)].sort((a, b) => a.from - b.from);
           const isToday = sameDay(day, today);
+          const past = daysBetween(today, day) < 0;
           const more = calls.length - MONTH_CELL_CALLS;
           return (
             <div
               key={dayKey(day)}
               className={cn(
-                "flex min-h-20 flex-col gap-0.5 border-b p-1 sm:min-h-28",
+                "flex min-h-16 flex-col gap-0.5 border-b p-1 sm:min-h-28",
                 index % 7 !== 0 && "border-l",
                 !day.inMonth && "bg-muted/40",
               )}
@@ -400,17 +440,38 @@ function MonthGrid({
               <button
                 type="button"
                 onClick={() => onPickDay(day)}
-                aria-label={longDayLabel(day)}
+                aria-label={`${longDayLabel(day)}${calls.length ? `, ${calls.length} ${calls.length === 1 ? "call" : "calls"}` : ""}`}
                 className={cn(
                   "text-clock grid size-7 shrink-0 place-items-center self-center rounded-full text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50",
-                  !day.inMonth && "text-muted-foreground",
+                  (!day.inMonth || past) && "text-muted-foreground",
                   isToday &&
                     "bg-signal font-semibold text-signal-foreground hover:bg-signal/85",
                 )}
               >
                 {day.day}
               </button>
-              {calls.slice(0, MONTH_CELL_CALLS).map(({ booking }) => {
+              {/* A phone has no room for names: one dot per call, and the day opens them. */}
+              {calls.length > 0 ? (
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  aria-hidden="true"
+                  onClick={() => onPickDay(day)}
+                  className={cn(
+                    "flex flex-wrap justify-center gap-1 pt-0.5 sm:hidden",
+                    past && "opacity-50",
+                  )}
+                >
+                  {calls.slice(0, MONTH_CELL_CALLS).map((call) => (
+                    <span
+                      key={call.booking.unid}
+                      className={cn("size-1.5 rounded-full", phaseDot(call))}
+                    />
+                  ))}
+                </button>
+              ) : null}
+              {calls.slice(0, MONTH_CELL_CALLS).map((call) => {
+                const { booking } = call;
                 const time = formatTime(booking.slot_start, timeZone);
                 return (
                   <button
@@ -418,13 +479,16 @@ function MonthGrid({
                     type="button"
                     onClick={() => onOpen(booking)}
                     title={`${booking.invitee_name}, ${time}`}
-                    className="flex min-w-0 items-center gap-1 rounded-sm px-1 text-left text-xs transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className={cn(
+                      "flex min-w-0 items-center gap-1 rounded-sm px-1 text-left text-xs transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 max-sm:hidden",
+                      past && "text-muted-foreground",
+                    )}
                   >
                     <span
                       aria-hidden="true"
-                      className="size-1.5 shrink-0 rounded-full bg-primary"
+                      className={cn("size-1.5 shrink-0 rounded-full", phaseDot(call))}
                     />
-                    <span className="text-clock hidden shrink-0 text-muted-foreground sm:inline">
+                    <span className="text-clock shrink-0 text-muted-foreground">
                       {time}
                     </span>
                     <span className="truncate font-medium">{booking.invitee_name}</span>
@@ -435,9 +499,10 @@ function MonthGrid({
                 <button
                   type="button"
                   onClick={() => onPickDay(day)}
-                  className="rounded-sm px-1 text-left text-xs font-medium text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="rounded-sm px-1 text-left text-xs font-medium text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 max-sm:text-center"
                 >
-                  +{more} more
+                  +{more}
+                  <span className="max-sm:hidden"> more</span>
                 </button>
               ) : null}
             </div>
