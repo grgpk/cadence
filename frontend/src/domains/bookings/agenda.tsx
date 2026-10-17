@@ -1,10 +1,10 @@
 import { cn } from "cn";
-import { Video } from "lucide-react";
+import { Video, VideoOff } from "lucide-react";
 
 import type { Booking } from "../../bindings/Booking";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
-import { formatTime } from "../../lib/format";
+import { formatTime, lengthLabel } from "../../lib/format";
 import { NAME_LINK } from "../shared/link-styles";
 import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
 import { PHASE_STYLES } from "../shared/day-phase-styles";
@@ -31,7 +31,7 @@ function AttendanceBadge({ attendance }: { attendance: Attendance }) {
   );
 }
 
-/** One call, with the color of the part of the day it falls in. */
+/** One call, with the color of the part of the day it falls in. The whole row opens it. */
 export function AgendaRow({
   booking,
   timeZone,
@@ -50,28 +50,33 @@ export function AgendaRow({
   const cancelled = isCancelled(booking);
   const toCome = new Date(booking.slot_start).getTime() >= now;
   return (
-    <li className="flex items-center gap-4 px-5 py-3">
+    <li className="group relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40 sm:gap-4 sm:px-5">
       <span
         aria-hidden="true"
         className={cn(
-          "h-9 w-[3px] shrink-0 rounded-full",
+          "h-10 w-[3px] shrink-0 rounded-full",
           cancelled ? "bg-border" : PHASE_STYLES[dayPhase(hour)].rail,
         )}
       />
-      <span
-        className={cn(
-          "w-20 shrink-0 text-clock text-lg font-medium",
-          cancelled && "text-muted-foreground line-through",
-        )}
-      >
-        {formatTime(booking.slot_start, timeZone)}
+      <span className="w-[4.75rem] shrink-0 sm:w-20">
+        <span
+          className={cn(
+            "block text-clock text-lg leading-tight font-medium",
+            cancelled && "text-muted-foreground line-through",
+          )}
+        >
+          {formatTime(booking.slot_start, timeZone)}
+        </span>
+        <span className="block text-clock text-xs text-muted-foreground">
+          {lengthLabel(booking.minutes)}
+        </span>
       </span>
       <div className="min-w-0 flex-1">
         <button
           type="button"
           onClick={onOpen}
           className={cn(
-            "block",
+            "block after:absolute after:inset-0 group-hover:underline",
             NAME_LINK,
             cancelled && "text-muted-foreground line-through",
           )}
@@ -81,19 +86,24 @@ export function AgendaRow({
         <p className="truncate text-sm text-muted-foreground">{booking.invitee_email}</p>
       </div>
       {tracksAttendance ? (
-        <AttendanceBadge attendance={attendanceOf(booking, now)} />
+        <span className="relative">
+          <AttendanceBadge attendance={attendanceOf(booking, now)} />
+        </span>
       ) : null}
       {cancelled ? (
         <StatusBadge value={booking.status} statuses={BOOKING_STATUS} />
       ) : !toCome ? null : booking.meeting_url ? (
-        <Button variant="outline" size="sm" asChild>
+        <Button variant="outline" size="sm" className="relative z-10" asChild>
           <a href={booking.meeting_url} target="_blank" rel="noreferrer">
             <Video />
-            Join call
+            Join<span className="max-sm:hidden"> call</span>
           </a>
         </Button>
       ) : (
-        <span className="text-sm text-muted-foreground">No call link</span>
+        <span className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground">
+          <VideoOff className="size-4" aria-hidden />
+          <span className="max-sm:sr-only">No call link</span>
+        </span>
       )}
     </li>
   );
