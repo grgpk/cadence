@@ -49,7 +49,13 @@ fixture DB ─▶ real router ─▶ cookie/token request
 - T1: auth and ownership matrix.
 - T2: booking and queue contracts.
 - T3: frontend smoke flow.
-- T4: CI quality job.
+- T4: CI quality job. Done 2026-10-17:
+  - `.github/workflows/quality.yml` runs `cargo test --workspace` against
+    a `postgres:18` service, with `SQLX_OFFLINE=true` and a test-only
+    `JWT_SECRET`, cached with `Swatinem/rust-cache`. Before, it ran only
+    `export_bindings`.
+  - Checked first by running the whole suite in a clean worktree with no
+    `.env`: every test passed and the bindings stayed unchanged.
 
 ## Definition of done
 
