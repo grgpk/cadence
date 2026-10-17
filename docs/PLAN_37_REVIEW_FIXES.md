@@ -134,8 +134,8 @@ longer leave an older state. Test:
 
 ### One Checkout at a time
 
-Migration `0023_add_checkout_session.sql` adds
-`subscriptions.stripe_checkout_session_id`. Checkout now:
+`subscriptions.stripe_checkout_session_id` (in `0017`, which exists only on
+this branch) keeps the newest session. Checkout now:
 1. makes the Stripe customer first and stores it, so every tab shares one;
 2. asks Stripe whether it already bills that customer (409 if so, even
    before the webhook lands);

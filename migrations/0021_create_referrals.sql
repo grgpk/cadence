@@ -10,6 +10,9 @@ CREATE TABLE referrals (
     -- have a Stripe account of their own.
     referred_credited_at    TIMESTAMPTZ,
     referrer_credited_at    TIMESTAMPTZ,
+    -- The invoice that earned the credits; refunding it takes them back.
+    referred_invoice_id     TEXT,
+    revoked_at              TIMESTAMPTZ,
     CONSTRAINT referrals_not_self CHECK (referred_unid <> referrer_unid)
 );
 
