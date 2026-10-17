@@ -353,3 +353,21 @@
     animation: none !important;
   }
 }
+
+/* A host's accent on their booking page (accentStyle in
+   public-booking-page.tsx sets both versions). */
+.host-accent {
+  --primary: var(--accent-light);
+  --primary-foreground: var(--accent-light-fg);
+  --dusk: var(--accent-light);
+  --dusk-foreground: var(--accent-light-fg);
+  --ring: var(--accent-light);
+}
+
+.dark .host-accent {
+  --primary: var(--accent-dark);
+  --primary-foreground: var(--accent-dark-fg);
+  --dusk: var(--accent-dark);
+  --dusk-foreground: var(--accent-dark-fg);
+  --ring: var(--accent-dark);
+}

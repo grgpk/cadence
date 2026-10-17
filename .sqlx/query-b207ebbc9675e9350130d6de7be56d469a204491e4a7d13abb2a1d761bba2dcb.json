@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM roleaccesses WHERE grantedto_unid = $1 AND role = 'Host'\n           ) AS \"host!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b207ebbc9675e9350130d6de7be56d469a204491e4a7d13abb2a1d761bba2dcb"
+}

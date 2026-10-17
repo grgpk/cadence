@@ -11,7 +11,7 @@ use super::{
     db::{self, DueDelivery, Outcome},
     service, target,
 };
-use crate::signature;
+use crate::{domain::billing::service as billing, signature};
 
 /// Webhooks are meant to arrive soon after the event.
 const TICK: StdDuration = StdDuration::from_secs(10);
@@ -72,9 +72,35 @@ async fn process_next<S: Sender + Sync>(pool: &PgPool, sender: &S) -> Result<boo
     let Some(delivery) = db::claim_next(&mut transaction).await? else {
         return Ok(false);
     };
-    deliver(&mut transaction, &delivery, sender).await?;
+    match not_wanted(pool, &delivery).await {
+        Some(reason) => {
+            let outcome = Outcome::GaveUp {
+                status: None,
+                error: reason,
+            };
+            db::record(&mut transaction, delivery.unid, outcome).await?;
+        }
+        None => deliver(&mut transaction, &delivery, sender).await?,
+    }
     transaction.commit().await?;
     Ok(true)
+}
+
+/// Why a queued delivery should not go out any more: the host paused the
+/// endpoint, or their plan no longer has webhooks. Retries of either would
+/// otherwise go on for a day.
+async fn not_wanted(pool: &PgPool, delivery: &DueDelivery) -> Option<&'static str> {
+    if !delivery.endpoint_active {
+        return Some("the endpoint is paused");
+    }
+    match billing::entitlements_for(pool, delivery.host_unid, Utc::now()).await {
+        Ok(entitlements) if !entitlements.webhooks => Some("the plan no longer includes webhooks"),
+        Ok(_) => None,
+        Err(error) => {
+            tracing::error!(?error, delivery = %delivery.unid, "plan unknown, sending anyway");
+            None
+        }
+    }
 }
 
 async fn deliver<S: Sender + Sync>(

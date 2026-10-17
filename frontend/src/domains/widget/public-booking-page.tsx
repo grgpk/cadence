@@ -6,7 +6,7 @@ import type { BookingPage } from "../../bindings/BookingPage";
 import type { HostPage } from "../../bindings/HostPage";
 import { APP_NAME } from "../../lib/config";
 import { lengthLabel } from "../../lib/format";
-import { readableOn } from "../../lib/color";
+import { forDarkPage, readableOn } from "../../lib/color";
 import { ROUTES } from "../../lib/routes";
 import { Logo } from "../shared/logo";
 import { ThemeToggle } from "../shared/theme-toggle";
@@ -14,16 +14,19 @@ import { BookingCard } from "./booking-card";
 import type { PageRef } from "./cadence-api";
 import type { SlotLayout } from "./slot-days";
 
-/** The host's colour as the theme's own: buttons and the picked time. */
+/**
+ * The host's colour as the theme's own: buttons, the picked time and focus
+ * rings. Light and dark pages each get a version that stands out on them,
+ * with text chosen for contrast; `.host-accent` in globals.css picks one.
+ */
 function accentStyle(accent: string | null): CSSProperties | undefined {
   if (!accent) return undefined;
-  const foreground = readableOn(accent);
+  const dark = forDarkPage(accent);
   return {
-    "--primary": accent,
-    "--primary-foreground": foreground,
-    "--dusk": accent,
-    "--dusk-foreground": foreground,
-    "--ring": accent,
+    "--accent-light": accent,
+    "--accent-light-fg": readableOn(accent),
+    "--accent-dark": dark,
+    "--accent-dark-fg": readableOn(dark),
   } as CSSProperties;
 }
 
@@ -45,7 +48,12 @@ function BookingShell({
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-svh flex-col" style={accentStyle(accent)}>
+    <div
+      className={
+        accent ? "host-accent flex min-h-svh flex-col" : "flex min-h-svh flex-col"
+      }
+      style={accentStyle(accent)}
+    >
       <main className="mx-auto flex w-full max-w-[66rem] flex-1 flex-col px-4 py-4 sm:justify-center sm:px-6 sm:py-12">
         {children}
       </main>

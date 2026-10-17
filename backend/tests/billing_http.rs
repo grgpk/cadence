@@ -611,6 +611,18 @@ async fn an_admin_sees_every_hosts_plan_and_comps_one(pool: PgPool) {
         comp(&app, &host_cookie, host, json!("business")).await,
         StatusCode::FORBIDDEN
     );
+    // Only hosts have plans.
+    let not_a_host = sqlx::query_scalar!(
+        "INSERT INTO users (email, password_hash, full_name) VALUES ('ops@example.com', 'x', 'Ops')
+         RETURNING unid",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("a user without the host role");
+    assert_eq!(
+        comp(&app, &admin_cookie, not_a_host, json!("business")).await,
+        StatusCode::BAD_REQUEST
+    );
 
     let (status, plans) = send(
         &app,

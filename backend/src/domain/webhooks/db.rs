@@ -142,6 +142,8 @@ pub struct DueDelivery {
     pub created_at: DateTime<Utc>,
     pub url: String,
     pub secret: String,
+    pub host_unid: Uuid,
+    pub endpoint_active: bool,
 }
 
 /// Takes the oldest due delivery and keeps it locked until the transaction
@@ -150,7 +152,7 @@ pub async fn claim_next(connection: &mut PgConnection) -> Result<Option<DueDeliv
     sqlx::query_as!(
         DueDelivery,
         r#"SELECT d.unid, d.event AS "event: WebhookEvent", d.payload, d.attempts, d.created_at,
-                  e.url, e.secret
+                  e.url, e.secret, e.host_unid, e.is_active AS endpoint_active
            FROM webhook_deliveries d JOIN webhook_endpoints e ON e.unid = d.endpoint_unid
            WHERE d.delivered_at IS NULL AND d.failed_at IS NULL AND d.next_attempt_at <= now()
            ORDER BY d.next_attempt_at

@@ -439,6 +439,9 @@ pub async fn comp(pool: &PgPool, user_unid: Uuid, plan: Option<Plan>) -> AppResu
     let contact = db::contact(&mut transaction, user_unid)
         .await?
         .ok_or(AppError::NotFound)?;
+    if !db::is_host(&mut transaction, user_unid).await? {
+        return Err(AppError::BadRequest("only hosts have plans".to_owned()));
+    }
     let status = db::status(&mut transaction, user_unid).await?;
     if status.is_some_and(is_billed) {
         return Err(AppError::Conflict(

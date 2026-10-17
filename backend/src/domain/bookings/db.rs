@@ -332,7 +332,9 @@ pub async fn weekly_due(pool: &PgPool, template: &str) -> Result<Vec<WeeklyDue>,
            FROM users u
            JOIN widget_settings w ON w.host_unid = u.unid
            JOIN subscriptions s ON s.user_unid = u.unid AND s.plan = 'business'
-           WHERE EXTRACT(ISODOW FROM now() AT TIME ZONE w.timezone) = 1
+           -- A zone Postgres does not know would fail the query for every host.
+           WHERE w.timezone IN (SELECT name FROM pg_timezone_names)
+             AND EXTRACT(ISODOW FROM now() AT TIME ZONE w.timezone) = 1
              AND EXTRACT(HOUR FROM now() AT TIME ZONE w.timezone) = 8
              AND NOT EXISTS (
                  SELECT 1 FROM email_queue e
@@ -342,5 +344,38 @@ pub async fn weekly_due(pool: &PgPool, template: &str) -> Result<Vec<WeeklyDue>,
         template,
     )
     .fetch_all(pool)
+    .await
+}
+
+/// Holds the host's weekly email to this transaction, so two workers in the
+/// same minute queue it once.
+pub async fn lock_weekly(
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT 1 AS "locked!" FROM pg_advisory_xact_lock(hashtext('weekly_insights:' || $1::text))"#,
+        host_unid.to_string(),
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Whether this week's email was queued already, read under the lock.
+pub async fn weekly_queued(
+    connection: &mut PgConnection,
+    email: &str,
+    template: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+               SELECT 1 FROM email_queue
+               WHERE email = $1 AND template = $2 AND created_at > now() - interval '6 days'
+           ) AS "queued!""#,
+        email,
+        template,
+    )
+    .fetch_one(connection)
     .await
 }

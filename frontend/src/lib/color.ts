@@ -20,6 +20,34 @@ function contrast(a: string, b: string): number {
   return (light + 0.05) / (dark + 0.05);
 }
 
+/** The dark theme's page, `.dark --background` (oklch 0.173) in globals.css. */
+const DARK_PAGE = "#171717";
+/** WCAG's least contrast for buttons, focus rings and other UI parts. */
+const UI_CONTRAST = 3;
+
+/** `hex` moved `share` (0 to 1) of the way to white. */
+function towardsWhite(hex: string, share: number): string {
+  const channels = [1, 3, 5].map((start) => {
+    const value = Number.parseInt(hex.slice(start, start + 2), 16);
+    return Math.round(value + (255 - value) * share)
+      .toString(16)
+      .padStart(2, "0");
+  });
+  return `#${channels.join("")}`;
+}
+
+/**
+ * The host's colour as a dark page shows it: as picked when it stands out
+ * from the page, otherwise lightened in steps until it does.
+ */
+export function forDarkPage(hex: string): string {
+  for (let step = 0; step <= 10; step += 1) {
+    const shown = towardsWhite(hex, step / 10);
+    if (contrast(shown, DARK_PAGE) >= UI_CONTRAST) return shown;
+  }
+  return WHITE;
+}
+
 /** White or ink, whichever reads better on `hex`. */
 export function readableOn(hex: string): string {
   return contrast(hex, WHITE) >= contrast(hex, INK) ? WHITE : INK;

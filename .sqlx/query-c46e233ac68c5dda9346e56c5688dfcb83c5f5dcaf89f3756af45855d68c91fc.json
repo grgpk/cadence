@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT d.unid, d.event AS \"event: WebhookEvent\", d.payload, d.attempts, d.created_at,\n                  e.url, e.secret\n           FROM webhook_deliveries d JOIN webhook_endpoints e ON e.unid = d.endpoint_unid\n           WHERE d.delivered_at IS NULL AND d.failed_at IS NULL AND d.next_attempt_at <= now()\n           ORDER BY d.next_attempt_at\n           LIMIT 1\n           FOR UPDATE OF d SKIP LOCKED",
+  "query": "SELECT d.unid, d.event AS \"event: WebhookEvent\", d.payload, d.attempts, d.created_at,\n                  e.url, e.secret, e.host_unid, e.is_active AS endpoint_active\n           FROM webhook_deliveries d JOIN webhook_endpoints e ON e.unid = d.endpoint_unid\n           WHERE d.delivered_at IS NULL AND d.failed_at IS NULL AND d.next_attempt_at <= now()\n           ORDER BY d.next_attempt_at\n           LIMIT 1\n           FOR UPDATE OF d SKIP LOCKED",
   "describe": {
     "columns": [
       {
@@ -79,6 +79,28 @@
             "name": "secret"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "webhook_endpoints",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "endpoint_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "webhook_endpoints",
+            "name": "is_active"
+          }
+        }
       }
     ],
     "parameters": {
@@ -91,8 +113,10 @@
       false,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "b30e0be516ea0b222a6ed7d20d08dc4194b9aecc2553331ac4739180317b774b"
+  "hash": "c46e233ac68c5dda9346e56c5688dfcb83c5f5dcaf89f3756af45855d68c91fc"
 }

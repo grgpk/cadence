@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT u.unid AS host_unid, u.email, u.full_name, w.timezone\n           FROM users u\n           JOIN widget_settings w ON w.host_unid = u.unid\n           JOIN subscriptions s ON s.user_unid = u.unid AND s.plan = 'business'\n           WHERE EXTRACT(ISODOW FROM now() AT TIME ZONE w.timezone) = 1\n             AND EXTRACT(HOUR FROM now() AT TIME ZONE w.timezone) = 8\n             AND NOT EXISTS (\n                 SELECT 1 FROM email_queue e\n                 WHERE e.email = u.email AND e.template = $1\n                   AND e.created_at > now() - interval '6 days'\n             )",
+  "query": "SELECT u.unid AS host_unid, u.email, u.full_name, w.timezone\n           FROM users u\n           JOIN widget_settings w ON w.host_unid = u.unid\n           JOIN subscriptions s ON s.user_unid = u.unid AND s.plan = 'business'\n           -- A zone Postgres does not know would fail the query for every host.\n           WHERE w.timezone IN (SELECT name FROM pg_timezone_names)\n             AND EXTRACT(ISODOW FROM now() AT TIME ZONE w.timezone) = 1\n             AND EXTRACT(HOUR FROM now() AT TIME ZONE w.timezone) = 8\n             AND NOT EXISTS (\n                 SELECT 1 FROM email_queue e\n                 WHERE e.email = u.email AND e.template = $1\n                   AND e.created_at > now() - interval '6 days'\n             )",
   "describe": {
     "columns": [
       {
@@ -60,5 +60,5 @@
       false
     ]
   },
-  "hash": "d15bf84758191d4dffd7152eb28891118a1930636da9fd9e62ab262f26ff0e6d"
+  "hash": "e39e22fee9eaa9dfdd3bb13d7961a05571071267eebd2bed14098f6cf165431b"
 }

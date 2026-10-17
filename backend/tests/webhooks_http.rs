@@ -343,6 +343,41 @@ async fn a_failing_receiver_is_retried_then_given_up_on(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn pausing_an_endpoint_stops_its_retries(pool: PgPool) {
+    let app = app(&pool);
+    let (host, _) = business_host(&pool, &app, "nino@example.com").await;
+    let (_, endpoint) = add_endpoint(&app, &host, RECEIVER).await;
+    let endpoint_unid = endpoint["unid"].as_str().expect("an id").to_owned();
+    let path = format!("{WEBHOOKS}/{endpoint_unid}");
+    send(
+        &app,
+        Method::POST,
+        &format!("{path}/test"),
+        Some(&host.cookie),
+        None,
+    )
+    .await;
+    let receiver = Recorder::answering(500);
+    process_due(&pool, &receiver).await;
+    assert_eq!(receiver.received().len(), 1);
+
+    let off = Some(json!({ "is_active": false }));
+    let (status, _) = send(&app, Method::PUT, &path, Some(&host.cookie), off).await;
+    assert_eq!(status, StatusCode::OK);
+    make_due(&pool).await;
+    process_due(&pool, &receiver).await;
+
+    assert_eq!(
+        receiver.received().len(),
+        1,
+        "no retry to a paused endpoint"
+    );
+    let given_up = &deliveries(&app, &host, &endpoint_unid).await[0];
+    assert!(given_up["failed_at"].is_string());
+    assert_eq!(given_up["last_error"], "the endpoint is paused");
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn an_endpoint_switched_off_hears_nothing_and_stays_its_hosts(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = business_host(&pool, &app, "nino@example.com").await;

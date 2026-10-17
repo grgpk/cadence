@@ -304,22 +304,39 @@ async fn week_insights(pool: &PgPool, host_unid: Uuid) -> AppResult<Insights> {
 /// week.
 pub async fn queue_weekly_insights(pool: &PgPool) -> AppResult<()> {
     for host in db::weekly_due(pool, emails::WEEKLY_INSIGHTS_TEMPLATE).await? {
-        // The subscriptions join is a first cut; the plan decides.
-        let entitlements = billing::entitlements_for(pool, host.host_unid, Utc::now()).await?;
-        if !entitlements.insights {
-            continue;
+        // One host failing must not cost every later host their week.
+        if let Err(error) = queue_week_for(pool, &host).await {
+            tracing::error!(?error, host = %host.host_unid, "weekly insights not queued");
         }
-        let week = week_insights(pool, host.host_unid).await?;
-        let mut connection = pool.acquire().await?;
-        emails::queue_weekly_insights(
-            &mut connection,
-            &host.email,
-            &host.full_name,
-            insight_lines(&week),
-        )
-        .await?;
     }
     Ok(())
+}
+
+async fn queue_week_for(pool: &PgPool, host: &db::WeeklyDue) -> AppResult<()> {
+    let entitlements = billing::entitlements_for(pool, host.host_unid, Utc::now()).await?;
+    if !entitlements.insights {
+        return Ok(());
+    }
+    let week = week_insights(pool, host.host_unid).await?;
+    let mut transaction = pool.begin().await?;
+    db::lock_weekly(&mut transaction, host.host_unid).await?;
+    if db::weekly_queued(
+        &mut transaction,
+        &host.email,
+        emails::WEEKLY_INSIGHTS_TEMPLATE,
+    )
+    .await?
+    {
+        return Ok(());
+    }
+    emails::queue_weekly_insights(
+        &mut transaction,
+        &host.email,
+        &host.full_name,
+        insight_lines(&week),
+    )
+    .await?;
+    Ok(transaction.commit().await?)
 }
 
 /// The week as the Monday email says it, one line each.
@@ -571,4 +588,50 @@ fn is_unique_violation(error: &sqlx::Error) -> bool {
     error
         .as_database_error()
         .is_some_and(sqlx::error::DatabaseError::is_unique_violation)
+}
+
+#[cfg(test)]
+mod weekly_tests {
+    use sqlx::PgPool;
+
+    use super::queue_week_for;
+    use crate::domain::{bookings::db::WeeklyDue, emails::service as emails};
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn two_workers_in_one_minute_queue_one_weekly_email(
+        pool: PgPool,
+    ) -> Result<(), sqlx::Error> {
+        let host_unid = sqlx::query_scalar!(
+            "INSERT INTO users (email, password_hash, full_name)
+             VALUES ('nino@example.com', 'x', 'Nino') RETURNING unid",
+        )
+        .fetch_one(&pool)
+        .await?;
+        sqlx::query_scalar!(
+            "INSERT INTO subscriptions (user_unid, plan, status) VALUES ($1, 'business', 'comped')
+             RETURNING 1",
+            host_unid,
+        )
+        .fetch_one(&pool)
+        .await?;
+        let host = WeeklyDue {
+            host_unid,
+            email: "nino@example.com".to_owned(),
+            full_name: "Nino".to_owned(),
+            timezone: "UTC".to_owned(),
+        };
+
+        let (first, second) =
+            tokio::join!(queue_week_for(&pool, &host), queue_week_for(&pool, &host));
+
+        assert!(first.is_ok() && second.is_ok());
+        let queued = sqlx::query_scalar!(
+            r#"SELECT count(*) AS "count!" FROM email_queue WHERE template = $1"#,
+            emails::WEEKLY_INSIGHTS_TEMPLATE,
+        )
+        .fetch_one(&pool)
+        .await?;
+        assert_eq!(queued, 1);
+        Ok(())
+    }
 }

@@ -210,6 +210,17 @@ pub async fn end_subscription(
     .map(|row| row.is_some())
 }
 
+pub async fn is_host(connection: &mut PgConnection, user_unid: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+               SELECT 1 FROM roleaccesses WHERE grantedto_unid = $1 AND role = 'Host'
+           ) AS "host!""#,
+        user_unid,
+    )
+    .fetch_one(connection)
+    .await
+}
+
 /// The stored status before an event changes it.
 pub async fn status(
     connection: &mut PgConnection,
