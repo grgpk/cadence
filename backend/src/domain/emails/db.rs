@@ -46,7 +46,7 @@ pub async fn drop_unsent(
     .map(|_| ())
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Clone, sqlx::FromRow)]
 pub struct PendingEmail {
     pub id: Uuid,
     pub email: String,

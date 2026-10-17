@@ -192,6 +192,7 @@ pub async fn queue_account_notice(
     let payload = payload_of(&AccountEmail {
         name: Some(full_name.to_owned()),
         billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
+        losing: None,
     })?;
     db::queue(connection, None, email, notice.template(), send_at, payload).await
 }
@@ -577,6 +578,18 @@ struct AccountEmail {
     name: Option<String>,
     #[serde(deserialize_with = "lenient")]
     billing_url: Option<String>,
+    /// The trial email: what this host would lose on Free, filled in when it
+    /// is sent. Rows without it say it in general.
+    #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
+    losing: Option<Vec<String>>,
+}
+
+/// The trial email's payload with what the host would lose, read when it
+/// goes out rather than at sign-up.
+pub fn with_trial_losses(payload: Option<&Value>, losses: Vec<String>) -> Option<Value> {
+    let mut email: AccountEmail = read(payload);
+    email.losing = Some(losses);
+    payload_of(&email).ok()
 }
 
 /// A field that does not read as its type counts as missing, instead of
@@ -772,11 +785,26 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
             "Update your card",
         ),
     };
+    let losing = email
+        .losing
+        .as_deref()
+        .filter(|lines| template == TRIAL_ENDING_TEMPLATE && !lines.is_empty());
+    let details = losing.map_or_else(
+        || vec![details.to_owned()],
+        |lines| {
+            std::iter::once("After that your page moves to Free. What changes for you:".to_owned())
+                .chain(lines.iter().cloned())
+                .chain(std::iter::once(
+                    "Your settings stay saved. Pick a plan to keep everything as it is.".to_owned(),
+                ))
+                .collect()
+        },
+    );
     Content {
         headline: headline.to_owned(),
         greeting: greeting(text(email.name.as_ref())),
         when: None,
-        details: vec![details.to_owned()],
+        details,
         buttons: link(email.billing_url.as_ref())
             .map(|url| (button, url.to_owned()))
             .into_iter()
@@ -1237,6 +1265,24 @@ mod tests {
             assert!(!email.html.contains("<b>"), "{template}");
             assert!(!email.html.contains("& co"), "{template}");
         }
+    }
+
+    #[test]
+    fn the_trial_email_lists_what_this_host_loses_when_it_knows() {
+        let general = email(TRIAL_ENDING_TEMPLATE, &json!({ "name": "Nino" }));
+        assert!(general.text.contains("25 included bookings a month"));
+        let filled = with_trial_losses(
+            Some(&json!({ "name": "Nino" })),
+            vec!["Your own form questions stop being asked.".to_owned()],
+        )
+        .expect("a payload");
+        let personal = email(TRIAL_ENDING_TEMPLATE, &filled);
+        assert!(personal.text.contains("What changes for you"));
+        assert!(
+            personal
+                .text
+                .contains("Your own form questions stop being asked.")
+        );
     }
 
     #[test]

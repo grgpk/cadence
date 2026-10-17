@@ -14,7 +14,7 @@ use super::{
     service::{self, Delivery, RenderedEmail},
 };
 use crate::domain::{
-    auth::service as auth, bookings::service as bookings,
+    auth::service as auth, billing::service as billing, bookings::service as bookings,
     google_calendar::service as google_calendar, rate_limits::service as rate_limits,
     webhooks::service as webhooks,
 };
@@ -91,12 +91,30 @@ async fn process_next<M: Mailer + Sync>(pool: &PgPool, mailer: &M) -> Result<boo
     Ok(true)
 }
 
+/// The trial email is queued at sign-up, before the host has set anything
+/// up, so what they would lose on Free is read when it goes out. The one
+/// email the worker fills in itself.
+async fn filled_in(
+    connection: &mut PgConnection,
+    email: &PendingEmail,
+) -> Result<PendingEmail, sqlx::Error> {
+    if email.template != service::TRIAL_ENDING_TEMPLATE {
+        return Ok(email.clone());
+    }
+    let losses = billing::trial_losses_for(connection, &email.email).await?;
+    Ok(PendingEmail {
+        payload: service::with_trial_losses(email.payload.as_ref(), losses),
+        ..email.clone()
+    })
+}
+
 /// Sends, drops or fails one claimed email and records which.
 async fn deliver<M: Mailer + Sync>(
     connection: &mut PgConnection,
     email: &PendingEmail,
     mailer: &M,
 ) -> Result<(), sqlx::Error> {
+    let email = &filled_in(connection, email).await?;
     match service::delivery(email, Utc::now()) {
         Delivery::Drop => {
             tracing::info!(email_id = %email.id, template = %email.template, "email dropped, its call is cancelled or has started");

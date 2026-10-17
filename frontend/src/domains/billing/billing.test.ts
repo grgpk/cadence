@@ -26,6 +26,7 @@ function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
     current_period_end: null,
     cancel_at_period_end: false,
     bookings_this_month: 10,
+    trial_losses: [],
     entitlements: {
       included_bookings_per_month: 25,
       reminders: ["before_24h"],

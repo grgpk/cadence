@@ -263,3 +263,51 @@ pub async fn uncomp(connection: &mut PgConnection, user_unid: Uuid) -> Result<()
     .await
     .map(|_| ())
 }
+
+/// What a host on the trial uses now that Free does not keep.
+pub struct TrialUsage {
+    pub active_types: i32,
+    /// Any active kind of call asks one of the host's own questions.
+    pub asks: bool,
+    /// A colour other than the default is saved.
+    pub custom_accent: bool,
+    pub bookings_this_month: i32,
+}
+
+pub async fn trial_usage(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    default_accent: &str,
+) -> Result<TrialUsage, sqlx::Error> {
+    sqlx::query_as!(
+        TrialUsage,
+        r#"SELECT
+             (SELECT count(*) FROM event_types e
+              WHERE e.host_unid = $1 AND e.is_active)::int AS "active_types!",
+             COALESCE((SELECT bool_or(e.ask_currently_working_on OR e.ask_how_heard_about_us
+                                      OR e.ask_what_stopping_you OR e.ask_investment_comfort
+                                      OR e.ask_urgency_level)
+                       FROM event_types e WHERE e.host_unid = $1 AND e.is_active), false) AS "asks!",
+             COALESCE((SELECT w.accent_color <> $2 FROM widget_settings w
+                       WHERE w.host_unid = $1), false) AS "custom_accent!",
+             (SELECT count(*) FROM bookings b
+              LEFT JOIN widget_settings w ON w.host_unid = b.host_unid
+              WHERE b.host_unid = $1 AND b.status <> 'cancelled'
+                AND date_trunc('month', b.created_at AT TIME ZONE COALESCE(w.timezone, 'UTC'))
+                  = date_trunc('month', now() AT TIME ZONE COALESCE(w.timezone, 'UTC')))::int
+               AS "bookings_this_month!""#,
+        user_unid,
+        default_accent,
+    )
+    .fetch_one(connection)
+    .await
+}
+
+pub async fn user_by_email(
+    connection: &mut PgConnection,
+    email: &str,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!("SELECT unid FROM users WHERE email = $1", email)
+        .fetch_optional(connection)
+        .await
+}

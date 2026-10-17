@@ -20,4 +20,9 @@ status: SubscriptionStatus | null, interval: BillingInterval | null, trial_ends_
 /**
  * Calls booked this calendar month in the host's timezone.
  */
-bookings_this_month: number, };
+bookings_this_month: number, 
+/**
+ * While on the trial: what moving to Free would take away, one sentence
+ * each. Empty otherwise.
+ */
+trial_losses: Array<string>, };

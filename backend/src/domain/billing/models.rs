@@ -23,6 +23,9 @@ pub struct BillingSummary {
     pub entitlements: Entitlements,
     /// Calls booked this calendar month in the host's timezone.
     pub bookings_this_month: u32,
+    /// While on the trial: what moving to Free would take away, one sentence
+    /// each. Empty otherwise.
+    pub trial_losses: Vec<String>,
 }
 
 /// One host's plan as an admin sees it.

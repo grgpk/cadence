@@ -3125,3 +3125,36 @@ async fn an_accent_colour_needs_pro_and_stays_saved_without_it(pool: PgPool) {
     let (status, _) = save_settings(&app, &host, &kept).await;
     assert_eq!(status, StatusCode::FORBIDDEN, "a new colour needs Pro");
 }
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_trial_host_sees_what_free_would_take_away(pool: PgPool) {
+    let app = app(&pool);
+    let (host, _) = host_with_hours(&app, "nino@example.com").await;
+    let mut kind = first_type(&app, &host).await;
+    kind["ask_urgency_level"] = json!(true);
+    let (status, _) = save_type(&app, &host, &kind).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        new_type(&app, &host, "deep-dive", Some(60)).await,
+        StatusCode::CREATED
+    );
+
+    let (status, me) = get(&app, "/api/billing/me", Some(&host.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    let losses: Vec<&str> = me["trial_losses"]
+        .as_array()
+        .expect("a list")
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert!(losses[0].starts_with("2 kinds of call"), "{losses:?}");
+    assert!(losses.contains(&"Your own form questions stop being asked."));
+
+    end_trial(&pool, &host).await;
+    let (_, me) = get(&app, "/api/billing/me", Some(&host.cookie)).await;
+    assert_eq!(
+        me["trial_losses"],
+        json!([]),
+        "nothing to warn about once on Free"
+    );
+}

@@ -75,6 +75,16 @@ function CurrentPlan({
           </span>
         </div>
         {allowance ? <p className="text-sm text-muted-foreground">{allowance}</p> : null}
+        {summary.trial_losses.length > 0 ? (
+          <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+            <p className="font-medium">When the trial ends, on Free:</p>
+            <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+              {summary.trial_losses.map((loss) => (
+                <li key={loss}>{loss}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {usage === null ? null : (
           <div
             role="progressbar"

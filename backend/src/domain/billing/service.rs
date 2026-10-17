@@ -3,7 +3,7 @@ use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use super::{
-    db::{self, SyncedSubscription},
+    db::{self, SyncedSubscription, TrialUsage},
     models::{AdminPlan, BillingSummary, StartCheckout, StripeEvent, StripeSubscription},
     plans::{Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS, effective_plan},
     stripe::{CheckoutRequest, Payments, PaymentsError},
@@ -12,6 +12,7 @@ use crate::{
     domain::{
         auth::models::UserRecord,
         emails::service::{self as emails, AccountNotice, app_url},
+        host_settings::models::DEFAULT_ACCENT,
     },
     error::{AppError, AppResult},
 };
@@ -90,7 +91,17 @@ pub async fn summary(
     let subscription = db::find(pool, user_unid).await?;
     let plan = effective_plan(subscription.as_ref(), now);
     let bookings = db::bookings_this_month(pool, user_unid).await?;
+    let trial_running = subscription
+        .as_ref()
+        .is_some_and(|row| row.status == SubscriptionStatus::Trialing)
+        && plan != Plan::Free;
+    let trial_losses = if trial_running {
+        trial_losses_of(&mut *pool.acquire().await?, user_unid).await?
+    } else {
+        Vec::new()
+    };
     Ok(BillingSummary {
+        trial_losses,
         plan,
         status: subscription.as_ref().map(|row| row.status),
         interval: subscription.as_ref().and_then(|row| row.billing_interval),
@@ -102,6 +113,62 @@ pub async fn summary(
         entitlements: plan.entitlements(),
         bookings_this_month: u32::try_from(bookings).unwrap_or(u32::MAX),
     })
+}
+
+/// What the host would lose on Free, read from what they use now.
+pub async fn trial_losses_of(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+) -> Result<Vec<String>, sqlx::Error> {
+    let usage = db::trial_usage(connection, user_unid, DEFAULT_ACCENT).await?;
+    Ok(trial_losses(&usage))
+}
+
+/// The same, for the host an email goes to. Nothing for an unknown address.
+pub async fn trial_losses_for(
+    connection: &mut PgConnection,
+    email: &str,
+) -> Result<Vec<String>, sqlx::Error> {
+    match db::user_by_email(connection, email).await? {
+        Some(user_unid) => trial_losses_of(connection, user_unid).await,
+        None => Ok(Vec::new()),
+    }
+}
+
+/// One sentence for each thing a host on the trial uses that Free does not
+/// keep, in the order a host notices them.
+pub fn trial_losses(usage: &TrialUsage) -> Vec<String> {
+    let free = Plan::Free.entitlements();
+    let mut losses = Vec::new();
+    if let Some(types) = free.max_event_types
+        && usage.active_types > i32::try_from(types).unwrap_or(i32::MAX)
+    {
+        losses.push(format!(
+            "{} kinds of call: Free offers {types}. The others stay saved but leave your link.",
+            usage.active_types
+        ));
+    }
+    if usage.asks && !free.custom_questions {
+        losses.push("Your own form questions stop being asked.".to_owned());
+    }
+    losses.push(
+        "Reminders 2 hours and 30 minutes before stop. Free sends one, a day before.".to_owned(),
+    );
+    if !free.hide_branding {
+        losses.push("The Cadence logo comes back on your page.".to_owned());
+    }
+    if usage.custom_accent && !free.custom_accent {
+        losses.push("Your accent colour goes back to the default.".to_owned());
+    }
+    if let Some(included) = free.included_bookings_per_month
+        && usage.bookings_this_month > i32::try_from(included).unwrap_or(i32::MAX)
+    {
+        losses.push(format!(
+            "You had {} bookings this month. Free includes {included}, and your page stays open.",
+            usage.bookings_this_month
+        ));
+    }
+    losses
 }
 
 fn payments(payments: Option<&Payments>) -> AppResult<&Payments> {
@@ -348,6 +415,35 @@ async fn notify(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_trial_says_what_this_host_would_lose() {
+        let busy = TrialUsage {
+            active_types: 3,
+            asks: true,
+            custom_accent: true,
+            bookings_this_month: 31,
+        };
+        let losses = trial_losses(&busy);
+        assert_eq!(losses.len(), 6);
+        assert!(losses[0].starts_with("3 kinds of call: Free offers 1."));
+        assert!(losses[5].starts_with("You had 31 bookings this month."));
+
+        let quiet = TrialUsage {
+            active_types: 1,
+            asks: false,
+            custom_accent: false,
+            bookings_this_month: 2,
+        };
+        assert_eq!(
+            trial_losses(&quiet),
+            [
+                "Reminders 2 hours and 30 minutes before stop. Free sends one, a day before.",
+                "The Cadence logo comes back on your page.",
+            ],
+            "what every trial loses"
+        );
+    }
 
     #[test]
     fn stripe_statuses_map_to_ours() {
