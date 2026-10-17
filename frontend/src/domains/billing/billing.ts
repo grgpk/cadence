@@ -135,8 +135,10 @@ export function statusLine(summary: BillingSummary, now: number): string {
         : `${days} ${days === 1 ? "day" : "days"} left of your Pro trial. Pick a plan to keep Pro features.`;
     }
     case STATUS.ACTIVE:
-      if (summary.paused_until) {
-        return `${name} is paused until ${formatDate(summary.paused_until)}. It stays on, and nothing is charged until then.`;
+      // An ending plan says so first: its paused renewal never comes.
+      if (summary.paused_until && !summary.cancel_at_period_end) {
+        // The pause ends just after the renewal it makes free: same day.
+        return `${name} stays on, and the month from ${formatDate(summary.paused_until)} is free.`;
       }
       if (!periodEnd) return `You are on ${name}.`;
       return summary.cancel_at_period_end
@@ -211,7 +213,7 @@ type LeaveOffer = "yearly" | "pause";
 
 /**
  * Paying less for a host leaving over price, when yearly saves; a free
- * month's pause for one with too few calls or taking a break, once.
+ * month for a monthly payer with too few calls or taking a break, once.
  */
 export function leaveOffer(
   reason: CancelReason | null,
@@ -220,6 +222,9 @@ export function leaveOffer(
 ): LeaveOffer | null {
   if (reason === "too_expensive" && yearlySwitch(summary, offers)) return "yearly";
   const quiet = reason === "not_enough_bookings" || reason === "pausing";
-  if (quiet && !summary.paused_before && !summary.paused_until) return "pause";
+  // Monthly only: the pause makes one renewal free, and a yearly one is a year.
+  const monthly =
+    summary.interval === INTERVAL.MONTH && summary.current_period_end !== null;
+  if (quiet && monthly && !summary.paused_before && !summary.paused_until) return "pause";
   return null;
 }

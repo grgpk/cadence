@@ -619,7 +619,13 @@ async fn a_host_who_leaves_says_why_and_can_pause_once_or_stay(pool: PgPool) {
     .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let paused = summary(&app, &cookie).await;
-    assert!(paused["paused_until"].is_string());
+    // Until just after the renewal (1_900_000_000), so that one invoice is void.
+    assert_eq!(paused["paused_until"], "2030-03-17T18:46:40Z");
+    let form = &payments.subscription_updates()[2].1;
+    assert!(form.contains(&(
+        "pause_collection[resumes_at]".to_owned(),
+        "1900003600".to_owned()
+    )));
     assert_eq!(paused["paused_before"], true);
     let (status, _) = send(
         &app,
@@ -648,6 +654,25 @@ async fn a_host_who_leaves_says_why_and_can_pause_once_or_stay(pool: PgPool) {
         .filter_map(|row| row["outcome"].as_str())
         .collect();
     assert_eq!(outcomes, ["paused", "cancelled"]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_yearly_plan_cannot_take_the_free_months_pause(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    subscription_event(&app, "evt_1", "created", 100, unid, BUSINESS_YEAR, "active").await;
+
+    let pausing = json!({ "reason": "pausing" });
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/pause",
+        Some(&cookie),
+        Some(pausing),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::CONFLICT, "it would void a whole year");
 }
 
 /// Ada invites Ben; returns their ids and Ada's cookie.

@@ -32,7 +32,6 @@ import {
 import { LEAVE_REASONS, leaveOffer, yearlySwitch } from "./billing";
 
 const NOTE_MAX = 500;
-const PAUSE_DAYS = 30;
 const LEAVE_ERRORS = {
   409: "Your plan changed in the meantime. Reload to see it as it is now.",
   503: "Payments are not set up yet. Try again later.",
@@ -74,7 +73,7 @@ export function CancelPlan({
   });
   const pause = useMutation({
     mutationFn: () => pausePlan(feedback()),
-    onSuccess: () => done("Paused for a month. Your plan stays on."),
+    onSuccess: () => done("Your next month is free. Your plan stays on."),
     onError: failed,
   });
   const yearly = useMutation({
@@ -87,9 +86,6 @@ export function CancelPlan({
   const busy = [cancel, pause, yearly].some((mutation) => mutation.isPending);
   const offer = leaveOffer(reason, summary, offers);
   const saving = yearlySwitch(summary, offers);
-  const resumes = formatDate(
-    new Date(Date.now() + PAUSE_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-  );
 
   return (
     <>
@@ -144,12 +140,12 @@ export function CancelPlan({
           {offer === "pause" ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
               <span>
-                Pause free for a month. Your plan stays on, and nothing is charged until{" "}
-                {resumes}.
+                Take a month free. Your plan stays on, and the month from {ends} costs
+                nothing. Billing restarts after it.
               </span>
               <Button size="sm" onClick={() => pause.mutate()} disabled={busy}>
                 {pause.isPending ? <Loader2 className="animate-spin" /> : null}
-                Pause my plan
+                Take a free month
               </Button>
             </div>
           ) : null}

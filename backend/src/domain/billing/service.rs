@@ -459,8 +459,9 @@ async fn month_credit(
 
 /// The longest note the cancel flow keeps.
 const NOTE_MAX: usize = 500;
-/// The one free pause: billing stops this long, the plan stays on.
-const PAUSE_DAYS: i64 = 30;
+/// How long after the renewal the pause still runs, so the renewal's
+/// invoice is made inside it.
+const PAUSE_GRACE_HOURS: i64 = 1;
 
 /// The host's Stripe subscription, while Stripe bills it.
 async fn billed_subscription(pool: &PgPool, user_unid: Uuid) -> AppResult<(String, Subscription)> {
@@ -533,7 +534,11 @@ pub async fn cancel(
     Ok(())
 }
 
-/// Stops billing for a month with the plan still on. Once per host.
+/// Makes the host's next month free, with the plan still on. Once per host,
+/// and only on a monthly plan: a yearly one would get a free year.
+///
+/// Stripe voids the invoices made while collection is paused, so the pause
+/// runs until just after the next renewal: that one invoice, and no other.
 pub async fn pause(
     pool: &PgPool,
     payments_on: Option<&Payments>,
@@ -542,13 +547,20 @@ pub async fn pause(
 ) -> AppResult<()> {
     let payments = payments(payments_on)?;
     let note = note_of(feedback)?;
-    let (subscription_id, _) = billed_subscription(pool, user_unid).await?;
+    let (subscription_id, stored) = billed_subscription(pool, user_unid).await?;
+    let (Some(BillingInterval::Month), Some(renews)) =
+        (stored.billing_interval, stored.current_period_end)
+    else {
+        return Err(AppError::Conflict(
+            "only a monthly plan can pause".to_owned(),
+        ));
+    };
     if db::paused_before(pool, user_unid).await? {
         return Err(AppError::Conflict(
             "the free pause was used already".to_owned(),
         ));
     }
-    let resumes_at = Utc::now() + Duration::days(PAUSE_DAYS);
+    let resumes_at = renews + Duration::hours(PAUSE_GRACE_HOURS);
     let resumes = resumes_at.timestamp().to_string();
     let form = [
         ("pause_collection[behavior]", "void"),

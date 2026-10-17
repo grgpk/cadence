@@ -271,7 +271,12 @@ describe("leaveOffer", () => {
       ],
     },
   ];
-  const monthly = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE, interval: "month" });
+  const monthly = summary({
+    plan: PLAN.PRO,
+    status: STATUS.ACTIVE,
+    interval: "month",
+    current_period_end: "2026-11-17T12:00:00Z",
+  });
 
   it("offers yearly to a monthly payer leaving over price", () => {
     expect(leaveOffer("too_expensive", monthly, offers)).toBe("yearly");
@@ -284,6 +289,7 @@ describe("leaveOffer", () => {
     expect(leaveOffer("not_enough_bookings", monthly, offers)).toBe("pause");
     expect(leaveOffer("pausing", monthly, offers)).toBe("pause");
     expect(leaveOffer("pausing", { ...monthly, paused_before: true }, offers)).toBeNull();
+    expect(leaveOffer("pausing", { ...monthly, interval: "year" }, offers)).toBeNull();
   });
 
   it("has nothing to offer for a missing feature or a move", () => {

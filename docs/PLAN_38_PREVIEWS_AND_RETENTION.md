@@ -4,8 +4,20 @@ Status: done.
 - Rust: fmt, clippy and every test pass.
 - Frontend: build, typecheck, lint, knip and tests pass.
 
-Not yet checked in the browser or against Stripe test mode: the dev servers
-were not running.
+Checked live on 2026-10-17, against Stripe test mode:
+- **Link preview:** `/api/hosts/cadence-host/preview.png` is the host's
+  violet card, and `/book/cadence-host` carries it as its only `og:image`
+  and `twitter:image`.
+- **Cancel flow:** "Before you go" offered "Take a free month" for "Just
+  taking a break" and "Switch to yearly" for "It costs too much". Then:
+  - taking the free month set Stripe's `pause_collection` to void until an
+    hour after the next renewal;
+  - "Cancel at period end", then "Keep my plan", each went through the
+    real webhook;
+  - Admin, Plans showed the counts per reason and the host's note.
+- **Refund:** a real refund of an invited host's payment added +$10 back
+  on both customers, keyed `…-revoked`.
+- The test customers were deleted afterwards.
 
 ## Goal
 
@@ -75,17 +87,22 @@ go":
 - **the offer that fits** (`leaveOffer`):
   - leaving over price, as a monthly payer: pay yearly, through the
     existing switch;
-  - too few calls, or a break: **pause free for a month**, once per host.
-    The plan stays on and nothing is charged until billing restarts by
-    itself;
+  - too few calls, or a break, on a **monthly** plan: **a free month**,
+    once per host. Stripe voids invoices made while collection is paused,
+    so the pause runs until an hour after the next renewal: exactly that
+    renewal is free, and billing goes on by itself after it.
+    - The first version paused for 30 days from the click. That made
+      nothing free when the renewal fell after those 30 days, and on a
+      yearly plan would have voided a year, so yearly plans cannot pause
+      (409).
 - always: "Cancel at period end". The page stays open on Free.
 
 **Endpoints:**
 - `POST /api/billing/cancel {reason, note?}`: `cancel_at_period_end` with
   Stripe's `cancellation_details` (reason mapped to Stripe's own values);
 - `POST /api/billing/pause {reason, note?}`:
-  `pause_collection[behavior]=void` and `resumes_at` in 30 days; 409 the
-  second time;
+  `pause_collection[behavior]=void` with `resumes_at` an hour after the
+  current period's end; 409 the second time or on a yearly plan;
 - `POST /api/billing/resume`: takes the cancel back;
 - `POST /api/billing/yearly-instead {reason, note?}`: keeps why, then the
   page goes to the yearly switch;
@@ -94,8 +111,9 @@ go":
 
 **The rest:**
 - The webhook mirrors `pause_collection.resumes_at` into `paused_until`.
-  `BillingSummary` has `paused_until` and `paused_before`, and the status
-  line says "paused until …".
+  `BillingSummary` has `paused_until` and `paused_before`. The status line
+  says "the month from … is free", unless the plan is set to end, which
+  it says first.
 - **Admin, Plans:** "Why hosts cancel" shows counts per reason and the
   latest notes (`GET /api/admin/billing/cancellations`, admins only).
 
