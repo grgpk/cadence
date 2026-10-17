@@ -26,6 +26,17 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/billing/portal", post(handlers::portal))
         .route("/api/billing/yearly", post(handlers::yearly))
         .route("/api/billing/referrals", get(handlers::referrals))
+        .route("/api/billing/cancel", post(handlers::cancel))
+        .route("/api/billing/pause", post(handlers::pause))
+        .route("/api/billing/resume", post(handlers::resume))
+        .route(
+            "/api/billing/yearly-instead",
+            post(handlers::yearly_instead),
+        )
+        .route(
+            "/api/admin/billing/cancellations",
+            get(handlers::admin_cancellations),
+        )
         .route("/api/admin/billing", get(handlers::admin_list))
         .route("/api/admin/billing/{user_unid}", put(handlers::admin_comp))
 }

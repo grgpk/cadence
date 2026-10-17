@@ -556,6 +556,100 @@ async fn events_from_one_second_in_any_order_leave_stripes_latest_state(pool: Pg
     assert_eq!(now["plan"], "pro");
 }
 
+#[sqlx::test(migrations = "../migrations")]
+async fn a_host_who_leaves_says_why_and_can_pause_once_or_stay(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    subscription_event(&app, "evt_1", "created", 100, unid, PRO_MONTH, "active").await;
+    let why = json!({ "reason": "too_expensive", "note": "  Too much for two calls a week.  " });
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/cancel",
+        Some(&cookie),
+        Some(why.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (subscription, form) = payments.subscription_updates()[0].clone();
+    assert_eq!(subscription, "sub_1");
+    assert!(form.contains(&("cancel_at_period_end".to_owned(), "true".to_owned())));
+    assert!(form.contains(&(
+        "cancellation_details[feedback]".to_owned(),
+        "too_expensive".to_owned()
+    )));
+    assert!(form.contains(&(
+        "cancellation_details[comment]".to_owned(),
+        "Too much for two calls a week.".to_owned()
+    )));
+    assert_eq!(summary(&app, &cookie).await["cancel_at_period_end"], true);
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/cancel",
+        Some(&cookie),
+        Some(why.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT, "it already ends");
+
+    // They change their mind.
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/resume",
+        Some(&cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(summary(&app, &cookie).await["cancel_at_period_end"], false);
+
+    // One free month's pause, then no more.
+    let pausing = json!({ "reason": "pausing" });
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/pause",
+        Some(&cookie),
+        Some(pausing.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let paused = summary(&app, &cookie).await;
+    assert!(paused["paused_until"].is_string());
+    assert_eq!(paused["paused_before"], true);
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/billing/pause",
+        Some(&cookie),
+        Some(pausing),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // The reasons are the admin's to read, nobody else's.
+    let path = "/api/admin/billing/cancellations";
+    assert_eq!(
+        send(&app, Method::GET, path, Some(&cookie), None).await.0,
+        StatusCode::FORBIDDEN
+    );
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (status, rows) = send(&app, Method::GET, path, Some(&admin_cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    let outcomes: Vec<&str> = rows
+        .as_array()
+        .expect("a list")
+        .iter()
+        .filter_map(|row| row["outcome"].as_str())
+        .collect();
+    assert_eq!(outcomes, ["paused", "cancelled"]);
+}
+
 /// Ada invites Ben; returns their ids and Ada's cookie.
 async fn invitation(app: &Router) -> (Uuid, String, Uuid) {
     let (ada, ada_cookie) = register(app, "ada@example.com").await;

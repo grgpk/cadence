@@ -25,4 +25,12 @@ bookings_this_month: number,
  * While on the trial: what moving to Free would take away, one sentence
  * each. Empty otherwise.
  */
-trial_losses: Array<string>, };
+trial_losses: Array<string>, 
+/**
+ * Billing is paused, the plan still on, until then.
+ */
+paused_until: string | null, 
+/**
+ * The one free pause was used, so the cancel flow does not offer it.
+ */
+paused_before: boolean, };

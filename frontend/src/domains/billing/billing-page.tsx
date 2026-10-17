@@ -45,6 +45,7 @@ import {
   type YearlySwitch,
   yearlySwitch,
 } from "./billing";
+import { CancelPlan, KeepPlan } from "./cancel-dialog";
 import { InviteCard } from "./invite-card";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
@@ -76,8 +77,23 @@ function CurrentPlan({
   const usage = bookingUsage(summary);
   const limit = summary.entitlements.included_bookings_per_month;
   const allowance = freeAllowanceLine(summary, offers);
+  const billed = summary.status === STATUS.ACTIVE;
   return (
-    <PanelCard title="Current plan" description={statusLine(summary, Date.now())}>
+    <PanelCard
+      title="Current plan"
+      description={statusLine(summary, Date.now())}
+      footer={
+        billed ? (
+          <div className="flex justify-end">
+            {summary.cancel_at_period_end ? (
+              <KeepPlan />
+            ) : (
+              <CancelPlan summary={summary} offers={offers} />
+            )}
+          </div>
+        ) : undefined
+      }
+    >
       <div className="flex flex-wrap items-center gap-3">
         <span className="font-display font-wide text-2xl font-bold">
           {PLAN_NAMES[summary.plan]}

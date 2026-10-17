@@ -5,7 +5,8 @@ use uuid::Uuid;
 use super::{
     db::{self, SyncedSubscription, TrialUsage},
     models::{
-        AdminPlan, BillingSummary, Referrals, StartCheckout, StripeEvent, StripeSubscription,
+        AdminCancellation, AdminPlan, BillingSummary, CancelOutcome, LeaveFeedback, Referrals,
+        StartCheckout, StripeEvent, StripeSubscription,
     },
     plans::{
         BillingInterval, Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS,
@@ -117,6 +118,8 @@ pub async fn summary(
     };
     Ok(BillingSummary {
         trial_losses,
+        paused_until: db::paused_until(pool, user_unid).await?,
+        paused_before: db::paused_before(pool, user_unid).await?,
         plan,
         status: subscription.as_ref().map(|row| row.status),
         interval: subscription.as_ref().and_then(|row| row.billing_interval),
@@ -448,6 +451,159 @@ async fn month_credit(
         .map_err(payments_failed)
 }
 
+/// The longest note the cancel flow keeps.
+const NOTE_MAX: usize = 500;
+/// The one free pause: billing stops this long, the plan stays on.
+const PAUSE_DAYS: i64 = 30;
+
+/// The host's Stripe subscription, while Stripe bills it.
+async fn billed_subscription(pool: &PgPool, user_unid: Uuid) -> AppResult<(String, Subscription)> {
+    let not_billed = || AppError::Conflict("no paid plan to change".to_owned());
+    let account = db::stripe_account(pool, user_unid)
+        .await?
+        .ok_or_else(not_billed)?;
+    let Some(subscription_id) = account.subscription_id else {
+        return Err(not_billed());
+    };
+    if account.status != SubscriptionStatus::Active {
+        return Err(not_billed());
+    }
+    let stored = db::find(pool, user_unid).await?.ok_or_else(not_billed)?;
+    Ok((subscription_id, stored))
+}
+
+/// The note, trimmed; `None` when empty.
+fn note_of(feedback: &LeaveFeedback) -> AppResult<Option<String>> {
+    let note = feedback
+        .note
+        .as_deref()
+        .map(str::trim)
+        .filter(|note| !note.is_empty());
+    if note.is_some_and(|note| note.chars().count() > NOTE_MAX) {
+        return Err(AppError::BadRequest(format!(
+            "a note is at most {NOTE_MAX} characters"
+        )));
+    }
+    Ok(note.map(str::to_owned))
+}
+
+/// Ends the plan with the period the host paid for, and keeps why.
+pub async fn cancel(
+    pool: &PgPool,
+    payments_on: Option<&Payments>,
+    user_unid: Uuid,
+    feedback: &LeaveFeedback,
+) -> AppResult<()> {
+    let payments = payments(payments_on)?;
+    let note = note_of(feedback)?;
+    let (subscription_id, stored) = billed_subscription(pool, user_unid).await?;
+    if stored.cancel_at_period_end {
+        return Err(AppError::Conflict(
+            "the plan already ends with this period".to_owned(),
+        ));
+    }
+    let mut form = vec![
+        ("cancel_at_period_end", "true"),
+        (
+            "cancellation_details[feedback]",
+            feedback.reason.stripe_feedback(),
+        ),
+    ];
+    if let Some(note) = &note {
+        form.push(("cancellation_details[comment]", note));
+    }
+    payments
+        .update_subscription(&subscription_id, &form)
+        .await
+        .map_err(payments_failed)?;
+    db::mark_change(pool, user_unid, true, None).await?;
+    db::insert_feedback(
+        pool,
+        user_unid,
+        (feedback.reason, note.as_deref()),
+        CancelOutcome::Cancelled,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Stops billing for a month with the plan still on. Once per host.
+pub async fn pause(
+    pool: &PgPool,
+    payments_on: Option<&Payments>,
+    user_unid: Uuid,
+    feedback: &LeaveFeedback,
+) -> AppResult<()> {
+    let payments = payments(payments_on)?;
+    let note = note_of(feedback)?;
+    let (subscription_id, _) = billed_subscription(pool, user_unid).await?;
+    if db::paused_before(pool, user_unid).await? {
+        return Err(AppError::Conflict(
+            "the free pause was used already".to_owned(),
+        ));
+    }
+    let resumes_at = Utc::now() + Duration::days(PAUSE_DAYS);
+    let resumes = resumes_at.timestamp().to_string();
+    let form = [
+        ("pause_collection[behavior]", "void"),
+        ("pause_collection[resumes_at]", resumes.as_str()),
+    ];
+    payments
+        .update_subscription(&subscription_id, &form)
+        .await
+        .map_err(payments_failed)?;
+    db::mark_change(pool, user_unid, false, Some(resumes_at)).await?;
+    db::insert_feedback(
+        pool,
+        user_unid,
+        (feedback.reason, note.as_deref()),
+        CancelOutcome::Paused,
+    )
+    .await?;
+    Ok(())
+}
+
+/// Takes back a cancel the host changed their mind about.
+pub async fn resume(
+    pool: &PgPool,
+    payments_on: Option<&Payments>,
+    user_unid: Uuid,
+) -> AppResult<()> {
+    let payments = payments(payments_on)?;
+    let (subscription_id, stored) = billed_subscription(pool, user_unid).await?;
+    if !stored.cancel_at_period_end {
+        return Err(AppError::Conflict("the plan is not ending".to_owned()));
+    }
+    payments
+        .update_subscription(&subscription_id, &[("cancel_at_period_end", "false")])
+        .await
+        .map_err(payments_failed)?;
+    db::mark_change(pool, user_unid, false, None).await?;
+    Ok(())
+}
+
+/// Keeps why a host who meant to leave moved to yearly instead.
+pub async fn yearly_instead(
+    pool: &PgPool,
+    user_unid: Uuid,
+    feedback: &LeaveFeedback,
+) -> AppResult<()> {
+    let note = note_of(feedback)?;
+    billed_subscription(pool, user_unid).await?;
+    db::insert_feedback(
+        pool,
+        user_unid,
+        (feedback.reason, note.as_deref()),
+        CancelOutcome::Yearly,
+    )
+    .await?;
+    Ok(())
+}
+
+pub async fn cancellations(pool: &PgPool) -> AppResult<Vec<AdminCancellation>> {
+    Ok(db::cancellations(pool).await?)
+}
+
 /// Every host and the plan that applies to them now, newest first.
 pub async fn host_plans(pool: &PgPool, now: DateTime<Utc>) -> AppResult<Vec<AdminPlan>> {
     let rows = db::host_plans(pool).await?;
@@ -595,6 +751,11 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
             customer_id: &subscription.customer,
             subscription_id: &subscription.id,
             event_at: instant(event.created).unwrap_or_else(Utc::now),
+            paused_until: subscription
+                .pause_collection
+                .as_ref()
+                .and_then(|pause| pause.resumes_at)
+                .and_then(instant),
         },
     )
     .await?;

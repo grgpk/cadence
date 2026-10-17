@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.full_name, u.email, f.reason AS \"reason: CancelReason\", f.note,\n                  f.outcome AS \"outcome: CancelOutcome\", f.created_at\n           FROM cancellation_feedback f JOIN users u ON u.unid = f.user_unid\n           ORDER BY f.created_at DESC\n           LIMIT 100",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "full_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "reason: CancelReason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cancellation_feedback",
+            "name": "reason"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cancellation_feedback",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "outcome: CancelOutcome",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cancellation_feedback",
+            "name": "outcome"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cancellation_feedback",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "579d5e5f41ec73417cd45704a78fd216b0e5b8fec953b8e5aafd2f833f3bb0f0"
+}

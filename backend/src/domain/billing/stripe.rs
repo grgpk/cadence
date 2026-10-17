@@ -103,6 +103,8 @@ struct FakeLedger {
     billed: Vec<String>,
     sessions: usize,
     expired: Vec<String>,
+    /// Each subscription change asked for: its id and form.
+    updates: Vec<(String, Vec<(String, String)>)>,
 }
 
 /// A Checkout page: its id, to close it if another is opened, and where
@@ -334,6 +336,47 @@ impl Payments {
             return Ok(());
         }
         checked(&path, Ok(response)).await.map(|_| ())
+    }
+
+    /// Changes a subscription: cancel at the period's end, resume, or pause
+    /// billing. Its webhook brings the result back.
+    pub async fn update_subscription(
+        &self,
+        subscription_id: &str,
+        form: &[(&str, &str)],
+    ) -> Result<(), PaymentsError> {
+        let (client, secret_key) = match &self.gateway {
+            Gateway::Stripe { client, secret_key } => (client, secret_key),
+            Gateway::Fake(ledger) => {
+                if let Ok(mut ledger) = ledger.lock() {
+                    let form = form
+                        .iter()
+                        .map(|(key, value)| ((*key).to_owned(), (*value).to_owned()))
+                        .collect();
+                    ledger.updates.push((subscription_id.to_owned(), form));
+                }
+                return Ok(());
+            }
+        };
+        let path = format!("/subscriptions/{subscription_id}");
+        let sent = client
+            .post(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .form(form)
+            .send()
+            .await;
+        checked(&path, sent).await.map(|_| ())
+    }
+
+    /// For tests: the subscription changes the fake was asked for.
+    pub fn subscription_updates(&self) -> Vec<(String, Vec<(String, String)>)> {
+        match &self.gateway {
+            Gateway::Fake(ledger) => ledger
+                .lock()
+                .map(|ledger| ledger.updates.clone())
+                .unwrap_or_default(),
+            Gateway::Stripe { .. } => Vec::new(),
+        }
     }
 
     /// For tests: Stripe bills this customer from now on.

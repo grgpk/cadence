@@ -9,7 +9,8 @@ use uuid::Uuid;
 
 use super::{
     models::{
-        AdminPlan, BillingSummary, CompPlan, RedirectUrl, Referrals, StartCheckout, StripeEvent,
+        AdminCancellation, AdminPlan, BillingSummary, CompPlan, LeaveFeedback, RedirectUrl,
+        Referrals, StartCheckout, StripeEvent,
     },
     plans::{PlanOffer, catalog},
     service,
@@ -57,6 +58,57 @@ pub async fn referrals(
     user: AuthUser,
 ) -> AppResult<Json<Referrals>> {
     Ok(Json(service::referrals(&state.pool, user.user.unid).await?))
+}
+
+pub async fn cancel(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(feedback): Json<LeaveFeedback>,
+) -> AppResult<StatusCode> {
+    service::cancel(
+        &state.pool,
+        state.payments.as_ref(),
+        user.user.unid,
+        &feedback,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn pause(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(feedback): Json<LeaveFeedback>,
+) -> AppResult<StatusCode> {
+    service::pause(
+        &state.pool,
+        state.payments.as_ref(),
+        user.user.unid,
+        &feedback,
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn resume(State(state): State<AppState>, user: AuthUser) -> AppResult<StatusCode> {
+    service::resume(&state.pool, state.payments.as_ref(), user.user.unid).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn yearly_instead(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(feedback): Json<LeaveFeedback>,
+) -> AppResult<StatusCode> {
+    service::yearly_instead(&state.pool, user.user.unid, &feedback).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+pub async fn admin_cancellations(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+) -> AppResult<Json<Vec<AdminCancellation>>> {
+    Ok(Json(service::cancellations(&state.pool).await?))
 }
 
 /// Stripe's events. The raw body is needed: the signature covers its bytes.

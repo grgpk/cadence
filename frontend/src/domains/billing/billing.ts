@@ -1,6 +1,7 @@
 import type { AdminPlan } from "../../bindings/AdminPlan";
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
+import type { CancelReason } from "../../bindings/CancelReason";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
@@ -134,6 +135,9 @@ export function statusLine(summary: BillingSummary, now: number): string {
         : `${days} ${days === 1 ? "day" : "days"} left of your Pro trial. Pick a plan to keep Pro features.`;
     }
     case STATUS.ACTIVE:
+      if (summary.paused_until) {
+        return `${name} is paused until ${formatDate(summary.paused_until)}. It stays on, and nothing is charged until then.`;
+      }
       if (!periodEnd) return `You are on ${name}.`;
       return summary.cancel_at_period_end
         ? `${name} ends on ${periodEnd}. You move to Free then, and nothing is deleted.`
@@ -190,4 +194,32 @@ export function yearlySwitch(
     yearCents: year.amount_cents,
     savedCents: saving.savedCents,
   };
+}
+
+/** The cancel flow's reasons, in the order a host thinks of them. */
+export const LEAVE_REASONS: readonly { value: CancelReason; label: string }[] = [
+  { value: "too_expensive", label: "It costs too much" },
+  { value: "not_enough_bookings", label: "Not enough calls to need it" },
+  { value: "missing_feature", label: "Something I need is missing" },
+  { value: "switching", label: "Moving to another tool" },
+  { value: "pausing", label: "Just taking a break" },
+  { value: "other", label: "Something else" },
+];
+
+/** The one offer that fits a reason for leaving, besides cancelling. */
+type LeaveOffer = "yearly" | "pause";
+
+/**
+ * Paying less for a host leaving over price, when yearly saves; a free
+ * month's pause for one with too few calls or taking a break, once.
+ */
+export function leaveOffer(
+  reason: CancelReason | null,
+  summary: BillingSummary,
+  offers: readonly PlanOffer[],
+): LeaveOffer | null {
+  if (reason === "too_expensive" && yearlySwitch(summary, offers)) return "yearly";
+  const quiet = reason === "not_enough_bookings" || reason === "pausing";
+  if (quiet && !summary.paused_before && !summary.paused_until) return "pause";
+  return null;
 }

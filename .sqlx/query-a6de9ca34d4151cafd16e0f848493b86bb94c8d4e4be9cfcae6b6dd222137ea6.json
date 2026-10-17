@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions\n         SET cancel_at_period_end = $2, paused_until = COALESCE($3, paused_until), updated_at = now()\n         WHERE user_unid = $1 RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bool",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a6de9ca34d4151cafd16e0f848493b86bb94c8d4e4be9cfcae6b6dd222137ea6"
+}

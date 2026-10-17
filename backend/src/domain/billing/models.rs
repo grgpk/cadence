@@ -6,6 +6,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use super::plans::{BillingInterval, Entitlements, Plan, SubscriptionStatus};
+use crate::text_column::text_column;
 
 /// A host's plan as the dashboard shows it.
 #[derive(Debug, Serialize, TS)]
@@ -26,6 +27,10 @@ pub struct BillingSummary {
     /// While on the trial: what moving to Free would take away, one sentence
     /// each. Empty otherwise.
     pub trial_losses: Vec<String>,
+    /// Billing is paused, the plan still on, until then.
+    pub paused_until: Option<DateTime<Utc>>,
+    /// The one free pause was used, so the cancel flow does not offer it.
+    pub paused_before: bool,
 }
 
 /// A host's invite link, as Billing shows it.
@@ -110,6 +115,9 @@ pub struct StripeSubscription {
     #[serde(default)]
     pub metadata: HashMap<String, String>,
     pub items: StripeList<StripeSubscriptionItem>,
+    /// Set while billing is paused; `resumes_at` is when it restarts.
+    #[serde(default)]
+    pub pause_collection: Option<StripePause>,
     /// The invoice's id, or the invoice itself when expanded. A referral
     /// credit waits for one that took money.
     #[serde(default)]
@@ -147,6 +155,98 @@ pub struct StripePrice {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct StripePause {
+    /// Unix seconds.
+    pub resumes_at: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct StripeRecurring {
     pub interval: String,
+}
+
+/// Why a host is leaving, from the cancel flow. The values of the
+/// `cancellation_feedback_reason` check.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../../frontend/src/bindings/CancelReason.ts")]
+pub enum CancelReason {
+    TooExpensive,
+    NotEnoughBookings,
+    MissingFeature,
+    Switching,
+    Pausing,
+    Other,
+}
+
+impl CancelReason {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::TooExpensive => "too_expensive",
+            Self::NotEnoughBookings => "not_enough_bookings",
+            Self::MissingFeature => "missing_feature",
+            Self::Switching => "switching",
+            Self::Pausing => "pausing",
+            Self::Other => "other",
+        }
+    }
+
+    /// Stripe's own `cancellation_details[feedback]` value, so its reports
+    /// say the same.
+    pub const fn stripe_feedback(self) -> &'static str {
+        match self {
+            Self::TooExpensive => "too_expensive",
+            Self::MissingFeature => "missing_features",
+            Self::Switching => "switched_service",
+            Self::NotEnoughBookings | Self::Pausing => "unused",
+            Self::Other => "other",
+        }
+    }
+}
+
+text_column!(CancelReason: TooExpensive, NotEnoughBookings, MissingFeature, Switching, Pausing, Other);
+
+/// What the host did in the cancel flow.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, TS)]
+#[serde(rename_all = "snake_case")]
+#[ts(export, export_to = "../../frontend/src/bindings/CancelOutcome.ts")]
+pub enum CancelOutcome {
+    Cancelled,
+    Paused,
+    Yearly,
+}
+
+impl CancelOutcome {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Cancelled => "cancelled",
+            Self::Paused => "paused",
+            Self::Yearly => "yearly",
+        }
+    }
+}
+
+text_column!(CancelOutcome: Cancelled, Paused, Yearly);
+
+/// Why the host is leaving, sent with a cancel, a pause or a move to yearly.
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/LeaveFeedback.ts")]
+pub struct LeaveFeedback {
+    pub reason: CancelReason,
+    /// "What would have kept you?" At most 500 characters.
+    #[serde(default)]
+    #[ts(optional)]
+    pub note: Option<String>,
+}
+
+/// One answer from the cancel flow, as an admin reads it.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/AdminCancellation.ts")]
+pub struct AdminCancellation {
+    pub full_name: String,
+    pub email: String,
+    pub reason: CancelReason,
+    pub note: Option<String>,
+    pub outcome: CancelOutcome,
+    pub created_at: DateTime<Utc>,
 }

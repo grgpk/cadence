@@ -4,6 +4,8 @@ import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CompPlan } from "../../bindings/CompPlan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { RedirectUrl } from "../../bindings/RedirectUrl";
+import type { AdminCancellation } from "../../bindings/AdminCancellation";
+import type { LeaveFeedback } from "../../bindings/LeaveFeedback";
 import type { Referrals } from "../../bindings/Referrals";
 import type { StartCheckout } from "../../bindings/StartCheckout";
 import { api } from "../../lib/api";
@@ -46,6 +48,30 @@ export async function goToYearly(): Promise<void> {
   const { url } = await api<RedirectUrl>("/api/billing/yearly", { method: "POST" });
   window.location.assign(url);
 }
+
+function post(path: string, body?: unknown): Promise<void> {
+  return api<void>(path, {
+    method: "POST",
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+/** Ends the plan with the paid period, saying why. */
+export const cancelPlan = (feedback: LeaveFeedback) =>
+  post("/api/billing/cancel", feedback);
+/** The one free month's pause: the plan stays on, nothing is charged. */
+export const pausePlan = (feedback: LeaveFeedback) =>
+  post("/api/billing/pause", feedback);
+/** Takes back a cancel. */
+export const keepPlan = () => post("/api/billing/resume");
+/** Keeps why a host who meant to leave went yearly instead. */
+export const yearlyInstead = (feedback: LeaveFeedback) =>
+  post("/api/billing/yearly-instead", feedback);
+
+export const adminCancellationsQuery = queryOptions({
+  queryKey: QUERY_KEYS.adminCancellations,
+  queryFn: () => api<AdminCancellation[]>("/api/admin/billing/cancellations"),
+});
 
 /** An admin gives `userUnid` a paid plan for free, or takes it back with `null`. */
 export function compPlan(userUnid: string, body: CompPlan): Promise<void> {

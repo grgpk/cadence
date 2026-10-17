@@ -20,6 +20,7 @@ export const QUERY_KEYS = {
   billing: ["billing"] as const,
   billingPlans: ["billing-plans"] as const,
   referrals: ["referrals"] as const,
+  adminCancellations: ["admin-cancellations"] as const,
   unfinishedLeads: ["unfinished-leads"] as const,
   insights: ["insights"] as const,
 } as const;

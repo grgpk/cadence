@@ -4,6 +4,7 @@ import type { AdminPlan } from "../../bindings/AdminPlan";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
 import { planCounts, STATUS } from "../../domains/billing/billing";
+import { CancellationReasons } from "../../domains/billing/cancellation-reasons";
 import { CompMenu } from "../../domains/billing/comp-menu";
 import { PLAN_NAMES } from "../../domains/pricing/pricing";
 import { TwoLine, type Column } from "../../domains/shared/data-table";
@@ -78,17 +79,20 @@ function PlanSummary({ rows }: { rows: AdminPlan[] }) {
 function AdminPlansPage() {
   const { q } = Route.useSearch();
   return (
-    <AdminDataPage<AdminPlan>
-      {...ADMIN_PAGES.plans}
-      emptyTitle="No hosts yet"
-      emptyDescription="A host appears as soon as someone signs up."
-      rowKey={(row) => row.user_unid}
-      columns={COLUMNS}
-      initialSearch={q}
-      summary={(rows) => <PlanSummary rows={rows} />}
-      searchText={(row) =>
-        [row.full_name, row.email, PLAN_NAMES[row.plan], row.status ?? ""].join(" ")
-      }
-    />
+    <>
+      <AdminDataPage<AdminPlan>
+        {...ADMIN_PAGES.plans}
+        emptyTitle="No hosts yet"
+        emptyDescription="A host appears as soon as someone signs up."
+        rowKey={(row) => row.user_unid}
+        columns={COLUMNS}
+        initialSearch={q}
+        summary={(rows) => <PlanSummary rows={rows} />}
+        searchText={(row) =>
+          [row.full_name, row.email, PLAN_NAMES[row.plan], row.status ?? ""].join(" ")
+        }
+      />
+      <CancellationReasons />
+    </>
   );
 }

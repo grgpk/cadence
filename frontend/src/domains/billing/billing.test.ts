@@ -8,6 +8,7 @@ import {
   checkoutIntent,
   freeAllowanceLine,
   hasPortal,
+  leaveOffer,
   planAction,
   planCounts,
   signupSearch,
@@ -30,6 +31,8 @@ function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
     cancel_at_period_end: false,
     bookings_this_month: 10,
     trial_losses: [],
+    paused_until: null,
+    paused_before: false,
     entitlements: {
       included_bookings_per_month: 25,
       reminders: ["before_24h"],
@@ -253,5 +256,39 @@ describe("trialEnded", () => {
     expect(trialEnded({ status: STATUS.TRIALING, plan: PLAN.FREE })).toBe(true);
     expect(trialEnded({ status: STATUS.TRIALING, plan: PLAN.PRO })).toBe(false);
     expect(trialEnded({ status: STATUS.ACTIVE, plan: PLAN.PRO })).toBe(false);
+  });
+});
+
+describe("leaveOffer", () => {
+  const free = summary();
+  const offers: PlanOffer[] = [
+    {
+      plan: PLAN.PRO,
+      entitlements: free.entitlements,
+      prices: [
+        { interval: "month", amount_cents: 1000, monthly_cents: 1000 },
+        { interval: "year", amount_cents: 9600, monthly_cents: 800 },
+      ],
+    },
+  ];
+  const monthly = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE, interval: "month" });
+
+  it("offers yearly to a monthly payer leaving over price", () => {
+    expect(leaveOffer("too_expensive", monthly, offers)).toBe("yearly");
+    expect(
+      leaveOffer("too_expensive", { ...monthly, interval: "year" }, offers),
+    ).toBeNull();
+  });
+
+  it("offers the free pause once, to a host with few calls or on a break", () => {
+    expect(leaveOffer("not_enough_bookings", monthly, offers)).toBe("pause");
+    expect(leaveOffer("pausing", monthly, offers)).toBe("pause");
+    expect(leaveOffer("pausing", { ...monthly, paused_before: true }, offers)).toBeNull();
+  });
+
+  it("has nothing to offer for a missing feature or a move", () => {
+    expect(leaveOffer("missing_feature", monthly, offers)).toBeNull();
+    expect(leaveOffer("switching", monthly, offers)).toBeNull();
+    expect(leaveOffer(null, monthly, offers)).toBeNull();
   });
 });

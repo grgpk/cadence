@@ -2,7 +2,10 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
-use super::plans::{BillingInterval, Plan, Subscription, SubscriptionStatus};
+use super::{
+    models::{AdminCancellation, CancelOutcome, CancelReason},
+    plans::{BillingInterval, Plan, Subscription, SubscriptionStatus},
+};
 
 pub async fn find(pool: &PgPool, user_unid: Uuid) -> Result<Option<Subscription>, sqlx::Error> {
     sqlx::query_as!(
@@ -177,6 +180,7 @@ pub struct SyncedSubscription<'a> {
     pub customer_id: &'a str,
     pub subscription_id: &'a str,
     pub event_at: DateTime<Utc>,
+    pub paused_until: Option<DateTime<Utc>>,
 }
 
 /// Mirrors a Stripe subscription onto the host's row.
@@ -191,8 +195,8 @@ pub async fn sync_subscription(
     sqlx::query_scalar!(
         "INSERT INTO subscriptions (user_unid, plan, status, billing_interval, current_period_end,
                                     cancel_at_period_end, stripe_customer_id, stripe_subscription_id,
-                                    stripe_synced_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                                    stripe_synced_at, paused_until)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          ON CONFLICT (user_unid) DO UPDATE SET
              plan = EXCLUDED.plan, status = EXCLUDED.status,
              billing_interval = EXCLUDED.billing_interval,
@@ -201,6 +205,7 @@ pub async fn sync_subscription(
              stripe_customer_id = EXCLUDED.stripe_customer_id,
              stripe_subscription_id = EXCLUDED.stripe_subscription_id,
              stripe_synced_at = EXCLUDED.stripe_synced_at,
+             paused_until = EXCLUDED.paused_until,
              updated_at = now()
          WHERE (subscriptions.stripe_synced_at IS NULL
                 OR subscriptions.stripe_synced_at <= EXCLUDED.stripe_synced_at)
@@ -217,6 +222,7 @@ pub async fn sync_subscription(
         synced.customer_id,
         synced.subscription_id,
         synced.event_at,
+        synced.paused_until,
     )
     .fetch_optional(connection)
     .await
@@ -536,4 +542,86 @@ pub async fn referral_counts(
     )
     .fetch_one(pool)
     .await
+}
+
+/// Keeps what the cancel flow did, and why.
+pub async fn insert_feedback(
+    pool: &PgPool,
+    user_unid: Uuid,
+    feedback: (CancelReason, Option<&str>),
+    outcome: CancelOutcome,
+) -> Result<(), sqlx::Error> {
+    let (reason, note) = feedback;
+    sqlx::query_scalar!(
+        "INSERT INTO cancellation_feedback (user_unid, reason, note, outcome)
+         VALUES ($1, $2, $3, $4) RETURNING 1",
+        user_unid,
+        reason.as_str(),
+        note,
+        outcome.as_str(),
+    )
+    .fetch_one(pool)
+    .await
+    .map(|_| ())
+}
+
+/// Whether the host already had their one free pause.
+pub async fn paused_before(pool: &PgPool, user_unid: Uuid) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+               SELECT 1 FROM cancellation_feedback WHERE user_unid = $1 AND outcome = $2
+           ) AS "paused!""#,
+        user_unid,
+        CancelOutcome::Paused.as_str(),
+    )
+    .fetch_one(pool)
+    .await
+}
+
+/// Shows a change made in Stripe at once; its webhook confirms it later.
+pub async fn mark_change(
+    pool: &PgPool,
+    user_unid: Uuid,
+    cancel_at_period_end: bool,
+    paused_until: Option<DateTime<Utc>>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions
+         SET cancel_at_period_end = $2, paused_until = COALESCE($3, paused_until), updated_at = now()
+         WHERE user_unid = $1 RETURNING 1",
+        user_unid,
+        cancel_at_period_end,
+        paused_until,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|_| ())
+}
+
+/// The latest answers from the cancel flow, newest first.
+pub async fn cancellations(pool: &PgPool) -> Result<Vec<AdminCancellation>, sqlx::Error> {
+    sqlx::query_as!(
+        AdminCancellation,
+        r#"SELECT u.full_name, u.email, f.reason AS "reason: CancelReason", f.note,
+                  f.outcome AS "outcome: CancelOutcome", f.created_at
+           FROM cancellation_feedback f JOIN users u ON u.unid = f.user_unid
+           ORDER BY f.created_at DESC
+           LIMIT 100"#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// While billing is paused: when it restarts. `None` once that has passed.
+pub async fn paused_until(
+    pool: &PgPool,
+    user_unid: Uuid,
+) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT paused_until FROM subscriptions WHERE user_unid = $1 AND paused_until > now()",
+        user_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(Option::flatten)
 }
