@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
 import { Link } from "@tanstack/react-router";
-import { AlertTriangle } from "lucide-react";
+import { ChevronRight, CirclePause, Clock, VideoOff } from "lucide-react";
+import type { ComponentType } from "react";
 
 import type { ConferencingApp } from "../../bindings/ConferencingApp";
-import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
+import { Card } from "../../components/ui/card";
 import { Skeleton } from "../../components/ui/skeleton";
 import { zoneName } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
@@ -15,7 +18,11 @@ import { callLengthLabel, daysLabel } from "./hours-labels";
 import { SETTINGS_SECTIONS } from "./routes";
 
 type Problem = {
-  message: string;
+  /** Why the step matters, in the host's terms. */
+  detail: string;
+  icon: ComponentType<{ className?: string }>;
+  /** Whether it stops people booking at all, not just joining. */
+  blocksBooking: boolean;
   fix: {
     label: string;
     to:
@@ -39,7 +46,9 @@ export function bookingPageProblems({
   const problems: Problem[] = [];
   if (paused) {
     problems.push({
-      message: "Your booking page is paused, so nobody can book you.",
+      detail: "Your booking page is paused, so nobody can book you.",
+      icon: CirclePause,
+      blocksBooking: true,
       fix: {
         label: "Take bookings again",
         to: ROUTES.dashboardSettings,
@@ -49,13 +58,17 @@ export function bookingPageProblems({
   }
   if (!hasHours) {
     problems.push({
-      message: "You have no hours set, so your link has no times to offer.",
+      detail: "Your link has no times to offer until you do.",
+      icon: Clock,
+      blocksBooking: true,
       fix: { label: "Set your hours", to: ROUTES.dashboardAvailability },
     });
   }
   if (place === null) {
     problems.push({
-      message: "There is no place to join, so people who book get no call link.",
+      detail: "People who book you get no link to join the call.",
+      icon: VideoOff,
+      blocksBooking: false,
       fix: { label: "Add a meeting link", to: ROUTES.dashboardAppsInstalled },
     });
   }
@@ -117,34 +130,59 @@ function useBookingPageState() {
   };
 }
 
-/** Only when something is wrong: what it is, and the one place that fixes it. */
+/** Only when something is left to do: each step, why it matters, and a link straight to it. */
 export function SetupProblems() {
   const { problems } = useBookingPageState();
   if (problems.length === 0) return null;
+  const blocked = problems.some((problem) => problem.blocksBooking);
   return (
-    <Alert className="border-warning/50 bg-warning/10">
-      <AlertTriangle className="text-warning" />
-      <AlertTitle>
-        {problems.length === 1
-          ? "Your booking page needs one fix"
-          : `Your booking page needs ${problems.length} fixes`}
-      </AlertTitle>
-      <AlertDescription className="mt-1 gap-2 text-foreground">
-        {problems.map((problem) => (
-          <div
-            key={problem.message}
-            className="flex w-full flex-wrap items-center justify-between gap-x-4 gap-y-2"
-          >
-            <p>{problem.message}</p>
-            <Button size="sm" asChild>
-              <Link to={problem.fix.to} hash={problem.fix.hash}>
-                {problem.fix.label}
+    <Card className="gap-0 overflow-hidden py-0">
+      <div className="flex items-start justify-between gap-4 px-4 py-4 sm:px-5">
+        <div className="min-w-0">
+          <h2 className="font-semibold">Next steps</h2>
+          <p className="text-sm text-muted-foreground">
+            {blocked
+              ? "Nobody can book you until these are done."
+              : "People can book you. This makes their calls run smoothly."}
+          </p>
+        </div>
+        <Badge variant="secondary" className="shrink-0">
+          {problems.length} to do
+        </Badge>
+      </div>
+      <ul className="divide-y border-t">
+        {problems.map((problem) => {
+          const Icon = problem.icon;
+          return (
+            <li key={problem.fix.label}>
+              <Link
+                to={problem.fix.to}
+                hash={problem.fix.hash}
+                className="group flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
+              >
+                <span
+                  className={cn(
+                    "grid size-9 shrink-0 place-items-center rounded-lg border",
+                    problem.blocksBooking
+                      ? "border-warning/40 bg-warning/10 text-warning"
+                      : "bg-muted text-muted-foreground",
+                  )}
+                >
+                  <Icon className="size-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-medium">{problem.fix.label}</span>
+                  <span className="block text-sm text-muted-foreground">
+                    {problem.detail}
+                  </span>
+                </span>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none" />
               </Link>
-            </Button>
-          </div>
-        ))}
-      </AlertDescription>
-    </Alert>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 
