@@ -258,7 +258,7 @@ export function AppShell({
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="bg-canvas">
-        <div className="flex h-12 items-center gap-2 border-b px-3 text-sm">
+        <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b bg-canvas/85 px-3 text-sm backdrop-blur">
           <SidebarTrigger />
           <nav aria-label="Where you are" className="flex min-w-0 items-center gap-2">
             {hasAdminAccess(user) ? (
@@ -280,7 +280,7 @@ export function AppShell({
           <div className="ml-auto">
             <ThemeToggle />
           </div>
-        </div>
+        </header>
         <div
           id={CONTENT_ID}
           tabIndex={-1}
