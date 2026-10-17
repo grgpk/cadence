@@ -13,6 +13,7 @@ import {
   STATUS,
   statusLine,
   trialDaysLeft,
+  yearlySwitch,
 } from "./billing";
 
 const NOW = Date.parse("2026-10-16T12:00:00Z");
@@ -188,5 +189,34 @@ describe("freeAllowanceLine", () => {
       } as PlanOffer,
     ];
     expect(freeAllowanceLine(unlimited(12), roomy)).toBeNull();
+  });
+});
+
+describe("yearlySwitch", () => {
+  const free = summary();
+  const offers: PlanOffer[] = [
+    {
+      plan: PLAN.PRO,
+      entitlements: free.entitlements,
+      prices: [
+        { interval: "month", amount_cents: 1000, monthly_cents: 1000 },
+        { interval: "year", amount_cents: 9600, monthly_cents: 800 },
+      ],
+    },
+  ];
+  const monthly = summary({ plan: PLAN.PRO, status: STATUS.ACTIVE, interval: "month" });
+
+  it("offers a monthly payer the yearly price and the saving", () => {
+    expect(yearlySwitch(monthly, offers)).toEqual({
+      plan: PLAN.PRO,
+      yearCents: 9600,
+      savedCents: 2400,
+    });
+  });
+
+  it("stays quiet for yearly payers, trials and a plan being cancelled", () => {
+    expect(yearlySwitch({ ...monthly, interval: "year" }, offers)).toBeNull();
+    expect(yearlySwitch({ ...monthly, status: STATUS.TRIALING }, offers)).toBeNull();
+    expect(yearlySwitch({ ...monthly, cancel_at_period_end: true }, offers)).toBeNull();
   });
 });

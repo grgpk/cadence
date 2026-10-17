@@ -5,7 +5,10 @@ use uuid::Uuid;
 use super::{
     db::{self, SyncedSubscription, TrialUsage},
     models::{AdminPlan, BillingSummary, StartCheckout, StripeEvent, StripeSubscription},
-    plans::{Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS, effective_plan},
+    plans::{
+        BillingInterval, Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS,
+        effective_plan,
+    },
     stripe::{CheckoutRequest, Payments, PaymentsError},
 };
 use crate::{
@@ -240,6 +243,39 @@ pub async fn portal(
         })?;
     payments
         .portal_url(&customer, &format!("{}{BILLING_PATH}", app_url()))
+        .await
+        .map_err(payments_failed)
+}
+
+/// Stripe's confirm screen for paying yearly, for a host who pays monthly.
+pub async fn switch_to_yearly(
+    pool: &PgPool,
+    payments_on: Option<&Payments>,
+    user_unid: Uuid,
+) -> AppResult<String> {
+    let payments = payments(payments_on)?;
+    let no_plan = || AppError::Conflict("no paid plan yet: pick a plan first".to_owned());
+    let account = db::stripe_account(pool, user_unid)
+        .await?
+        .ok_or_else(no_plan)?;
+    let (Some(customer), Some(subscription)) = (&account.customer_id, &account.subscription_id)
+    else {
+        return Err(no_plan());
+    };
+    if account.status != SubscriptionStatus::Active
+        || account.billing_interval != Some(BillingInterval::Month)
+    {
+        return Err(AppError::Conflict(
+            "only an active monthly plan can switch to yearly".to_owned(),
+        ));
+    }
+    payments
+        .yearly_switch_url(
+            customer,
+            subscription,
+            account.plan,
+            &format!("{}{BILLING_PATH}", app_url()),
+        )
         .await
         .map_err(payments_failed)
 }

@@ -119,6 +119,7 @@ cadence/
 | 32 | `PLAN_32_CALENDLY_IMPORT.md` | import event types, weekly hours, dates and timezone from Calendly with a personal access token | ✅ done |
 | 33 | `PLAN_33_BUSINESS_CLIENTS.md` | Business: win back people who left, invitees confirm they are coming, no-shows, weekly numbers | ✅ done |
 | 34 | `PLAN_34_PROMISE_AND_FUNNEL.md` | accent colour for Pro, Calendly import offered to new hosts, a trial end that says what this host loses | ✅ done |
+| 35 | `PLAN_35_PAY_YEARLY.md` | monthly payers see what yearly saves and switch on Stripe's confirm screen | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

@@ -193,6 +193,52 @@ impl Payments {
         }
     }
 
+    /// The portal's confirm screen for moving a subscription to the plan's
+    /// yearly price. Stripe shows the amount and the credit for the month
+    /// already paid before the host agrees.
+    pub async fn yearly_switch_url(
+        &self,
+        customer_id: &str,
+        subscription_id: &str,
+        plan: Plan,
+        return_url: &str,
+    ) -> Result<String, PaymentsError> {
+        let price = self
+            .prices
+            .id(plan, BillingInterval::Year)
+            .ok_or(PaymentsError::NoPrice)?;
+        let Gateway::Stripe { client, secret_key } = &self.gateway else {
+            return Ok(format!(
+                "https://billing.stripe.test/{customer_id}/{subscription_id}/{price}"
+            ));
+        };
+        let item = subscription_item(client, secret_key, subscription_id).await?;
+        let flow = "flow_data[subscription_update_confirm]";
+        let keys = [
+            format!("{flow}[subscription]"),
+            format!("{flow}[items][0][id]"),
+            format!("{flow}[items][0][price]"),
+            format!("{flow}[items][0][quantity]"),
+        ];
+        let [subscription_key, item_key, price_key, quantity_key] =
+            keys.each_ref().map(String::as_str);
+        let form = [
+            ("customer", customer_id),
+            ("return_url", return_url),
+            ("flow_data[type]", "subscription_update_confirm"),
+            (subscription_key, subscription_id),
+            (item_key, item.as_str()),
+            (price_key, price),
+            (quantity_key, "1"),
+            ("flow_data[after_completion][type]", "redirect"),
+            (
+                "flow_data[after_completion][redirect][return_url]",
+                return_url,
+            ),
+        ];
+        post(client, secret_key, "/billing_portal/sessions", &form).await
+    }
+
     /// Checks the `Stripe-Signature` header against the raw body.
     pub fn verify(
         &self,
@@ -202,6 +248,54 @@ impl Payments {
     ) -> Result<(), BadSignature> {
         signature::verify(&self.webhook_secret, payload, header, now)
     }
+}
+
+#[derive(Deserialize)]
+struct SubscriptionItems {
+    items: SubscriptionItemList,
+}
+
+#[derive(Deserialize)]
+struct SubscriptionItemList {
+    data: Vec<SubscriptionItemId>,
+}
+
+#[derive(Deserialize)]
+struct SubscriptionItemId {
+    id: String,
+}
+
+/// The id of a subscription's one item, which a price change names.
+async fn subscription_item(
+    client: &reqwest::Client,
+    secret_key: &str,
+    subscription_id: &str,
+) -> Result<String, PaymentsError> {
+    let path = format!("/subscriptions/{subscription_id}");
+    let response = client
+        .get(format!("{API}{path}"))
+        .bearer_auth(secret_key)
+        .send()
+        .await
+        .map_err(|error| PaymentsError::Request(error.into()))?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().await.unwrap_or_default();
+        return Err(PaymentsError::Request(anyhow::anyhow!(
+            "stripe {path} answered {status}: {body}"
+        )));
+    }
+    let subscription = response
+        .json::<SubscriptionItems>()
+        .await
+        .map_err(|error| PaymentsError::Request(error.into()))?;
+    subscription
+        .items
+        .data
+        .into_iter()
+        .next()
+        .map(|item| item.id)
+        .ok_or_else(|| PaymentsError::Request(anyhow::anyhow!("stripe {path} has no items")))
 }
 
 async fn post(

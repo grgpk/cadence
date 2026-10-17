@@ -33,10 +33,12 @@ const PLANS: &str = "/api/billing/plans";
 const ME: &str = "/api/billing/me";
 const CHECKOUT: &str = "/api/billing/checkout";
 const PORTAL: &str = "/api/billing/portal";
+const YEARLY: &str = "/api/billing/yearly";
 const WEBHOOK: &str = "/api/billing/webhook";
 const WEBHOOK_SECRET: &str = "whsec_test";
 const BUSINESS_YEAR: &str = "price_business_year";
 const PRO_MONTH: &str = "price_pro_month";
+const PRO_YEAR: &str = "price_pro_year";
 
 fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
     dotenvy::dotenv().ok();
@@ -51,6 +53,7 @@ fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
 fn app(pool: &PgPool) -> Router {
     let prices = PriceIds::new(vec![
         (Plan::Pro, BillingInterval::Month, PRO_MONTH.to_owned()),
+        (Plan::Pro, BillingInterval::Year, PRO_YEAR.to_owned()),
         (
             Plan::Business,
             BillingInterval::Year,
@@ -328,6 +331,29 @@ async fn the_portal_needs_a_stripe_customer(pool: PgPool) {
 
     let (status, _) = send(&app, Method::POST, PORTAL, Some(&cookie), None).await;
 
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_monthly_payer_switches_to_yearly_on_stripes_confirm_screen(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+
+    // On the trial there is nothing to switch yet.
+    let (status, _) = send(&app, Method::POST, YEARLY, Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    subscription_event(&app, "evt_1", "created", 100, unid, PRO_MONTH, "active").await;
+    let (status, switch) = send(&app, Method::POST, YEARLY, Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        switch["url"],
+        format!("https://billing.stripe.test/cus_1/sub_1/{PRO_YEAR}")
+    );
+
+    // Once yearly, the offer is spent.
+    subscription_event(&app, "evt_2", "updated", 200, unid, BUSINESS_YEAR, "active").await;
+    let (status, _) = send(&app, Method::POST, YEARLY, Some(&cookie), None).await;
     assert_eq!(status, StatusCode::CONFLICT);
 }
 

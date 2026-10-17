@@ -5,7 +5,7 @@ import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
 import { formatDate } from "../../lib/format";
-import { INTERVAL, PLAN, PLAN_NAMES } from "../pricing/pricing";
+import { INTERVAL, PLAN, PLAN_NAMES, priceFor, yearlySaving } from "../pricing/pricing";
 
 export const STATUS = {
   TRIALING: "trialing",
@@ -129,4 +129,33 @@ export function planCounts(
   const counts: Record<Plan, number> = { free: 0, pro: 0, business: 0 };
   for (const row of rows) counts[row.plan] += 1;
   return counts;
+}
+
+/** What paying yearly would cost and save, at today's prices. */
+export type YearlySwitch = { plan: Plan; yearCents: number; savedCents: number };
+
+/**
+ * For a host paying monthly who means to stay: the plan's yearly price and
+ * what it saves. `null` for anyone else, or when yearly saves nothing.
+ */
+export function yearlySwitch(
+  summary: BillingSummary,
+  offers: readonly PlanOffer[],
+): YearlySwitch | null {
+  if (
+    summary.status !== STATUS.ACTIVE ||
+    summary.interval !== INTERVAL.MONTH ||
+    summary.cancel_at_period_end
+  ) {
+    return null;
+  }
+  const offer = offers.find((candidate) => candidate.plan === summary.plan);
+  const year = offer && priceFor(offer, INTERVAL.YEAR);
+  const saving = offer && yearlySaving(offer);
+  if (!year || !saving || saving.savedCents <= 0) return null;
+  return {
+    plan: summary.plan,
+    yearCents: year.amount_cents,
+    savedCents: saving.savedCents,
+  };
 }

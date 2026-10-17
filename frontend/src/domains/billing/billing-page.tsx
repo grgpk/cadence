@@ -24,7 +24,13 @@ import { PageHeader } from "../shared/page-header";
 import { PanelCard } from "../shared/panel-card";
 import { SegmentedControl } from "../shared/segmented-control";
 import { StatusBadge, SUBSCRIPTION_STATUS } from "../shared/status-badge";
-import { billingPlansQuery, billingQuery, goToCheckout, goToPortal } from "./billing-api";
+import {
+  billingPlansQuery,
+  billingQuery,
+  goToCheckout,
+  goToPortal,
+  goToYearly,
+} from "./billing-api";
 import {
   bookingUsage,
   type CheckoutIntent,
@@ -35,6 +41,8 @@ import {
   STATUS,
   statusLine,
   trialDaysLeft,
+  type YearlySwitch,
+  yearlySwitch,
 } from "./billing";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
@@ -101,6 +109,35 @@ function CurrentPlan({
             />
           </div>
         )}
+      </div>
+    </PanelCard>
+  );
+}
+
+/** A monthly payer, one confirm screen from paying less. */
+function PayYearly({
+  offer,
+  onSwitch,
+  pending,
+}: {
+  offer: YearlySwitch;
+  onSwitch: () => void;
+  pending: boolean;
+}) {
+  return (
+    <PanelCard
+      title={`Pay yearly and save ${formatCents(offer.savedCents)}`}
+      description={`${PLAN_NAMES[offer.plan]} yearly is ${formatCents(offer.yearCents)} a year, ${formatCents(offer.savedCents)} less than 12 months at today's price.`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p className="max-w-prose text-sm text-muted-foreground">
+          Stripe shows the exact amount, with credit for what is left of this month,
+          before you agree.
+        </p>
+        <Button onClick={onSwitch} disabled={pending}>
+          {pending ? <Loader2 className="animate-spin" /> : null}
+          Switch to yearly
+        </Button>
       </div>
     </PanelCard>
   );
@@ -249,9 +286,11 @@ export function BillingPage({
     toast.error(errorMessage(error, PAYMENT_ERRORS));
   const checkout = useMutation({ mutationFn: goToCheckout, onError: paymentFailed });
   const portal = useMutation({ mutationFn: goToPortal, onError: paymentFailed });
+  const yearly = useMutation({ mutationFn: goToYearly, onError: paymentFailed });
   // The browser is leaving for Stripe: keep the buttons off until it has.
-  const leaving =
-    checkout.isPending || checkout.isSuccess || portal.isPending || portal.isSuccess;
+  const leaving = [checkout, portal, yearly].some(
+    (mutation) => mutation.isPending || mutation.isSuccess,
+  );
 
   const summary = billing.data;
   const confirmed = checkoutDone && summary !== undefined && isBilled(summary);
@@ -264,6 +303,7 @@ export function BillingPage({
 
   const featured: Plan = intent.plan ?? summary?.plan ?? PLAN.PRO;
   const saving = bestYearlySaving(plans.data ?? []);
+  const toYearly = summary ? yearlySwitch(summary, plans.data ?? []) : null;
   const pickedOffer =
     intent.plan && summary && planAction(summary, intent.plan) === "checkout"
       ? plans.data?.find((offer) => offer.plan === intent.plan)
@@ -303,6 +343,13 @@ export function BillingPage({
             />
           ) : null}
           <CurrentPlan summary={summary} offers={plans.data ?? []} />
+          {toYearly ? (
+            <PayYearly
+              offer={toYearly}
+              onSwitch={() => yearly.mutate()}
+              pending={leaving}
+            />
+          ) : null}
         </>
       ) : (
         <Skeleton className="h-44 w-full" />

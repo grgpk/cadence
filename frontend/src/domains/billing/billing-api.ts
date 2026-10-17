@@ -35,6 +35,12 @@ export async function goToPortal(): Promise<void> {
   window.location.assign(url);
 }
 
+/** Leaves the app for Stripe's screen confirming the move to yearly. */
+export async function goToYearly(): Promise<void> {
+  const { url } = await api<RedirectUrl>("/api/billing/yearly", { method: "POST" });
+  window.location.assign(url);
+}
+
 /** An admin gives `userUnid` a paid plan for free, or takes it back with `null`. */
 export function compPlan(userUnid: string, body: CompPlan): Promise<void> {
   return api<void>(`/api/admin/billing/${userUnid}`, {

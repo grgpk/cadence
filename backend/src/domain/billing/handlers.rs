@@ -44,6 +44,12 @@ pub async fn portal(State(state): State<AppState>, user: AuthUser) -> AppResult<
     Ok(Json(RedirectUrl { url }))
 }
 
+pub async fn yearly(State(state): State<AppState>, user: AuthUser) -> AppResult<Json<RedirectUrl>> {
+    let url =
+        service::switch_to_yearly(&state.pool, state.payments.as_ref(), user.user.unid).await?;
+    Ok(Json(RedirectUrl { url }))
+}
+
 /// Stripe's events. The raw body is needed: the signature covers its bytes.
 pub async fn webhook(
     State(state): State<AppState>,

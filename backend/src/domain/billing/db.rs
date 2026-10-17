@@ -55,7 +55,9 @@ pub async fn bookings_this_month(pool: &PgPool, host_unid: Uuid) -> Result<i64, 
 
 /// What a host has on file with Stripe.
 pub struct StripeAccount {
+    pub plan: Plan,
     pub status: SubscriptionStatus,
+    pub billing_interval: Option<BillingInterval>,
     pub customer_id: Option<String>,
     pub subscription_id: Option<String>,
 }
@@ -66,7 +68,8 @@ pub async fn stripe_account(
 ) -> Result<Option<StripeAccount>, sqlx::Error> {
     sqlx::query_as!(
         StripeAccount,
-        r#"SELECT status AS "status: SubscriptionStatus",
+        r#"SELECT plan AS "plan: Plan", status AS "status: SubscriptionStatus",
+                  billing_interval AS "billing_interval: BillingInterval",
                   stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id
            FROM subscriptions WHERE user_unid = $1"#,
         user_unid,
