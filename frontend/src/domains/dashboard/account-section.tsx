@@ -20,7 +20,7 @@ const PASSWORD_ERRORS = {
   400: "The current password is wrong, or the new one is too short.",
 };
 
-/** The host's own name and password. Saved on its own, apart from the booking page settings. */
+/** The host's own name and password, saved together with one button, apart from the booking page settings. */
 export function AccountSection({ user }: { user: SessionUser }) {
   const router = useRouter();
   const [name, setName] = useState(user.full_name);
@@ -60,92 +60,87 @@ export function AccountSection({ user }: { user: SessionUser }) {
       ),
   });
 
+  const trimmed = name.trim();
+  const nameChanged = trimmed !== "" && trimmed !== user.full_name;
+  const passwordStarted = current !== "" || next !== "";
+  const passwordReady = current !== "" && next.length >= MIN_PASSWORD;
+  const pending = saveName.isPending || changePassword.isPending;
+  const canSave =
+    !pending &&
+    trimmed !== "" &&
+    (nameChanged || passwordStarted) &&
+    (!passwordStarted || passwordReady);
+
+  async function save() {
+    try {
+      if (nameChanged) await saveName.mutateAsync();
+      if (passwordStarted) await changePassword.mutateAsync();
+    } catch {
+      // Each mutation reports its own failure.
+    }
+  }
+
   return (
-    <>
-      <form
-        className="grid gap-3"
-        onSubmit={(event) => {
-          event.preventDefault();
-          saveName.mutate();
-        }}
+    <form
+      className="grid gap-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        void save();
+      }}
+    >
+      <Field
+        id={`${ID}-name`}
+        label="Your name"
+        help="Shown on your booking page and in emails."
       >
-        <Field
+        <Input
           id={`${ID}-name`}
-          label="Your name"
-          help="Shown on your booking page and in emails."
-        >
-          <div className="flex flex-wrap gap-2">
-            <Input
-              id={`${ID}-name`}
-              autoComplete="name"
-              required
-              maxLength={120}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              className="min-w-48 flex-1"
-            />
-            <Button
-              type="submit"
-              variant="outline"
-              disabled={
-                saveName.isPending || name.trim() === "" || name.trim() === user.full_name
-              }
-            >
-              {saveName.isPending ? <Loader2 className="animate-spin" /> : null}
-              {saveName.isPending ? "Saving" : "Save name"}
-            </Button>
-          </div>
-        </Field>
-      </form>
+          autoComplete="name"
+          required
+          maxLength={120}
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </Field>
 
       <Field id={`${ID}-email`} label="Email" help="The address you log in with.">
         <Input id={`${ID}-email`} value={user.email} readOnly className="bg-muted" />
       </Field>
 
-      <form
-        className="grid gap-4 border-t pt-5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          changePassword.mutate();
-        }}
-      >
-        <div className="grid items-start gap-4 sm:grid-cols-2">
-          <Field id={`${ID}-current`} label="Current password">
-            <PasswordInput
-              id={`${ID}-current`}
-              autoComplete="current-password"
-              required
-              value={current}
-              onChange={(event) => setCurrent(event.target.value)}
-            />
-          </Field>
-          <Field
-            id={`${ID}-new`}
-            label="New password"
-            help={`At least ${MIN_PASSWORD} characters.`}
-          >
-            <PasswordInput
-              id={`${ID}-new`}
-              autoComplete="new-password"
-              required
-              minLength={MIN_PASSWORD}
-              value={next}
-              onChange={(event) => setNext(event.target.value)}
-            />
-          </Field>
-        </div>
-        <Button
-          type="submit"
-          variant="outline"
-          className="justify-self-start"
-          disabled={
-            changePassword.isPending || current === "" || next.length < MIN_PASSWORD
-          }
+      <div className="grid items-start gap-4 border-t pt-5 sm:grid-cols-2">
+        <Field
+          id={`${ID}-current`}
+          label="Current password"
+          help="Leave both blank to keep your password."
         >
-          {changePassword.isPending ? <Loader2 className="animate-spin" /> : null}
-          {changePassword.isPending ? "Changing" : "Change password"}
-        </Button>
-      </form>
-    </>
+          <PasswordInput
+            id={`${ID}-current`}
+            autoComplete="current-password"
+            required={passwordStarted}
+            value={current}
+            onChange={(event) => setCurrent(event.target.value)}
+          />
+        </Field>
+        <Field
+          id={`${ID}-new`}
+          label="New password"
+          help={`At least ${MIN_PASSWORD} characters.`}
+        >
+          <PasswordInput
+            id={`${ID}-new`}
+            autoComplete="new-password"
+            required={passwordStarted}
+            minLength={MIN_PASSWORD}
+            value={next}
+            onChange={(event) => setNext(event.target.value)}
+          />
+        </Field>
+      </div>
+
+      <Button type="submit" className="justify-self-start" disabled={!canSave}>
+        {pending ? <Loader2 className="animate-spin" /> : null}
+        {pending ? "Saving" : "Save changes"}
+      </Button>
+    </form>
   );
 }
