@@ -150,7 +150,7 @@ export function PricingPage({
               options={offers.map((offer) => ({
                 value: offer.plan,
                 label: PLAN_NAMES[offer.plan],
-                icon: Check,
+                icon: offer.plan === recommended ? Check : undefined,
               }))}
             />
           </div>

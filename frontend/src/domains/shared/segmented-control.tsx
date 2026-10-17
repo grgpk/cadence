@@ -36,10 +36,7 @@ export function SegmentedControl<T extends string | boolean>({
           onClick={() => onChange(option)}
           className={cn(SEGMENT, SIZES[size], value === option && SEGMENT_ON)}
         >
-          {/* Shown on the chosen option only; the others keep its space so nothing shifts. */}
-          {Icon ? (
-            <Icon className={cn("size-4", value !== option && "invisible")} />
-          ) : null}
+          {Icon ? <Icon className="size-4" /> : null}
           {text}
         </button>
       ))}
