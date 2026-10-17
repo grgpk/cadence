@@ -2534,6 +2534,20 @@ async fn a_free_host_sends_one_reminder_and_shows_the_logo(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_month_that_stepped_over_the_limit_still_gets_its_email(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    end_trial(&pool, &host).await;
+    // Two calls at once took the month from 24 to 26 without either being the 25th.
+    past_calls_this_month(&pool, &host, 26).await;
+    let start = *slots(&app, &slug).await.first().expect("open times");
+
+    book(&app, &slug, start).await;
+
+    assert_eq!(account_notices(&pool, "host_booking_limit").await, 1);
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn a_free_page_keeps_taking_calls_past_the_included_month(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;

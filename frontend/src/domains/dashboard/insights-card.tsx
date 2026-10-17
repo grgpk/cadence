@@ -7,6 +7,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { hourLabel, weekdayName } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { insightsQuery, showUpRate } from "../bookings/bookings";
+import { ErrorState } from "../shared/error-state";
 
 function Figure({ label, value, note }: { label: string; value: string; note?: string }) {
   return (
@@ -31,7 +32,15 @@ export function InsightsCard({ hour12 }: { hour12: boolean }) {
           <Link to={ROUTES.dashboardBookings}>All bookings</Link>
         </Button>
       </div>
-      {week ? (
+      {query.isError ? (
+        <div className="p-5">
+          <ErrorState
+            title="Your week did not load"
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
+        </div>
+      ) : week ? (
         <>
           <dl className="grid divide-y sm:grid-cols-4 sm:divide-x sm:divide-y-0">
             <Figure label="Booked" value={String(week.booked)} />

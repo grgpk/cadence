@@ -64,6 +64,11 @@ export function hasPortal(summary: BillingSummary): boolean {
   );
 }
 
+/** The trial is over, so the plan is Free though the row still says trialing. */
+export function trialEnded(summary: Pick<BillingSummary, "status" | "plan">): boolean {
+  return summary.status === STATUS.TRIALING && summary.plan === PLAN.FREE;
+}
+
 /** Whole days left in a running trial, rounded up; `null` without one. */
 export function trialDaysLeft(summary: BillingSummary, now: number): number | null {
   if (summary.status !== STATUS.TRIALING || !summary.trial_ends_at) return null;

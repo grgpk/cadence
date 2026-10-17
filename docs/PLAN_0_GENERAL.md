@@ -121,6 +121,7 @@ cadence/
 | 34 | `PLAN_34_PROMISE_AND_FUNNEL.md` | accent colour for Pro, Calendly import offered to new hosts, a trial end that says what this host loses | ✅ done |
 | 35 | `PLAN_35_PAY_YEARLY.md` | monthly payers see what yearly saves and switch on Stripe's confirm screen | ✅ done |
 | 36 | `PLAN_36_REFERRALS.md` | invite links: a month of Pro as Stripe credit to both hosts once the invited one pays; Free booking pages carry the invite | ✅ done |
+| 37 | `PLAN_37_REVIEW_FIXES.md` | fixes from the branch review: existing hosts start a trial, safer referral credits, honest attendance, follow-ups once per person, billing page states | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

@@ -12,13 +12,13 @@ import { SegmentedControl } from "../shared/segmented-control";
 import { CompareTable } from "./compare-table";
 import { PlanCard } from "./plan-card";
 import {
-  bestYearlySaving,
   INTERVAL,
   PLAN,
   PLAN_CTA,
   PLAN_NAMES,
   recommendPlan,
   type WeekNeeds,
+  yearlyLabel,
 } from "./pricing";
 import { PricingFaq } from "./pricing-faq";
 import { Promises } from "./promises";
@@ -65,7 +65,6 @@ export function PricingPage({
 }) {
   // The plan the phone-width table shows: the recommended one until picked by hand.
   const [compared, setCompared] = useState<Plan | null>(null);
-  const saving = bestYearlySaving(offers);
   const recommended = recommendPlan(offers, needs);
   const recommendedOffer = offers.find((offer) => offer.plan === recommended);
 
@@ -110,7 +109,7 @@ export function PricingPage({
                 { value: INTERVAL.MONTH, label: "Monthly" },
                 {
                   value: INTERVAL.YEAR,
-                  label: saving > 0 ? `Yearly, save ${saving}%` : "Yearly",
+                  label: yearlyLabel(offers),
                 },
               ]}
             />

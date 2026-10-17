@@ -52,8 +52,8 @@ pub async fn start_trial(
     .await
 }
 
-/// Tells the host once a month, when the call just booked is the last one
-/// their plan includes. The page stays open after it.
+/// Tells the host once a month, when the calls booked reach what their plan
+/// includes. The page stays open after it.
 pub async fn notice_if_past_included(
     pool: &PgPool,
     host_unid: Uuid,
@@ -64,7 +64,17 @@ pub async fn notice_if_past_included(
     let Some(limit) = entitlements.included_bookings_per_month else {
         return Ok(());
     };
-    if db::bookings_this_month(pool, host_unid).await? != i64::from(limit) {
+    // At or past, not exactly at: two bookings at once can step over the
+    // limit, and a cancelled call can bring the count back to it.
+    if db::bookings_this_month(pool, host_unid).await? < i64::from(limit)
+        || db::limit_notice_this_month(
+            pool,
+            host_unid,
+            email,
+            AccountNotice::BookingLimit.template(),
+        )
+        .await?
+    {
         return Ok(());
     }
     let mut connection = pool.acquire().await?;

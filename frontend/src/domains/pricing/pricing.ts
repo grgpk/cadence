@@ -48,17 +48,34 @@ export function yearlySaving(
 }
 
 /**
- * The most a yearly price saves over twelve monthly ones, in whole percent,
- * rounded down so the page never promises more than it gives.
+ * What each plan's yearly price saves over twelve monthly ones, in whole
+ * percent, rounded down so the page never promises more than it gives.
  */
-export function bestYearlySaving(offers: readonly PlanOffer[]): number {
-  const savings = offers.map((offer) => {
+function yearlySavingPercents(offers: readonly PlanOffer[]): number[] {
+  return offers.flatMap((offer) => {
     const saving = yearlySaving(offer);
-    if (!saving) return 0;
+    if (!saving || saving.savedCents <= 0) return [];
     // Whole cents times 100 first, so 20% stays 20 and not 19.999….
-    return Math.floor((saving.savedCents * 100) / saving.fullYearCents);
+    return [Math.floor((saving.savedCents * 100) / saving.fullYearCents)];
   });
-  return Math.max(0, ...savings);
+}
+
+/** The most a yearly price saves, in whole percent; 0 without one. */
+export function bestYearlySaving(offers: readonly PlanOffer[]): number {
+  return Math.max(0, ...yearlySavingPercents(offers));
+}
+
+/**
+ * The yearly toggle's label. "Up to" when the plans save different amounts,
+ * so one number never stands for a plan that saves less.
+ */
+export function yearlyLabel(offers: readonly PlanOffer[]): string {
+  const percents = yearlySavingPercents(offers);
+  if (percents.length === 0) return "Yearly";
+  const best = Math.max(...percents);
+  return Math.min(...percents) === best
+    ? `Yearly, save ${best}%`
+    : `Yearly, save up to ${best}%`;
 }
 
 /** What a visitor tells the pricing page about their week. */

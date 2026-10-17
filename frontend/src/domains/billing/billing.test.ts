@@ -14,6 +14,7 @@ import {
   STATUS,
   statusLine,
   trialDaysLeft,
+  trialEnded,
   yearlySwitch,
 } from "./billing";
 
@@ -244,5 +245,13 @@ describe("signupSearch", () => {
   it("drops a ref that is no booking-page address", () => {
     expect(signupSearch({ ref: "Ada Lovelace!" })).toEqual({});
     expect(signupSearch({ ref: 42 })).toEqual({});
+  });
+});
+
+describe("trialEnded", () => {
+  it("is a trialing row whose plan is already Free", () => {
+    expect(trialEnded({ status: STATUS.TRIALING, plan: PLAN.FREE })).toBe(true);
+    expect(trialEnded({ status: STATUS.TRIALING, plan: PLAN.PRO })).toBe(false);
+    expect(trialEnded({ status: STATUS.ACTIVE, plan: PLAN.PRO })).toBe(false);
   });
 });

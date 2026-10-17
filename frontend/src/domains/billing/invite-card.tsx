@@ -25,7 +25,7 @@ export function InviteCard({ paying }: { paying: boolean }) {
   return (
     <PanelCard
       title="Give a month, get a month"
-      description={`When someone signs up with your link and starts paying, you each get ${credit} off, a month of Pro.${paying ? "" : " Yours arrives once you pay too."}`}
+      description={`When someone signs up with your link and starts paying, you each get ${credit} off, a month of Pro.${paying ? "" : " Yours arrives once you are on a paid plan."}`}
     >
       <div className="flex flex-wrap gap-2">
         <Input

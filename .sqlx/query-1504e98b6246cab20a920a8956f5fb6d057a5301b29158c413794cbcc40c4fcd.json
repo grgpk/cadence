@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM email_queue e\n               LEFT JOIN widget_settings w ON w.host_unid = $1\n               WHERE e.email = $2 AND e.template = $3\n                 AND date_trunc('month', e.created_at AT TIME ZONE COALESCE(w.timezone, 'UTC'))\n                   = date_trunc('month', now() AT TIME ZONE COALESCE(w.timezone, 'UTC'))\n           ) AS \"sent!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "sent!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1504e98b6246cab20a920a8956f5fb6d057a5301b29158c413794cbcc40c4fcd"
+}

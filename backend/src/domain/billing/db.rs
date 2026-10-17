@@ -17,6 +17,29 @@ pub async fn find(pool: &PgPool, user_unid: Uuid) -> Result<Option<Subscription>
     .await
 }
 
+/// Whether this month, in the host's timezone, already has its limit email.
+pub async fn limit_notice_this_month(
+    pool: &PgPool,
+    host_unid: Uuid,
+    email: &str,
+    template: &str,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+               SELECT 1 FROM email_queue e
+               LEFT JOIN widget_settings w ON w.host_unid = $1
+               WHERE e.email = $2 AND e.template = $3
+                 AND date_trunc('month', e.created_at AT TIME ZONE COALESCE(w.timezone, 'UTC'))
+                   = date_trunc('month', now() AT TIME ZONE COALESCE(w.timezone, 'UTC'))
+           ) AS "sent!""#,
+        host_unid,
+        email,
+        template,
+    )
+    .fetch_one(pool)
+    .await
+}
+
 /// Runs inside the transaction that creates the account.
 pub async fn start_trial(
     connection: &mut PgConnection,

@@ -49,18 +49,25 @@ invitations already made: they are stored by account.
 
 ## Flow
 
-An applied `customer.subscription.*` event with status `active` runs
-`credit_referrals` inside the webhook transaction:
-1. The paying host came by invitation and was not credited: credit them,
-   and credit the inviter too if the inviter pays (has an active Stripe
-   subscription).
+An applied `customer.subscription.*` event with status `active` saves the
+plan first and commits. Only then does `reward_referrals` run, so Stripe
+being down delays a credit and never the plan (changed by Plan 37):
+1. The paying host came by invitation, their latest invoice took real money
+   (`amount_paid > 0`, so a 100% promotion code earns nothing), and the
+   credit is not claimed yet. Claim it, credit them, and credit the inviter
+   too if the inviter pays (has an active Stripe subscription).
 2. Invitations this host made that are paid but not yet credited to them:
-   credit each now.
+   claim and credit each now.
+
+A claim is an `UPDATE … WHERE credited_at IS NULL`, so two events at once
+cannot both credit. If Stripe refuses, the claim is released, and the
+host's next event tries again.
 
 A credit is `POST /v1/customers/{id}/balance_transactions` with a negative
-amount and an `Idempotency-Key` of `referral-<referred>-<side>`. If Stripe
-fails, the transaction rolls back and Stripe retries the event; the key
-keeps a retried credit from landing twice.
+amount, `metadata[referral]=referral-<referred>-<side>` and the same value
+as `Idempotency-Key`. Before crediting, the customer's recent balance
+transactions are searched for that key, so a credit is never made twice
+however late a retry comes.
 
 ```
 Billing
@@ -77,9 +84,10 @@ Free booking page footer
 
 ## Abuse
 
-An invitation pays out only after a real payment, and each side gets
-credit no larger than one month of Pro. Paying for a second account to earn
-credit costs at least as much as it earns.
+An invitation pays out only after an invoice took real money, and each
+side gets credit no larger than one month of Pro. Paying for a second
+account to earn credit costs at least as much as it earns. A refund or
+chargeback does not take a credit back.
 
 ## Tests
 

@@ -4,6 +4,7 @@ import type { Entitlements } from "../../bindings/Entitlements";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import {
   bestYearlySaving,
+  yearlyLabel,
   callsPerMonth,
   FEATURE_GROUPS,
   fitReason,
@@ -95,6 +96,14 @@ describe("bestYearlySaving", () => {
     const offers = [offer(PLAN.PRO, 1000, 9600), offer(PLAN.BUSINESS, 1600, 15600)];
     expect(bestYearlySaving(offers)).toBe(20);
     expect(bestYearlySaving([offers[1] as PlanOffer])).toBe(18);
+  });
+
+  it("labels the toggle with up to when the plans save differently", () => {
+    const pro = offer(PLAN.PRO, 1000, 9600);
+    const business = offer(PLAN.BUSINESS, 1600, 15600);
+    expect(yearlyLabel([pro, business])).toBe("Yearly, save up to 20%");
+    expect(yearlyLabel([pro])).toBe("Yearly, save 20%");
+    expect(yearlyLabel([])).toBe("Yearly");
   });
 
   it("is zero without yearly prices", () => {

@@ -19,6 +19,8 @@ export const Route = createFileRoute("/pricing")({
   // `?interval=&calls=&kinds=`: the answers survive the back button and a shared link.
   validateSearch: pricingSearch,
   loader: () => getPlans(),
+  // The plans change with a deploy; moving the slider must not fetch them again.
+  staleTime: Number.POSITIVE_INFINITY,
   head: () => ({
     meta: [
       { title: TITLE },

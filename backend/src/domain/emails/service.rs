@@ -172,7 +172,7 @@ pub enum AccountNotice {
 }
 
 impl AccountNotice {
-    const fn template(self) -> &'static str {
+    pub const fn template(self) -> &'static str {
         match self {
             Self::TrialEnding => TRIAL_ENDING_TEMPLATE,
             Self::BookingLimit => HOST_BOOKING_LIMIT_TEMPLATE,
@@ -276,15 +276,16 @@ pub async fn rescheduled(
 /// How long before a call the host hears that it is still unconfirmed.
 const UNCONFIRMED_NOTICE: Duration = Duration::hours(2);
 
-/// The host's heads-up for a call nobody has confirmed. The worker drops it
-/// if the invitee confirms first.
-/// Only the day-before reminder asks the invitee to confirm. A call booked
-/// or moved to less than a day ahead was never asked, so its host is not
-/// told the invitee "has not confirmed".
+/// Only the day-before reminder asks the invitee to confirm.
+///
+/// A call booked or moved to less than a day ahead was never asked, so its
+/// host is not told the invitee "has not confirmed".
 fn asked_to_confirm(slot_start: DateTime<Utc>, now: DateTime<Utc>) -> bool {
     slot_start - Duration::hours(24) >= now
 }
 
+/// The host's heads-up for a call nobody has confirmed. The worker drops it
+/// if the invitee confirms first.
 async fn queue_unconfirmed(
     connection: &mut PgConnection,
     booking: &Booking,

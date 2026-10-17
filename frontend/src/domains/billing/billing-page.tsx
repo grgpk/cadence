@@ -12,12 +12,12 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { errorMessage } from "../../lib/error-message";
 import { PlanCard } from "../pricing/plan-card";
 import {
-  bestYearlySaving,
   formatCents,
   INTERVAL,
   PLAN,
   PLAN_NAMES,
   priceFor,
+  yearlyLabel,
 } from "../pricing/pricing";
 import { ErrorState } from "../shared/error-state";
 import { PageHeader } from "../shared/page-header";
@@ -41,6 +41,7 @@ import {
   STATUS,
   statusLine,
   trialDaysLeft,
+  trialEnded,
   type YearlySwitch,
   yearlySwitch,
 } from "./billing";
@@ -50,9 +51,19 @@ import { InviteCard } from "./invite-card";
 const CONFIRM_POLL_MS = 2000;
 const CONFIRM_WAIT_MS = 30_000;
 
-const PAYMENT_ERRORS = {
+const PAYMENTS_OFF = "Payments are not set up yet. Try again later.";
+/** Each Stripe trip says its own 409: the reasons differ. */
+const CHECKOUT_ERRORS = {
   409: "You already pay for a plan. Change it in the billing portal.",
-  503: "Payments are not set up yet. Try again later.",
+  503: PAYMENTS_OFF,
+};
+const PORTAL_ERRORS = {
+  409: "There is no billing account yet. Subscribe to a plan first.",
+  503: PAYMENTS_OFF,
+};
+const YEARLY_ERRORS = {
+  409: "Only a monthly plan that is not being cancelled can switch to yearly. Reload to see your plan as it is now.",
+  503: PAYMENTS_OFF,
 };
 
 function CurrentPlan({
@@ -71,7 +82,8 @@ function CurrentPlan({
         <span className="font-display font-wide text-2xl font-bold">
           {PLAN_NAMES[summary.plan]}
         </span>
-        {summary.status ? (
+        {/* An ended trial is stored as trialing but is Free now: no badge. */}
+        {summary.status && !trialEnded(summary) ? (
           <StatusBadge value={summary.status} statuses={SUBSCRIPTION_STATUS} />
         ) : null}
       </div>
@@ -292,15 +304,43 @@ export function BillingPage({
   const [interval, setInterval] = useState<BillingInterval>(
     intent.interval ?? INTERVAL.YEAR,
   );
-  const paymentFailed = (error: unknown) =>
-    toast.error(errorMessage(error, PAYMENT_ERRORS));
-  const checkout = useMutation({ mutationFn: goToCheckout, onError: paymentFailed });
-  const portal = useMutation({ mutationFn: goToPortal, onError: paymentFailed });
-  const yearly = useMutation({ mutationFn: goToYearly, onError: paymentFailed });
+  const failed = (messages: Record<number, string>) => (error: unknown) =>
+    toast.error(errorMessage(error, messages));
+  const checkout = useMutation({
+    mutationFn: goToCheckout,
+    onError: failed(CHECKOUT_ERRORS),
+  });
+  const portal = useMutation({ mutationFn: goToPortal, onError: failed(PORTAL_ERRORS) });
+  const yearly = useMutation({ mutationFn: goToYearly, onError: failed(YEARLY_ERRORS) });
   // The browser is leaving for Stripe: keep the buttons off until it has.
   const leaving = [checkout, portal, yearly].some(
     (mutation) => mutation.isPending || mutation.isSuccess,
   );
+  // Back from Stripe, the browser may show this page as it was left, with
+  // the buttons still off: turn them on again.
+  const { reset: resetCheckout } = checkout;
+  const { reset: resetPortal } = portal;
+  const { reset: resetYearly } = yearly;
+  useEffect(() => {
+    const restored = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      resetCheckout();
+      resetPortal();
+      resetYearly();
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, [resetCheckout, resetPortal, resetYearly]);
+  // Stripe's event can be late, or the payment can need another step.
+  const [gaveUpWaiting, setGaveUpWaiting] = useState(false);
+  useEffect(() => {
+    if (!checkoutDone) return;
+    const timer = window.setTimeout(
+      () => setGaveUpWaiting(true),
+      Math.max(0, arrivedAt + CONFIRM_WAIT_MS - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [checkoutDone, arrivedAt]);
 
   const summary = billing.data;
   const confirmed = checkoutDone && summary !== undefined && isBilled(summary);
@@ -312,7 +352,6 @@ export function BillingPage({
   }, [confirmed, onConfirmed, planName]);
 
   const featured: Plan = intent.plan ?? summary?.plan ?? PLAN.PRO;
-  const saving = bestYearlySaving(plans.data ?? []);
   const toYearly = summary ? yearlySwitch(summary, plans.data ?? []) : null;
   const pickedOffer =
     intent.plan && summary && planAction(summary, intent.plan, interval) === "checkout"
@@ -365,9 +404,30 @@ export function BillingPage({
         <Skeleton className="h-44 w-full" />
       )}
       {checkoutDone && !confirmed ? (
-        <p className="text-sm text-muted-foreground" role="status">
-          Waiting for Stripe to confirm your payment…
-        </p>
+        gaveUpWaiting ? (
+          <div
+            role="status"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
+          >
+            <span>
+              Stripe has not confirmed your payment yet. If your bank asked for another
+              step, finish it, then check again.
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void billing.refetch()}
+              disabled={billing.isFetching}
+            >
+              {billing.isFetching ? <Loader2 className="animate-spin" /> : null}
+              Check again
+            </Button>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground" role="status">
+            Waiting for Stripe to confirm your payment…
+          </p>
+        )
       ) : null}
 
       <section className="grid gap-4">
@@ -381,7 +441,7 @@ export function BillingPage({
               { value: INTERVAL.MONTH, label: "Monthly" },
               {
                 value: INTERVAL.YEAR,
-                label: saving > 0 ? `Yearly, save ${saving}%` : "Yearly",
+                label: yearlyLabel(plans.data ?? []),
               },
             ]}
           />
