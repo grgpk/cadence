@@ -20,6 +20,8 @@ export const STATUS = {
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** A trial is pointed out this many days before it ends. */
 export const TRIAL_WARNING_DAYS = 5;
+/** How long every new account has Pro. The backend's `TRIAL_DAYS`. */
+export const TRIAL_DAYS = 14;
 
 /** A paid plan someone picked before signing up or checking out. */
 export type CheckoutIntent = { plan: Plan; interval: BillingInterval };
@@ -104,21 +106,19 @@ export function bookingUsage(summary: BillingSummary): number | null {
 }
 
 /**
- * During a trial, this month against what Free includes: what dropping to
- * Free would mean. `null` when there is nothing to decide.
+ * During a trial with no limit of its own, the bookings a month Free includes:
+ * what this month is measured against. `null` when there is nothing to decide.
  */
-export function freeAllowanceLine(
-  summary: Pick<BillingSummary, "status" | "entitlements" | "bookings_this_month">,
+export function trialFreeLimit(
+  summary: Pick<BillingSummary, "status" | "entitlements">,
   offers: readonly PlanOffer[],
-): string | null {
+): number | null {
   if (summary.status !== STATUS.TRIALING) return null;
   if (summary.entitlements.included_bookings_per_month !== null) return null;
-  const limit = offers.find((offer) => offer.plan === PLAN.FREE)?.entitlements
-    .included_bookings_per_month;
-  if (limit == null) return null;
-  return summary.bookings_this_month > limit
-    ? `That is past the ${limit} a month Free includes.`
-    : `Free includes ${limit} a month.`;
+  return (
+    offers.find((offer) => offer.plan === PLAN.FREE)?.entitlements
+      .included_bookings_per_month ?? null
+  );
 }
 
 /** One sentence on where the host's plan stands. */

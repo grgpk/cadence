@@ -6,7 +6,7 @@ import { PLAN } from "../pricing/pricing";
 import {
   bookingUsage,
   checkoutIntent,
-  freeAllowanceLine,
+  trialFreeLimit,
   hasPortal,
   leaveOffer,
   planAction,
@@ -172,7 +172,7 @@ describe("planCounts", () => {
   });
 });
 
-describe("freeAllowanceLine", () => {
+describe("trialFreeLimit", () => {
   const free = summary();
   const offers: PlanOffer[] = [
     { plan: PLAN.FREE, prices: [], entitlements: free.entitlements },
@@ -185,17 +185,14 @@ describe("freeAllowanceLine", () => {
       entitlements: { ...free.entitlements, included_bookings_per_month: null },
     });
 
-  it("measures an unlimited month against Free's limit", () => {
-    expect(freeAllowanceLine(unlimited(12), offers)).toBe("Free includes 25 a month.");
-    expect(freeAllowanceLine(unlimited(31), offers)).toBe(
-      "That is past the 25 a month Free includes.",
-    );
+  it("measures an unlimited trial against Free's limit", () => {
+    expect(trialFreeLimit(unlimited(12), offers)).toBe(25);
   });
 
   it("says nothing outside a trial or when Free has no limit", () => {
-    expect(freeAllowanceLine(free, offers)).toBeNull();
+    expect(trialFreeLimit(free, offers)).toBeNull();
     expect(
-      freeAllowanceLine({ ...unlimited(12), status: STATUS.ACTIVE }, offers),
+      trialFreeLimit({ ...unlimited(12), status: STATUS.ACTIVE }, offers),
     ).toBeNull();
     const roomy: PlanOffer[] = [
       {
@@ -203,7 +200,7 @@ describe("freeAllowanceLine", () => {
         entitlements: { ...free.entitlements, included_bookings_per_month: null },
       } as PlanOffer,
     ];
-    expect(freeAllowanceLine(unlimited(12), roomy)).toBeNull();
+    expect(trialFreeLimit(unlimited(12), roomy)).toBeNull();
   });
 });
 

@@ -51,3 +51,18 @@ The page spends its boldness in one place, the week sizer. Everything else gets 
 
 - At 390px nothing scrolls sideways, and the grid fills one block per slider step.
 - With reduced motion on, no block drops in and no bar grows.
+
+## Second pass
+
+- **The grid shows where Free runs out.** Calls past Free's allowance turn
+  dusk, the colour of "Fits your week". A short key under the grid explains
+  the two colours, and it shows only once the week goes past Free. The
+  allowance comes from `freeCallsPerWeek(offers)`: with Free's 25 a month,
+  that is 5 calls a week.
+- **The pricing hero has two columns.** On wide screens the headline and the
+  promises sit on the left, with the sizer beside them. On phones the order
+  is headline, sizer, promises.
+- **The trial is a strip of days.** During a trial, Billing shows 14 day cells,
+  with the days left in dusk. The bookings this month read against Free's
+  limit, for example "2 of 25 on Free". `trialFreeLimit` replaces
+  `freeAllowanceLine`.

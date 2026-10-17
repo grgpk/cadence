@@ -9,6 +9,7 @@ import {
   FEATURE_GROUPS,
   fitReason,
   formatCents,
+  freeCallsPerWeek,
   INTERVAL,
   needsFrom,
   PLAN,
@@ -141,6 +142,12 @@ describe("recommendPlan", () => {
     offer(PLAN.PRO, 1000, 9600),
     offer(PLAN.BUSINESS, 1600, 15600, BUSINESS),
   ];
+
+  it("finds the calls a week Free includes", () => {
+    // 5 a week is 22 a month, 6 is 26: past Free's 25.
+    expect(freeCallsPerWeek(offers)).toBe(5);
+    expect(freeCallsPerWeek(offers.slice(1))).toBeNull();
+  });
 
   it("picks the cheapest plan that covers the week", () => {
     expect(callsPerMonth(5)).toBe(22);

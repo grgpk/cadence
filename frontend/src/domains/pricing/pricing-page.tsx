@@ -76,29 +76,34 @@ export function PricingPage({
     <PublicLayout>
       <section className="pt-12 pb-16 sm:pt-20 sm:pb-24">
         <div className="mx-auto max-w-[82rem] px-4 sm:px-6">
-          <h1 className="max-w-3xl motion-safe:animate-rise font-display font-wide text-5xl leading-[0.98] font-bold tracking-tight sm:text-6xl">
-            Pick the plan that fits your week.
-          </h1>
-          <p className="mt-7 max-w-xl motion-safe:animate-rise text-lg text-muted-foreground motion-safe:[animation-delay:150ms]">
-            Every account starts with 14 days of Pro. No card needed.
-          </p>
-
-          <div className="mt-10 grid items-start gap-10 motion-safe:animate-rise motion-safe:[animation-delay:300ms] lg:grid-cols-[minmax(0,48rem)_1fr] lg:gap-14">
-            <WeekSizer
-              offers={offers}
-              needs={needs}
-              onChange={(next) => onChange(interval, next)}
-              action={
-                recommendedOffer ? (
-                  <StartButton
-                    offer={recommendedOffer}
-                    interval={interval}
-                    recommended={recommended}
-                  />
-                ) : null
-              }
-            />
-            <div className="lg:pt-6">
+          {/* Phones read top to bottom: intro, sizer, promises. Wide screens put
+              the sizer beside both, so the headline sits next to what it asks. */}
+          <div className="grid items-start gap-x-14 gap-y-10 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:grid-rows-[auto_1fr]">
+            <div className="motion-safe:animate-rise lg:col-start-1 lg:row-start-1">
+              <h1 className="font-display font-wide text-5xl leading-[0.98] font-bold tracking-tight sm:text-6xl">
+                Pick the plan that fits your week.
+              </h1>
+              <p className="mt-7 max-w-md text-lg text-muted-foreground">
+                Every account starts with 14 days of Pro. No card needed.
+              </p>
+            </div>
+            <div className="motion-safe:animate-rise motion-safe:[animation-delay:150ms] lg:col-start-2 lg:row-span-2 lg:row-start-1">
+              <WeekSizer
+                offers={offers}
+                needs={needs}
+                onChange={(next) => onChange(interval, next)}
+                action={
+                  recommendedOffer ? (
+                    <StartButton
+                      offer={recommendedOffer}
+                      interval={interval}
+                      recommended={recommended}
+                    />
+                  ) : null
+                }
+              />
+            </div>
+            <div className="motion-safe:animate-rise motion-safe:[animation-delay:300ms] lg:col-start-1 lg:row-start-2">
               <Promises />
             </div>
           </div>

@@ -147,6 +147,15 @@ export function callsPerMonth(callsPerWeek: number): number {
   return Math.ceil((callsPerWeek * 52) / 12);
 }
 
+/** The most calls a week the cheapest plan includes; `null` when it has no limit. */
+export function freeCallsPerWeek(offers: readonly PlanOffer[]): number | null {
+  const included = offers[0]?.entitlements.included_bookings_per_month;
+  if (included == null) return null;
+  let calls = 0;
+  while (callsPerMonth(calls + 1) <= included) calls += 1;
+  return calls;
+}
+
 function severalKindsAllowed(entitlements: Entitlements): boolean {
   const max = entitlements.max_event_types;
   return max === null || max > 1;

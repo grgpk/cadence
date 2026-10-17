@@ -35,14 +35,15 @@ import {
 import {
   bookingUsage,
   type CheckoutIntent,
-  freeAllowanceLine,
   hasPortal,
   isBilled,
   planAction,
   STATUS,
   statusLine,
+  TRIAL_DAYS,
   trialDaysLeft,
   trialEnded,
+  trialFreeLimit,
   type YearlySwitch,
   yearlySwitch,
 } from "./billing";
@@ -68,6 +69,33 @@ const YEARLY_ERRORS = {
   503: PAYMENTS_OFF,
 };
 
+/** The trial as a row of days, the ones still left in colour. */
+function TrialDays({ left }: { left: number }) {
+  const used = Math.max(0, TRIAL_DAYS - left);
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <div
+        role="img"
+        aria-label={`${left} of ${TRIAL_DAYS} trial days left`}
+        className="flex gap-1"
+      >
+        {Array.from({ length: TRIAL_DAYS }, (_, day) => (
+          <span
+            key={day}
+            className={cn(
+              "h-4 w-2.5 rounded-[3px] sm:w-3",
+              day < used ? "bg-muted-foreground/25" : "bg-dusk",
+            )}
+          />
+        ))}
+      </div>
+      <span className="text-clock text-sm text-muted-foreground">
+        {left} {left === 1 ? "day" : "days"} left
+      </span>
+    </div>
+  );
+}
+
 function CurrentPlan({
   summary,
   offers,
@@ -75,9 +103,13 @@ function CurrentPlan({
   summary: BillingSummary;
   offers: readonly PlanOffer[];
 }) {
-  const usage = bookingUsage(summary);
-  const limit = summary.entitlements.included_bookings_per_month;
-  const allowance = freeAllowanceLine(summary, offers);
+  // A trial has no limit of its own: show the month against Free's.
+  const freeLimit = trialFreeLimit(summary, offers);
+  const limit = summary.entitlements.included_bookings_per_month ?? freeLimit;
+  const usage = freeLimit
+    ? Math.min(1, summary.bookings_this_month / freeLimit)
+    : bookingUsage(summary);
+  const daysLeft = trialDaysLeft(summary, Date.now());
   const billed = summary.status === STATUS.ACTIVE;
   return (
     <PanelCard
@@ -106,9 +138,7 @@ function CurrentPlan({
               <StatusBadge value={summary.status} statuses={SUBSCRIPTION_STATUS} />
             ) : null}
           </div>
-          {allowance ? (
-            <p className="text-sm text-muted-foreground">{allowance}</p>
-          ) : null}
+          {daysLeft === null ? null : <TrialDays left={daysLeft} />}
         </div>
         <div className="grid content-start gap-2">
           <p className="flex items-baseline gap-1.5">
@@ -116,11 +146,16 @@ function CurrentPlan({
               {summary.bookings_this_month}
             </span>
             {limit === null ? null : (
-              <span className="text-clock text-lg text-muted-foreground">of {limit}</span>
+              <span className="text-clock text-lg text-muted-foreground">
+                of {limit}
+                {freeLimit === null ? null : " on Free"}
+              </span>
             )}
           </p>
           <p className="text-sm text-muted-foreground">
-            {limit === null ? "Bookings this month" : "Bookings included this month"}
+            {limit === null || freeLimit !== null
+              ? "Bookings this month"
+              : "Bookings included this month"}
           </p>
           {usage === null ? null : (
             <div

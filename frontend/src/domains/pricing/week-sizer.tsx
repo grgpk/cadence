@@ -5,7 +5,12 @@ import { Card } from "../../components/ui/card";
 import { Label } from "../../components/ui/label";
 import { Slider } from "../../components/ui/slider";
 import { Switch } from "../../components/ui/switch";
-import { fitReason, MAX_CALLS_PER_WEEK, type WeekNeeds } from "./pricing";
+import {
+  fitReason,
+  freeCallsPerWeek,
+  MAX_CALLS_PER_WEEK,
+  type WeekNeeds,
+} from "./pricing";
 import { WeekGrid } from "./week-grid";
 
 function callsLabel(calls: number): string {
@@ -58,7 +63,11 @@ export function WeekSizer({
           className="py-2"
         />
       </div>
-      <WeekGrid calls={calls} />
+      <WeekGrid
+        calls={calls}
+        freeCalls={freeCallsPerWeek(offers)}
+        freeIncluded={offers[0]?.entitlements.included_bookings_per_month ?? null}
+      />
       <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
         <div className="flex items-start gap-3">
           <Switch
