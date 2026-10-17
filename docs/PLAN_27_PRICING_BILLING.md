@@ -98,6 +98,17 @@ The domain follows the usual `routes -> handlers -> service -> db` layering.
   - Add them to `.env.example`.
 - In Stripe, the Customer Portal is set up so customers can switch between the 4 prices with proration and cancel at the end of the period.
 
+### Stripe setup
+
+Without the six `STRIPE_*` vars the app runs with payments off. To turn them on in test mode:
+
+1. Put `STRIPE_SECRET_KEY=sk_test_...` in `.env` (Stripe dashboard → Developers → API keys).
+2. Run `scripts/stripe-setup.sh`. It makes the two products and four prices (amounts from `plans.rs`) and writes the `STRIPE_PRICE_*` ids into `.env`. It is safe to run again: prices are found by lookup key.
+3. In the [Customer Portal settings](https://dashboard.stripe.com/test/settings/billing/portal), allow switching between the Pro and Business prices and cancelling at the end of the period, then Save.
+4. Run `stripe listen --forward-to localhost:3001/api/billing/webhook`, put the `whsec_...` it prints in `STRIPE_WEBHOOK_SECRET`, and restart the backend.
+
+For production, use a live key and `scripts/stripe-setup.sh --live`, and take the webhook secret from an endpoint registered in the dashboard instead of `stripe listen`.
+
 ### Enforcement: a single gate, entitlements read inside services
 
 The rule is "keep the data, stop applying it".
