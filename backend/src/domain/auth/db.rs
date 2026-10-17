@@ -84,6 +84,7 @@ pub async fn create_host(
     email: &str,
     password_hash: &str,
     full_name: &str,
+    referred_by: Option<&str>,
 ) -> Result<UserRecord, sqlx::Error> {
     let mut transaction: Transaction<'_, Postgres> = pool.begin().await?;
     let user = sqlx::query_as!(
@@ -110,6 +111,9 @@ pub async fn create_host(
         Utc::now(),
     )
     .await?;
+    if let Some(slug) = referred_by {
+        billing::record_referral(&mut transaction, user.unid, slug).await?;
+    }
     transaction.commit().await?;
 
     assemble(pool, user).await

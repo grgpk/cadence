@@ -28,6 +28,21 @@ pub struct BillingSummary {
     pub trial_losses: Vec<String>,
 }
 
+/// A host's invite link, as Billing shows it.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/Referrals.ts")]
+pub struct Referrals {
+    /// The booking-page address that goes in `?ref=`. `None` before the
+    /// host has a booking page.
+    pub code: Option<String>,
+    /// Hosts who signed up with it.
+    pub invited: u32,
+    /// Of those, the ones who have paid, so both sides were credited.
+    pub paying: u32,
+    /// What each side gets: a month of Pro.
+    pub credit_cents: u32,
+}
+
 /// One host's plan as an admin sees it.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/AdminPlan.ts")]

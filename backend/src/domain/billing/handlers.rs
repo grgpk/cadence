@@ -8,7 +8,9 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    models::{AdminPlan, BillingSummary, CompPlan, RedirectUrl, StartCheckout, StripeEvent},
+    models::{
+        AdminPlan, BillingSummary, CompPlan, RedirectUrl, Referrals, StartCheckout, StripeEvent,
+    },
     plans::{PlanOffer, catalog},
     service,
 };
@@ -48,6 +50,13 @@ pub async fn yearly(State(state): State<AppState>, user: AuthUser) -> AppResult<
     let url =
         service::switch_to_yearly(&state.pool, state.payments.as_ref(), user.user.unid).await?;
     Ok(Json(RedirectUrl { url }))
+}
+
+pub async fn referrals(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> AppResult<Json<Referrals>> {
+    Ok(Json(service::referrals(&state.pool, user.user.unid).await?))
 }
 
 /// Stripe's events. The raw body is needed: the signature covers its bytes.

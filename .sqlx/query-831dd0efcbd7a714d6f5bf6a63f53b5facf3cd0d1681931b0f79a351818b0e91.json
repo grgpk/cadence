@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO referrals (referred_unid, referrer_unid)\n         SELECT $1, host_unid FROM widget_settings\n         WHERE public_slug = $2 AND host_unid <> $1\n         ON CONFLICT DO NOTHING RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "831dd0efcbd7a714d6f5bf6a63f53b5facf3cd0d1681931b0f79a351818b0e91"
+}

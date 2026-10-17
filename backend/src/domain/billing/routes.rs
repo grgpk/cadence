@@ -25,6 +25,7 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/billing/checkout", post(handlers::checkout))
         .route("/api/billing/portal", post(handlers::portal))
         .route("/api/billing/yearly", post(handlers::yearly))
+        .route("/api/billing/referrals", get(handlers::referrals))
         .route("/api/admin/billing", get(handlers::admin_list))
         .route("/api/admin/billing/{user_unid}", put(handlers::admin_comp))
 }

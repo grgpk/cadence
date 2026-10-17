@@ -4,6 +4,7 @@ import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CompPlan } from "../../bindings/CompPlan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { RedirectUrl } from "../../bindings/RedirectUrl";
+import type { Referrals } from "../../bindings/Referrals";
 import type { StartCheckout } from "../../bindings/StartCheckout";
 import { api } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
@@ -11,6 +12,11 @@ import { QUERY_KEYS } from "../../lib/query-keys";
 export const billingQuery = queryOptions({
   queryKey: QUERY_KEYS.billing,
   queryFn: () => api<BillingSummary>("/api/billing/me"),
+});
+
+export const referralsQuery = queryOptions({
+  queryKey: QUERY_KEYS.referrals,
+  queryFn: () => api<Referrals>("/api/billing/referrals"),
 });
 
 /** The plans change with a deploy, not while a page is open. */

@@ -17,7 +17,7 @@ use cadence_backend::{
         auth::service::make_token,
         billing::{
             plans::{BillingInterval, Plan},
-            stripe::{Payments, PriceIds},
+            stripe::{Credit, Payments, PriceIds},
         },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
@@ -51,6 +51,10 @@ fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
 }
 
 fn app(pool: &PgPool) -> Router {
+    app_with(pool, Some(fake_payments()))
+}
+
+fn fake_payments() -> Payments {
     let prices = PriceIds::new(vec![
         (Plan::Pro, BillingInterval::Month, PRO_MONTH.to_owned()),
         (Plan::Pro, BillingInterval::Year, PRO_YEAR.to_owned()),
@@ -60,7 +64,7 @@ fn app(pool: &PgPool) -> Router {
             BUSINESS_YEAR.to_owned(),
         ),
     ]);
-    app_with(pool, Some(Payments::fake(WEBHOOK_SECRET, prices)))
+    Payments::fake(WEBHOOK_SECRET, prices)
 }
 
 /// Posts a `customer.subscription.*` event, signed now.
@@ -355,6 +359,95 @@ async fn a_monthly_payer_switches_to_yearly_on_stripes_confirm_screen(pool: PgPo
     subscription_event(&app, "evt_2", "updated", 200, unid, BUSINESS_YEAR, "active").await;
     let (status, _) = send(&app, Method::POST, YEARLY, Some(&cookie), None).await;
     assert_eq!(status, StatusCode::CONFLICT);
+}
+
+/// The host starts paying monthly Pro as Stripe customer `customer`.
+async fn pays(app: &Router, event_id: &str, user: Uuid, customer: &str) {
+    let event = json!({
+        "id": event_id,
+        "type": "customer.subscription.updated",
+        "created": 100,
+        "data": { "object": {
+            "id": format!("sub_{customer}"),
+            "customer": customer,
+            "status": "active",
+            "cancel_at_period_end": false,
+            "metadata": { "user_unid": user.to_string() },
+            "items": { "data": [{ "price": { "id": PRO_MONTH }, "current_period_end": 1_900_000_000 }] },
+        }},
+    });
+    assert_eq!(
+        webhook(app, &event.to_string(), WEBHOOK_SECRET).await,
+        StatusCode::OK
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_invitation_credits_both_hosts_a_month_once_each_pays(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (ada, ada_cookie) = register(&app, "ada@example.com").await;
+    let (_, settings) = send(
+        &app,
+        Method::GET,
+        "/api/host/settings",
+        Some(&ada_cookie),
+        None,
+    )
+    .await;
+    let code = settings["public_slug"].as_str().expect("a link").to_owned();
+
+    let (status, ben) = send(
+        &app,
+        Method::POST,
+        "/api/auth/register",
+        None,
+        Some(
+            json!({ "email": "ben@example.com", "password": "password123",
+                     "full_name": "Ben Ito", "referred_by": code }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let ben: Uuid = serde_json::from_value(ben["unid"].clone()).expect("user has an id");
+    // An address nobody has is ignored, not refused.
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/auth/register",
+        None,
+        Some(
+            json!({ "email": "cy@example.com", "password": "password123",
+                     "full_name": "Cy Lee", "referred_by": "nobody-here" }),
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+
+    let month = |customer: &str| Credit {
+        customer_id: customer.to_owned(),
+        amount_cents: 1000,
+    };
+    // Ben pays: he is credited; Ada, still on her trial, waits.
+    pays(&app, "evt_1", ben, "cus_ben").await;
+    assert_eq!(payments.credits(), vec![month("cus_ben")]);
+    let (_, referrals) = send(
+        &app,
+        Method::GET,
+        "/api/billing/referrals",
+        Some(&ada_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(referrals["code"], code.as_str());
+    assert_eq!(referrals["invited"], 1);
+    assert_eq!(referrals["paying"], 1);
+
+    // Ada pays: her month arrives. Later events credit nobody again.
+    pays(&app, "evt_2", ada, "cus_ada").await;
+    pays(&app, "evt_3", ben, "cus_ben").await;
+    pays(&app, "evt_4", ada, "cus_ada").await;
+    assert_eq!(payments.credits(), vec![month("cus_ben"), month("cus_ada")]);
 }
 
 async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<String> {

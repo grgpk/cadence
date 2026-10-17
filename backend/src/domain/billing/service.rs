@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use super::{
     db::{self, SyncedSubscription, TrialUsage},
-    models::{AdminPlan, BillingSummary, StartCheckout, StripeEvent, StripeSubscription},
+    models::{
+        AdminPlan, BillingSummary, Referrals, StartCheckout, StripeEvent, StripeSubscription,
+    },
     plans::{
         BillingInterval, Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS,
         effective_plan,
@@ -280,6 +282,77 @@ pub async fn switch_to_yearly(
         .map_err(payments_failed)
 }
 
+/// The record behind `?ref=` at sign-up.
+pub async fn record_referral(
+    connection: &mut PgConnection,
+    referred_unid: Uuid,
+    referrer_slug: &str,
+) -> Result<(), sqlx::Error> {
+    db::record_referral(connection, referred_unid, referrer_slug).await
+}
+
+/// What each side of an invitation gets: one month of Pro.
+fn referral_credit_cents() -> u32 {
+    Plan::Pro
+        .prices()
+        .iter()
+        .find(|price| price.interval == BillingInterval::Month)
+        .map_or(0, |price| price.amount_cents)
+}
+
+pub async fn referrals(pool: &PgPool, user_unid: Uuid) -> AppResult<Referrals> {
+    let counts = db::referral_counts(pool, user_unid).await?;
+    Ok(Referrals {
+        code: counts.slug,
+        invited: u32::try_from(counts.invited).unwrap_or(u32::MAX),
+        paying: u32::try_from(counts.paying).unwrap_or(u32::MAX),
+        credit_cents: referral_credit_cents(),
+    })
+}
+
+/// Credits the invitations around a host who now pays.
+///
+/// The invitation they came with is credited to both sides, and any credit
+/// they were owed as an inviter is paid now that they have a Stripe account.
+/// Each credit is marked, so it happens once.
+async fn credit_referrals(
+    connection: &mut PgConnection,
+    payments: &Payments,
+    user_unid: Uuid,
+    customer: &str,
+) -> AppResult<()> {
+    let amount = referral_credit_cents();
+    let credit = async |customer: &str, referred: Uuid, side: &str| {
+        payments
+            .credit(
+                customer,
+                amount,
+                "A month of Cadence Pro, for an invitation",
+                &format!("referral-{referred}-{side}"),
+            )
+            .await
+            .map_err(payments_failed)
+    };
+    if let Some(referral) = db::referral_of(connection, user_unid).await?
+        && !referral.referred_credited
+    {
+        credit(customer, user_unid, "invited").await?;
+        db::mark_referred_credited(connection, user_unid).await?;
+        if let (false, Some(inviter)) = (
+            referral.referrer_credited,
+            referral.referrer_customer.as_deref(),
+        ) {
+            credit(inviter, user_unid, "inviter").await?;
+            db::mark_referrer_credited(connection, user_unid).await?;
+        }
+    }
+    for referred in db::owed_to_referrer(connection, user_unid).await? {
+        credit(customer, referred, "inviter").await?;
+        db::mark_referrer_credited(connection, referred).await?;
+    }
+    Ok(())
+}
+
 /// Every host and the plan that applies to them now, newest first.
 pub async fn host_plans(pool: &PgPool, now: DateTime<Utc>) -> AppResult<Vec<AdminPlan>> {
     let rows = db::host_plans(pool).await?;
@@ -417,6 +490,15 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
     .await?;
     if applied {
         notify(&mut transaction, user_unid, before, status).await?;
+        if status == SubscriptionStatus::Active {
+            credit_referrals(
+                &mut transaction,
+                payments,
+                user_unid,
+                &subscription.customer,
+            )
+            .await?;
+        }
     }
     Ok(transaction.commit().await?)
 }

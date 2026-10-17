@@ -82,6 +82,11 @@ pub struct RegisterRequest {
     pub email: String,
     pub password: String,
     pub full_name: String,
+    /// The booking-page address of the host who invited this one, from
+    /// `?ref=`. An unknown one is ignored.
+    #[serde(default)]
+    #[ts(optional)]
+    pub referred_by: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]

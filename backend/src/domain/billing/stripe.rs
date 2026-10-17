@@ -5,7 +5,11 @@
 //! Two form-encoded calls and one HMAC (`crate::signature`) do not need a
 //! Stripe SDK.
 
-use std::{env, sync::Arc, time::Duration};
+use std::{
+    env,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
@@ -17,6 +21,8 @@ use super::plans::{BillingInterval, Plan};
 use crate::signature::{self, BadSignature};
 
 const API: &str = "https://api.stripe.com/v1";
+/// The currency `scripts/stripe-setup.sh` makes the prices in.
+const CURRENCY: &str = "usd";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Debug, Error)]
@@ -80,7 +86,15 @@ enum Gateway {
         client: reqwest::Client,
         secret_key: Arc<str>,
     },
-    Fake,
+    /// Remembers the credits it was asked for, so tests can read them.
+    Fake(Arc<Mutex<Vec<Credit>>>),
+}
+
+/// Money put on a Stripe customer's balance, taken off their next bills.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Credit {
+    pub customer_id: String,
+    pub amount_cents: u32,
 }
 
 #[derive(Clone)]
@@ -134,7 +148,7 @@ impl Payments {
     /// For tests: sessions are made-up URLs, events are signed with `webhook_secret`.
     pub fn fake(webhook_secret: &str, prices: PriceIds) -> Self {
         Self {
-            gateway: Gateway::Fake,
+            gateway: Gateway::Fake(Arc::default()),
             webhook_secret: webhook_secret.into(),
             prices: Arc::new(prices),
         }
@@ -174,7 +188,7 @@ impl Payments {
             Gateway::Stripe { client, secret_key } => {
                 post(client, secret_key, "/checkout/sessions", &form).await
             }
-            Gateway::Fake => Ok(format!("https://checkout.stripe.test/{user}/{price}")),
+            Gateway::Fake(_) => Ok(format!("https://checkout.stripe.test/{user}/{price}")),
         }
     }
 
@@ -189,7 +203,7 @@ impl Payments {
             Gateway::Stripe { client, secret_key } => {
                 post(client, secret_key, "/billing_portal/sessions", &form).await
             }
-            Gateway::Fake => Ok(format!("https://billing.stripe.test/{customer_id}")),
+            Gateway::Fake(_) => Ok(format!("https://billing.stripe.test/{customer_id}")),
         }
     }
 
@@ -239,6 +253,56 @@ impl Payments {
         post(client, secret_key, "/billing_portal/sessions", &form).await
     }
 
+    /// Credit on the customer's balance. `key` makes a retried call (the
+    /// same webhook again) credit once.
+    pub async fn credit(
+        &self,
+        customer_id: &str,
+        amount_cents: u32,
+        description: &str,
+        key: &str,
+    ) -> Result<(), PaymentsError> {
+        let (client, secret_key) = match &self.gateway {
+            Gateway::Stripe { client, secret_key } => (client, secret_key),
+            Gateway::Fake(credits) => {
+                if let Ok(mut credits) = credits.lock() {
+                    credits.push(Credit {
+                        customer_id: customer_id.to_owned(),
+                        amount_cents,
+                    });
+                }
+                return Ok(());
+            }
+        };
+        let path = format!("/customers/{customer_id}/balance_transactions");
+        // A negative balance is what the customer is owed.
+        let amount = format!("-{amount_cents}");
+        let form = [
+            ("amount", amount.as_str()),
+            ("currency", CURRENCY),
+            ("description", description),
+        ];
+        let sent = client
+            .post(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .header("Idempotency-Key", key)
+            .form(&form)
+            .send()
+            .await;
+        checked(&path, sent).await.map(|_| ())
+    }
+
+    /// The fake's credits so far; always empty against Stripe.
+    pub fn credits(&self) -> Vec<Credit> {
+        match &self.gateway {
+            Gateway::Fake(credits) => credits
+                .lock()
+                .map(|credits| credits.clone())
+                .unwrap_or_default(),
+            Gateway::Stripe { .. } => Vec::new(),
+        }
+    }
+
     /// Checks the `Stripe-Signature` header against the raw body.
     pub fn verify(
         &self,
@@ -272,19 +336,12 @@ async fn subscription_item(
     subscription_id: &str,
 ) -> Result<String, PaymentsError> {
     let path = format!("/subscriptions/{subscription_id}");
-    let response = client
+    let sent = client
         .get(format!("{API}{path}"))
         .bearer_auth(secret_key)
         .send()
-        .await
-        .map_err(|error| PaymentsError::Request(error.into()))?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(PaymentsError::Request(anyhow::anyhow!(
-            "stripe {path} answered {status}: {body}"
-        )));
-    }
+        .await;
+    let response = checked(&path, sent).await?;
     let subscription = response
         .json::<SubscriptionItems>()
         .await
@@ -304,25 +361,34 @@ async fn post(
     path: &str,
     form: &[(&str, &str)],
 ) -> Result<String, PaymentsError> {
-    let response = client
+    let sent = client
         .post(format!("{API}{path}"))
         .bearer_auth(secret_key)
         .form(form)
         .send()
-        .await
-        .map_err(|error| PaymentsError::Request(error.into()))?;
-    let status = response.status();
-    if !status.is_success() {
-        let body = response.text().await.unwrap_or_default();
-        return Err(PaymentsError::Request(anyhow::anyhow!(
-            "stripe {path} answered {status}: {body}"
-        )));
-    }
-    response
+        .await;
+    checked(path, sent)
+        .await?
         .json::<Session>()
         .await
         .map(|session| session.url)
         .map_err(|error| PaymentsError::Request(error.into()))
+}
+
+/// A response Stripe answered with success, or the error with its body.
+async fn checked(
+    path: &str,
+    sent: Result<reqwest::Response, reqwest::Error>,
+) -> Result<reqwest::Response, PaymentsError> {
+    let response = sent.map_err(|error| PaymentsError::Request(error.into()))?;
+    let status = response.status();
+    if status.is_success() {
+        return Ok(response);
+    }
+    let body = response.text().await.unwrap_or_default();
+    Err(PaymentsError::Request(anyhow::anyhow!(
+        "stripe {path} answered {status}: {body}"
+    )))
 }
 
 #[cfg(test)]

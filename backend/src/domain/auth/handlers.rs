@@ -49,7 +49,14 @@ pub async fn register(
         &client_address(&headers),
     )
     .await?;
-    let user = service::register(&state.pool, &body.email, &body.password, &body.full_name).await?;
+    let user = service::register(
+        &state.pool,
+        &body.email,
+        &body.password,
+        &body.full_name,
+        body.referred_by.as_deref(),
+    )
+    .await?;
     Ok((StatusCode::CREATED, Json(SessionUser::from(&user))))
 }
 

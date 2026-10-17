@@ -44,6 +44,7 @@ import {
   type YearlySwitch,
   yearlySwitch,
 } from "./billing";
+import { InviteCard } from "./invite-card";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
 const CONFIRM_POLL_MS = 2000;
@@ -411,6 +412,7 @@ export function BillingPage({
           <Skeleton className="h-96 w-full" />
         )}
       </section>
+      {summary ? <InviteCard paying={summary.status === STATUS.ACTIVE} /> : null}
     </>
   );
 }

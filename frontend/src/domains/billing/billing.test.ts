@@ -10,6 +10,7 @@ import {
   hasPortal,
   planAction,
   planCounts,
+  signupSearch,
   STATUS,
   statusLine,
   trialDaysLeft,
@@ -218,5 +219,20 @@ describe("yearlySwitch", () => {
     expect(yearlySwitch({ ...monthly, interval: "year" }, offers)).toBeNull();
     expect(yearlySwitch({ ...monthly, status: STATUS.TRIALING }, offers)).toBeNull();
     expect(yearlySwitch({ ...monthly, cancel_at_period_end: true }, offers)).toBeNull();
+  });
+});
+
+describe("signupSearch", () => {
+  it("keeps an inviter's booking-page address next to the picked plan", () => {
+    expect(signupSearch({ plan: "pro", interval: "year", ref: "ada-lovelace" })).toEqual({
+      plan: "pro",
+      interval: "year",
+      ref: "ada-lovelace",
+    });
+  });
+
+  it("drops a ref that is no booking-page address", () => {
+    expect(signupSearch({ ref: "Ada Lovelace!" })).toEqual({});
+    expect(signupSearch({ ref: 42 })).toEqual({});
   });
 });

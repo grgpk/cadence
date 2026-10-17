@@ -105,6 +105,7 @@ pub async fn register(
     email: &str,
     password: &str,
     full_name: &str,
+    referred_by: Option<&str>,
 ) -> AppResult<UserRecord> {
     let email = normalize_email(email);
     validate_credentials(&email, password, Some(full_name))?;
@@ -112,7 +113,7 @@ pub async fn register(
         return Err(AppError::Conflict(EMAIL_TAKEN.to_owned()));
     }
     let password_hash = hash_password(password).await?;
-    db::create_host(pool, &email, &password_hash, full_name.trim())
+    db::create_host(pool, &email, &password_hash, full_name.trim(), referred_by)
         .await
         .map_err(|error| {
             // Another request registered the email since the check above.

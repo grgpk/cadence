@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT referred_unid FROM referrals\n         WHERE referrer_unid = $1\n           AND referred_credited_at IS NOT NULL AND referrer_credited_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "referred_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "referrals",
+            "name": "referred_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "b465cf10b42ef0e93f23be5d00abb4e61e6440b7cf12a04aecfa8c3b023f1f67"
+}

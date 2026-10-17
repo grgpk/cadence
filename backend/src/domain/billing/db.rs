@@ -314,3 +314,118 @@ pub async fn user_by_email(
         .fetch_optional(connection)
         .await
 }
+
+/// Records who invited a new host, by the inviter's booking-page address.
+/// Runs inside the transaction that creates the account.
+pub async fn record_referral(
+    connection: &mut PgConnection,
+    referred_unid: Uuid,
+    referrer_slug: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO referrals (referred_unid, referrer_unid)
+         SELECT $1, host_unid FROM widget_settings
+         WHERE public_slug = $2 AND host_unid <> $1
+         ON CONFLICT DO NOTHING RETURNING 1",
+        referred_unid,
+        referrer_slug,
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|_| ())
+}
+
+/// The invitation a paying host signed up with.
+pub struct Referral {
+    pub referrer_unid: Uuid,
+    pub referred_credited: bool,
+    pub referrer_credited: bool,
+    /// The inviter's Stripe customer, while they pay.
+    pub referrer_customer: Option<String>,
+}
+
+pub async fn referral_of(
+    connection: &mut PgConnection,
+    referred_unid: Uuid,
+) -> Result<Option<Referral>, sqlx::Error> {
+    sqlx::query_as!(
+        Referral,
+        r#"SELECT r.referrer_unid,
+                  r.referred_credited_at IS NOT NULL AS "referred_credited!",
+                  r.referrer_credited_at IS NOT NULL AS "referrer_credited!",
+                  CASE WHEN s.status = $2 THEN s.stripe_customer_id END AS "referrer_customer?"
+           FROM referrals r
+           LEFT JOIN subscriptions s ON s.user_unid = r.referrer_unid
+           WHERE r.referred_unid = $1"#,
+        referred_unid,
+        SubscriptionStatus::Active.as_str(),
+    )
+    .fetch_optional(connection)
+    .await
+}
+
+/// Hosts this inviter brought who have paid, and whose credit to the
+/// inviter is still owed.
+pub async fn owed_to_referrer(
+    connection: &mut PgConnection,
+    referrer_unid: Uuid,
+) -> Result<Vec<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT referred_unid FROM referrals
+         WHERE referrer_unid = $1
+           AND referred_credited_at IS NOT NULL AND referrer_credited_at IS NULL",
+        referrer_unid,
+    )
+    .fetch_all(connection)
+    .await
+}
+
+pub async fn mark_referred_credited(
+    connection: &mut PgConnection,
+    referred_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referred_credited_at = now() WHERE referred_unid = $1 RETURNING 1",
+        referred_unid,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+pub async fn mark_referrer_credited(
+    connection: &mut PgConnection,
+    referred_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET referrer_credited_at = now() WHERE referred_unid = $1 RETURNING 1",
+        referred_unid,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// A host's invite link and how it has done.
+pub struct ReferralCounts {
+    pub slug: Option<String>,
+    pub invited: i64,
+    pub paying: i64,
+}
+
+pub async fn referral_counts(
+    pool: &PgPool,
+    referrer_unid: Uuid,
+) -> Result<ReferralCounts, sqlx::Error> {
+    sqlx::query_as!(
+        ReferralCounts,
+        r#"SELECT
+             (SELECT public_slug FROM widget_settings WHERE host_unid = $1) AS slug,
+             (SELECT count(*) FROM referrals WHERE referrer_unid = $1) AS "invited!",
+             (SELECT count(*) FROM referrals
+              WHERE referrer_unid = $1 AND referred_credited_at IS NOT NULL) AS "paying!""#,
+        referrer_unid,
+    )
+    .fetch_one(pool)
+    .await
+}

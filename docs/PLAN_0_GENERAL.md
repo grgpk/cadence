@@ -120,6 +120,7 @@ cadence/
 | 33 | `PLAN_33_BUSINESS_CLIENTS.md` | Business: win back people who left, invitees confirm they are coming, no-shows, weekly numbers | ✅ done |
 | 34 | `PLAN_34_PROMISE_AND_FUNNEL.md` | accent colour for Pro, Calendly import offered to new hosts, a trial end that says what this host loses | ✅ done |
 | 35 | `PLAN_35_PAY_YEARLY.md` | monthly payers see what yearly saves and switch on Stripe's confirm screen | ✅ done |
+| 36 | `PLAN_36_REFERRALS.md` | invite links: a month of Pro as Stripe credit to both hosts once the invited one pays; Free booking pages carry the invite | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

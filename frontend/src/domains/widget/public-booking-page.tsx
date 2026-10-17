@@ -14,7 +14,6 @@ import { BookingCard } from "./booking-card";
 import type { PageRef } from "./cadence-api";
 import type { SlotLayout } from "./slot-days";
 
-/** A host's public link around its content: the page, then a quiet footer. */
 /** The host's colour as the theme's own: buttons and the picked time. */
 function accentStyle(accent: string | null): CSSProperties | undefined {
   if (!accent) return undefined;
@@ -28,13 +27,21 @@ function accentStyle(accent: string | null): CSSProperties | undefined {
   } as CSSProperties;
 }
 
+/**
+ * A host's public link around its content: the page, then a quiet footer.
+ * On Free the footer carries Cadence, and the host's invite: a visitor who
+ * signs up from it counts as theirs.
+ */
 function BookingShell({
   showBranding,
   accent,
+  referrer,
   children,
 }: {
   showBranding: boolean;
   accent: string | null;
+  /** The host's booking-page address. */
+  referrer: string;
   children: ReactNode;
 }) {
   return (
@@ -44,9 +51,18 @@ function BookingShell({
       </main>
       <footer className="mx-auto flex w-full max-w-[66rem] items-center justify-between gap-4 px-4 pb-6 text-sm text-muted-foreground sm:px-6">
         {showBranding ? (
-          <Link to={ROUTES.home} aria-label={`${APP_NAME} home`}>
-            <Logo />
-          </Link>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link to={ROUTES.home} aria-label={`${APP_NAME} home`}>
+              <Logo />
+            </Link>
+            <Link
+              to={ROUTES.register}
+              search={{ ref: referrer }}
+              className="hover:text-foreground"
+            >
+              Make your own booking page
+            </Link>
+          </div>
         ) : (
           <span />
         )}
@@ -94,7 +110,11 @@ export function PublicBookingPage({
   onLayoutChange: (layout: SlotLayout) => void;
 }) {
   return (
-    <BookingShell showBranding={page.show_branding} accent={page.accent_color}>
+    <BookingShell
+      showBranding={page.show_branding}
+      accent={page.accent_color}
+      referrer={pageRef.host}
+    >
       {page.accepting_bookings ? (
         <BookingCard
           pageRef={pageRef}
@@ -114,7 +134,11 @@ export function PublicBookingPage({
 export function HostTypesPage({ slug, host }: { slug: string; host: HostPage }) {
   const taking = host.accepting_bookings && host.types.length > 0;
   return (
-    <BookingShell showBranding={host.show_branding} accent={host.accent_color}>
+    <BookingShell
+      showBranding={host.show_branding}
+      accent={host.accent_color}
+      referrer={slug}
+    >
       {taking ? (
         <div className="mx-auto w-full max-w-xl">
           <p className="text-sm text-muted-foreground">{host.host_name}</p>

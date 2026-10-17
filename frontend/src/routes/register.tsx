@@ -1,12 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { Loader2 } from "lucide-react";
+import { Gift, Loader2 } from "lucide-react";
 
 import type { RegisterRequest } from "../bindings/RegisterRequest";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
-import { checkoutIntent } from "../domains/billing/billing";
+import { checkoutIntent, signupSearch } from "../domains/billing/billing";
 import { getPlans } from "../domains/pricing/pricing-api";
 import { PickedPlan } from "../domains/pricing/picked-plan";
 import { AuthCard, PasswordInput } from "../domains/shared/auth-card";
@@ -23,12 +23,13 @@ const REGISTER_ERRORS = {
 };
 
 export const Route = createFileRoute("/register")({
-  // `?plan=&interval=` from the pricing page: after sign-up, billing offers it.
-  validateSearch: checkoutIntent,
+  // `?plan=&interval=` from the pricing page: after sign-up, billing offers
+  // it. `?ref=` from a host's invite link.
+  validateSearch: signupSearch,
   beforeLoad: async ({ search }) => {
     if (await getSessionUser()) {
       throw search.plan
-        ? redirect({ to: ROUTES.dashboardBilling, search })
+        ? redirect({ to: ROUTES.dashboardBilling, search: checkoutIntent(search) })
         : redirect({ to: ROUTES.dashboard });
     }
   },
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
-  const intent = Route.useSearch();
+  const { ref: invitedBy, ...intent } = Route.useSearch();
   const offers = Route.useLoaderData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -69,6 +70,7 @@ function RegisterPage() {
       full_name: String(form.get("full_name") ?? ""),
       email: String(form.get("email") ?? ""),
       password: String(form.get("password") ?? ""),
+      ...(invitedBy ? { referred_by: invitedBy } : {}),
     });
   }
 
@@ -91,6 +93,15 @@ function RegisterPage() {
         </>
       }
     >
+      {invitedBy ? (
+        <p className="flex gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+          <Gift className="mt-0.5 size-4 shrink-0 text-dusk" aria-hidden />
+          <span>
+            You were invited. When you start paying, you and the host who invited you each
+            get a month of Pro free.
+          </span>
+        </p>
+      ) : null}
       {intent.plan && intent.interval ? (
         <PickedPlan plan={intent.plan} interval={intent.interval} offers={offers} />
       ) : null}

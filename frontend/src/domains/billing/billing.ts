@@ -26,6 +26,23 @@ export type CheckoutIntent = { plan: Plan; interval: BillingInterval };
 const PAID_PLANS: readonly unknown[] = [PLAN.PRO, PLAN.BUSINESS];
 const INTERVALS: readonly unknown[] = Object.values(INTERVAL);
 
+/** A booking-page address, as `?ref=` carries the inviter's. */
+const INVITE_CODE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** The sign-up page's address: a picked plan, and who sent the visitor. */
+type SignupSearch = Partial<CheckoutIntent> & { ref?: string };
+
+/** Reads `?plan=&interval=&ref=`. A `ref` that is no booking-page address is dropped. */
+export function signupSearch(search: Record<string, unknown>): SignupSearch {
+  const ref = search.ref;
+  const valid =
+    typeof ref === "string" &&
+    ref.length >= 3 &&
+    ref.length <= 40 &&
+    INVITE_CODE.test(ref);
+  return { ...checkoutIntent(search), ...(valid ? { ref } : {}) };
+}
+
 /** Reads `?plan=&interval=` from an address. Free and anything unknown is no intent. */
 export function checkoutIntent(search: Record<string, unknown>): Partial<CheckoutIntent> {
   const { plan, interval } = search;
