@@ -12,7 +12,7 @@ import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
 import { Textarea } from "../../components/ui/textarea";
 import { formatDay } from "../../lib/format";
 import { ConsentNotice } from "../shared/consent-notice";
-import { Field, fieldHelpId } from "../shared/field";
+import { Field, FieldError, fieldHelpId } from "../shared/field";
 import {
   DEFAULT_TIMEZONE,
   getCountryByVariant,
@@ -37,14 +37,10 @@ function OptionGroup({
   children: ReactNode;
 }) {
   return (
-    <fieldset className="grid content-start gap-2.5">
+    <fieldset className="grid content-start">
       <legend className="mb-2.5 text-sm leading-none font-medium">{legend}</legend>
-      {children}
-      {error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <div className="grid gap-2.5">{children}</div>
+      <FieldError error={error} />
     </fieldset>
   );
 }
@@ -104,7 +100,12 @@ function RadioOptions({
   );
 }
 
-type ContactField = "firstName" | "lastName" | "email" | "phone";
+const CONTACT_FIELDS = ["firstName", "lastName", "email", "phone"] as const;
+type ContactField = (typeof CONTACT_FIELDS)[number];
+
+function isContactField(field: string): field is ContactField {
+  return (CONTACT_FIELDS as readonly string[]).includes(field);
+}
 
 export function DetailsStep({
   page,
@@ -134,15 +135,26 @@ export function DetailsStep({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [attempted, setAttempted] = useState(false);
-  // Fields the visitor has been in and left; each says what is wrong from then on.
+  // Contact fields the visitor has left with something wrong. A field speaks up
+  // when it is left, and goes quiet the moment it is fixed: it never scolds
+  // while the visitor is still typing it.
   const [left, setLeft] = useState<ContactField[]>([]);
   const allErrors = formErrors(values, page);
-  const errors: typeof allErrors = attempted
-    ? allErrors
-    : Object.fromEntries(left.map((field) => [field, allErrors[field]]));
+  const errors: typeof allErrors = Object.fromEntries(
+    Object.entries(allErrors).filter(([field]) =>
+      isContactField(field) ? left.includes(field) : attempted,
+    ),
+  );
   const leave = (field: ContactField) => {
-    if (!left.includes(field)) setLeft([...left, field]);
+    if (allErrors[field] && !left.includes(field)) setLeft([...left, field]);
     onSave(values);
+  };
+  const edit = (field: ContactField, patch: Partial<FormValues>) => {
+    const next = { ...values, ...patch };
+    onChange(next);
+    if (left.includes(field) && !formErrors(next, page)[field]) {
+      setLeft(left.filter((each) => each !== field));
+    }
   };
   const country =
     getCountryByVariant(values.countryVariant) ??
@@ -206,6 +218,7 @@ export function DetailsStep({
         onSubmit={(event) => {
           event.preventDefault();
           setAttempted(true);
+          setLeft(CONTACT_FIELDS.filter((field) => allErrors[field]));
           if (Object.keys(allErrors).length > 0) {
             // Wait for the error state to render, then land on the first problem.
             requestAnimationFrame(() =>
@@ -238,7 +251,7 @@ export function DetailsStep({
               aria-describedby={
                 errors.firstName ? fieldHelpId(`${ID}-first-name`) : undefined
               }
-              onChange={(event) => update({ firstName: event.target.value })}
+              onChange={(event) => edit("firstName", { firstName: event.target.value })}
               onBlur={() => leave("firstName")}
             />
           </Field>
@@ -257,7 +270,7 @@ export function DetailsStep({
               aria-describedby={
                 errors.lastName ? fieldHelpId(`${ID}-last-name`) : undefined
               }
-              onChange={(event) => update({ lastName: event.target.value })}
+              onChange={(event) => edit("lastName", { lastName: event.target.value })}
               onBlur={() => leave("lastName")}
             />
           </Field>
@@ -275,7 +288,7 @@ export function DetailsStep({
               value={values.email}
               aria-invalid={Boolean(errors.email)}
               aria-describedby={errors.email ? fieldHelpId(`${ID}-email`) : undefined}
-              onChange={(event) => update({ email: event.target.value })}
+              onChange={(event) => edit("email", { email: event.target.value })}
               onBlur={() => leave("email")}
             />
           </Field>
@@ -293,7 +306,7 @@ export function DetailsStep({
                 onCountryChange={(next) =>
                   updateAndSave({ countryVariant: next.variant })
                 }
-                onDigitsChange={(digits) => update({ phone: digits })}
+                onDigitsChange={(digits) => edit("phone", { phone: digits })}
                 onBlur={() => leave("phone")}
                 invalid={Boolean(errors.phone)}
                 describedBy={errors.phone ? fieldHelpId(`${ID}-phone`) : undefined}
@@ -357,7 +370,10 @@ export function DetailsStep({
         ) : null}
 
         {submitError ? (
-          <Alert variant="destructive">
+          <Alert
+            variant="destructive"
+            className="motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-top-1"
+          >
             <CircleAlert className="size-4" />
             <AlertDescription>{submitError}</AlertDescription>
           </Alert>
