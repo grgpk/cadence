@@ -151,4 +151,7 @@ echo "  1. Customer portal: allow switching between the Pro and Business prices 
 echo "     cancelling at the end of the period, then Save:"
 echo "     https://dashboard.stripe.com/test/settings/billing/portal"
 echo "  2. Webhook secret: run 'stripe listen' (see the plan) and put its whsec_ in"
-echo "     STRIPE_WEBHOOK_SECRET, then restart the backend."
+echo "     STRIPE_WEBHOOK_SECRET, then restart the backend. The events it needs:"
+echo "     customer.subscription.created, .updated, .deleted and charge.refunded"
+echo "     (the last takes a refunded invitation's credits back). A production"
+echo "     endpoint in the dashboard needs the same four."

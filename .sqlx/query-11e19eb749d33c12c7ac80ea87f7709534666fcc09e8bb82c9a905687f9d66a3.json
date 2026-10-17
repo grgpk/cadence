@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE referrals SET referred_credited_at = now()\n         WHERE referred_unid = $1 AND referred_credited_at IS NULL\n         RETURNING referrer_unid",
+  "query": "UPDATE referrals SET referred_credited_at = now(), referred_invoice_id = $2\n         WHERE referred_unid = $1 AND referred_credited_at IS NULL\n         RETURNING referrer_unid",
   "describe": {
     "columns": [
       {
@@ -17,12 +17,13 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "4a4b69284d1de7718c8729f09d47dd70c8227ba609cf81d7c13dbae589d7a10d"
+  "hash": "11e19eb749d33c12c7ac80ea87f7709534666fcc09e8bb82c9a905687f9d66a3"
 }

@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM email_queue\n               WHERE template = $3 AND created_at > now() - interval '6 days'\n                 AND (payload->>'host_unid' = $1::text OR email = $2)\n           ) AS \"queued!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "queued!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b7955c43f2c6a147aa58657576b03ae05c6ece0326bf5e82fa3b5584044ad462"
+}

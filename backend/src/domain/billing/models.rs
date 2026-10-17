@@ -154,6 +154,29 @@ pub struct StripePrice {
     pub recurring: Option<StripeRecurring>,
 }
 
+/// The `charge.refunded` event object, with only the fields read here.
+#[derive(Debug, Deserialize)]
+pub struct StripeCharge {
+    /// `true` once the whole charge is refunded.
+    #[serde(default)]
+    pub refunded: bool,
+    /// Older API versions name the invoice here; newer ones only on an
+    /// invoice payment.
+    #[serde(default)]
+    pub invoice: Option<serde_json::Value>,
+    #[serde(default)]
+    pub payment_intent: Option<String>,
+}
+
+impl StripeCharge {
+    pub fn invoice_id(&self) -> Option<&str> {
+        match self.invoice.as_ref()? {
+            serde_json::Value::String(id) => Some(id),
+            invoice => invoice.get("id")?.as_str(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct StripePause {
     /// Unix seconds.

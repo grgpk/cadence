@@ -6,7 +6,7 @@ use super::{
     db::{self, SyncedSubscription, TrialUsage},
     models::{
         AdminCancellation, AdminPlan, BillingSummary, CancelOutcome, LeaveFeedback, Referrals,
-        StartCheckout, StripeEvent, StripeSubscription,
+        StartCheckout, StripeCharge, StripeEvent, StripeSubscription,
     },
     plans::{
         BillingInterval, Entitlements, Plan, Subscription, SubscriptionStatus, TRIAL_DAYS,
@@ -394,14 +394,20 @@ async fn credit_referrals(
     customer: &str,
     invoice: Option<&str>,
 ) -> AppResult<()> {
-    let paid = match invoice {
-        Some(invoice) => payments
-            .invoice_paid(invoice)
-            .await
-            .map_err(payments_failed)?,
-        None => false,
+    let paid_invoice = match invoice {
+        Some(invoice)
+            if payments
+                .invoice_paid(invoice)
+                .await
+                .map_err(payments_failed)? =>
+        {
+            Some(invoice)
+        }
+        _ => None,
     };
-    if paid && let Some(referrer) = db::claim_referred(pool, user_unid).await? {
+    if let Some(invoice) = paid_invoice
+        && let Some(referrer) = db::claim_referred(pool, user_unid, invoice).await?
+    {
         if let Err(error) = month_credit(payments, customer, user_unid, "invited").await {
             db::release_referred(pool, user_unid).await?;
             return Err(error);
@@ -692,6 +698,9 @@ fn instant(seconds: i64) -> Option<DateTime<Utc>> {
 /// Applies one verified Stripe event, once. Events this app does not act on
 /// are recorded and acknowledged, so Stripe stops sending them.
 pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent) -> AppResult<()> {
+    if event.kind == "charge.refunded" {
+        return apply_refund(pool, payments, event).await;
+    }
     let ended = match event.kind.as_str() {
         "customer.subscription.created" | "customer.subscription.updated" => Some(false),
         "customer.subscription.deleted" => Some(true),
@@ -774,6 +783,66 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
         .await;
     }
     Ok(())
+}
+
+/// A refund takes back the referral credits the refunded invoice earned.
+///
+/// The event is recorded only after that worked: a failure fails it, and
+/// Stripe sends it again. It changes no plan, so nothing waits on it.
+async fn apply_refund(pool: &PgPool, payments: &Payments, event: StripeEvent) -> AppResult<()> {
+    let mut transaction = pool.begin().await?;
+    if !db::record_event(&mut transaction, &event.id, &event.kind).await? {
+        return Ok(());
+    }
+    let charge: StripeCharge = serde_json::from_value(event.data.object)
+        .map_err(|error| AppError::BadRequest(format!("unreadable charge: {error}")))?;
+    // A partial refund leaves the payment, and its credits, standing.
+    if charge.refunded {
+        let invoice = match charge.invoice_id() {
+            Some(invoice) => Some(invoice.to_owned()),
+            None => match &charge.payment_intent {
+                Some(intent) => payments
+                    .invoice_of_payment(intent)
+                    .await
+                    .map_err(payments_failed)?,
+                None => None,
+            },
+        };
+        if let Some(invoice) = invoice {
+            revoke_referral(pool, payments, &invoice).await?;
+        }
+    }
+    Ok(transaction.commit().await?)
+}
+
+async fn revoke_referral(pool: &PgPool, payments: &Payments, invoice: &str) -> AppResult<()> {
+    let Some(revoked) = db::claim_revocation(pool, invoice).await? else {
+        return Ok(());
+    };
+    let debit = async |user_unid: Uuid, side: &str| -> AppResult<()> {
+        let Some(customer) = db::customer_of(pool, user_unid).await? else {
+            return Ok(());
+        };
+        payments
+            .debit(
+                &customer,
+                referral_credit_cents(),
+                "An invitation's month of Cadence Pro, taken back after a refund",
+                &format!("referral-{}-{side}-revoked", revoked.referred_unid),
+            )
+            .await
+            .map_err(payments_failed)
+    };
+    let mut result = debit(revoked.referred_unid, "invited").await;
+    if result.is_ok() && revoked.referrer_credited {
+        result = debit(revoked.referrer_unid, "inviter").await;
+    }
+    if result.is_err() {
+        // Stripe sends the event again; both debits are keyed, so the one
+        // already made is not made twice.
+        db::release_revocation(pool, revoked.referred_unid).await?;
+    }
+    result
 }
 
 /// The subscription an event is about, as Stripe has it now: whatever order

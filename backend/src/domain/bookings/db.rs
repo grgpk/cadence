@@ -338,8 +338,9 @@ pub async fn weekly_due(pool: &PgPool, template: &str) -> Result<Vec<WeeklyDue>,
              AND EXTRACT(HOUR FROM now() AT TIME ZONE w.timezone) = 8
              AND NOT EXISTS (
                  SELECT 1 FROM email_queue e
-                 WHERE e.email = u.email AND e.template = $1
-                   AND e.created_at > now() - interval '6 days'
+                 WHERE e.template = $1 AND e.created_at > now() - interval '6 days'
+                   -- Older rows carry no host, only the address.
+                   AND (e.payload->>'host_unid' = u.unid::text OR e.email = u.email)
              )"#,
         template,
     )
@@ -365,14 +366,17 @@ pub async fn lock_weekly(
 /// Whether this week's email was queued already, read under the lock.
 pub async fn weekly_queued(
     connection: &mut PgConnection,
+    host_unid: Uuid,
     email: &str,
     template: &str,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
         r#"SELECT EXISTS (
                SELECT 1 FROM email_queue
-               WHERE email = $1 AND template = $2 AND created_at > now() - interval '6 days'
+               WHERE template = $3 AND created_at > now() - interval '6 days'
+                 AND (payload->>'host_unid' = $1::text OR email = $2)
            ) AS "queued!""#,
+        host_unid.to_string(),
         email,
         template,
     )

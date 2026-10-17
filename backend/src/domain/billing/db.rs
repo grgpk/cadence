@@ -442,12 +442,14 @@ pub async fn record_referral(
 pub async fn claim_referred(
     pool: &PgPool,
     referred_unid: Uuid,
+    invoice_id: &str,
 ) -> Result<Option<Uuid>, sqlx::Error> {
     sqlx::query_scalar!(
-        "UPDATE referrals SET referred_credited_at = now()
+        "UPDATE referrals SET referred_credited_at = now(), referred_invoice_id = $2
          WHERE referred_unid = $1 AND referred_credited_at IS NULL
          RETURNING referrer_unid",
         referred_unid,
+        invoice_id,
     )
     .fetch_optional(pool)
     .await
@@ -456,7 +458,8 @@ pub async fn claim_referred(
 /// Gives a claim back after Stripe refused the credit; a later event tries again.
 pub async fn release_referred(pool: &PgPool, referred_unid: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query_scalar!(
-        "UPDATE referrals SET referred_credited_at = NULL WHERE referred_unid = $1 RETURNING 1",
+        "UPDATE referrals SET referred_credited_at = NULL, referred_invoice_id = NULL
+         WHERE referred_unid = $1 RETURNING 1",
         referred_unid,
     )
     .fetch_optional(pool)
@@ -619,6 +622,51 @@ pub async fn paused_until(
 ) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
     sqlx::query_scalar!(
         "SELECT paused_until FROM subscriptions WHERE user_unid = $1 AND paused_until > now()",
+        user_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(Option::flatten)
+}
+
+/// The invitation whose credits a refunded invoice earned, claimed for taking
+/// them back so it happens once.
+pub struct Revocation {
+    pub referred_unid: Uuid,
+    pub referrer_unid: Uuid,
+    pub referrer_credited: bool,
+}
+
+pub async fn claim_revocation(
+    pool: &PgPool,
+    invoice_id: &str,
+) -> Result<Option<Revocation>, sqlx::Error> {
+    sqlx::query_as!(
+        Revocation,
+        r#"UPDATE referrals SET revoked_at = now()
+           WHERE referred_invoice_id = $1 AND revoked_at IS NULL
+           RETURNING referred_unid, referrer_unid,
+                     referrer_credited_at IS NOT NULL AS "referrer_credited!""#,
+        invoice_id,
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn release_revocation(pool: &PgPool, referred_unid: Uuid) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE referrals SET revoked_at = NULL WHERE referred_unid = $1 RETURNING 1",
+        referred_unid,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|_| ())
+}
+
+/// The host's Stripe customer, whatever their plan is now.
+pub async fn customer_of(pool: &PgPool, user_unid: Uuid) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT stripe_customer_id FROM subscriptions WHERE user_unid = $1",
         user_unid,
     )
     .fetch_optional(pool)

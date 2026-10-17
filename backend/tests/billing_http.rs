@@ -712,6 +712,54 @@ async fn stripe_refusing_a_credit_never_holds_up_the_plan(pool: PgPool) {
     assert_eq!(payments.credits().len(), 1);
 }
 
+/// Stripe refunds the whole charge that paid `invoice`.
+async fn refunded(app: &Router, event_id: &str, invoice: &str) {
+    let event = json!({
+        "id": event_id,
+        "type": "charge.refunded",
+        "created": 300,
+        "data": { "object": { "id": "ch_1", "refunded": true, "invoice": invoice } },
+    });
+    assert_eq!(
+        webhook(app, &event.to_string(), WEBHOOK_SECRET).await,
+        StatusCode::OK
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_refund_takes_back_the_invitations_credits_once(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (ada, _, ben) = invitation(&app).await;
+    pays(&app, "evt_1", ada, "cus_ada").await;
+    pays_invoice(&app, "evt_2", ben, "cus_ben", "in_first").await;
+    let owed = |customer: &str, cents: i64| Credit {
+        customer_id: customer.to_owned(),
+        amount_cents: cents,
+    };
+    assert_eq!(
+        payments.credits(),
+        vec![owed("cus_ben", 1000), owed("cus_ada", 1000)]
+    );
+
+    // Another invoice's refund changes nothing.
+    refunded(&app, "evt_3", "in_other").await;
+    assert_eq!(payments.credits().len(), 2);
+
+    refunded(&app, "evt_4", "in_first").await;
+    refunded(&app, "evt_5", "in_first").await;
+    assert_eq!(
+        payments.credits(),
+        vec![
+            owed("cus_ben", 1000),
+            owed("cus_ada", 1000),
+            owed("cus_ben", -1000),
+            owed("cus_ada", -1000),
+        ],
+        "both taken back, once"
+    );
+}
+
 async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<String> {
     sqlx::query_scalar!(
         r#"SELECT e.template AS "template!" FROM email_queue e JOIN users u ON u.email = e.email

@@ -322,6 +322,7 @@ async fn queue_week_for(pool: &PgPool, host: &db::WeeklyDue) -> AppResult<()> {
     db::lock_weekly(&mut transaction, host.host_unid).await?;
     if db::weekly_queued(
         &mut transaction,
+        host.host_unid,
         &host.email,
         emails::WEEKLY_INSIGHTS_TEMPLATE,
     )
@@ -331,6 +332,7 @@ async fn queue_week_for(pool: &PgPool, host: &db::WeeklyDue) -> AppResult<()> {
     }
     emails::queue_weekly_insights(
         &mut transaction,
+        host.host_unid,
         &host.email,
         &host.full_name,
         insight_lines(&week),
@@ -623,8 +625,14 @@ mod weekly_tests {
 
         let (first, second) =
             tokio::join!(queue_week_for(&pool, &host), queue_week_for(&pool, &host));
+        // The host changes their email; the week is still theirs.
+        let moved = WeeklyDue {
+            email: "nino@new.example.com".to_owned(),
+            ..host
+        };
+        let third = queue_week_for(&pool, &moved).await;
 
-        assert!(first.is_ok() && second.is_ok());
+        assert!(first.is_ok() && second.is_ok() && third.is_ok());
         let queued = sqlx::query_scalar!(
             r#"SELECT count(*) AS "count!" FROM email_queue WHERE template = $1"#,
             emails::WEEKLY_INSIGHTS_TEMPLATE,

@@ -1,0 +1,47 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE referrals SET revoked_at = now()\n           WHERE referred_invoice_id = $1 AND revoked_at IS NULL\n           RETURNING referred_unid, referrer_unid,\n                     referrer_credited_at IS NOT NULL AS \"referrer_credited!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "referred_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "referrals",
+            "name": "referred_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "referrer_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "referrals",
+            "name": "referrer_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "referrer_credited!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "cdaefd90317bebdfd6cfb391a558efbf75a6c686e524b6e4008ab26d36424903"
+}

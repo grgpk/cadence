@@ -123,7 +123,9 @@ pub const FAKE_UNPAID_INVOICE: &str = "in_unpaid";
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Credit {
     pub customer_id: String,
-    pub amount_cents: u32,
+    /// What the customer is owed: positive for a credit, negative for one
+    /// taken back.
+    pub amount_cents: i64,
 }
 
 #[derive(Clone)]
@@ -535,16 +537,40 @@ impl Payments {
         description: &str,
         key: &str,
     ) -> Result<(), PaymentsError> {
+        self.adjust_balance(customer_id, i64::from(amount_cents), description, key)
+            .await
+    }
+
+    /// Takes a credit back, once per `key`: the amount is added to the
+    /// customer's next bill.
+    pub async fn debit(
+        &self,
+        customer_id: &str,
+        amount_cents: u32,
+        description: &str,
+        key: &str,
+    ) -> Result<(), PaymentsError> {
+        self.adjust_balance(customer_id, -i64::from(amount_cents), description, key)
+            .await
+    }
+
+    async fn adjust_balance(
+        &self,
+        customer_id: &str,
+        owed_cents: i64,
+        description: &str,
+        key: &str,
+    ) -> Result<(), PaymentsError> {
         let (client, secret_key) = match &self.gateway {
             Gateway::Stripe { client, secret_key } => (client, secret_key),
-            Gateway::Fake(ledger) => return fake_credit(ledger, customer_id, amount_cents, key),
+            Gateway::Fake(ledger) => return fake_credit(ledger, customer_id, owed_cents, key),
         };
         let path = format!("/customers/{customer_id}/balance_transactions");
         if credited_before(client, secret_key, &path, key).await? {
             return Ok(());
         }
-        // A negative balance is what the customer is owed.
-        let amount = format!("-{amount_cents}");
+        // Stripe's balance is what the customer owes: a credit is negative.
+        let amount = (-owed_cents).to_string();
         let form = [
             ("amount", amount.as_str()),
             ("currency", CURRENCY),
@@ -559,6 +585,46 @@ impl Payments {
             .send()
             .await;
         checked(&path, sent).await.map(|_| ())
+    }
+
+    /// The invoice a payment paid. Newer Stripe API versions keep it on an
+    /// invoice payment instead of the charge.
+    pub async fn invoice_of_payment(
+        &self,
+        payment_intent: &str,
+    ) -> Result<Option<String>, PaymentsError> {
+        let Gateway::Stripe { client, secret_key } = &self.gateway else {
+            return Ok(None);
+        };
+        #[derive(Deserialize)]
+        struct InvoicePayments {
+            data: Vec<InvoicePayment>,
+        }
+        #[derive(Deserialize)]
+        struct InvoicePayment {
+            invoice: Option<String>,
+        }
+        let path = "/invoice_payments";
+        let sent = client
+            .get(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .query(&[
+                ("payment[type]", "payment_intent"),
+                ("payment[payment_intent]", payment_intent),
+            ])
+            .send()
+            .await;
+        checked(path, sent)
+            .await?
+            .json::<InvoicePayments>()
+            .await
+            .map(|payments| {
+                payments
+                    .data
+                    .into_iter()
+                    .find_map(|payment| payment.invoice)
+            })
+            .map_err(|error| PaymentsError::Request(error.into()))
     }
 
     /// The fake's credits so far; always empty against Stripe.
@@ -601,7 +667,7 @@ impl Payments {
 fn fake_credit(
     ledger: &Mutex<FakeLedger>,
     customer_id: &str,
-    amount_cents: u32,
+    amount_cents: i64,
     key: &str,
 ) -> Result<(), PaymentsError> {
     let mut ledger = ledger

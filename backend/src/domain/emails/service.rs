@@ -4,6 +4,7 @@ use serde_json::Value;
 use sqlx::{PgConnection, PgPool};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339, macros::format_description};
 use time_tz::{OffsetDateTimeExt, timezones};
+use uuid::Uuid;
 
 use super::{
     db::{self, PendingEmail},
@@ -340,11 +341,13 @@ pub async fn queue_lead_follow_up(
 /// The week's numbers for a Business host, one line each.
 pub async fn queue_weekly_insights(
     connection: &mut PgConnection,
+    host_unid: Uuid,
     email: &str,
     name: &str,
     lines: Vec<String>,
 ) -> Result<(), sqlx::Error> {
     let payload = payload_of(&InsightsEmail {
+        host_unid: Some(host_unid.to_string()),
         name: Some(name.to_owned()),
         lines: Some(lines),
         dashboard_url: Some(format!("{}{DASHBOARD_PATH}", app_url())),
@@ -574,6 +577,10 @@ struct FollowUpEmail {
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 struct InsightsEmail {
+    /// Whose week it is: the weekly email is told apart by host, not by an
+    /// address the host may change.
+    #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
+    host_unid: Option<String>,
     #[serde(deserialize_with = "lenient")]
     name: Option<String>,
     #[serde(deserialize_with = "lenient")]
@@ -1575,7 +1582,7 @@ mod tests {
         status: Option<BookingStatus>,
     ) -> PendingEmail {
         PendingEmail {
-            id: uuid::Uuid::nil(),
+            id: Uuid::nil(),
             email: "ada@example.com".to_owned(),
             template: template.to_owned(),
             payload: Some(invitee_payload("Nino")),

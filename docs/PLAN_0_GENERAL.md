@@ -122,6 +122,7 @@ cadence/
 | 35 | `PLAN_35_PAY_YEARLY.md` | monthly payers see what yearly saves and switch on Stripe's confirm screen | ✅ done |
 | 36 | `PLAN_36_REFERRALS.md` | invite links: a month of Pro as Stripe credit to both hosts once the invited one pays; Free booking pages carry the invite | ✅ done |
 | 37 | `PLAN_37_REVIEW_FIXES.md` | fixes from the branch review: existing hosts start a trial, safer referral credits, honest attendance, follow-ups once per person, billing page states, one Checkout at a time, all-or-nothing import | ✅ done |
+| 38 | `PLAN_38_PREVIEWS_AND_RETENTION.md` | personal link previews, a cancel flow that asks why and offers yearly or a free pause, refunds take back referral credits | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 
