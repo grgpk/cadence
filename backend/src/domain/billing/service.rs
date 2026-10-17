@@ -203,7 +203,9 @@ const fn is_billed(status: SubscriptionStatus) -> bool {
     )
 }
 
-/// The Stripe Checkout page for a paid plan.
+/// The Stripe Checkout page for a paid plan. One at a time: the host's
+/// pages share one Stripe customer, a customer Stripe already bills is
+/// refused, and opening a page closes the one opened before.
 pub async fn checkout(
     pool: &PgPool,
     payments_on: Option<&Payments>,
@@ -214,30 +216,73 @@ pub async fn checkout(
     if choice.plan == Plan::Free {
         return Err(AppError::BadRequest("free needs no checkout".to_owned()));
     }
+    let already = || {
+        AppError::Conflict("already subscribed: change the plan in the billing portal".to_owned())
+    };
     let account = db::stripe_account(pool, user.unid).await?;
     if account
         .as_ref()
         .is_some_and(|account| account.subscription_id.is_some() && is_billed(account.status))
     {
-        return Err(AppError::Conflict(
-            "already subscribed: change the plan in the billing portal".to_owned(),
-        ));
+        return Err(already());
+    }
+    let customer = checkout_customer(pool, payments, user, account.as_ref()).await?;
+    if let Some(customer) = &customer
+        && payments
+            .bills_customer(customer)
+            .await
+            .map_err(payments_failed)?
+    {
+        return Err(already());
+    }
+    if let Some(previous) = account
+        .as_ref()
+        .and_then(|account| account.checkout_session_id.as_deref())
+    {
+        payments
+            .expire_session(previous)
+            .await
+            .map_err(payments_failed)?;
     }
     let site = app_url();
-    payments
-        .checkout_url(&CheckoutRequest {
+    let session = payments
+        .checkout_session(&CheckoutRequest {
             user_unid: user.unid,
             email: &user.email,
-            customer_id: account
-                .as_ref()
-                .and_then(|account| account.customer_id.as_deref()),
+            customer_id: customer.as_deref(),
             plan: choice.plan,
             interval: choice.interval,
             success_url: &format!("{site}{BILLING_PATH}?checkout=done"),
             cancel_url: &format!("{site}{PRICING_PATH}"),
         })
         .await
-        .map_err(payments_failed)
+        .map_err(payments_failed)?;
+    db::set_checkout_session(pool, user.unid, &session.id).await?;
+    Ok(session.url)
+}
+
+/// The host's Stripe customer, made now when they have a plan row but no
+/// customer yet. `None` for an account without a row: Stripe makes the
+/// customer from the email then.
+async fn checkout_customer(
+    pool: &PgPool,
+    payments: &Payments,
+    user: &UserRecord,
+    account: Option<&db::StripeAccount>,
+) -> AppResult<Option<String>> {
+    let Some(account) = account else {
+        return Ok(None);
+    };
+    if let Some(customer) = &account.customer_id {
+        return Ok(Some(customer.clone()));
+    }
+    let made = payments
+        .create_customer(&user.email, user.unid)
+        .await
+        .map_err(payments_failed)?;
+    Ok(db::set_customer(pool, user.unid, &made)
+        .await?
+        .or(Some(made)))
 }
 
 /// The Stripe Customer Portal, for a host who has paid before.

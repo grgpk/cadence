@@ -99,6 +99,18 @@ struct FakeLedger {
     /// Subscriptions as "Stripe" has them now, by id. One not here is read
     /// from the event, as before.
     subscriptions: std::collections::HashMap<String, serde_json::Value>,
+    /// Customers a test says Stripe already bills.
+    billed: Vec<String>,
+    sessions: usize,
+    expired: Vec<String>,
+}
+
+/// A Checkout page: its id, to close it if another is opened, and where
+/// to send the browser.
+#[derive(Debug, Deserialize)]
+pub struct CheckoutSession {
+    pub id: String,
+    pub url: String,
 }
 
 /// The fake's invoices are paid unless their id says otherwise, as one
@@ -175,10 +187,10 @@ impl Payments {
 
     /// A Checkout Session for a subscription to one price. Without a known
     /// customer, Stripe makes one from the email when the host pays.
-    pub async fn checkout_url(
+    pub async fn checkout_session(
         &self,
         request: &CheckoutRequest<'_>,
-    ) -> Result<String, PaymentsError> {
+    ) -> Result<CheckoutSession, PaymentsError> {
         let price = self
             .prices
             .id(request.plan, request.interval)
@@ -201,9 +213,146 @@ impl Payments {
         }
         match &self.gateway {
             Gateway::Stripe { client, secret_key } => {
-                post(client, secret_key, "/checkout/sessions", &form).await
+                let sent = client
+                    .post(format!("{API}/checkout/sessions"))
+                    .bearer_auth(secret_key.as_ref())
+                    .form(&form)
+                    .send()
+                    .await;
+                checked("/checkout/sessions", sent)
+                    .await?
+                    .json::<CheckoutSession>()
+                    .await
+                    .map_err(|error| PaymentsError::Request(error.into()))
             }
-            Gateway::Fake(_) => Ok(format!("https://checkout.stripe.test/{user}/{price}")),
+            Gateway::Fake(ledger) => {
+                let number = ledger.lock().map_or(0, |mut ledger| {
+                    ledger.sessions += 1;
+                    ledger.sessions
+                });
+                Ok(CheckoutSession {
+                    id: format!("cs_test_{number}"),
+                    url: format!("https://checkout.stripe.test/{user}/{price}"),
+                })
+            }
+        }
+    }
+
+    /// Makes the Stripe customer a host's Checkout pages share, so two of
+    /// them cannot become two customers.
+    pub async fn create_customer(
+        &self,
+        email: &str,
+        user_unid: Uuid,
+    ) -> Result<String, PaymentsError> {
+        let user = user_unid.to_string();
+        let Gateway::Stripe { client, secret_key } = &self.gateway else {
+            return Ok(format!("cus_{user}"));
+        };
+        #[derive(Deserialize)]
+        struct Customer {
+            id: String,
+        }
+        let form = [("email", email), ("metadata[user_unid]", user.as_str())];
+        let sent = client
+            .post(format!("{API}/customers"))
+            .bearer_auth(secret_key.as_ref())
+            .form(&form)
+            .send()
+            .await;
+        checked("/customers", sent)
+            .await?
+            .json::<Customer>()
+            .await
+            .map(|customer| customer.id)
+            .map_err(|error| PaymentsError::Request(error.into()))
+    }
+
+    /// Whether Stripe already bills this customer, or is about to: its own
+    /// answer, which can be ahead of the webhook that tells this app.
+    pub async fn bills_customer(&self, customer_id: &str) -> Result<bool, PaymentsError> {
+        let (client, secret_key) = match &self.gateway {
+            Gateway::Stripe { client, secret_key } => (client, secret_key),
+            Gateway::Fake(ledger) => {
+                return Ok(ledger
+                    .lock()
+                    .is_ok_and(|ledger| ledger.billed.iter().any(|billed| billed == customer_id)));
+            }
+        };
+        #[derive(Deserialize)]
+        struct Subscriptions {
+            data: Vec<Status>,
+        }
+        #[derive(Deserialize)]
+        struct Status {
+            status: String,
+        }
+        let path = "/subscriptions";
+        let sent = client
+            .get(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .query(&[
+                ("customer", customer_id),
+                ("status", "all"),
+                ("limit", "10"),
+            ])
+            .send()
+            .await;
+        let subscriptions = checked(path, sent)
+            .await?
+            .json::<Subscriptions>()
+            .await
+            .map_err(|error| PaymentsError::Request(error.into()))?;
+        Ok(subscriptions.data.iter().any(|subscription| {
+            matches!(
+                subscription.status.as_str(),
+                "active" | "trialing" | "past_due" | "incomplete"
+            )
+        }))
+    }
+
+    /// Closes a Checkout page opened before, so only the newest can be paid.
+    /// One already paid or expired is answered with a 4xx, which is fine.
+    pub async fn expire_session(&self, session_id: &str) -> Result<(), PaymentsError> {
+        let (client, secret_key) = match &self.gateway {
+            Gateway::Stripe { client, secret_key } => (client, secret_key),
+            Gateway::Fake(ledger) => {
+                if let Ok(mut ledger) = ledger.lock() {
+                    ledger.expired.push(session_id.to_owned());
+                }
+                return Ok(());
+            }
+        };
+        let path = format!("/checkout/sessions/{session_id}/expire");
+        let response = client
+            .post(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .send()
+            .await
+            .map_err(|error| PaymentsError::Request(error.into()))?;
+        if response.status().is_client_error() {
+            return Ok(());
+        }
+        checked(&path, Ok(response)).await.map(|_| ())
+    }
+
+    /// For tests: Stripe bills this customer from now on.
+    pub fn fake_billed(&self, customer_id: &str) {
+        if let Gateway::Fake(ledger) = &self.gateway
+            && let Ok(mut ledger) = ledger.lock()
+        {
+            ledger.billed.push(customer_id.to_owned());
+        }
+    }
+
+    /// For tests: the Checkout pages the fake was asked to close.
+    pub fn expired_sessions(&self) -> Vec<String> {
+        match &self.gateway {
+            Gateway::Fake(ledger) => ledger
+                .lock()
+                .map(|ledger| ledger.expired.clone())
+                .unwrap_or_default(),
+            Gateway::Stripe { .. } => Vec::new(),
         }
     }
 

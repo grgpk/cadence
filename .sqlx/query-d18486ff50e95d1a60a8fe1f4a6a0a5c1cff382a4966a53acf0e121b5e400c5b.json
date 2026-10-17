@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions SET stripe_customer_id = COALESCE(stripe_customer_id, $2),\n                                  updated_at = now()\n         WHERE user_unid = $1 RETURNING stripe_customer_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "stripe_customer_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "stripe_customer_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "d18486ff50e95d1a60a8fe1f4a6a0a5c1cff382a4966a53acf0e121b5e400c5b"
+}

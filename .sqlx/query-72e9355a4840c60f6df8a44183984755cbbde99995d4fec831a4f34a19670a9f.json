@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT plan AS \"plan: Plan\", status AS \"status: SubscriptionStatus\",\n                  billing_interval AS \"billing_interval: BillingInterval\",\n                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id\n           FROM subscriptions WHERE user_unid = $1",
+  "query": "SELECT plan AS \"plan: Plan\", status AS \"status: SubscriptionStatus\",\n                  billing_interval AS \"billing_interval: BillingInterval\",\n                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id,\n                  stripe_checkout_session_id AS checkout_session_id\n           FROM subscriptions WHERE user_unid = $1",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,17 @@
             "name": "stripe_subscription_id"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "checkout_session_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "stripe_checkout_session_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -69,8 +80,9 @@
       false,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "aef03ff16c7cf088585675e7faf0b702032e1f17bd52608ad5cfabfbd40597fd"
+  "hash": "72e9355a4840c60f6df8a44183984755cbbde99995d4fec831a4f34a19670a9f"
 }

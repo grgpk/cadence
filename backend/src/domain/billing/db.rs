@@ -83,6 +83,7 @@ pub struct StripeAccount {
     pub billing_interval: Option<BillingInterval>,
     pub customer_id: Option<String>,
     pub subscription_id: Option<String>,
+    pub checkout_session_id: Option<String>,
 }
 
 pub async fn stripe_account(
@@ -93,12 +94,48 @@ pub async fn stripe_account(
         StripeAccount,
         r#"SELECT plan AS "plan: Plan", status AS "status: SubscriptionStatus",
                   billing_interval AS "billing_interval: BillingInterval",
-                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id
+                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id,
+                  stripe_checkout_session_id AS checkout_session_id
            FROM subscriptions WHERE user_unid = $1"#,
         user_unid,
     )
     .fetch_optional(pool)
     .await
+}
+
+/// Keeps the Stripe customer made before Checkout, unless another request
+/// stored one first; answers the one stored.
+pub async fn set_customer(
+    pool: &PgPool,
+    user_unid: Uuid,
+    customer_id: &str,
+) -> Result<Option<String>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET stripe_customer_id = COALESCE(stripe_customer_id, $2),
+                                  updated_at = now()
+         WHERE user_unid = $1 RETURNING stripe_customer_id",
+        user_unid,
+        customer_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(Option::flatten)
+}
+
+pub async fn set_checkout_session(
+    pool: &PgPool,
+    user_unid: Uuid,
+    session_id: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET stripe_checkout_session_id = $2, updated_at = now()
+         WHERE user_unid = $1 RETURNING 1",
+        user_unid,
+        session_id,
+    )
+    .fetch_optional(pool)
+    .await
+    .map(|_| ())
 }
 
 /// Records a Stripe event as seen. `false` when it was seen before.

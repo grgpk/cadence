@@ -249,6 +249,59 @@ async fn checkout_sends_the_host_to_stripe_for_a_paid_plan(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_second_checkout_closes_the_first_and_shares_its_customer(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    let body = json!({ "plan": "pro", "interval": "month" });
+
+    let (first, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(body.clone()),
+    )
+    .await;
+    let (second, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(body)).await;
+
+    assert_eq!((first, second), (StatusCode::OK, StatusCode::OK));
+    assert_eq!(payments.expired_sessions(), vec!["cs_test_1".to_owned()]);
+    let customer = sqlx::query_scalar!(
+        "SELECT stripe_customer_id FROM subscriptions WHERE user_unid = $1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the plan row");
+    assert_eq!(customer, Some(format!("cus_{unid}")));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn checkout_is_refused_when_stripe_already_bills_the_host(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    let body = json!({ "plan": "pro", "interval": "month" });
+    send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(body.clone()),
+    )
+    .await;
+
+    // The first tab was paid; its webhook has not arrived, so the row still
+    // says trialing.
+    payments.fake_billed(&format!("cus_{unid}"));
+    let (status, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(body)).await;
+
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(summary(&app, &cookie).await["status"], "trialing");
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn without_stripe_keys_checkout_is_unavailable(pool: PgPool) {
     let app = app_with(&pool, None);
     let (_, cookie) = register(&app, "ada@example.com").await;
