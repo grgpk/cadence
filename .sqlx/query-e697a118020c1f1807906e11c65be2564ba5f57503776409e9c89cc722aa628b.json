@@ -1,0 +1,126 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.unid, d.event AS \"event: WebhookEvent\", d.attempts, d.created_at,\n                  d.next_attempt_at, d.delivered_at, d.failed_at, d.last_status, d.last_error\n           FROM webhook_deliveries d JOIN webhook_endpoints e ON e.unid = d.endpoint_unid\n           WHERE e.host_unid = $1 AND e.unid = $2\n           ORDER BY d.created_at DESC LIMIT $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "event: WebhookEvent",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "event"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "next_attempt_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "next_attempt_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "delivered_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "delivered_at"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "failed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "failed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "last_status",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "last_status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "last_error",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "last_error"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "e697a118020c1f1807906e11c65be2564ba5f57503776409e9c89cc722aa628b"
+}

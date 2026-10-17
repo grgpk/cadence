@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM email_queue\n         WHERE email = $1 AND template = $2 AND booking_unid IS NULL AND sent_at IS NULL\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "8e401775100076c8ded6ce01c5ce45cc8eeccf5a5c44ed146e077840321c504f"
+}

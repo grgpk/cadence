@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO event_types (host_unid, slug)\n         SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM event_types WHERE host_unid = $1)\n         ON CONFLICT DO NOTHING\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "e48481bf057d4da7bdeda6bd87f3ae4a7699a37d348e80b62d4e26ea55117acc"
+}

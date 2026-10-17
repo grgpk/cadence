@@ -1,0 +1,98 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT d.unid, d.event AS \"event: WebhookEvent\", d.payload, d.attempts, d.created_at,\n                  e.url, e.secret\n           FROM webhook_deliveries d JOIN webhook_endpoints e ON e.unid = d.endpoint_unid\n           WHERE d.delivered_at IS NULL AND d.failed_at IS NULL AND d.next_attempt_at <= now()\n           ORDER BY d.next_attempt_at\n           LIMIT 1\n           FOR UPDATE OF d SKIP LOCKED",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "event: WebhookEvent",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "event"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "payload",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "attempts",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "webhook_deliveries",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhook_endpoints",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "secret",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "webhook_endpoints",
+            "name": "secret"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "b30e0be516ea0b222a6ed7d20d08dc4194b9aecc2553331ac4739180317b774b"
+}

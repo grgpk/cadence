@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions SET trial_ends_at = now() - interval '1 minute'\n         WHERE user_unid = $1 RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a18cffb1f3bd5beb068f2da5c63b3623ad2fbc117ebfb83f40aae550d6d01fe8"
+}

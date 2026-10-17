@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM subscriptions\n         WHERE user_unid = $1 AND status = 'comped' AND stripe_customer_id IS NULL\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1958f7dafeec6fc9206470dbf8b4f079952faf44a5a37c8eacb451e2c6768133"
+}

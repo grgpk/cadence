@@ -1,0 +1,122 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.unid AS user_unid, u.full_name, u.email,\n                  s.plan AS \"plan?: Plan\", s.status AS \"status?: SubscriptionStatus\",\n                  s.billing_interval AS \"billing_interval?: BillingInterval\",\n                  s.trial_ends_at AS \"trial_ends_at?\", s.current_period_end AS \"current_period_end?\",\n                  s.cancel_at_period_end AS \"cancel_at_period_end?\"\n           FROM users u LEFT JOIN subscriptions s ON s.user_unid = u.unid\n           WHERE EXISTS(SELECT 1 FROM roleaccesses r WHERE r.grantedto_unid = u.unid AND r.role = 'Host')\n              OR EXISTS(SELECT 1 FROM widget_settings w WHERE w.host_unid = u.unid)\n           ORDER BY u.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "full_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "plan?: Plan",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "plan"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "status?: SubscriptionStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "billing_interval?: BillingInterval",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "billing_interval"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "trial_ends_at?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "trial_ends_at"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "current_period_end?",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "current_period_end"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "cancel_at_period_end?",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "cancel_at_period_end"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "054e2baaefdc720014a239e0234df3af07fe8fb09623ae30df3c83f74954487a"
+}

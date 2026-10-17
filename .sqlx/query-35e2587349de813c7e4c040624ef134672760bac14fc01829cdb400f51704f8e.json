@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE subscriptions SET status = 'canceled', updated_at = now()\n         WHERE user_unid = $1 AND status = 'comped' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "35e2587349de813c7e4c040624ef134672760bac14fc01829cdb400f51704f8e"
+}

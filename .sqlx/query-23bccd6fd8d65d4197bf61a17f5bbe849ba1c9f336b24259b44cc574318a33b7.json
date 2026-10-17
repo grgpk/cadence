@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT template || ' sent=' || (sent_at IS NOT NULL)::text AS \"row!\"\n           FROM email_queue\n           -- Every new host also has a trial notice waiting.\n           WHERE template <> 'trial_ending' ORDER BY template",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "row!",
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "23bccd6fd8d65d4197bf61a17f5bbe849ba1c9f336b24259b44cc574318a33b7"
+}

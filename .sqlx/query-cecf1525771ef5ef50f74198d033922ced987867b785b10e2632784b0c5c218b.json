@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT email FROM email_queue ORDER BY email",
+  "query": "SELECT email FROM email_queue WHERE template <> 'trial_ending' ORDER BY email",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "451e0dffa199b783ab371056d01586824b354f35d7aded39365aac6f2804eb2f"
+  "hash": "cecf1525771ef5ef50f74198d033922ced987867b785b10e2632784b0c5c218b"
 }

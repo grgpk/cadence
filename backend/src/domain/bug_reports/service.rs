@@ -3,9 +3,9 @@
 // behind the internal ops dashboard, out of scope for app_v2_backend (see
 // PLAN_SWITCH_TO_TS_FRONTEND.md `/dashboard` exclusion).
 
-use std::hash::{DefaultHasher, Hash, Hasher};
-
 use chrono::{DateTime, Utc};
+use hmac::{Hmac, KeyInit, Mac};
+use sha2::Sha256;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -66,15 +66,34 @@ impl NewBugReport {
         truncated
     }
 
+    /// Groups reports of the same bug. The hash is keyed with a server
+    /// secret, so a reporter cannot craft a report that lands in the group of
+    /// a real one and hides it.
     fn similarity_hash(&self) -> i32 {
+        let key = std::env::var("JWT_SECRET").unwrap_or_default();
+        let Ok(mut mac) =
+            Hmac::<Sha256>::new_from_slice(format!("bug-report-similarity:{key}").as_bytes())
+        else {
+            return 0;
+        };
         let exception_message = self.exception_message();
-        let mut hasher = DefaultHasher::new();
-        Some(&exception_message).hash(&mut hasher);
-        self.message.hash(&mut hasher);
-        self.stack_trace.hash(&mut hasher);
-        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-        let hash = hasher.finish() as i32; // intentional wrapping — distributes across full i32 range
-        hash
+        let fields = [
+            Some(self.bug_type.as_str()),
+            Some(exception_message.as_str()),
+            Some(self.message.as_str()),
+            self.stack_trace.as_deref(),
+        ];
+        for field in fields {
+            // Length-prefixed, so field boundaries cannot be shifted.
+            let bytes = field.map_or(&[][..], str::as_bytes);
+            mac.update(&[u8::from(field.is_some())]);
+            mac.update(&(bytes.len() as u64).to_be_bytes());
+            mac.update(bytes);
+        }
+        let digest = mac.finalize().into_bytes();
+        let mut head = [0; 4];
+        head.copy_from_slice(digest.get(..4).unwrap_or(&[0; 4]));
+        i32::from_be_bytes(head)
     }
 }
 

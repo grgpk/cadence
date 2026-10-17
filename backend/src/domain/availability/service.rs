@@ -15,6 +15,9 @@ use crate::error::{AppError, AppResult};
 pub const SLOT_MINUTES_MIN: i32 = 5;
 /// The longest call a rule can open.
 pub const SLOT_MINUTES_MAX: i32 = 240;
+/// The most weekly rules a host can have. Every public slots request expands
+/// all of them, so their number bounds that work.
+const RULES_MAX: i64 = 50;
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<AvailabilityRule>> {
     db::list(pool, host_unid).await.map_err(Into::into)
@@ -26,9 +29,13 @@ pub async fn create(
     input: AvailabilityRuleInput,
 ) -> AppResult<AvailabilityRule> {
     validate(&input)?;
-    db::create(pool, host_unid, &input)
-        .await
-        .map_err(Into::into)
+    db::create(pool, host_unid, &input, RULES_MAX)
+        .await?
+        .ok_or_else(|| {
+            AppError::BadRequest(format!(
+                "a host can have at most {RULES_MAX} availability rules"
+            ))
+        })
 }
 
 pub async fn update(

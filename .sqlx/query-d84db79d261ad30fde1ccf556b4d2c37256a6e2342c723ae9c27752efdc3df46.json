@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT status AS \"status: SubscriptionStatus\",\n                  stripe_customer_id AS customer_id, stripe_subscription_id AS subscription_id\n           FROM subscriptions WHERE user_unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "status: SubscriptionStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "customer_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "stripe_customer_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "subscription_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "stripe_subscription_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "d84db79d261ad30fde1ccf556b4d2c37256a6e2342c723ae9c27752efdc3df46"
+}

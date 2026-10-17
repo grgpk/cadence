@@ -1,5 +1,5 @@
 use anyhow::Context;
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -13,6 +13,19 @@ use crate::domain::google_calendar::models::{
 /// How long a host has to come back from Google's consent screen.
 const OAUTH_STATE_MINUTES: i64 = 10;
 const OAUTH_STATE_REFUSED: &str = "this Google sign-in has expired, connect Google Calendar again";
+
+/// Google access tokens last an hour; a longer claimed life is cut to a day.
+const TOKEN_LIFE_MAX_SECONDS: u64 = 86_400;
+
+/// When a token Google says lasts `expires_in` seconds runs out. An absurd
+/// value is clamped rather than overflowing the date arithmetic.
+fn token_expiry(now: DateTime<Utc>, expires_in: u64) -> anyhow::Result<DateTime<Utc>> {
+    i64::try_from(expires_in.min(TOKEN_LIFE_MAX_SECONDS))
+        .ok()
+        .and_then(Duration::try_seconds)
+        .and_then(|life| now.checked_add_signed(life))
+        .ok_or_else(|| anyhow::anyhow!("invalid Google token expiry"))
+}
 
 pub fn google_oauth_config() -> Result<(String, String), anyhow::Error> {
     Ok((
@@ -116,11 +129,7 @@ pub async fn google_calendar_login(
     let refresh_token = token_data
         .refresh_token
         .ok_or_else(|| anyhow::anyhow!("no refresh token received, reconnect Google Calendar"))?;
-    let expires_at = Utc::now()
-        + Duration::seconds(
-            i64::try_from(token_data.expires_in)
-                .map_err(|_| anyhow::anyhow!("invalid Google token expiry"))?,
-        );
+    let expires_at = token_expiry(Utc::now(), token_data.expires_in)?;
 
     GoogleCalendarDb::save(
         pool,
@@ -179,11 +188,7 @@ pub async fn access_token(pool: &PgPool, host_unid: Uuid) -> Result<Option<Strin
     }
 
     let refresh: RefreshResponse = response.json().await?;
-    let expires_at = Utc::now()
-        + Duration::seconds(
-            i64::try_from(refresh.expires_in)
-                .map_err(|_| anyhow::anyhow!("invalid Google token expiry"))?,
-        );
+    let expires_at = token_expiry(Utc::now(), refresh.expires_in)?;
     GoogleCalendarDb::update_access_token(pool, host_unid, &refresh.access_token, expires_at)
         .await?;
     Ok(Some(refresh.access_token))
@@ -200,4 +205,24 @@ pub async fn get_calendar_events(
         .get_upcoming_events(7)
         .await
         .map_err(anyhow::Error::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::TimeZone;
+
+    use super::*;
+
+    #[test]
+    fn token_expiry_is_clamped_instead_of_overflowing() {
+        let now = Utc.timestamp_opt(1_700_000_000, 0).single().unwrap();
+        assert_eq!(
+            token_expiry(now, 3_599).unwrap(),
+            now + Duration::seconds(3_599)
+        );
+        assert_eq!(
+            token_expiry(now, u64::MAX).unwrap(),
+            now + Duration::seconds(86_400)
+        );
+    }
 }

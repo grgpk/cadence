@@ -10,7 +10,10 @@ use sha2::Sha256;
 use thiserror::Error;
 
 /// How old a signed request may be, against replays.
-const TOLERANCE_SECONDS: i64 = 300;
+const TOLERANCE_SECONDS: u64 = 300;
+/// The most `v1` values a header may carry. Stripe sends one, or a few while
+/// a secret is being rolled.
+const SIGNATURES_MAX: usize = 8;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 #[error("the signature does not match")]
@@ -50,15 +53,15 @@ pub fn verify(
         }
     }
     let timestamp = timestamp.ok_or(BadSignature)?;
-    if (now.timestamp() - timestamp).abs() > TOLERANCE_SECONDS {
+    // `abs_diff` cannot overflow, whatever timestamp the header claims.
+    if signatures.len() > SIGNATURES_MAX || now.timestamp().abs_diff(timestamp) > TOLERANCE_SECONDS
+    {
         return Err(BadSignature);
     }
+    // The body is hashed once; each candidate is compared to that.
+    let mac = mac(secret, timestamp, payload).ok_or(BadSignature)?;
     let matches = |signature: &&str| {
-        let (Ok(expected), Some(mac)) = (hex::decode(signature), mac(secret, timestamp, payload))
-        else {
-            return false;
-        };
-        mac.verify_slice(&expected).is_ok()
+        hex::decode(signature).is_ok_and(|expected| mac.clone().verify_slice(&expected).is_ok())
     };
     if signatures.iter().any(matches) {
         Ok(())
@@ -112,5 +115,17 @@ mod tests {
             verify("whsec_other", PAYLOAD, &header, now),
             Err(BadSignature)
         );
+    }
+
+    #[test]
+    fn too_many_signatures_or_an_extreme_timestamp_is_refused() {
+        let now = at(1_700_000_000);
+        let padding = "v1=00,".repeat(SIGNATURES_MAX);
+        let header = format!("t=1700000000,{padding}v1={SIGNATURE}");
+        assert_eq!(verify(SECRET, PAYLOAD, &header, now), Err(BadSignature));
+        for timestamp in [i64::MIN, i64::MAX] {
+            let header = format!("t={timestamp},v1={SIGNATURE}");
+            assert_eq!(verify(SECRET, PAYLOAD, &header, now), Err(BadSignature));
+        }
     }
 }

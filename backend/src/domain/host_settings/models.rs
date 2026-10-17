@@ -60,7 +60,7 @@ pub struct HostSettings {
 
 /// What a visitor's browser may know about a booking page.
 #[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/BookingPage.ts")]
 pub struct BookingPage {
     #[serde(skip)]

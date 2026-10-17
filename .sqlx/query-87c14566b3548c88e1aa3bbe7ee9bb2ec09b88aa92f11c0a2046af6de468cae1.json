@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT plan AS \"plan: Plan\", status AS \"status: SubscriptionStatus\",\n                  billing_interval AS \"billing_interval: BillingInterval\",\n                  trial_ends_at, current_period_end, cancel_at_period_end\n           FROM subscriptions WHERE user_unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "plan: Plan",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "plan"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "status: SubscriptionStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "billing_interval: BillingInterval",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "billing_interval"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "trial_ends_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "trial_ends_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "current_period_end",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "current_period_end"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "cancel_at_period_end",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "cancel_at_period_end"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "87c14566b3548c88e1aa3bbe7ee9bb2ec09b88aa92f11c0a2046af6de468cae1"
+}

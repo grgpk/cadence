@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_unid FROM subscriptions WHERE stripe_customer_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "subscriptions",
+            "name": "user_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "a9ca7cf4abc41fc4844c8313b23dc58c450707eb9ec6f4eea06095ccafd05085"
+}

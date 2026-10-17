@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -94,6 +94,39 @@ pub async fn create(
     };
     transaction.commit().await?;
 
+    // The call is booked from here on. The calendar event, emails and
+    // webhook run in their own task, so a visitor who drops the request
+    // mid-way still leaves a call everyone hears about.
+    let booking = tokio::spawn(announce_booking(
+        pool.clone(),
+        calendar.clone(),
+        page.clone(),
+        booking,
+        request.invitee_name,
+        request.invitee_email,
+        now,
+    ))
+    .await
+    .map_err(|error| AppError::Internal(anyhow::anyhow!(error)))??;
+    let manage_token = booking.manage_token.clone();
+    Ok(CreatedBooking {
+        booking,
+        manage_token,
+    })
+}
+
+/// Everything a new booking sets off once it is written: the calendar event,
+/// the invitee's and host's emails, the webhook and the plan-limit notice.
+async fn announce_booking(
+    pool: PgPool,
+    calendar: HostCalendar,
+    page: BookingPage,
+    booking: Booking,
+    invitee_name: String,
+    invitee_email: String,
+    now: DateTime<Utc>,
+) -> AppResult<Booking> {
+    let host_unid = page.host_unid;
     // A booking without a calendar event is still a booking.
     let event = calendar
         .create_event(
@@ -101,9 +134,9 @@ pub async fn create(
             NewEvent {
                 start: booking.slot_start,
                 minutes: booking.minutes,
-                title: &format!("{} with {}", page.title, request.invitee_name),
-                invitee_name: &request.invitee_name,
-                invitee_email: &request.invitee_email,
+                title: &format!("{} with {invitee_name}", page.title),
+                invitee_name: &invitee_name,
+                invitee_email: &invitee_email,
                 with_meet: page.conferencing_app == ConferencingApp::GoogleMeet,
             },
         )
@@ -126,11 +159,11 @@ pub async fn create(
         }
         None => booking,
     };
-    let entitlements = billing::entitlements_for(pool, host_unid, now).await?;
+    let entitlements = billing::entitlements_for(&pool, host_unid, now).await?;
     emails::booked(
         &mut transaction,
         &booking,
-        page,
+        &page,
         entitlements.reminders,
         now,
     )
@@ -140,24 +173,20 @@ pub async fn create(
             &mut transaction,
             WebhookEvent::BookingCreated,
             &booking,
-            page,
+            &page,
         )
         .await?;
     }
     transaction.commit().await?;
     billing::notice_if_full(
-        pool,
+        &pool,
         host_unid,
         &entitlements,
         &page.host_email,
         &page.host_name,
     )
     .await?;
-    let manage_token = booking.manage_token.clone();
-    Ok(CreatedBooking {
-        booking,
-        manage_token,
-    })
+    Ok(booking)
 }
 
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Booking>> {

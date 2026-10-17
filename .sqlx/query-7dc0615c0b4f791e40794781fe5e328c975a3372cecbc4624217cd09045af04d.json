@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO subscriptions (user_unid, plan, status, billing_interval, current_period_end,\n                                    cancel_at_period_end, stripe_customer_id, stripe_subscription_id,\n                                    stripe_synced_at)\n         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n         ON CONFLICT (user_unid) DO UPDATE SET\n             plan = EXCLUDED.plan, status = EXCLUDED.status,\n             billing_interval = EXCLUDED.billing_interval,\n             current_period_end = EXCLUDED.current_period_end,\n             cancel_at_period_end = EXCLUDED.cancel_at_period_end,\n             stripe_customer_id = EXCLUDED.stripe_customer_id,\n             stripe_subscription_id = EXCLUDED.stripe_subscription_id,\n             stripe_synced_at = EXCLUDED.stripe_synced_at,\n             updated_at = now()\n         WHERE (subscriptions.stripe_synced_at IS NULL\n                OR subscriptions.stripe_synced_at <= EXCLUDED.stripe_synced_at)\n           AND (EXCLUDED.status <> 'canceled'\n                OR subscriptions.stripe_subscription_id IS NULL\n                OR subscriptions.stripe_subscription_id = EXCLUDED.stripe_subscription_id)\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Bool",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7dc0615c0b4f791e40794781fe5e328c975a3372cecbc4624217cd09045af04d"
+}

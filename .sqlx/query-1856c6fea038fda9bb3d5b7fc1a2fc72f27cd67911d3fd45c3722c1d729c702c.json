@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO webhook_deliveries (endpoint_unid, event, payload)\n         SELECT unid, $2, $3 FROM webhook_endpoints WHERE host_unid = $1 AND is_active\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1856c6fea038fda9bb3d5b7fc1a2fc72f27cd67911d3fd45c3722c1d729c702c"
+}

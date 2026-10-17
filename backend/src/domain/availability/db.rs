@@ -14,22 +14,27 @@ pub async fn list(pool: &PgPool, host_unid: Uuid) -> Result<Vec<AvailabilityRule
     .await
 }
 
+/// Returns `None` when the host already has `rules_max` rules.
 pub async fn create(
     pool: &PgPool,
     host_unid: Uuid,
     input: &AvailabilityRuleInput,
-) -> Result<AvailabilityRule, sqlx::Error> {
+    rules_max: i64,
+) -> Result<Option<AvailabilityRule>, sqlx::Error> {
     sqlx::query_as!(
         AvailabilityRule,
-        "INSERT INTO availability (host_unid, weekday, start_time, end_time, slot_minutes) VALUES ($1, $2, $3, $4, $5)
+        "INSERT INTO availability (host_unid, weekday, start_time, end_time, slot_minutes)
+         SELECT $1, $2, $3, $4, $5
+         WHERE (SELECT COUNT(*) FROM availability WHERE host_unid = $1) < $6
          RETURNING id, host_unid, weekday, start_time, end_time, slot_minutes",
         host_unid,
         input.weekday,
         input.start_time,
         input.end_time,
         input.slot_minutes,
+        rules_max,
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
 }
 

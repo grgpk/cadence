@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO subscriptions (user_unid, plan, status) VALUES ($1, $2, $3)\n         ON CONFLICT (user_unid) DO UPDATE SET\n             plan = EXCLUDED.plan, status = EXCLUDED.status, billing_interval = NULL,\n             current_period_end = NULL, cancel_at_period_end = false, updated_at = now()\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "cdfe1a8bb1d010d782ebb68545dbfaa851641eede8b2872d50429929eee668af"
+}
