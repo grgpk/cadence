@@ -123,7 +123,7 @@ export function SoonList({ apps }: { apps: AppEntry[] }) {
   if (apps.length === 0) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-      <span>Coming soon</span>
+      <span className="w-full sm:w-auto">Coming soon</span>
       <ul className="contents">
         {apps.map((app) => {
           const Icon = app.icon;
@@ -155,7 +155,7 @@ export function CategoryFilter({
 }) {
   const options = [undefined, ...Object.values(APP_CATEGORY)];
   return (
-    <fieldset className="flex flex-wrap gap-2">
+    <fieldset className="-mx-4 flex min-w-0 gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
       <legend className="sr-only">Categories</legend>
       {options.map((category) => {
         const info = category ? CATEGORY_INFO[category] : null;
@@ -169,7 +169,7 @@ export function CategoryFilter({
             variant={active ? "default" : "outline"}
             aria-pressed={active}
             onClick={() => onSelect(category)}
-            className="rounded-full"
+            className="shrink-0 rounded-full"
           >
             <Icon />
             {info?.name ?? "All apps"}

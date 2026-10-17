@@ -61,29 +61,31 @@ function CategoryShelf({
   return (
     <section
       aria-labelledby={`shelf-${category}`}
-      className="grid gap-4 border-t pt-6 md:grid-cols-[14rem_1fr] md:gap-8"
+      className="grid gap-5 border-t pt-6 lg:grid-cols-[13rem_1fr] lg:gap-8"
     >
-      <div className="grid content-start gap-2">
-        <span className="grid size-9 place-items-center rounded-lg border bg-card text-muted-foreground shadow-xs">
+      <div className="flex items-start gap-3 lg:grid lg:content-start lg:gap-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg border bg-card text-muted-foreground shadow-xs">
           <Icon className="size-5" />
         </span>
-        <h2
-          id={`shelf-${category}`}
-          className="font-display font-wide text-xl font-semibold tracking-tight"
-        >
-          {info.name}
-        </h2>
-        <p className="text-sm text-muted-foreground">{info.description}</p>
-        <p className="flex items-center gap-2 text-sm">
-          <span
-            aria-hidden="true"
-            className={cn(
-              "size-2 rounded-full",
-              inUse > 0 ? "bg-success" : "border border-muted-foreground/50",
-            )}
-          />
-          {inUse > 0 ? `${inUse} in use` : "Nothing set up yet"}
-        </p>
+        <div className="grid min-w-0 gap-1">
+          <h2
+            id={`shelf-${category}`}
+            className="font-display font-wide text-xl font-semibold tracking-tight"
+          >
+            {info.name}
+          </h2>
+          <p className="text-sm text-muted-foreground">{info.description}</p>
+          <p className="mt-1 flex items-center gap-2 text-sm">
+            <span
+              aria-hidden="true"
+              className={cn(
+                "size-2 rounded-full",
+                inUse > 0 ? "bg-success" : "border border-muted-foreground/50",
+              )}
+            />
+            {inUse > 0 ? `${inUse} in use` : "Nothing set up yet"}
+          </p>
+        </div>
       </div>
       <div className="grid content-start gap-4">
         {ready.length > 0 ? (
