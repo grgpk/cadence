@@ -278,6 +278,13 @@ const UNCONFIRMED_NOTICE: Duration = Duration::hours(2);
 
 /// The host's heads-up for a call nobody has confirmed. The worker drops it
 /// if the invitee confirms first.
+/// Only the day-before reminder asks the invitee to confirm. A call booked
+/// or moved to less than a day ahead was never asked, so its host is not
+/// told the invitee "has not confirmed".
+fn asked_to_confirm(slot_start: DateTime<Utc>, now: DateTime<Utc>) -> bool {
+    slot_start - Duration::hours(24) >= now
+}
+
 async fn queue_unconfirmed(
     connection: &mut PgConnection,
     booking: &Booking,
@@ -286,7 +293,7 @@ async fn queue_unconfirmed(
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     let send_at = booking.slot_start - UNCONFIRMED_NOTICE;
-    if !attendance || send_at < now {
+    if !attendance || !asked_to_confirm(booking.slot_start, now) || send_at < now {
         return Ok(());
     }
     let payload = payload_of(&HostEmail::of(booking, page))?;
@@ -1269,6 +1276,13 @@ mod tests {
             assert!(!email.html.contains("<b>"), "{template}");
             assert!(!email.html.contains("& co"), "{template}");
         }
+    }
+
+    #[test]
+    fn only_a_call_a_day_away_asks_the_invitee_to_confirm() {
+        let now = Utc::now();
+        assert!(asked_to_confirm(now + Duration::hours(30), now));
+        assert!(!asked_to_confirm(now + Duration::hours(10), now));
     }
 
     #[test]

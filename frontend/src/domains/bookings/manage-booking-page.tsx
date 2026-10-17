@@ -193,14 +193,6 @@ export function ManageBookingPage({
       queryClient.setQueryData(QUERY_KEYS.managedBooking(token), confirmed),
     onError: (error) => toast.error(`That did not go through. ${errorMessage(error)}`),
   });
-  const asked = useRef(false);
-  const call = query.data;
-  useEffect(() => {
-    if (!attend || asked.current || !call?.can_change || call.attendance_confirmed)
-      return;
-    asked.current = true;
-    confirm.mutate();
-  }, [attend, call, confirm]);
 
   const cancel = useMutation({
     mutationFn: () => cancelManagedBooking(token),
@@ -291,6 +283,25 @@ export function ManageBookingPage({
             ? `${booking.title}. Nothing more to do; the time is free again.`
             : booking.title}
         </p>
+        {/* From the reminder's "I'm coming": confirming takes a click, so a
+            mail scanner opening the link does not answer for the invitee. */}
+        {attend && booking.can_change && !booking.attendance_confirmed ? (
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+            <span>Let {booking.host_name} know you are coming.</span>
+            <Button
+              size="sm"
+              onClick={() => confirm.mutate()}
+              disabled={confirm.isPending}
+            >
+              {confirm.isPending ? (
+                <Loader2 className="animate-spin" />
+              ) : (
+                <CalendarCheck />
+              )}
+              I'm coming
+            </Button>
+          </div>
+        ) : null}
         {booking.attendance_confirmed && !cancelled ? (
           <p
             role="status"
