@@ -10,7 +10,7 @@ import { ROUTES } from "../../lib/routes";
 import { PublicLayout } from "../shared/public-layout";
 import { SegmentedControl } from "../shared/segmented-control";
 import { CompareTable } from "./compare-table";
-import { PlanCard } from "./plan-card";
+import { PlanCard, PlanRow } from "./plan-card";
 import {
   INTERVAL,
   PLAN,
@@ -23,6 +23,10 @@ import {
 import { PricingFaq } from "./pricing-faq";
 import { Promises } from "./promises";
 import { WeekSizer } from "./week-sizer";
+
+/** Full width at phone size, so every choice is an easy tap. */
+const SEGMENTS_FILL =
+  "w-full sm:w-auto [&>button]:flex-1 [&>button]:justify-center [&>button]:whitespace-nowrap";
 
 /** Sign-up, carrying a paid pick through to checkout. */
 function StartButton({
@@ -102,6 +106,7 @@ export function PricingPage({
           <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-lg font-semibold">Plans</h2>
             <SegmentedControl
+              className={SEGMENTS_FILL}
               label="Billing period"
               value={interval}
               onChange={(next) => onChange(next, needs)}
@@ -114,26 +119,25 @@ export function PricingPage({
               ]}
             />
           </div>
-          <div className="mt-5 grid gap-5 md:grid-cols-3">
-            {offers.map((offer) => (
-              <PlanCard
-                key={offer.plan}
-                offer={offer}
-                interval={interval}
-                fits={offer.plan === recommended}
-                action={
-                  <StartButton
-                    offer={offer}
-                    interval={interval}
-                    recommended={recommended}
-                  />
-                }
-              />
-            ))}
+          <div className="mt-5">
+            <PlanRow>
+              {offers.map((offer) => (
+                <PlanCard
+                  key={offer.plan}
+                  offer={offer}
+                  interval={interval}
+                  fits={offer.plan === recommended}
+                  action={
+                    <StartButton
+                      offer={offer}
+                      interval={interval}
+                      recommended={recommended}
+                    />
+                  }
+                />
+              ))}
+            </PlanRow>
           </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            Every account starts with 14 days of Pro. Change or cancel any time.
-          </p>
         </div>
       </section>
 
@@ -144,6 +148,7 @@ export function PricingPage({
           </h2>
           <div className="mt-8 md:hidden">
             <SegmentedControl
+              className={SEGMENTS_FILL}
               label="Plan to compare"
               value={compared ?? recommended}
               onChange={setCompared}
@@ -174,13 +179,11 @@ export function PricingPage({
       </section>
 
       <section className="border-t">
-        <div className="mx-auto max-w-[82rem] px-4 py-16 sm:px-6 sm:py-24">
-          <h2 className="font-display font-wide text-3xl font-bold tracking-tight sm:text-4xl">
+        <div className="mx-auto grid max-w-[82rem] items-start gap-8 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:gap-14">
+          <h2 className="font-display font-wide text-3xl font-bold tracking-tight sm:text-4xl lg:sticky lg:top-20">
             Questions
           </h2>
-          <div className="mt-8">
-            <PricingFaq />
-          </div>
+          <PricingFaq />
         </div>
       </section>
 

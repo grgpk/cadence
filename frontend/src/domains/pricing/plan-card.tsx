@@ -5,7 +5,6 @@ import type { ReactNode } from "react";
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Badge } from "../../components/ui/badge";
-import { Card } from "../../components/ui/card";
 import {
   formatCents,
   INTERVAL,
@@ -16,6 +15,18 @@ import {
   yearlySaving,
 } from "./pricing";
 
+/** The plans side by side in one box, stacked where the box is narrow. */
+export function PlanRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="@container">
+      <div className="grid divide-y overflow-hidden rounded-xl border bg-card @2xl:grid-cols-3 @2xl:divide-x @2xl:divide-y-0">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** One plan in a `PlanRow`. */
 export function PlanCard({
   offer,
   interval,
@@ -38,30 +49,33 @@ export function PlanCard({
   const saving = yearlySaving(offer);
   const yearly = interval === INTERVAL.YEAR && price && monthly && saving;
   return (
-    <Card
+    <section
+      aria-label={PLAN_NAMES[offer.plan]}
       className={cn(
-        "relative gap-0 p-6 motion-safe:transition-[border-color,box-shadow] motion-safe:duration-300",
-        featured && "border-primary shadow-md ring-1 ring-primary",
-        fits && "border-dusk ring-2 ring-dusk",
+        "relative p-6 sm:p-7",
+        (featured || fits) && "bg-dusk/5 dark:bg-dusk/10",
       )}
     >
+      {featured || fits ? (
+        <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-dusk" />
+      ) : null}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-display font-wide text-xl font-bold">
+        <h3 className="font-display font-wide text-xl font-bold">
           {PLAN_NAMES[offer.plan]}
-        </h2>
+        </h3>
         {fits ? (
           <Badge className="bg-dusk text-dusk-foreground">
             <Check aria-hidden />
             Fits your week
           </Badge>
         ) : featured ? (
-          <Badge>{badge}</Badge>
+          <Badge className="bg-dusk text-dusk-foreground">{badge}</Badge>
         ) : null}
       </div>
       <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINES[offer.plan]}</p>
 
       <div className="mt-6 flex items-baseline gap-1.5">
-        <span className="text-clock text-4xl font-semibold tracking-tight">
+        <span className="text-clock text-5xl font-semibold tracking-tight">
           {formatCents(price?.monthly_cents ?? 0)}
         </span>
         {yearly ? (
@@ -97,6 +111,6 @@ export function PlanCard({
           </li>
         ))}
       </ul>
-    </Card>
+    </section>
   );
 }

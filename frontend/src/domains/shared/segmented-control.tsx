@@ -17,6 +17,7 @@ export function SegmentedControl<T extends string | boolean>({
   options,
   onChange,
   size = "md",
+  className,
 }: {
   /** What is being chosen, for someone who cannot see the group. */
   label: string;
@@ -24,10 +25,11 @@ export function SegmentedControl<T extends string | boolean>({
   options: readonly { value: T; label: string; icon?: LucideIcon }[];
   onChange: (value: T) => void;
   size?: keyof typeof SIZES;
+  className?: string;
 }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: a fieldset would need a visible legend
-    <div role="group" aria-label={label} className={SEGMENT_TRACK}>
+    <div role="group" aria-label={label} className={cn(SEGMENT_TRACK, className)}>
       {options.map(({ value: option, label: text, icon: Icon }) => (
         <button
           key={String(option)}

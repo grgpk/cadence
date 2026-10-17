@@ -55,7 +55,7 @@ const QUESTIONS = [
 
 export function PricingFaq() {
   return (
-    <Accordion type="single" collapsible className="max-w-3xl">
+    <Accordion type="single" collapsible>
       {QUESTIONS.map(({ question, answer }) => (
         <AccordionItem key={question} value={question}>
           <AccordionTrigger className="text-base">{question}</AccordionTrigger>

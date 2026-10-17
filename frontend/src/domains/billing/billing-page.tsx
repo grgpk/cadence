@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -10,7 +11,7 @@ import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { errorMessage } from "../../lib/error-message";
-import { PlanCard } from "../pricing/plan-card";
+import { PlanCard, PlanRow } from "../pricing/plan-card";
 import {
   formatCents,
   INTERVAL,
@@ -94,51 +95,64 @@ function CurrentPlan({
         ) : undefined
       }
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="font-display font-wide text-2xl font-bold">
-          {PLAN_NAMES[summary.plan]}
-        </span>
-        {/* An ended trial is stored as trialing but is Free now: no badge. */}
-        {summary.status && !trialEnded(summary) ? (
-          <StatusBadge value={summary.status} statuses={SUBSCRIPTION_STATUS} />
-        ) : null}
-      </div>
-      <div className="grid gap-2">
-        <div className="flex items-baseline justify-between gap-4 text-sm">
-          <span className="text-muted-foreground">Bookings this month</span>
-          <span className="font-medium">
-            {summary.bookings_this_month}
-            {limit === null ? null : ` of ${limit} included`}
-          </span>
+      <div className="grid gap-x-10 gap-y-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,16rem)]">
+        <div className="grid content-start gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="font-display font-wide text-3xl font-bold">
+              {PLAN_NAMES[summary.plan]}
+            </span>
+            {/* An ended trial is stored as trialing but is Free now: no badge. */}
+            {summary.status && !trialEnded(summary) ? (
+              <StatusBadge value={summary.status} statuses={SUBSCRIPTION_STATUS} />
+            ) : null}
+          </div>
+          {allowance ? (
+            <p className="text-sm text-muted-foreground">{allowance}</p>
+          ) : null}
         </div>
-        {allowance ? <p className="text-sm text-muted-foreground">{allowance}</p> : null}
-        {summary.trial_losses.length > 0 ? (
-          <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
-            <p className="font-medium">When the trial ends, on Free:</p>
-            <ul className="mt-1 list-disc pl-5 text-muted-foreground">
-              {summary.trial_losses.map((loss) => (
-                <li key={loss}>{loss}</li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-        {usage === null ? null : (
-          <div
-            role="progressbar"
-            aria-label="Bookings used this month"
-            aria-valuemin={0}
-            aria-valuemax={limit ?? 0}
-            aria-valuenow={summary.bookings_this_month}
-            className="h-2 overflow-hidden rounded-full bg-muted"
-          >
+        <div className="grid content-start gap-2">
+          <p className="flex items-baseline gap-1.5">
+            <span className="text-clock text-4xl font-semibold tracking-tight">
+              {summary.bookings_this_month}
+            </span>
+            {limit === null ? null : (
+              <span className="text-clock text-lg text-muted-foreground">of {limit}</span>
+            )}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {limit === null ? "Bookings this month" : "Bookings included this month"}
+          </p>
+          {usage === null ? null : (
             <div
-              // Past what the plan includes nothing breaks: a warning, not an error.
-              className={usage >= 1 ? "h-full bg-warning" : "h-full bg-primary"}
-              style={{ width: `${usage * 100}%` }}
-            />
-          </div>
-        )}
+              role="progressbar"
+              aria-label="Bookings used this month"
+              aria-valuemin={0}
+              aria-valuemax={limit ?? 0}
+              aria-valuenow={summary.bookings_this_month}
+              className="h-2.5 overflow-hidden rounded-full bg-muted"
+            >
+              <div
+                // Past what the plan includes nothing breaks: a warning, not an error.
+                className={cn(
+                  "h-full origin-left motion-safe:animate-bar-grow",
+                  usage >= 1 ? "bg-warning" : "bg-primary",
+                )}
+                style={{ width: `${usage * 100}%` }}
+              />
+            </div>
+          )}
+        </div>
       </div>
+      {summary.trial_losses.length > 0 ? (
+        <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+          <p className="font-medium">When the trial ends, on Free:</p>
+          <ul className="mt-1 list-disc pl-5 text-muted-foreground">
+            {summary.trial_losses.map((loss) => (
+              <li key={loss}>{loss}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </PanelCard>
   );
 }
@@ -469,7 +483,7 @@ export function BillingPage({
             onRetry={() => void plans.refetch()}
           />
         ) : plans.data && summary ? (
-          <div className="grid gap-4 lg:grid-cols-3">
+          <PlanRow>
             {plans.data.map((offer) => (
               <PlanCard
                 key={offer.plan}
@@ -493,7 +507,7 @@ export function BillingPage({
                 }
               />
             ))}
-          </div>
+          </PlanRow>
         ) : (
           <Skeleton className="h-96 w-full" />
         )}
