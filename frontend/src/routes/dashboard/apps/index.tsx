@@ -61,9 +61,9 @@ function CategoryShelf({
   return (
     <section
       aria-labelledby={`shelf-${category}`}
-      className="grid gap-5 border-t pt-6 lg:grid-cols-[13rem_1fr] lg:gap-8"
+      className="grid gap-5 border-t pt-6 xl:grid-cols-[13rem_1fr] xl:gap-8"
     >
-      <div className="flex items-start gap-3 lg:grid lg:content-start lg:gap-3">
+      <div className="flex items-start gap-3 xl:grid xl:content-start xl:gap-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg border bg-card text-muted-foreground shadow-xs">
           <Icon className="size-5" />
         </span>
