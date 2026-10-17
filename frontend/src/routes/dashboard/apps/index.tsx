@@ -1,17 +1,24 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
+import { cn } from "cn";
 import { PackageSearch, Search } from "lucide-react";
 import { useState } from "react";
 
 import { Input } from "../../../components/ui/input";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
-import { AppCard, CategoryFilter, SoonRow } from "../../../domains/integrations/app-card";
+import {
+  AppCard,
+  CategoryFilter,
+  SoonList,
+} from "../../../domains/integrations/app-card";
 import {
   APP_CATEGORY,
+  APP_TONE,
   type AppCategory,
   type AppEntry,
   APPS,
   appState,
+  CATEGORY_INFO,
   filterApps,
 } from "../../../domains/integrations/catalog";
 import { webhooksQuery } from "../../../domains/integrations/webhooks-api";
@@ -34,23 +41,59 @@ export const Route = createFileRoute("/dashboard/apps/")({
   component: AppStorePage,
 });
 
-function AppGrid({
-  title,
+/** One category's apps beside what it is for and how much of it the host uses. */
+function CategoryShelf({
+  category,
   apps,
   stateOf,
 }: {
-  title: string;
+  category: AppCategory;
   apps: AppEntry[];
   stateOf: (app: AppEntry) => ReturnType<typeof appState>;
 }) {
   if (apps.length === 0) return null;
+  const info = CATEGORY_INFO[category];
+  const Icon = info.icon;
+  const inUse = APPS.filter(
+    (app) => app.category === category && stateOf(app).tone !== APP_TONE.off,
+  ).length;
+  const ready = apps.filter((app) => app.available);
   return (
-    <section className="grid gap-3">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {apps.map((app) => (
-          <AppCard key={app.slug} app={app} state={stateOf(app)} />
-        ))}
+    <section
+      aria-labelledby={`shelf-${category}`}
+      className="grid gap-4 border-t pt-6 md:grid-cols-[14rem_1fr] md:gap-8"
+    >
+      <div className="grid content-start gap-2">
+        <span className="grid size-9 place-items-center rounded-lg border bg-card text-muted-foreground shadow-xs">
+          <Icon className="size-5" />
+        </span>
+        <h2
+          id={`shelf-${category}`}
+          className="font-display font-wide text-xl font-semibold tracking-tight"
+        >
+          {info.name}
+        </h2>
+        <p className="text-sm text-muted-foreground">{info.description}</p>
+        <p className="flex items-center gap-2 text-sm">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-2 rounded-full",
+              inUse > 0 ? "bg-success" : "border border-muted-foreground/50",
+            )}
+          />
+          {inUse > 0 ? `${inUse} in use` : "Nothing set up yet"}
+        </p>
+      </div>
+      <div className="grid content-start gap-4">
+        {ready.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {ready.map((app) => (
+              <AppCard key={app.slug} app={app} state={stateOf(app)} />
+            ))}
+          </div>
+        ) : null}
+        <SoonList apps={apps.filter((app) => !app.available)} />
       </div>
     </section>
   );
@@ -107,23 +150,16 @@ function AppStorePage() {
         }
       />
 
-      <AppGrid
-        title="Available"
-        apps={apps.filter((app) => app.available)}
-        stateOf={stateOf}
-      />
-      {apps.some((app) => !app.available) ? (
-        <section className="grid gap-3">
-          <h2 className="text-lg font-semibold">Coming soon</h2>
-          <ul className="grid gap-3 sm:grid-cols-2">
-            {apps
-              .filter((app) => !app.available)
-              .map((app) => (
-                <SoonRow key={app.slug} app={app} />
-              ))}
-          </ul>
-        </section>
-      ) : null}
+      <div className="grid gap-10">
+        {CATEGORIES.map((each) => (
+          <CategoryShelf
+            key={each}
+            category={each}
+            apps={apps.filter((app) => app.category === each)}
+            stateOf={stateOf}
+          />
+        ))}
+      </div>
       {apps.length === 0 ? (
         <EmptyState
           icon={PackageSearch}

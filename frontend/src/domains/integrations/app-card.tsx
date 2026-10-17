@@ -5,6 +5,7 @@ import { Check, ChevronRight, LayoutGrid } from "lucide-react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { ROUTES } from "../../lib/routes";
+import { PLAN_NAMES } from "../pricing/pricing";
 import {
   APP_CATEGORY,
   APP_TONE,
@@ -12,6 +13,7 @@ import {
   type AppEntry,
   type AppTone,
   CATEGORY_INFO,
+  findApp,
 } from "./catalog";
 
 const LOGO_SIZES = {
@@ -69,6 +71,7 @@ export function AppCard({
   app: AppEntry;
   state: { tone: AppTone; text: string };
 }) {
+  const required = app.requires ? findApp(app.requires) : undefined;
   return (
     <Link
       to={ROUTES.dashboardApp}
@@ -78,21 +81,20 @@ export function AppCard({
         FOCUS,
       )}
     >
-      <div className="flex flex-1 flex-col gap-4 p-5">
+      <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-center gap-3">
           <AppLogo app={app} />
-          <div className="min-w-0">
-            <h3 className="truncate font-display font-wide text-lg font-semibold tracking-tight">
-              {app.name}
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              {CATEGORY_INFO[app.category].name}
-            </p>
-          </div>
+          <h3 className="min-w-0 flex-1 truncate font-display font-wide text-lg font-semibold tracking-tight">
+            {app.name}
+          </h3>
+          {app.plan ? <Badge variant="outline">{PLAN_NAMES[app.plan]}</Badge> : null}
         </div>
-        <p className="line-clamp-3 text-sm leading-relaxed text-muted-foreground">
-          {app.summary}
-        </p>
+        <p className="text-sm leading-relaxed text-muted-foreground">{app.summary}</p>
+        {required ? (
+          <p className="mt-auto text-xs text-muted-foreground">
+            Works with {required.name}
+          </p>
+        ) : null}
       </div>
       <div className="flex items-center justify-between gap-3 border-t px-5 py-3 text-sm">
         <span
@@ -116,16 +118,28 @@ export function AppCard({
   );
 }
 
-/** An app that is on the way: listed so hosts know, with nothing to open. */
-export function SoonRow({ app }: { app: AppEntry }) {
+/** Apps on the way, named in one quiet line so they don't crowd the ones a host can use. */
+export function SoonList({ apps }: { apps: AppEntry[] }) {
+  if (apps.length === 0) return null;
   return (
-    <li className="flex items-center gap-3 rounded-xl border border-dashed px-4 py-3">
-      <AppLogo app={app} size="sm" />
-      <div className="min-w-0">
-        <p className="font-medium">{app.name}</p>
-        <p className="truncate text-sm text-muted-foreground">{app.summary}</p>
-      </div>
-    </li>
+    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+      <span>Coming soon</span>
+      <ul className="contents">
+        {apps.map((app) => {
+          const Icon = app.icon;
+          return (
+            <li
+              key={app.slug}
+              title={app.summary}
+              className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-2.5 py-1"
+            >
+              <Icon className="size-3.5" />
+              {app.name}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -141,39 +155,32 @@ export function CategoryFilter({
 }) {
   const options = [undefined, ...Object.values(APP_CATEGORY)];
   return (
-    <div className="grid gap-2">
-      <fieldset className="flex flex-wrap gap-2">
-        <legend className="sr-only">Categories</legend>
-        {options.map((category) => {
-          const info = category ? CATEGORY_INFO[category] : null;
-          const Icon = info?.icon ?? LayoutGrid;
-          const active = selected === category;
-          return (
-            <Button
-              key={category ?? "all"}
-              type="button"
-              size="sm"
-              variant={active ? "default" : "outline"}
-              aria-pressed={active}
-              onClick={() => onSelect(category)}
-              className="rounded-full"
+    <fieldset className="flex flex-wrap gap-2">
+      <legend className="sr-only">Categories</legend>
+      {options.map((category) => {
+        const info = category ? CATEGORY_INFO[category] : null;
+        const Icon = info?.icon ?? LayoutGrid;
+        const active = selected === category;
+        return (
+          <Button
+            key={category ?? "all"}
+            type="button"
+            size="sm"
+            variant={active ? "default" : "outline"}
+            aria-pressed={active}
+            onClick={() => onSelect(category)}
+            className="rounded-full"
+          >
+            <Icon />
+            {info?.name ?? "All apps"}
+            <span
+              className={cn("text-clock text-xs", !active && "text-muted-foreground")}
             >
-              <Icon />
-              {info?.name ?? "All apps"}
-              <span
-                className={cn("text-clock text-xs", !active && "text-muted-foreground")}
-              >
-                {countOf(category)}
-              </span>
-            </Button>
-          );
-        })}
-      </fieldset>
-      {selected ? (
-        <p className="text-sm text-muted-foreground">
-          {CATEGORY_INFO[selected].description}
-        </p>
-      ) : null}
-    </div>
+              {countOf(category)}
+            </span>
+          </Button>
+        );
+      })}
+    </fieldset>
   );
 }
