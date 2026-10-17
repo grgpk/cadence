@@ -18,8 +18,11 @@ which reads as Free. On deploy those hosts would lose the 2h and 30 min
 reminders and their questions, and get the logo back, without a word.
 
 `0022_start_trials_for_existing_hosts.sql` gives every active host without
-a row the 14-day Pro trial a new sign-up gets, from the deploy. It also
-queues the trial-ending email 3 days before the end. The row holds only
+a row the 14-day Pro trial a new sign-up gets, from the deploy. It
+queues two emails:
+- `trial_started` at once: "Your page is on Pro, free for 14 days",
+  saying nothing they use changes today;
+- the usual trial-ending email 3 days before the end. The row holds only
 the name; the worker fills in the billing link and what this host would
 lose when it sends (`emails::with_trial_losses`).
 

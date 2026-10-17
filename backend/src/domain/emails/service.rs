@@ -33,6 +33,9 @@ pub const HOST_BOOKING_RESCHEDULED_TEMPLATE: &str = "host_booking_rescheduled";
 /// The account emails: not about a call.
 pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
 pub const TRIAL_ENDING_TEMPLATE: &str = "trial_ending";
+/// For hosts from before plans existed: their trial started with the deploy.
+/// Queued only by migration 0022.
+pub const TRIAL_STARTED_TEMPLATE: &str = "trial_started";
 pub const HOST_BOOKING_LIMIT_TEMPLATE: &str = "host_booking_limit";
 pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
 /// Business: the invitee has not said they are coming, 2 hours before.
@@ -597,7 +600,16 @@ struct AccountEmail {
 pub fn with_trial_losses(payload: Option<&Value>, losses: Vec<String>) -> Option<Value> {
     let mut email: AccountEmail = read(payload);
     email.losing = Some(losses);
-    // Rows queued by a migration carry only the name.
+    with_billing_link(email)
+}
+
+/// An account email's payload with the billing link, which rows queued by a
+/// migration leave out: the app's address is not known there.
+pub fn with_billing_url(payload: Option<&Value>) -> Option<Value> {
+    with_billing_link(read(payload))
+}
+
+fn with_billing_link(mut email: AccountEmail) -> Option<Value> {
     email
         .billing_url
         .get_or_insert_with(|| format!("{}{BILLING_PATH}", app_url()));
@@ -704,9 +716,10 @@ struct Content {
 pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> {
     let content = match template {
         PASSWORD_RESET_TEMPLATE => reset_content(&read(payload)),
-        TRIAL_ENDING_TEMPLATE | HOST_BOOKING_LIMIT_TEMPLATE | PAYMENT_FAILED_TEMPLATE => {
-            account_content(template, &read(payload))
-        }
+        TRIAL_STARTED_TEMPLATE
+        | TRIAL_ENDING_TEMPLATE
+        | HOST_BOOKING_LIMIT_TEMPLATE
+        | PAYMENT_FAILED_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -777,6 +790,14 @@ fn reset_content(email: &ResetEmail) -> Content {
 
 fn account_content(template: &str, email: &AccountEmail) -> Content {
     let (headline, details, button) = match template {
+        TRIAL_STARTED_TEMPLATE => (
+            "Your page is on Pro, free for 14 days",
+            "Cadence now has plans. So nothing you use changes today, you are on a \
+             14-day Pro trial: reminders 2 hours and 30 minutes before, your own form \
+             questions and no Cadence logo. Three days before it ends, we will email you \
+             what Free would change for you. Pick a plan whenever you like.",
+            "See plans",
+        ),
         TRIAL_ENDING_TEMPLATE => (
             "Your Pro trial ends in 3 days",
             "After that your page moves to Free: 25 included bookings a month and one \
@@ -1284,6 +1305,15 @@ mod tests {
         let now = Utc::now();
         assert!(asked_to_confirm(now + Duration::hours(30), now));
         assert!(!asked_to_confirm(now + Duration::hours(10), now));
+    }
+
+    #[test]
+    fn a_host_from_before_plans_hears_their_trial_started() {
+        let payload = with_billing_url(Some(&json!({ "name": "Nino" }))).expect("a payload");
+        let started = email(TRIAL_STARTED_TEMPLATE, &payload);
+        assert_eq!(started.subject, "Your page is on Pro, free for 14 days");
+        assert!(started.text.contains("nothing you use changes today"));
+        assert!(started.text.contains("/dashboard/billing"));
     }
 
     #[test]

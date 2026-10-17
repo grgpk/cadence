@@ -98,12 +98,16 @@ async fn filled_in(
     connection: &mut PgConnection,
     email: &PendingEmail,
 ) -> Result<PendingEmail, sqlx::Error> {
-    if email.template != service::TRIAL_ENDING_TEMPLATE {
-        return Ok(email.clone());
-    }
-    let losses = billing::trial_losses_for(connection, &email.email).await?;
+    let payload = match email.template.as_str() {
+        service::TRIAL_ENDING_TEMPLATE => {
+            let losses = billing::trial_losses_for(connection, &email.email).await?;
+            service::with_trial_losses(email.payload.as_ref(), losses)
+        }
+        service::TRIAL_STARTED_TEMPLATE => service::with_billing_url(email.payload.as_ref()),
+        _ => return Ok(email.clone()),
+    };
     Ok(PendingEmail {
-        payload: service::with_trial_losses(email.payload.as_ref(), losses),
+        payload,
         ..email.clone()
     })
 }
