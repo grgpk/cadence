@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()\n           WHERE host_unid = $1\n           RETURNING public_slug, timezone, meeting_link,\n                     conferencing_app AS \"conferencing_app: ConferencingApp\", is_active",
+  "query": "UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()\n           WHERE host_unid = $1\n           RETURNING public_slug, timezone, meeting_link,\n                     conferencing_app AS \"conferencing_app: ConferencingApp\", is_active, accent_color",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,17 @@
             "name": "is_active"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "accent_color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "accent_color"
+          }
+        }
       }
     ],
     "parameters": {
@@ -71,8 +82,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "74f76df48ccd683a99c45dc298d509068182f1c42ae4e131348c1566265660a9"
+  "hash": "2435996555031645650cd06e8a938a98cdd76448411cb7a38921551ab53b47d3"
 }

@@ -25,4 +25,8 @@ show_branding: boolean,
  * Business: the form says the host may email once if the visitor leaves
  * without booking.
  */
-follow_up_notice: boolean, };
+follow_up_notice: boolean, 
+/**
+ * The host's own accent colour, when their plan shows it.
+ */
+accent_color: string | null, };

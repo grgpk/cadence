@@ -6,7 +6,10 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, HostPage, HostSettings},
+    models::{
+        AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, DEFAULT_ACCENT, HostPage,
+        HostSettings,
+    },
 };
 use crate::{
     domain::{
@@ -64,7 +67,16 @@ pub async fn update(
     mut settings: HostSettings,
 ) -> AppResult<HostSettings> {
     settings.public_slug = settings.public_slug.trim().to_lowercase();
+    settings.accent_color = settings.accent_color.trim().to_lowercase();
     validate(&settings)?;
+    // A colour already saved stays saved on any plan; picking a new one is Pro.
+    let saved = db::find(pool, host_unid).await?.ok_or(AppError::NotFound)?;
+    if settings.accent_color != saved.accent_color {
+        let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
+        if !entitlements.custom_accent {
+            return Err(AppError::PlanRequired("your accent colour"));
+        }
+    }
     match db::update(pool, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
         Ok(None) => Err(AppError::NotFound),
@@ -120,6 +132,7 @@ pub async fn host_page(pool: &PgPool, slug: &str) -> AppResult<HostPage> {
         accepting_bookings: host.is_active,
         show_branding: !entitlements.hide_branding,
         calendar_connected: host.calendar_connected,
+        accent_color: shown_accent(&entitlements, Some(host.accent_color)),
         types,
     })
 }
@@ -184,7 +197,21 @@ async fn with_plan(
     }
     page.show_branding = !entitlements.hide_branding;
     page.follow_up_notice = entitlements.win_back;
+    page.accent_color = shown_accent(&entitlements, page.accent_color.take());
     Ok(page)
+}
+
+/// The host's colour on their page: only on a plan that has it, and only
+/// when it is not the default.
+fn shown_accent(entitlements: &Entitlements, color: Option<String>) -> Option<String> {
+    color.filter(|color| entitlements.custom_accent && color != DEFAULT_ACCENT)
+}
+
+/// `#rrggbb`, as the colour picker writes it.
+fn is_hex_color(value: &str) -> bool {
+    value.len() == 7
+        && value.starts_with('#')
+        && value[1..].chars().all(|digit| digit.is_ascii_hexdigit())
 }
 
 pub async fn list_hosts(pool: &PgPool) -> AppResult<Vec<AdminHost>> {
@@ -199,6 +226,11 @@ fn validate(settings: &HostSettings) -> AppResult<()> {
     }
     if !is_known_timezone(&settings.timezone) {
         return Err(AppError::BadRequest("timezone is invalid".to_owned()));
+    }
+    if !is_hex_color(&settings.accent_color) {
+        return Err(AppError::BadRequest(
+            "accent colour must look like #7c3aed".to_owned(),
+        ));
     }
     Ok(())
 }

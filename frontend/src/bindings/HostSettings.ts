@@ -19,4 +19,8 @@ conferencing_app: ConferencingApp,
 /**
  * `false` pauses the page: it can still be read, but not booked.
  */
-is_active: boolean, };
+is_active: boolean, 
+/**
+ * `#rrggbb` for buttons and the picked time on the booking page. Pro.
+ */
+accent_color: string, };

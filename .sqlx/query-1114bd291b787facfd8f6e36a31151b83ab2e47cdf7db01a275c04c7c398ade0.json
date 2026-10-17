@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)\n           ON CONFLICT (host_unid) DO NOTHING\n           RETURNING public_slug, timezone, meeting_link,\n                     conferencing_app AS \"conferencing_app: ConferencingApp\", is_active",
+  "query": "SELECT public_slug, timezone, meeting_link,\n                  conferencing_app AS \"conferencing_app: ConferencingApp\", is_active, accent_color\n           FROM widget_settings WHERE host_unid = $1",
   "describe": {
     "columns": [
       {
@@ -57,13 +57,22 @@
             "name": "is_active"
           }
         }
+      },
+      {
+        "ordinal": 5,
+        "name": "accent_color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "accent_color"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -71,8 +80,9 @@
       false,
       true,
       false,
+      false,
       false
     ]
   },
-  "hash": "fb27d7cce80411b5fa7cd3bcd6cb697c17a523b96a27b3bd54b5143f24c958d6"
+  "hash": "1114bd291b787facfd8f6e36a31151b83ab2e47cdf7db01a275c04c7c398ade0"
 }

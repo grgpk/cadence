@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,\n                  (SELECT count(*) FROM event_types o\n                   WHERE o.host_unid = e.host_unid AND o.is_active\n                     AND (o.created_at, o.unid) < (e.created_at, e.unid)) AS \"type_rank!\",\n                  u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  e.title, e.description, w.timezone,\n                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,\n                  e.ask_investment_comfort, e.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app AS \"conferencing_app: ConferencingApp\", w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,\n                  (w.is_active AND e.is_active) AS \"accepting_bookings!\",\n                  -- Set from the host's plan by the service.\n                  true AS \"show_branding!\", false AS \"follow_up_notice!\"\n           FROM widget_settings w\n           JOIN users u ON u.unid = w.host_unid\n           JOIN event_types e ON e.host_unid = w.host_unid\n           WHERE w.public_slug = $1 AND e.slug = $2 AND u.status = $3",
+  "query": "SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,\n                  0::bigint AS \"type_rank!\",\n                  u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  e.title, e.description, w.timezone,\n                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,\n                  e.ask_investment_comfort, e.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app AS \"conferencing_app: ConferencingApp\", w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,\n                  -- A call already booked can move while its type is off.\n                  w.is_active AS accepting_bookings,\n                  true AS \"show_branding!\", false AS \"follow_up_notice!\", w.accent_color AS \"accent_color?\"\n           FROM bookings b\n           JOIN widget_settings w ON w.host_unid = b.host_unid\n           JOIN users u ON u.unid = w.host_unid\n           JOIN LATERAL (\n               SELECT t.unid, t.slug, t.duration_minutes, t.title, t.description,\n                      t.ask_currently_working_on, t.ask_how_heard_about_us, t.ask_what_stopping_you,\n                      t.ask_investment_comfort, t.ask_urgency_level,\n                      t.minimum_notice_hours, t.booking_window_days, t.buffer_minutes\n               FROM event_types t WHERE t.host_unid = b.host_unid\n               ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid\n               LIMIT 1\n           ) e ON true\n           WHERE b.unid = $1 AND u.status = $2",
   "describe": {
     "columns": [
       {
@@ -243,9 +243,14 @@
       },
       {
         "ordinal": 23,
-        "name": "accepting_bookings!",
+        "name": "accepting_bookings",
         "type_info": "Bool",
-        "origin": "Expression"
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "is_active"
+          }
+        }
       },
       {
         "ordinal": 24,
@@ -258,12 +263,22 @@
         "name": "follow_up_notice!",
         "type_info": "Bool",
         "origin": "Expression"
+      },
+      {
+        "ordinal": 26,
+        "name": "accent_color?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "accent_color"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
+        "Uuid",
         "Text"
       ]
     },
@@ -291,10 +306,11 @@
       false,
       false,
       false,
+      false,
       null,
       null,
-      null
+      false
     ]
   },
-  "hash": "a272be1336eb3cca7742ffa9748a0c2f61add89f45799ca9305550643f1a6d8a"
+  "hash": "890614ad1655d7b6554469467e526888069fe42623b6a7ffc4149ba4e6a8fa7f"
 }

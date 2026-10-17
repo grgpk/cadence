@@ -1,11 +1,12 @@
 import { Link } from "@tanstack/react-router";
 import { CalendarOff, ChevronRight, Clock } from "lucide-react";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { HostPage } from "../../bindings/HostPage";
 import { APP_NAME } from "../../lib/config";
 import { lengthLabel } from "../../lib/format";
+import { readableOn } from "../../lib/color";
 import { ROUTES } from "../../lib/routes";
 import { Logo } from "../shared/logo";
 import { ThemeToggle } from "../shared/theme-toggle";
@@ -14,15 +15,30 @@ import type { PageRef } from "./cadence-api";
 import type { SlotLayout } from "./slot-days";
 
 /** A host's public link around its content: the page, then a quiet footer. */
+/** The host's colour as the theme's own: buttons and the picked time. */
+function accentStyle(accent: string | null): CSSProperties | undefined {
+  if (!accent) return undefined;
+  const foreground = readableOn(accent);
+  return {
+    "--primary": accent,
+    "--primary-foreground": foreground,
+    "--dusk": accent,
+    "--dusk-foreground": foreground,
+    "--ring": accent,
+  } as CSSProperties;
+}
+
 function BookingShell({
   showBranding,
+  accent,
   children,
 }: {
   showBranding: boolean;
+  accent: string | null;
   children: ReactNode;
 }) {
   return (
-    <div className="flex min-h-svh flex-col">
+    <div className="flex min-h-svh flex-col" style={accentStyle(accent)}>
       <main className="mx-auto flex w-full max-w-[66rem] flex-1 flex-col px-4 py-4 sm:justify-center sm:px-6 sm:py-12">
         {children}
       </main>
@@ -78,7 +94,7 @@ export function PublicBookingPage({
   onLayoutChange: (layout: SlotLayout) => void;
 }) {
   return (
-    <BookingShell showBranding={page.show_branding}>
+    <BookingShell showBranding={page.show_branding} accent={page.accent_color}>
       {page.accepting_bookings ? (
         <BookingCard
           pageRef={pageRef}
@@ -98,7 +114,7 @@ export function PublicBookingPage({
 export function HostTypesPage({ slug, host }: { slug: string; host: HostPage }) {
   const taking = host.accepting_bookings && host.types.length > 0;
   return (
-    <BookingShell showBranding={host.show_branding}>
+    <BookingShell showBranding={host.show_branding} accent={host.accent_color}>
       {taking ? (
         <div className="mx-auto w-full max-w-xl">
           <p className="text-sm text-muted-foreground">{host.host_name}</p>

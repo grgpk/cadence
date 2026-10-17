@@ -3091,3 +3091,37 @@ async fn a_business_host_knows_who_comes_and_who_did_not(pool: PgPool) {
     let (_, unmarked) = no_show(false).await;
     assert!(unmarked["no_show_at"].is_null(), "a mistake can be undone");
 }
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_accent_colour_needs_pro_and_stays_saved_without_it(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let mut current = settings(&app, &host).await;
+    assert_eq!(current["accent_color"], "#111111");
+
+    current["accent_color"] = json!("red");
+    let (status, _) = save_settings(&app, &host, &current).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    current["accent_color"] = json!("#7C3AED");
+    let (status, saved) = save_settings(&app, &host, &current).await;
+    assert_eq!(status, StatusCode::OK, "the trial includes it");
+    assert_eq!(saved["accent_color"], "#7c3aed");
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
+    assert_eq!(page["accent_color"], "#7c3aed");
+    let (_, link) = get(&app, &format!("/api/hosts/{slug}"), None).await;
+    assert_eq!(link["accent_color"], "#7c3aed");
+
+    end_trial(&pool, &host).await;
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
+    assert_eq!(page["accent_color"], Value::Null, "not shown on Free");
+    let mut kept = settings(&app, &host).await;
+    assert_eq!(kept["accent_color"], "#7c3aed", "still saved");
+
+    kept["is_active"] = json!(false);
+    let (status, _) = save_settings(&app, &host, &kept).await;
+    assert_eq!(status, StatusCode::OK, "other changes still save");
+    kept["accent_color"] = json!("#0f766e");
+    let (status, _) = save_settings(&app, &host, &kept).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "a new colour needs Pro");
+}

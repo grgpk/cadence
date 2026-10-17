@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, u.full_name AS host_name, w.is_active,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\"\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE w.public_slug = $1 AND u.status = $2",
+  "query": "SELECT w.host_unid, u.full_name AS host_name, w.is_active, w.accent_color,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\"\n           FROM widget_settings w JOIN users u ON u.unid = w.host_unid\n           WHERE w.public_slug = $1 AND u.status = $2",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "accent_color",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "accent_color"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "calendar_connected!",
         "type_info": "Bool",
         "origin": "Expression"
@@ -53,8 +64,9 @@
       false,
       false,
       false,
+      false,
       null
     ]
   },
-  "hash": "27568f73ae8e3d319ac8f6c58328620639aca889ad036acac791aa3990d8f3bb"
+  "hash": "dd199874c020642a80fec5fc02b7ecb67eda434a50d1b44e80ae6682254802d9"
 }

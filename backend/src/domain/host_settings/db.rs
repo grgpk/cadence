@@ -8,7 +8,7 @@ pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>
     sqlx::query_as!(
         HostSettings,
         r#"SELECT public_slug, timezone, meeting_link,
-                  conferencing_app AS "conferencing_app: ConferencingApp", is_active
+                  conferencing_app AS "conferencing_app: ConferencingApp", is_active, accent_color
            FROM widget_settings WHERE host_unid = $1"#,
         host_unid,
     )
@@ -28,7 +28,7 @@ pub async fn insert(
         r#"INSERT INTO widget_settings (host_unid, public_slug, timezone) VALUES ($1, $2, $3)
            ON CONFLICT (host_unid) DO NOTHING
            RETURNING public_slug, timezone, meeting_link,
-                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active, accent_color"#,
         host_unid,
         public_slug,
         timezone,
@@ -44,14 +44,15 @@ pub async fn update(
 ) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
-        r#"UPDATE widget_settings SET public_slug = $2, timezone = $3, is_active = $4, updated_at = now()
+        r#"UPDATE widget_settings SET public_slug = $2, timezone = $3, is_active = $4, accent_color = $5, updated_at = now()
            WHERE host_unid = $1
            RETURNING public_slug, timezone, meeting_link,
-                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active, accent_color"#,
         host_unid,
         settings.public_slug,
         settings.timezone,
         settings.is_active,
+        settings.accent_color,
     )
     .fetch_optional(pool)
     .await
@@ -70,7 +71,7 @@ pub async fn set_conferencing(
         r#"UPDATE widget_settings SET conferencing_app = $2, meeting_link = $3, updated_at = now()
            WHERE host_unid = $1
            RETURNING public_slug, timezone, meeting_link,
-                     conferencing_app AS "conferencing_app: ConferencingApp", is_active"#,
+                     conferencing_app AS "conferencing_app: ConferencingApp", is_active, accent_color"#,
         host_unid,
         app.as_str(),
         meeting_link,
@@ -101,7 +102,7 @@ pub async fn find_type_page(
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
                   (w.is_active AND e.is_active) AS "accepting_bookings!",
                   -- Set from the host's plan by the service.
-                  true AS "show_branding!", false AS "follow_up_notice!"
+                  true AS "show_branding!", false AS "follow_up_notice!", w.accent_color AS "accent_color?"
            FROM widget_settings w
            JOIN users u ON u.unid = w.host_unid
            JOIN event_types e ON e.host_unid = w.host_unid
@@ -133,7 +134,7 @@ pub async fn page_of_booking(
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
                   -- A call already booked can move while its type is off.
                   w.is_active AS accepting_bookings,
-                  true AS "show_branding!", false AS "follow_up_notice!"
+                  true AS "show_branding!", false AS "follow_up_notice!", w.accent_color AS "accent_color?"
            FROM bookings b
            JOIN widget_settings w ON w.host_unid = b.host_unid
            JOIN users u ON u.unid = w.host_unid
@@ -160,12 +161,13 @@ pub struct HostRow {
     pub host_name: String,
     pub is_active: bool,
     pub calendar_connected: bool,
+    pub accent_color: String,
 }
 
 pub async fn find_host(pool: &PgPool, public_slug: &str) -> Result<Option<HostRow>, sqlx::Error> {
     sqlx::query_as!(
         HostRow,
-        r#"SELECT w.host_unid, u.full_name AS host_name, w.is_active,
+        r#"SELECT w.host_unid, u.full_name AS host_name, w.is_active, w.accent_color,
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!"
            FROM widget_settings w JOIN users u ON u.unid = w.host_unid
            WHERE w.public_slug = $1 AND u.status = $2"#,

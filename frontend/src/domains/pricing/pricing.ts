@@ -245,7 +245,7 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
     title: "Your brand",
     rows: [
       { label: "Your own booking form questions", value: (e) => e.custom_questions },
-      { label: "Your accent colour", soon: true, value: (e) => e.custom_accent },
+      { label: "Your accent colour", value: (e) => e.custom_accent },
       { label: "No Cadence logo on your page", value: (e) => e.hide_branding },
     ],
   },
@@ -275,6 +275,7 @@ export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
     "Unlimited bookings",
     "Reminders 24h, 2h and 30 min before",
     "Your own booking form questions",
+    "Your own accent colour",
   ],
   business: [
     "Everything in Pro",

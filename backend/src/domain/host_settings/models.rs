@@ -56,6 +56,16 @@ pub struct HostSettings {
     pub conferencing_app: ConferencingApp,
     /// `false` pauses the page: it can still be read, but not booked.
     pub is_active: bool,
+    /// `#rrggbb` for buttons and the picked time on the booking page. Pro.
+    #[serde(default = "default_accent")]
+    pub accent_color: String,
+}
+
+/// The colour a page has until its host picks one: the ink of the app.
+pub const DEFAULT_ACCENT: &str = "#111111";
+
+fn default_accent() -> String {
+    DEFAULT_ACCENT.to_owned()
 }
 
 /// What a visitor's browser may know about a booking page.
@@ -118,6 +128,8 @@ pub struct BookingPage {
     /// Business: the form says the host may email once if the visitor leaves
     /// without booking.
     pub follow_up_notice: bool,
+    /// The host's own accent colour, when their plan shows it.
+    pub accent_color: Option<String>,
 }
 
 /// A kind of call as a visitor picks it on the host's page.
@@ -141,6 +153,8 @@ pub struct HostPage {
     pub accepting_bookings: bool,
     pub show_branding: bool,
     pub calendar_connected: bool,
+    /// The host's own accent colour, when their plan shows it.
+    pub accent_color: Option<String>,
     /// Bookable kinds of call, oldest first. Types past the host's plan are
     /// left out.
     pub types: Vec<EventTypeCard>,

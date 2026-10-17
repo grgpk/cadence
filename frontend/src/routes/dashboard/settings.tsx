@@ -10,6 +10,8 @@ import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Skeleton } from "../../components/ui/skeleton";
 import { Switch } from "../../components/ui/switch";
+import { billingQuery } from "../../domains/billing/billing-api";
+import { AccentField } from "../../domains/dashboard/accent-field";
 import { AccountSection } from "../../domains/dashboard/account-section";
 import { AppearanceSection } from "../../domains/dashboard/appearance-section";
 import { copyBookingLink } from "../../domains/dashboard/booking-link";
@@ -67,6 +69,8 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
   const [values, setValues] = useState(saved);
   const [slugError, setSlugError] = useState<string | null>(null);
   const [confirmingLink, setConfirmingLink] = useState(false);
+  const billing = useQuery(billingQuery);
+  const accentLocked = billing.data ? !billing.data.entitlements.custom_accent : true;
   const update = (patch: Partial<HostSettings>) => setValues({ ...values, ...patch });
 
   // Settings can change behind the form (a refetch, another tab). Follow them
@@ -199,6 +203,13 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
             onCheckedChange={(checked) => update({ is_active: checked })}
           />
         </div>
+
+        <AccentField
+          id={`${ID}-accent`}
+          value={values.accent_color}
+          locked={accentLocked}
+          onChange={(hex) => update({ accent_color: hex })}
+        />
       </Section>
 
       <Section

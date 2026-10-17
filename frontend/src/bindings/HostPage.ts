@@ -11,6 +11,10 @@ export type HostPage = { host_name: string,
  */
 accepting_bookings: boolean, show_branding: boolean, calendar_connected: boolean, 
 /**
+ * The host's own accent colour, when their plan shows it.
+ */
+accent_color: string | null, 
+/**
  * Bookable kinds of call, oldest first. Types past the host's plan are
  * left out.
  */
