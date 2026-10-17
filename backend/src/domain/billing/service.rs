@@ -581,14 +581,13 @@ async fn current_state(
         AppError::BadRequest(format!("unreadable subscription: {error}"))
     };
     let sent: StripeSubscription = serde_json::from_value(object).map_err(unreadable)?;
-    match payments
+    payments
         .current_subscription(&sent.id)
         .await
         .map_err(payments_failed)?
-    {
-        Some(now) => serde_json::from_value(now).map_err(unreadable),
-        None => Ok(sent),
-    }
+        .map_or(Ok(sent), |now| {
+            serde_json::from_value(now).map_err(unreadable)
+        })
 }
 
 /// A host who pays no longer needs the trial reminder; a host whose renewal
