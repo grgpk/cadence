@@ -33,9 +33,10 @@ const PRO: Entitlements = {
   included_bookings_per_month: null,
   reminders: ["before_24h", "before_2h", "before_30m"],
   custom_questions: true,
+  max_event_types: null,
 };
 
-const BUSINESS: Entitlements = { ...PRO, max_event_types: null, webhooks: true };
+const BUSINESS: Entitlements = { ...PRO, webhooks: true };
 
 function offer(
   plan: PlanOffer["plan"],
@@ -131,9 +132,7 @@ describe("recommendPlan", () => {
     expect(recommendPlan(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
       PLAN.PRO,
     );
-    expect(recommendPlan(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
-      PLAN.BUSINESS,
-    );
+    expect(recommendPlan(offers, { callsPerWeek: 2, severalKinds: true })).toBe(PLAN.PRO);
   });
 
   it("reads the limits from the entitlements", () => {
@@ -153,7 +152,7 @@ describe("recommendPlan", () => {
       "Pro fits: about 35 bookings a month, past the 25 Free includes.",
     );
     expect(fitReason(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
-      "Business fits: several kinds of call on one link. Free has one.",
+      "Pro fits: several kinds of call on one link. Free has one.",
     );
   });
 });

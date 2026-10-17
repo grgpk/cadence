@@ -115,6 +115,7 @@ cadence/
 | 28 | `PLAN_28_EVENT_TYPES.md` | several event types per host, `/book/$slug/$type`, Business only | ✅ done |
 | 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | ✅ done |
 | 30 | `PLAN_30_PRICING_PROMISES.md` | Free never turns invitees away, price lock, nothing deleted; promises on `/pricing` | ✅ done |
+| 31 | `PLAN_31_PRO_TYPES_AND_POLISH.md` | several kinds of call in Pro, promises on the home page, booking flow polish (taken time, Outlook, what happens next) | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

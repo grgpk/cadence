@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
 import { ROUTES } from "../../lib/routes";
+import { PromiseList } from "../pricing/promises";
 import { PublicLayout } from "../shared/public-layout";
 import { DayTape } from "./day-tape";
 import { HoursPreview, LinkPreview, TimesPreview } from "./step-previews";
@@ -75,6 +76,22 @@ export function LandingPage() {
       </section>
 
       <section className="border-t">
+        <div className="mx-auto max-w-[82rem] px-4 py-16 sm:px-6 sm:py-24">
+          <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4">
+            <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
+              What every plan promises
+            </h2>
+            <Button variant="outline" asChild>
+              <Link to={ROUTES.pricing}>See pricing</Link>
+            </Button>
+          </div>
+          <div className="mt-10">
+            <PromiseList row />
+          </div>
+        </div>
+      </section>
+
+      <section className="border-t bg-card">
         <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-5 px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
             Open your week in a few minutes.

@@ -24,6 +24,19 @@ export function googleCalendarUrl(event: CalendarEvent): string {
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
+/** A link that opens Outlook on the web with the event filled in. */
+export function outlookCalendarUrl(event: CalendarEvent): string {
+  const params = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: event.title,
+    startdt: event.start.toISOString(),
+    enddt: event.end.toISOString(),
+  });
+  if (event.location) params.set("location", event.location);
+  return `https://outlook.live.com/calendar/0/deeplink/compose?${params}`;
+}
+
 function icsText(value: string): string {
   return value.replaceAll(/[\\;,]/g, "\\$&").replaceAll(/\r?\n/g, "\\n");
 }

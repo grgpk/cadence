@@ -1,9 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
+import { CircleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
 import type { TimeSlot } from "../../bindings/TimeSlot";
+import { Alert, AlertDescription } from "../../components/ui/alert";
 import { Skeleton } from "../../components/ui/skeleton";
 import { useClockPreference } from "../../hooks/use-clock-preference";
 import { ROUTES } from "../../lib/routes";
@@ -77,6 +79,8 @@ function Booking({
       DEFAULT_TIMEZONE,
   );
   const [slot, setSlot] = useState<TimeSlot | null>(null);
+  // The picked time went to someone else: back on the times, saying why.
+  const [taken, setTaken] = useState(false);
   const [hour12, setHour12] = useClockPreference();
   // One visit to this page: its visit record, its lead and its booking.
   const [session] = useState(() =>
@@ -114,23 +118,31 @@ function Booking({
         timezone: timezone.iana,
         hour12,
         hostName: page.host_name,
+        title: page.title,
       });
       storeForm(pageRef, null);
       // Part of the request, so the button stays busy until the next page is up.
       await navigate({ to: ROUTES.bookingConfirmation, search });
     },
     // The time may have just been taken, so the cached times can no longer be trusted.
-    onError: () => refreshOpenTimes(queryClient, pageRef),
+    onError: (error) => {
+      void refreshOpenTimes(queryClient, pageRef);
+      if (bookingFailure(error) === "taken") {
+        // The form is kept: picking another time comes straight back to it.
+        setTaken(true);
+        showStep(null);
+      }
+    },
   });
-  const submitError = !book.error
-    ? null
-    : bookingFailure(book.error) === "taken"
-      ? "That time was just taken. Go back and pick another one."
+  const submitError =
+    !book.error || bookingFailure(book.error) === "taken"
+      ? null
       : "The booking did not go through. Try again or pick another time.";
 
   const emptyDescription = `${page.host_name} has no open times in the next ${page.booking_window_days} days. Check back later.`;
   const pickTime = (picked: TimeSlot) => {
     book.reset();
+    setTaken(false);
     showStep(picked);
   };
   const summary = (callMinutes: number | null) => (
@@ -155,6 +167,14 @@ function Booking({
       style={{ "--step-from": "-1rem" } as CSSProperties}
       className="outline-none motion-safe:animate-step-in"
     >
+      {taken ? (
+        <Alert className="rounded-none border-x-0 border-t-0 bg-warning/10">
+          <CircleAlert className="size-4" />
+          <AlertDescription className="font-medium text-foreground">
+            That time was just taken. Here are the times still open.
+          </AlertDescription>
+        </Alert>
+      ) : null}
       <SlotPicker
         pageRef={pageRef}
         timeZone={timezone.iana}

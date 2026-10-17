@@ -27,8 +27,11 @@ import {
 import { bookingFailure } from "../widget/booking-session";
 import { DEFAULT_SLOT_LAYOUT, type SlotLayout } from "../widget/slot-days";
 import { SlotPicker } from "../widget/slot-picker";
+import { TimezoneCombobox } from "../widget/timezone-combobox";
 import { ViewSwitch } from "../widget/view-switch";
+import { type CountryTimezone, timezoneForIana } from "../shared/phone/country";
 import { callEnd, clockLabel } from "../../lib/zoned-time";
+import { AddToCalendar } from "./add-to-calendar";
 import { BookedStrip } from "./booked-strip";
 import { isCancelled } from "./bookings";
 
@@ -52,6 +55,11 @@ function Reschedule({
   const queryClient = useQueryClient();
   const [hour12, setHour12] = useClockPreference();
   const [layout, setLayout] = useState<SlotLayout>(DEFAULT_SLOT_LAYOUT);
+  // Times are shown in the call's timezone until the invitee picks another.
+  const [zone, setZone] = useState<CountryTimezone | undefined>(() =>
+    timezoneForIana(booking.timezone),
+  );
+  const timeZone = zone?.iana ?? booking.timezone;
   const [picked, setPicked] = useState<TimeSlot | null>(null);
   // Bumped to let go of a time that was picked and then not confirmed.
   const [pickKey, setPickKey] = useState(0);
@@ -83,7 +91,15 @@ function Reschedule({
 
   return (
     <div ref={bringIntoView} className="@container mt-6 grid scroll-mb-6 gap-3">
-      <ViewSwitch value={layout} onChange={setLayout} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <TimezoneCombobox
+          selected={zone}
+          fallbackLabel={zoneName(booking.timezone)}
+          hour12={hour12}
+          onSelect={setZone}
+        />
+        <ViewSwitch value={layout} onChange={setLayout} />
+      </div>
       {/* No second time can be picked while the first is being saved. */}
       <div
         inert={move.isPending}
@@ -92,7 +108,7 @@ function Reschedule({
       >
         <SlotPicker
           pageRef={pageRefOf(booking)}
-          timeZone={booking.timezone}
+          timeZone={timeZone}
           layout={layout}
           hour12={hour12}
           onHour12Change={setHour12}
@@ -114,7 +130,7 @@ function Reschedule({
         title="Reschedule your call?"
         description={
           picked
-            ? `New time: ${formatDay(picked.start, booking.timezone)}, ${clockLabel(new Date(picked.start), booking.timezone, hour12)} (${zoneName(booking.timezone)}). ${booking.host_name} is told about the change.`
+            ? `New time: ${formatDay(picked.start, timeZone)}, ${clockLabel(new Date(picked.start), timeZone, hour12)} (${zoneName(timeZone)}). ${booking.host_name} is told about the change.`
             : ""
         }
         confirmLabel="Reschedule"
@@ -226,6 +242,14 @@ export function ManageBookingPage({ token }: { token: string }) {
   const cancelled = isCancelled(booking);
   const timeRange = `${clockLabel(startsAt, booking.timezone, hour12)} to ${clockLabel(callEnd(booking.slot_start, booking.minutes), booking.timezone, hour12)}`;
   const day = formatLongDay(startsAt, booking.timezone);
+  const event = {
+    title: `Call with ${booking.host_name}`,
+    start: startsAt,
+    end: callEnd(booking.slot_start, booking.minutes),
+    location: booking.meeting_url ?? undefined,
+    // Built as on the confirmation page: one id per time the call is at.
+    uid: `${booking.slot_start}-${booking.slug}@cadence`,
+  };
 
   return (
     <PublicLayout accountLinks={false}>
@@ -318,6 +342,12 @@ export function ManageBookingPage({ token }: { token: string }) {
             </Button>
           )}
         </div>
+
+        {booking.can_change && !rescheduling ? (
+          <div className="mt-3 flex flex-wrap gap-3">
+            <AddToCalendar event={event} />
+          </div>
+        ) : null}
 
         {rescheduling && booking.can_change ? (
           <Reschedule

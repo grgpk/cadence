@@ -54,6 +54,8 @@ export type ConfirmationSearch = {
   slug?: string;
   type?: string;
   host?: string;
+  /** The kind of call, as the host names it. */
+  title?: string;
   /** The private link to change or cancel the call. */
   manage?: string;
 };
@@ -66,6 +68,8 @@ export type BookingChoice = {
   timezone: string;
   hour12: boolean;
   hostName: string;
+  /** The kind of call, as the host names it. */
+  title: string;
 };
 
 /**
@@ -131,7 +135,7 @@ export function createBookingSession(
       }
     },
 
-    async book({ slot, values, timezone, hour12, hostName }) {
+    async book({ slot, values, timezone, hour12, hostName, title }) {
       await api.saveLead(pageRef, leadUnid, leadUpdate(values, arrival));
       if (!leadSubmitted) {
         await api.submitLead(pageRef, leadUnid, arrival.path);
@@ -157,6 +161,7 @@ export function createBookingSession(
         slug: pageRef.host,
         type: pageRef.type,
         host: hostName,
+        title,
         manage: booking.manage_token,
       };
     },

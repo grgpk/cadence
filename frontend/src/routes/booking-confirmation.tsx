@@ -1,12 +1,13 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarPlus, CalendarX, Download, Video } from "lucide-react";
+import { BellRing, CalendarClock, CalendarX, Mail, Video } from "lucide-react";
 
 import { Button } from "../components/ui/button";
 import { PublicLayout } from "../domains/shared/public-layout";
 import type { ConfirmationSearch } from "../domains/widget/booking-session";
+import { AddToCalendar } from "../domains/bookings/add-to-calendar";
 import { BookedStrip } from "../domains/bookings/booked-strip";
 import { callEnd, clockLabel } from "../lib/zoned-time";
-import { googleCalendarUrl, icsHref, type CalendarEvent } from "../lib/calendar-links";
+import type { CalendarEvent } from "../lib/calendar-links";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
 import { formatLongDay, zoneName } from "../lib/format";
 import { ROUTES } from "../lib/routes";
@@ -39,6 +40,7 @@ export const Route = createFileRoute("/booking-confirmation")({
     type: searchText(search.type, LINK_PART),
     // Shown as plain text only, so any short name is safe.
     host: searchText(search.host, /^.{1,120}$/),
+    title: searchText(search.title, /^.{1,80}$/),
     // The private link to change or cancel this call.
     manage: searchText(search.manage, /^[0-9a-f]{16,128}$/),
   }),
@@ -47,7 +49,7 @@ export const Route = createFileRoute("/booking-confirmation")({
 });
 
 function BookingConfirmationPage() {
-  const { start, minutes, tz, h12, meet, link, slug, type, host, manage } =
+  const { start, minutes, tz, h12, meet, link, slug, type, host, title, manage } =
     Route.useSearch();
 
   if (!start || !minutes || !tz) {
@@ -74,6 +76,7 @@ function BookingConfirmationPage() {
   const day = formatLongDay(startsAt, tz);
   const timeRange = `${clockLabel(startsAt, tz, h12)} to ${clockLabel(callEnd(start, minutes), tz, h12)}`;
   const event: CalendarEvent = {
+    // Host titles read like "Book a coaching call", so the calendar says who it is with.
     title: host ? `Call with ${host}` : `${APP_NAME} call`,
     start: startsAt,
     end: callEnd(start, minutes),
@@ -104,6 +107,12 @@ function BookingConfirmationPage() {
         </div>
 
         <dl className="mt-4 divide-y rounded-xl border bg-card text-sm">
+          {title ? (
+            <div className="flex justify-between gap-4 px-4 py-3">
+              <dt className="text-muted-foreground">Call</dt>
+              <dd className="min-w-0 text-right font-medium break-words">{title}</dd>
+            </div>
+          ) : null}
           {host ? (
             <div className="flex justify-between gap-4 px-4 py-3">
               <dt className="text-muted-foreground">With</dt>
@@ -135,33 +144,47 @@ function BookingConfirmationPage() {
               </a>
             </Button>
           ) : null}
-          <Button variant={meet ? "outline" : "default"} asChild>
-            <a href={googleCalendarUrl(event)} target="_blank" rel="noreferrer">
-              <CalendarPlus />
-              Add to Google Calendar
-            </a>
-          </Button>
-          <Button variant="outline" asChild>
-            <a href={icsHref(event)} download="cadence-call.ics">
-              <Download />
-              Download .ics
-            </a>
-          </Button>
+          <AddToCalendar event={event} />
         </div>
-        <p className="mt-6 text-sm text-muted-foreground">
+
+        <h2 className="mt-10 font-semibold">What happens next</h2>
+        <ul className="mt-3 grid gap-3 text-sm">
+          <li className="flex gap-3">
+            <Mail className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <span>
+              {host ? `${host} has your details, and a` : "A"} confirmation is on its way
+              to your inbox.
+            </span>
+          </li>
+          <li className="flex gap-3">
+            <BellRing
+              className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+              aria-hidden
+            />
+            <span>We email you a reminder before the call.</span>
+          </li>
           {manage ? (
-            <>
-              Plans changed?{" "}
-              <Link
-                to={ROUTES.manageBooking}
-                params={{ token: manage }}
-                className="font-medium text-foreground underline underline-offset-4"
-              >
-                Reschedule or cancel
-              </Link>
-              . The same link is in your email.
-            </>
-          ) : slug ? (
+            <li className="flex gap-3">
+              <CalendarClock
+                className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+                aria-hidden
+              />
+              <span>
+                Plans changed?{" "}
+                <Link
+                  to={ROUTES.manageBooking}
+                  params={{ token: manage }}
+                  className="font-medium underline underline-offset-4"
+                >
+                  Reschedule or cancel
+                </Link>{" "}
+                any time. The same link is in your email.
+              </span>
+            </li>
+          ) : null}
+        </ul>
+        <p className="mt-6 text-sm text-muted-foreground">
+          {manage ? null : slug ? (
             <Link
               to={type ? ROUTES.bookingType : ROUTES.bookingPage}
               params={{ slug, type }}

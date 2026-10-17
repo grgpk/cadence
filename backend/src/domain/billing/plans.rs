@@ -49,7 +49,7 @@ impl Plan {
                 custom_questions: true,
                 custom_accent: true,
                 hide_branding: true,
-                max_event_types: Some(1),
+                max_event_types: None,
                 webhooks: false,
             },
             Self::Business => Entitlements {

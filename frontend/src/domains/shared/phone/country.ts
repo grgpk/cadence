@@ -69,11 +69,16 @@ export function defaultTimezoneForCountry(variant: string): CountryTimezone | un
   return ALL_COUNTRY_TIMEZONES.find((timezone) => timezone.variant === variant);
 }
 
+/** The list entry for an IANA name; `undefined` for one not in it, such as UTC. */
+export function timezoneForIana(iana: string): CountryTimezone | undefined {
+  return ALL_COUNTRY_TIMEZONES.find((timezone) => timezone.iana === iana);
+}
+
 export function detectBrowserCountryTimezone(): CountryTimezone | undefined {
   try {
     const iana = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (!iana) return undefined;
-    return ALL_COUNTRY_TIMEZONES.find((timezone) => timezone.iana === iana);
+    return timezoneForIana(iana);
   } catch {
     return undefined;
   }

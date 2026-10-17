@@ -31,6 +31,7 @@ const CHOICE: BookingChoice = {
   timezone: "Europe/Paris",
   hour12: false,
   hostName: "Ana",
+  title: "Intro call",
 };
 
 type Failing = Partial<Record<keyof BookingApi, unknown>>;
@@ -165,6 +166,7 @@ describe("a booking session", () => {
       slug: "ana",
       type: "intro",
       host: "Ana",
+      title: "Intro call",
       manage: "abc123",
     });
   });

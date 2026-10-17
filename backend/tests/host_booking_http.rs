@@ -2580,11 +2580,17 @@ async fn questions_need_a_paid_plan_and_stay_saved_without_one(pool: PgPool) {
     assert_eq!(status, StatusCode::OK, "turning one off is fine");
 }
 
-/// Gives the host Business, which books any number of kinds of call.
+/// Gives the host Business: everything Pro has, and the Business tools.
 async fn give_business(pool: &PgPool, host: &Host) {
+    give_plan(pool, host, "business").await;
+}
+
+/// Gives the host `plan` for free, as an admin would.
+async fn give_plan(pool: &PgPool, host: &Host, plan: &str) {
     sqlx::query_scalar!(
-        "UPDATE subscriptions SET plan = 'business', status = 'comped' WHERE user_unid = $1 RETURNING 1",
+        "UPDATE subscriptions SET plan = $2, status = 'comped' WHERE user_unid = $1 RETURNING 1",
         host.unid,
+        plan,
     )
     .fetch_one(pool)
     .await
@@ -2677,16 +2683,18 @@ async fn a_type_with_its_own_length_steps_through_the_same_hours(pool: PgPool) {
 async fn a_plan_decides_how_many_types_the_link_offers(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    end_trial(&pool, &host).await;
     assert_eq!(
         new_type(&app, &host, "deep-dive", Some(60)).await,
         StatusCode::FORBIDDEN,
-        "Pro books one kind of call"
+        "Free books one kind of call"
     );
 
-    give_business(&pool, &host).await;
+    give_plan(&pool, &host, "pro").await;
     assert_eq!(
         new_type(&app, &host, "deep-dive", Some(60)).await,
-        StatusCode::CREATED
+        StatusCode::CREATED,
+        "Pro books several"
     );
     assert_eq!(
         new_type(&app, &host, "deep-dive", None).await,

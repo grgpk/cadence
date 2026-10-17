@@ -4,6 +4,7 @@ import {
   googleCalendarUrl,
   icsFile,
   icsHref,
+  outlookCalendarUrl,
   type CalendarEvent,
 } from "./calendar-links";
 
@@ -27,6 +28,24 @@ describe("googleCalendarUrl", () => {
   it("leaves the place out when there is none", () => {
     const url = new URL(googleCalendarUrl({ ...EVENT, location: undefined }));
     expect(url.searchParams.has("location")).toBe(false);
+  });
+});
+
+describe("outlookCalendarUrl", () => {
+  it("fills in the subject, the times as ISO instants and the place", () => {
+    const url = new URL(outlookCalendarUrl(EVENT));
+    expect(url.origin + url.pathname).toBe(
+      "https://outlook.live.com/calendar/0/deeplink/compose",
+    );
+    expect(url.searchParams.get("subject")).toBe(EVENT.title);
+    expect(url.searchParams.get("startdt")).toBe("2026-10-12T08:00:00.000Z");
+    expect(url.searchParams.get("enddt")).toBe("2026-10-12T08:30:00.000Z");
+    expect(url.searchParams.get("location")).toBe(EVENT.location);
+    expect(
+      new URL(outlookCalendarUrl({ ...EVENT, location: undefined })).searchParams.has(
+        "location",
+      ),
+    ).toBe(false);
   });
 });
 

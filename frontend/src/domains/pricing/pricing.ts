@@ -241,15 +241,12 @@ export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
   ],
   pro: [
     "No Cadence logo on your page",
+    "Several kinds of call on one link",
     "Unlimited bookings",
     "Reminders 24h, 2h and 30 min before",
     "Your own booking form questions",
   ],
-  business: [
-    "Everything in Pro",
-    "Several kinds of call on one link",
-    "Webhooks for your own tools",
-  ],
+  business: ["Everything in Pro", "Webhooks for your own tools"],
 };
 
 export const PLAN_TAGLINES: Record<Plan, string> = {
