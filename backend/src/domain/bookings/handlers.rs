@@ -7,8 +7,8 @@ use axum::{
 use super::service::BookingsService;
 use super::{
     models::{
-        Booking, BookingDetail, CreateBookingRequest, CreatedBooking, ManagedBooking,
-        RescheduleRequest,
+        Booking, BookingDetail, CreateBookingRequest, CreatedBooking, Insights, ManagedBooking,
+        NoShowRequest, RescheduleRequest,
     },
     service,
 };
@@ -95,6 +95,35 @@ pub async fn managed(
     )
     .await?;
     Ok(Json(service::managed(&state.pool, &token).await?))
+}
+
+pub async fn attend(
+    State(state): State<AppState>,
+    Path(token): Path<String>,
+    headers: HeaderMap,
+) -> AppResult<Json<ManagedBooking>> {
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::MANAGE_PER_ADDRESS,
+        &client_address(&headers),
+    )
+    .await?;
+    Ok(Json(service::attend(&state.pool, &token).await?))
+}
+
+pub async fn insights(State(state): State<AppState>, user: AuthUser) -> AppResult<Json<Insights>> {
+    Ok(Json(service::insights(&state.pool, user.user.unid).await?))
+}
+
+pub async fn no_show(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(unid): Path<Uuid>,
+    Json(request): Json<NoShowRequest>,
+) -> AppResult<Json<Booking>> {
+    Ok(Json(
+        service::set_no_show(&state.pool, user.user.unid, unid, &request).await?,
+    ))
 }
 
 pub async fn cancel_managed(

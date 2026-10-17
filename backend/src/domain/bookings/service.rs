@@ -6,8 +6,8 @@ use super::slots::{self, Reserved, SLOT_TAKEN};
 use super::{
     db,
     models::{
-        Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking,
-        ManagedBooking, RescheduleRequest,
+        Booking, BookingDetail, BookingStatus, CreateBookingRequest, CreatedBooking, Insights,
+        ManagedBooking, NoShowRequest, RescheduleRequest,
     },
 };
 use crate::{
@@ -20,7 +20,7 @@ use crate::{
             models::{BookingPage, ConferencingApp},
             service as host_settings,
         },
-        leads::service as leads,
+        leads::{db as leads_db, service as leads},
         webhooks::{models::WebhookEvent, service as webhooks},
     },
     error::{AppError, AppResult},
@@ -165,6 +165,7 @@ async fn announce_booking(
         &booking,
         &page,
         entitlements.reminders,
+        entitlements.attendance,
         now,
     )
     .await?;
@@ -266,6 +267,140 @@ pub async fn managed(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
     Ok(managed_booking(booking, page))
 }
 
+/// What the weekly numbers look back over.
+const WEEK_DAYS: i64 = 7;
+/// What the busiest time and the sources look back over.
+const PATTERN_DAYS: i64 = 30;
+
+/// A Business host's week in numbers.
+pub async fn insights(pool: &PgPool, host_unid: Uuid) -> AppResult<Insights> {
+    let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
+    if !entitlements.insights {
+        return Err(AppError::PlanRequired("weekly insights"));
+    }
+    week_insights(pool, host_unid).await
+}
+
+async fn week_insights(pool: &PgPool, host_unid: Uuid) -> AppResult<Insights> {
+    let now = Utc::now();
+    let week = now - chrono::Duration::days(WEEK_DAYS);
+    let month = now - chrono::Duration::days(PATTERN_DAYS);
+    let counts = db::week_counts(pool, host_unid, week).await?;
+    let timezone = host_settings::timezone(pool, host_unid).await?;
+    Ok(Insights {
+        booked: counts.booked,
+        held: counts.held,
+        confirmed: counts.confirmed,
+        no_shows: counts.no_shows,
+        unfinished: i32::try_from(leads_db::unfinished(pool, host_unid, week).await?.len())
+            .unwrap_or(i32::MAX),
+        busiest: db::busiest_time(pool, host_unid, &timezone, month).await?,
+        sources: db::top_sources(pool, host_unid, month).await?,
+    })
+}
+
+/// Queues the Monday email for every Business host whose clock reads 08:00 on
+/// a Monday now. The email worker calls it every minute; a host gets one a
+/// week.
+pub async fn queue_weekly_insights(pool: &PgPool) -> AppResult<()> {
+    for host in db::weekly_due(pool, emails::WEEKLY_INSIGHTS_TEMPLATE).await? {
+        // The subscriptions join is a first cut; the plan decides.
+        let entitlements = billing::entitlements_for(pool, host.host_unid, Utc::now()).await?;
+        if !entitlements.insights {
+            continue;
+        }
+        let week = week_insights(pool, host.host_unid).await?;
+        let mut connection = pool.acquire().await?;
+        emails::queue_weekly_insights(
+            &mut connection,
+            &host.email,
+            &host.full_name,
+            insight_lines(&week),
+        )
+        .await?;
+    }
+    Ok(())
+}
+
+/// The week as the Monday email says it, one line each.
+pub fn insight_lines(week: &Insights) -> Vec<String> {
+    let plural = |count: i32, one: &str, many: &str| {
+        format!("{count} {}", if count == 1 { one } else { many })
+    };
+    let mut lines = vec![
+        format!(
+            "{} booked in the last 7 days.",
+            plural(week.booked, "call", "calls")
+        ),
+        format!(
+            "{} held, {} confirmed ahead, {}.",
+            plural(week.held, "call", "calls"),
+            week.confirmed,
+            plural(week.no_shows, "no-show", "no-shows"),
+        ),
+    ];
+    if week.unfinished > 0 {
+        lines.push(format!(
+            "{} started booking and left. You can send them your times from Bookings.",
+            plural(week.unfinished, "person", "people"),
+        ));
+    }
+    if let Some(busiest) = &week.busiest {
+        const DAYS: [&str; 7] = [
+            "Mondays",
+            "Tuesdays",
+            "Wednesdays",
+            "Thursdays",
+            "Fridays",
+            "Saturdays",
+            "Sundays",
+        ];
+        let day = usize::try_from(busiest.weekday)
+            .ok()
+            .and_then(|index| DAYS.get(index))
+            .unwrap_or(&"");
+        lines.push(format!(
+            "Your busiest time is {day} at {:02}:00.",
+            busiest.hour
+        ));
+    }
+    if let Some(top) = week.sources.first() {
+        lines.push(format!(
+            "Most bookings came from {} ({}).",
+            top.source,
+            plural(top.bookings, "call", "calls")
+        ));
+    }
+    lines
+}
+
+/// The invitee says they are coming, from the button in their reminder.
+/// Saying it again changes nothing.
+pub async fn attend(pool: &PgPool, token: &str) -> AppResult<ManagedBooking> {
+    let (booking, page) = find_managed(pool, token).await?;
+    ensure_can_change(&booking)?;
+    let booking = db::confirm_attendance(pool, booking.unid)
+        .await?
+        .ok_or_else(|| AppError::Conflict(ALREADY_CANCELLED.to_owned()))?;
+    Ok(managed_booking(booking, page))
+}
+
+/// The host marks that the invitee did not come, once the call is over.
+pub async fn set_no_show(
+    pool: &PgPool,
+    host_unid: Uuid,
+    unid: Uuid,
+    request: &NoShowRequest,
+) -> AppResult<Booking> {
+    let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
+    if !entitlements.attendance {
+        return Err(AppError::PlanRequired("no-show tracking"));
+    }
+    db::set_no_show(pool, host_unid, unid, request.no_show)
+        .await?
+        .ok_or_else(|| AppError::Conflict("only a call that is over can be marked".to_owned()))
+}
+
 /// The invitee calls off their own call: the host is told.
 pub async fn cancel_managed(
     pool: &PgPool,
@@ -327,6 +462,7 @@ pub async fn reschedule(
         &booking,
         &page,
         entitlements.reminders,
+        entitlements.attendance,
         now,
     )
     .await?;
@@ -388,6 +524,7 @@ fn managed_booking(booking: Booking, page: BookingPage) -> ManagedBooking {
     };
     ManagedBooking {
         can_change: can_change(&booking),
+        attendance_confirmed: booking.attendance_confirmed_at.is_some(),
         slot_start: booking.slot_start,
         timezone: booking.timezone,
         minutes: booking.minutes,

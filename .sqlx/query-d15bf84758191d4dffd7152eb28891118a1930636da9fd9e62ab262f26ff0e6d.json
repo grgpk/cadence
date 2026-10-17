@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT u.unid AS host_unid, u.email, u.full_name, w.timezone\n           FROM users u\n           JOIN widget_settings w ON w.host_unid = u.unid\n           JOIN subscriptions s ON s.user_unid = u.unid AND s.plan = 'business'\n           WHERE EXTRACT(ISODOW FROM now() AT TIME ZONE w.timezone) = 1\n             AND EXTRACT(HOUR FROM now() AT TIME ZONE w.timezone) = 8\n             AND NOT EXISTS (\n                 SELECT 1 FROM email_queue e\n                 WHERE e.email = u.email AND e.template = $1\n                   AND e.created_at > now() - interval '6 days'\n             )",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "full_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "users",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "timezone",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "widget_settings",
+            "name": "timezone"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d15bf84758191d4dffd7152eb28891118a1930636da9fd9e62ab262f26ff0e6d"
+}

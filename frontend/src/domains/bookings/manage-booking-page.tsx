@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CalendarX, Loader2, Video } from "lucide-react";
+import { CalendarCheck, CalendarX, Loader2, Video } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -18,6 +18,7 @@ import { ConfirmDialog } from "../shared/confirm-dialog";
 import { ErrorState } from "../shared/error-state";
 import { PublicLayout } from "../shared/public-layout";
 import {
+  attendManagedBooking,
   cancelManagedBooking,
   managedBookingQuery,
   refreshOpenTimes,
@@ -156,7 +157,14 @@ function pageRefOf(booking: ManagedBooking): PageRef {
   return { host: booking.slug, type: booking.event_slug };
 }
 
-export function ManageBookingPage({ token }: { token: string }) {
+export function ManageBookingPage({
+  token,
+  attend = false,
+}: {
+  token: string;
+  /** Opened from "I'm coming" in the reminder: say so once the call loads. */
+  attend?: boolean;
+}) {
   const queryClient = useQueryClient();
   const query = useQuery({
     ...managedBookingQuery(token),
@@ -178,6 +186,21 @@ export function ManageBookingPage({ token }: { token: string }) {
     lastSettled.current = settled;
   }, [query.data, settled]);
   const [hour12] = useClockPreference();
+
+  const confirm = useMutation({
+    mutationFn: () => attendManagedBooking(token),
+    onSuccess: (confirmed) =>
+      queryClient.setQueryData(QUERY_KEYS.managedBooking(token), confirmed),
+    onError: (error) => toast.error(`That did not go through. ${errorMessage(error)}`),
+  });
+  const asked = useRef(false);
+  const call = query.data;
+  useEffect(() => {
+    if (!attend || asked.current || !call?.can_change || call.attendance_confirmed)
+      return;
+    asked.current = true;
+    confirm.mutate();
+  }, [attend, call, confirm]);
 
   const cancel = useMutation({
     mutationFn: () => cancelManagedBooking(token),
@@ -268,6 +291,15 @@ export function ManageBookingPage({ token }: { token: string }) {
             ? `${booking.title}. Nothing more to do; the time is free again.`
             : booking.title}
         </p>
+        {booking.attendance_confirmed && !cancelled ? (
+          <p
+            role="status"
+            className="mt-4 flex items-center gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2 text-sm font-medium"
+          >
+            <CalendarCheck className="size-4 text-success" aria-hidden />
+            {booking.host_name} knows you are coming. See you then.
+          </p>
+        ) : null}
 
         {cancelled ? null : (
           <div className="mt-8">

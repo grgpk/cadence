@@ -26,6 +26,9 @@ const FREE: Entitlements = {
   hide_branding: false,
   max_event_types: 1,
   webhooks: false,
+  win_back: false,
+  attendance: false,
+  insights: false,
 };
 
 const PRO: Entitlements = {
@@ -36,7 +39,13 @@ const PRO: Entitlements = {
   max_event_types: null,
 };
 
-const BUSINESS: Entitlements = { ...PRO, webhooks: true };
+const BUSINESS: Entitlements = {
+  ...PRO,
+  webhooks: true,
+  win_back: true,
+  attendance: true,
+  insights: true,
+};
 
 function offer(
   plan: PlanOffer["plan"],
@@ -126,13 +135,15 @@ describe("recommendPlan", () => {
 
   it("picks the cheapest plan that covers the week", () => {
     expect(callsPerMonth(5)).toBe(22);
-    expect(recommendPlan(offers, { callsPerWeek: 5, severalKinds: false })).toBe(
-      PLAN.FREE,
-    );
-    expect(recommendPlan(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
-      PLAN.PRO,
-    );
-    expect(recommendPlan(offers, { callsPerWeek: 2, severalKinds: true })).toBe(PLAN.PRO);
+    expect(
+      recommendPlan(offers, { callsPerWeek: 5, severalKinds: false, clientTools: false }),
+    ).toBe(PLAN.FREE);
+    expect(
+      recommendPlan(offers, { callsPerWeek: 8, severalKinds: false, clientTools: false }),
+    ).toBe(PLAN.PRO);
+    expect(
+      recommendPlan(offers, { callsPerWeek: 2, severalKinds: true, clientTools: false }),
+    ).toBe(PLAN.PRO);
   });
 
   it("reads the limits from the entitlements", () => {
@@ -140,20 +151,32 @@ describe("recommendPlan", () => {
       { ...offers[0], entitlements: { ...FREE, included_bookings_per_month: null } },
     ];
     expect(
-      recommendPlan(roomy as PlanOffer[], { callsPerWeek: 30, severalKinds: false }),
+      recommendPlan(roomy as PlanOffer[], {
+        callsPerWeek: 30,
+        severalKinds: false,
+        clientTools: false,
+      }),
     ).toBe(PLAN.FREE);
   });
 
+  it("sends follow-ups and show-up checks to Business", () => {
+    const needs = { callsPerWeek: 2, severalKinds: false, clientTools: true };
+    expect(recommendPlan(offers, needs)).toBe(PLAN.BUSINESS);
+    expect(fitReason(offers, needs)).toBe(
+      "Business fits: follow up with people who left, see who will show up, and get your week in numbers.",
+    );
+  });
+
   it("says why the plan fits", () => {
-    expect(fitReason(offers, { callsPerWeek: 3, severalKinds: false })).toBe(
-      "Free covers your week: about 13 of the 25 bookings it includes each month.",
-    );
-    expect(fitReason(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
-      "Pro fits: about 35 bookings a month, past the 25 Free includes.",
-    );
-    expect(fitReason(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
-      "Pro fits: several kinds of call on one link. Free has one.",
-    );
+    expect(
+      fitReason(offers, { callsPerWeek: 3, severalKinds: false, clientTools: false }),
+    ).toBe("Free covers your week: about 13 of the 25 bookings it includes each month.");
+    expect(
+      fitReason(offers, { callsPerWeek: 8, severalKinds: false, clientTools: false }),
+    ).toBe("Pro fits: about 35 bookings a month, past the 25 Free includes.");
+    expect(
+      fitReason(offers, { callsPerWeek: 2, severalKinds: true, clientTools: false }),
+    ).toBe("Pro fits: several kinds of call on one link. Free has one.");
   });
 });
 
@@ -173,9 +196,18 @@ describe("pricingSearch", () => {
   });
 
   it("round-trips through the needs, leaving defaults out", () => {
-    expect(needsFrom({})).toEqual({ callsPerWeek: 8, severalKinds: false });
+    expect(needsFrom({})).toEqual({
+      callsPerWeek: 8,
+      severalKinds: false,
+      clientTools: false,
+    });
     expect(searchFor(INTERVAL.YEAR, needsFrom({}))).toEqual({});
-    const search = { interval: INTERVAL.MONTH, calls: 3, kinds: "several" as const };
+    const search = {
+      interval: INTERVAL.MONTH,
+      calls: 3,
+      kinds: "several" as const,
+      tools: "yes" as const,
+    };
     expect(searchFor(INTERVAL.MONTH, needsFrom(search))).toEqual(search);
   });
 });

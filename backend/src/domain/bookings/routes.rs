@@ -17,6 +17,7 @@ pub fn public_routes() -> Router<AppState> {
             post(handlers::create),
         )
         .route("/api/manage/{token}", get(handlers::managed))
+        .route("/api/manage/{token}/attend", post(handlers::attend))
         .route("/api/manage/{token}/cancel", post(handlers::cancel_managed))
         .route("/api/manage/{token}/reschedule", post(handlers::reschedule))
 }
@@ -26,5 +27,7 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/bookings", get(handlers::list))
         .route("/api/bookings/{unid}", get(handlers::detail))
         .route("/api/bookings/{unid}/cancel", post(handlers::cancel))
+        .route("/api/bookings/{unid}/no-show", post(handlers::no_show))
+        .route("/api/host/insights", get(handlers::insights))
         .route("/api/admin/bookings", get(handlers::list_all))
 }

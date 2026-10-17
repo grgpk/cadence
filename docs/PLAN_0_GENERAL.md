@@ -117,6 +117,7 @@ cadence/
 | 30 | `PLAN_30_PRICING_PROMISES.md` | Free never turns invitees away, price lock, nothing deleted; promises on `/pricing` | ✅ done |
 | 31 | `PLAN_31_PRO_TYPES_AND_POLISH.md` | several kinds of call in Pro, promises on the home page, booking flow polish (taken time, Outlook, what happens next) | ✅ done |
 | 32 | `PLAN_32_CALENDLY_IMPORT.md` | import event types, weekly hours, dates and timezone from Calendly with a personal access token | ✅ done |
+| 33 | `PLAN_33_BUSINESS_CLIENTS.md` | Business: win back people who left, invitees confirm they are coming, no-shows, weekly numbers | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

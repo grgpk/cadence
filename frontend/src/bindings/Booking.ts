@@ -9,4 +9,12 @@ minutes: number, timezone: string, invitee_name: string, invitee_email: string, 
 /**
  * Where the call happens: the Google Meet link, or the host's own meeting link.
  */
-meeting_url: string | null, created_at: string, };
+meeting_url: string | null, created_at: string, 
+/**
+ * The invitee said they are coming. Cleared when the call moves.
+ */
+attendance_confirmed_at: string | null, 
+/**
+ * The host marked that the invitee did not come.
+ */
+no_show_at: string | null, };

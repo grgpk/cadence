@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT (EXTRACT(ISODOW FROM slot_start AT TIME ZONE $2)::int - 1) AS \"weekday!\",\n                  EXTRACT(HOUR FROM slot_start AT TIME ZONE $2)::int AS \"hour!\"\n           FROM bookings\n           WHERE host_unid = $1 AND slot_start >= $3 AND status <> $4\n           GROUP BY 1, 2\n           ORDER BY COUNT(*) DESC, 1, 2\n           LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "weekday!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "hour!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "ee8ff6e469bf72ab932cccff87d0a4f33663d98e1d1b20f20081b9c1cf1e2ab4"
+}

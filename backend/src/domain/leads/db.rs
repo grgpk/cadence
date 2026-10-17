@@ -1,7 +1,9 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{Lead, LeadUpdate};
+use chrono::{DateTime, Utc};
+
+use super::models::{Lead, LeadUpdate, UnfinishedLead};
 
 pub struct LeadsDb;
 
@@ -99,5 +101,55 @@ pub async fn mark_submitted(
         source_page,
     )
     .fetch_one(pool)
+    .await
+}
+
+/// People who gave an email on the form after `since`, have been gone an
+/// hour, booked nothing with the host since, and have not been followed up.
+pub async fn unfinished(
+    pool: &PgPool,
+    host_unid: Uuid,
+    since: DateTime<Utc>,
+) -> Result<Vec<UnfinishedLead>, sqlx::Error> {
+    sqlx::query_as!(
+        UnfinishedLead,
+        r#"SELECT l.unid, l.first_name, l.last_name, l.email AS "email!", l.updated_at AS left_at
+           FROM leads l
+           WHERE l.host_unid = $1
+             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+             AND l.followed_up_at IS NULL
+             AND l.updated_at >= $2
+             AND l.updated_at < now() - interval '1 hour'
+             AND NOT EXISTS (
+                 SELECT 1 FROM bookings b
+                 WHERE b.host_unid = l.host_unid
+                   AND lower(b.invitee_email) = lower(l.email)
+                   AND b.created_at >= l.created_at - interval '1 day'
+             )
+           ORDER BY l.updated_at DESC
+           LIMIT 50"#,
+        host_unid,
+        since,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Marks the one follow-up as sent. Returns `None` when the lead is not the
+/// host's, has no email, or was followed up already.
+pub async fn mark_followed_up(
+    pool: &PgPool,
+    host_unid: Uuid,
+    unid: Uuid,
+) -> Result<Option<UnfinishedLead>, sqlx::Error> {
+    sqlx::query_as!(
+        UnfinishedLead,
+        r#"UPDATE leads SET followed_up_at = now()
+           WHERE host_unid = $1 AND unid = $2 AND followed_up_at IS NULL AND email IS NOT NULL
+           RETURNING unid, first_name, last_name, email AS "email!", updated_at AS left_at"#,
+        host_unid,
+        unid,
+    )
+    .fetch_optional(pool)
     .await
 }

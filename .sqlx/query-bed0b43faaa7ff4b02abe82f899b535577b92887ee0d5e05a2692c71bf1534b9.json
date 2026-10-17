@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bookings SET status = $3, cancelled_at = now(), updated_at = now()\n         WHERE host_unid = $1 AND unid = $2 AND status <> $3\n         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at",
+  "query": "UPDATE bookings SET no_show_at = CASE WHEN $3 THEN COALESCE(no_show_at, now()) END, updated_at = now()\n         WHERE host_unid = $1 AND unid = $2 AND status <> $4 AND slot_end <= now()\n         RETURNING unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at, attendance_confirmed_at, no_show_at",
   "describe": {
     "columns": [
       {
@@ -140,12 +140,35 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 13,
+        "name": "attendance_confirmed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "attendance_confirmed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "no_show_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "no_show_at"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
         "Uuid",
+        "Bool",
         "Text"
       ]
     },
@@ -162,8 +185,10 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "57ad69508c66393d14e0d92a6a9c3de141a6f28ad2cb0dbd5166c392505819ad"
+  "hash": "bed0b43faaa7ff4b02abe82f899b535577b92887ee0d5e05a2692c71bf1534b9"
 }

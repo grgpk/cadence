@@ -20,4 +20,9 @@ accepting_bookings: boolean,
 /**
  * The Cadence logo under the card. Paid plans leave it off.
  */
-show_branding: boolean, };
+show_branding: boolean, 
+/**
+ * Business: the form says the host may email once if the visitor leaves
+ * without booking.
+ */
+follow_up_notice: boolean, };

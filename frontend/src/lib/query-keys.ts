@@ -19,4 +19,6 @@ export const QUERY_KEYS = {
   calendarEvents: ["google-calendar-events"] as const,
   billing: ["billing"] as const,
   billingPlans: ["billing-plans"] as const,
+  unfinishedLeads: ["unfinished-leads"] as const,
+  insights: ["insights"] as const,
 } as const;

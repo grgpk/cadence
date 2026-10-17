@@ -28,4 +28,8 @@ event_slug: string,
 /**
  * `false` once the call is cancelled or has started.
  */
-can_change: boolean, };
+can_change: boolean, 
+/**
+ * The invitee said they are coming.
+ */
+attendance_confirmed: boolean, };

@@ -19,5 +19,11 @@ pub fn public_routes() -> Router<AppState> {
 }
 
 pub fn protected_routes() -> Router<AppState> {
-    Router::new().route("/api/admin/leads", get(handlers::list_all))
+    Router::new()
+        .route("/api/admin/leads", get(handlers::list_all))
+        .route("/api/host/leads/unfinished", get(handlers::unfinished))
+        .route(
+            "/api/host/leads/{unid}/follow-up",
+            post(handlers::follow_up),
+        )
 }

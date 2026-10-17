@@ -1,0 +1,37 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT l.utm_source AS \"source!\", COUNT(*)::int AS \"bookings!\"\n           FROM bookings b JOIN leads l ON l.unid = b.lead_unid\n           WHERE b.host_unid = $1 AND b.created_at >= $2 AND b.status <> $3\n             AND l.utm_source IS NOT NULL AND l.utm_source <> ''\n           GROUP BY l.utm_source\n           ORDER BY 2 DESC, 1\n           LIMIT 3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "utm_source"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "bookings!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      null
+    ]
+  },
+  "hash": "fb4d17d378f61fbc4da7892e9699ee492032e87a078e871986a2ceeec6517e1b"
+}

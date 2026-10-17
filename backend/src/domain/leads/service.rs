@@ -1,15 +1,25 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use chrono::{Duration, Utc};
+
 use super::{
     db,
-    models::{Lead, LeadUpdate},
+    models::{Lead, LeadUpdate, UnfinishedLead},
 };
 use crate::{
-    domain::host_settings::models::BookingPage,
+    domain::{
+        auth::models::UserRecord,
+        billing::service as billing,
+        emails::service as emails,
+        host_settings::{models::BookingPage, service as host_settings},
+    },
     error::{AppError, AppResult},
     validation::{is_too_long, is_valid_email},
 };
+
+/// How far back the unfinished list looks.
+const UNFINISHED_DAYS: i64 = 30;
 
 /// Names, picked answers and campaign tags.
 const SHORT_TEXT_MAX: usize = 200;
@@ -132,4 +142,43 @@ fn validate(update: &LeadUpdate) -> AppResult<()> {
         ));
     }
     Ok(())
+}
+
+/// People who started booking and left, for a Business host to win back.
+pub async fn unfinished(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<UnfinishedLead>> {
+    ensure_win_back(pool, host_unid).await?;
+    let since = Utc::now() - Duration::days(UNFINISHED_DAYS);
+    db::unfinished(pool, host_unid, since)
+        .await
+        .map_err(Into::into)
+}
+
+/// Sends one "here are my times" email to someone who left. A second one is
+/// refused, so nobody hears from a host twice about the same visit.
+pub async fn follow_up(pool: &PgPool, host: &UserRecord, unid: Uuid) -> AppResult<()> {
+    ensure_win_back(pool, host.unid).await?;
+    let settings = host_settings::get_or_create(pool, host).await?;
+    let lead = db::mark_followed_up(pool, host.unid, unid)
+        .await?
+        .ok_or_else(|| AppError::Conflict("this person was already sent your times".to_owned()))?;
+    let booking_url = format!("{}/book/{}", emails::app_url(), settings.public_slug);
+    let mut connection = pool.acquire().await?;
+    emails::queue_lead_follow_up(
+        &mut connection,
+        &lead.email,
+        lead.first_name.as_deref(),
+        &host.full_name,
+        &booking_url,
+    )
+    .await?;
+    Ok(())
+}
+
+async fn ensure_win_back(pool: &PgPool, host_unid: Uuid) -> AppResult<()> {
+    let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
+    if entitlements.win_back {
+        Ok(())
+    } else {
+        Err(AppError::PlanRequired("winning back unfinished bookings"))
+    }
 }

@@ -35,6 +35,12 @@ pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
 pub const TRIAL_ENDING_TEMPLATE: &str = "trial_ending";
 pub const HOST_BOOKING_LIMIT_TEMPLATE: &str = "host_booking_limit";
 pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
+/// Business: the invitee has not said they are coming, 2 hours before.
+pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
+/// Business: a host's one "here are my times" to someone who left a booking.
+pub const LEAD_FOLLOW_UP_TEMPLATE: &str = "lead_follow_up";
+/// Business: the week's numbers, on Monday morning.
+pub const WEEKLY_INSIGHTS_TEMPLATE: &str = "weekly_insights";
 
 const DEFAULT_APP_URL: &str = "http://localhost:3000";
 /// The header logo travels inside each email, because mail clients cannot
@@ -46,6 +52,7 @@ const MANAGE_PATH: &str = "/booking";
 const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
 const RESET_PASSWORD_PATH: &str = "/reset-password";
 const BILLING_PATH: &str = "/dashboard/billing";
+const DASHBOARD_PATH: &str = "/dashboard";
 /// The calendar entry's name when the page title and host are unknown.
 const CALENDAR_TITLE: &str = "Cadence call";
 const UTC: &str = "UTC";
@@ -207,13 +214,16 @@ pub enum CancelledBy {
 }
 
 /// A call was booked: the invitee gets the confirmation and the reminders
-/// the host's plan sends that are still ahead of the call, and the host
-/// hears of it.
+/// still ahead, and the host hears of it.
+///
+/// With `attendance`, the day-before reminder asks the invitee to confirm,
+/// and the host hears 2 hours ahead if they have not.
 pub async fn booked(
     connection: &mut PgConnection,
     booking: &Booking,
     page: &BookingPage,
     reminders: &[Reminder],
+    attendance: bool,
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     queue_for_invitee(
@@ -222,10 +232,12 @@ pub async fn booked(
         page,
         BOOKING_CONFIRMATION_TEMPLATE,
         reminders,
+        attendance,
         now,
     )
     .await?;
-    queue_for_host(connection, booking, page, HOST_NEW_BOOKING_TEMPLATE, now).await
+    queue_for_host(connection, booking, page, HOST_NEW_BOOKING_TEMPLATE, now).await?;
+    queue_unconfirmed(connection, booking, page, attendance, now).await
 }
 
 /// A call moved: the reminders for its old time go, and both sides hear of
@@ -235,6 +247,7 @@ pub async fn rescheduled(
     booking: &Booking,
     page: &BookingPage,
     reminders: &[Reminder],
+    attendance: bool,
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     db::drop_unsent(connection, booking.unid).await?;
@@ -244,6 +257,7 @@ pub async fn rescheduled(
         page,
         BOOKING_RESCHEDULED_TEMPLATE,
         reminders,
+        attendance,
         now,
     )
     .await?;
@@ -253,6 +267,83 @@ pub async fn rescheduled(
         page,
         HOST_BOOKING_RESCHEDULED_TEMPLATE,
         now,
+    )
+    .await?;
+    queue_unconfirmed(connection, booking, page, attendance, now).await
+}
+
+/// How long before a call the host hears that it is still unconfirmed.
+const UNCONFIRMED_NOTICE: Duration = Duration::hours(2);
+
+/// The host's heads-up for a call nobody has confirmed. The worker drops it
+/// if the invitee confirms first.
+async fn queue_unconfirmed(
+    connection: &mut PgConnection,
+    booking: &Booking,
+    page: &BookingPage,
+    attendance: bool,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let send_at = booking.slot_start - UNCONFIRMED_NOTICE;
+    if !attendance || send_at < now {
+        return Ok(());
+    }
+    let payload = payload_of(&HostEmail::of(booking, page))?;
+    db::queue(
+        connection,
+        Some(booking.unid),
+        &page.host_email,
+        HOST_UNCONFIRMED_TEMPLATE,
+        send_at,
+        payload,
+    )
+    .await
+}
+
+/// A host's one email to someone who started booking and left: their link,
+/// and an invitation to pick a time.
+pub async fn queue_lead_follow_up(
+    connection: &mut PgConnection,
+    email: &str,
+    name: Option<&str>,
+    host_name: &str,
+    booking_url: &str,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&FollowUpEmail {
+        name: name.map(str::to_owned),
+        host_name: Some(host_name.to_owned()),
+        booking_url: Some(booking_url.to_owned()),
+    })?;
+    db::queue(
+        connection,
+        None,
+        email,
+        LEAD_FOLLOW_UP_TEMPLATE,
+        Utc::now(),
+        payload,
+    )
+    .await
+}
+
+/// The week's numbers for a Business host, one line each.
+pub async fn queue_weekly_insights(
+    connection: &mut PgConnection,
+    email: &str,
+    name: &str,
+    lines: Vec<String>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&InsightsEmail {
+        name: Some(name.to_owned()),
+        lines: Some(lines),
+        dashboard_url: Some(format!("{}{DASHBOARD_PATH}", app_url())),
+    })?;
+    db::queue(
+        connection,
+        None,
+        email,
+        WEEKLY_INSIGHTS_TEMPLATE,
+        Utc::now(),
+        payload,
     )
     .await
 }
@@ -309,9 +400,14 @@ async fn queue_for_invitee(
     page: &BookingPage,
     notice: &str,
     reminders: &[Reminder],
+    attendance: bool,
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
-    let payload = payload_of(&InviteeEmail::of(booking, page))?;
+    let mut email = InviteeEmail::of(booking, page);
+    if attendance {
+        email.attend_url = Some(format!("{}?attend=yes", manage_url(&booking.manage_token)));
+    }
+    let payload = payload_of(&email)?;
     let start = booking.slot_start;
     let reminders = reminders.iter().map(|reminder| {
         let (template, before) = reminder_email(*reminder);
@@ -383,6 +479,9 @@ struct InviteeEmail {
     minutes: Option<i64>,
     #[serde(deserialize_with = "lenient")]
     manage_url: Option<String>,
+    /// Business: confirms the invitee is coming, from the day-before reminder.
+    #[serde(deserialize_with = "lenient")]
+    attend_url: Option<String>,
 }
 
 impl InviteeEmail {
@@ -397,6 +496,7 @@ impl InviteeEmail {
             title: Some(page.title.clone()),
             minutes: Some(i64::from(booking.minutes)),
             manage_url: Some(manage_url(&booking.manage_token)),
+            attend_url: None,
         }
     }
 }
@@ -446,6 +546,28 @@ struct ResetEmail {
     name: Option<String>,
     #[serde(deserialize_with = "lenient")]
     reset_url: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct FollowUpEmail {
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    host_name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    booking_url: Option<String>,
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(default)]
+struct InsightsEmail {
+    #[serde(deserialize_with = "lenient")]
+    name: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    lines: Option<Vec<String>>,
+    #[serde(deserialize_with = "lenient")]
+    dashboard_url: Option<String>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -506,8 +628,13 @@ pub fn delivery(email: &PendingEmail, now: DateTime<Utc>) -> Delivery {
         REMINDER_24H_TEMPLATE,
         REMINDER_2H_TEMPLATE,
         REMINDER_30MIN_TEMPLATE,
+        HOST_UNCONFIRMED_TEMPLATE,
     ]
     .contains(&template);
+    // The invitee confirmed after the heads-up was queued.
+    if template == HOST_UNCONFIRMED_TEMPLATE && email.call_confirmed == Some(true) {
+        return Delivery::Drop;
+    }
     let is_cancellation =
         [BOOKING_CANCELLED_TEMPLATE, HOST_BOOKING_CANCELLED_TEMPLATE].contains(&template);
     let call_cancelled = email.call_status == Some(BookingStatus::Cancelled);
@@ -557,7 +684,10 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         }
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
-        | HOST_BOOKING_RESCHEDULED_TEMPLATE => host_content(template, &read(payload)),
+        | HOST_BOOKING_RESCHEDULED_TEMPLATE
+        | HOST_UNCONFIRMED_TEMPLATE => host_content(template, &read(payload)),
+        LEAD_FOLLOW_UP_TEMPLATE => follow_up_content(&read(payload)),
+        WEEKLY_INSIGHTS_TEMPLATE => insights_content(&read(payload)),
         BOOKING_CONFIRMATION_TEMPLATE
         | REMINDER_24H_TEMPLATE
         | REMINDER_2H_TEMPLATE
@@ -567,6 +697,41 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         _ => return None,
     };
     Some(rendered(content))
+}
+
+fn follow_up_content(email: &FollowUpEmail) -> Content {
+    let host = text(email.host_name.as_ref()).unwrap_or("your host");
+    Content {
+        headline: format!("Still want to talk with {host}?"),
+        greeting: greeting(text(email.name.as_ref())),
+        when: None,
+        details: vec![format!(
+            "You started booking a call with {host} but did not pick a time. Their open times are one click away."
+        )],
+        buttons: link(email.booking_url.as_ref())
+            .map(|url| ("Pick a time", url.to_owned()))
+            .into_iter()
+            .collect(),
+        manage_url: None,
+        note: Some("This is the only email about it. Nothing more is sent if you do not book."),
+        footer: "You are getting this because you started booking on a Cadence booking page.",
+    }
+}
+
+fn insights_content(email: &InsightsEmail) -> Content {
+    Content {
+        headline: "Your week in bookings".to_owned(),
+        greeting: greeting(text(email.name.as_ref())),
+        when: None,
+        details: email.lines.clone().unwrap_or_default(),
+        buttons: link(email.dashboard_url.as_ref())
+            .map(|url| ("Open your dashboard", url.to_owned()))
+            .into_iter()
+            .collect(),
+        manage_url: None,
+        note: None,
+        footer: "You are getting this because you have Cadence Business.",
+    }
 }
 
 fn reset_content(email: &ResetEmail) -> Content {
@@ -642,8 +807,12 @@ fn host_content(template: &str, email: &HostEmail) -> Content {
     let headline = match template {
         HOST_NEW_BOOKING_TEMPLATE => format!("{who} booked a call"),
         HOST_BOOKING_CANCELLED_TEMPLATE => format!("{who} cancelled their call"),
+        HOST_UNCONFIRMED_TEMPLATE => format!("{who} has not confirmed yet"),
         _ => format!("{who} moved their call"),
     };
+    let heads_up = (template == HOST_UNCONFIRMED_TEMPLATE).then(|| {
+        "The call starts in 2 hours and they have not said they are coming. A short note may help.".to_owned()
+    });
     Content {
         greeting: greeting(text(email.host_name.as_ref())),
         details: [
@@ -652,6 +821,7 @@ fn host_content(template: &str, email: &HostEmail) -> Content {
                     .map_or_else(|| name.to_owned(), |address| format!("{name} ({address})"))
             }),
             text(email.title.as_ref()).map(str::to_owned),
+            heads_up,
         ]
         .into_iter()
         .flatten()
@@ -695,6 +865,9 @@ fn invitee_content(template: &str, email: &InviteeEmail) -> Content {
     let join = link(email.meeting_url.as_ref())
         .or_else(|| link(email.meet_link.as_ref()))
         .filter(|_| live);
+    // Business: the day before, the invitee says whether they are coming.
+    let attend =
+        link(email.attend_url.as_ref()).filter(|_| live && template == REMINDER_24H_TEMPLATE);
     let calendar = when
         .calendar_dates
         .as_deref()
@@ -703,6 +876,10 @@ fn invitee_content(template: &str, email: &InviteeEmail) -> Content {
     Content {
         greeting: greeting(text(email.name.as_ref())),
         buttons: [
+            attend.map(|url| ("I'm coming", url.to_owned())),
+            attend
+                .and_then(|_| link(email.manage_url.as_ref()))
+                .map(|url| ("I need another time", url.to_owned())),
             join.map(|url| ("Join the call", url.to_owned())),
             calendar.map(|url| ("Add to Google Calendar", url)),
         ]
@@ -1307,11 +1484,57 @@ mod tests {
             payload: Some(invitee_payload("Nino")),
             call_start,
             call_status: status,
+            call_confirmed: None,
         }
     }
 
     fn sends(email: &PendingEmail, now: DateTime<Utc>) -> bool {
         matches!(delivery(email, now), Delivery::Send(_))
+    }
+
+    #[test]
+    fn the_day_before_asks_whether_the_invitee_is_coming() {
+        let mut payload = invitee_payload("Nino");
+        payload["attend_url"] = json!("https://cadence.example/booking/abc123?attend=yes");
+        let reminder = email(REMINDER_24H_TEMPLATE, &payload);
+        assert!(reminder.html.contains("I&#x27;m coming") || reminder.html.contains("I'm coming"));
+        assert!(reminder.text.contains("attend=yes"));
+        assert!(reminder.text.contains("I need another time"));
+        // Only the day-before reminder asks.
+        let later = email(REMINDER_2H_TEMPLATE, &payload);
+        assert!(!later.text.contains("attend=yes"));
+    }
+
+    #[test]
+    fn the_unconfirmed_heads_up_waits_on_the_invitee() {
+        let start = Utc::now() + Duration::hours(2);
+        let mut heads_up = pending(
+            HOST_UNCONFIRMED_TEMPLATE,
+            Some(start),
+            Some(BookingStatus::Confirmed),
+        );
+        heads_up.payload = Some(host_payload("Ada"));
+        assert!(sends(&heads_up, Utc::now()));
+        heads_up.call_confirmed = Some(true);
+        assert!(!sends(&heads_up, Utc::now()), "the invitee confirmed");
+        heads_up.call_confirmed = Some(false);
+        assert!(!sends(&heads_up, start), "the call has started");
+    }
+
+    #[test]
+    fn a_follow_up_and_the_weekly_numbers_render() {
+        let follow_up = email(
+            LEAD_FOLLOW_UP_TEMPLATE,
+            &json!({ "name": "Jo", "host_name": "Nino", "booking_url": "https://cadence.example/book/nino" }),
+        );
+        assert_eq!(follow_up.subject, "Still want to talk with Nino?");
+        assert!(follow_up.text.contains("https://cadence.example/book/nino"));
+        let weekly = email(
+            WEEKLY_INSIGHTS_TEMPLATE,
+            &json!({ "name": "Nino", "lines": ["12 calls booked", "1 no-show"], "dashboard_url": "https://cadence.example/dashboard" }),
+        );
+        assert_eq!(weekly.subject, "Your week in bookings");
+        assert!(weekly.text.contains("12 calls booked"));
     }
 
     #[test]
@@ -1404,6 +1627,7 @@ mod tests {
             title: Some("Intro call".to_owned()),
             minutes: Some(30),
             manage_url: Some("https://cadence.example/booking/abc".to_owned()),
+            attend_url: None,
         };
         let stored = payload_of(&written).expect("serialises");
         assert!(

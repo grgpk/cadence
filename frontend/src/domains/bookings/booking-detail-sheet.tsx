@@ -20,7 +20,7 @@ import { ConfirmDialog } from "../shared/confirm-dialog";
 import { ErrorState } from "../shared/error-state";
 import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
 import { QUESTIONS } from "../widget/booking-form";
-import { bookingDetailQuery, cancelBooking, isCancelled } from "./bookings";
+import { bookingDetailQuery, cancelBooking, isCancelled, setNoShow } from "./bookings";
 
 /** Where each form question's answer is kept on the lead. */
 const ANSWERS = {
@@ -38,11 +38,14 @@ const ANSWERS = {
 export function BookingDetailSheet({
   unid,
   timeZone,
+  tracksAttendance = false,
   onClose,
 }: {
   unid: string | null;
   /** The host's timezone; without it the call is shown in the invitee's. */
   timeZone?: string;
+  /** Business: whether the invitee confirmed, and marking a no-show. */
+  tracksAttendance?: boolean;
   onClose: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -65,7 +68,27 @@ export function BookingDetailSheet({
     onError: (error) => toast.error(`The call was not cancelled. ${errorMessage(error)}`),
   });
 
+  const noShow = useMutation({
+    mutationFn: ({ unid, marked }: { unid: string; marked: boolean }) =>
+      setNoShow(unid, marked),
+    onSuccess: async (booking) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.bookings }),
+        queryClient.invalidateQueries({
+          queryKey: QUERY_KEYS.bookingDetail(booking.unid),
+        }),
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.insights }),
+      ]);
+      toast.success(booking.no_show_at ? "Marked as a no-show" : "No-show taken back");
+    },
+    onError: (error) => toast.error(`Nothing changed. ${errorMessage(error)}`),
+  });
+
   const booking = query.data?.booking;
+  const over =
+    booking !== undefined &&
+    !isCancelled(booking) &&
+    new Date(booking.slot_start).getTime() + booking.minutes * 60_000 <= Date.now();
   const lead = query.data?.lead;
   const zone = timeZone ?? booking?.timezone;
   const canCancel =
@@ -143,6 +166,18 @@ export function BookingDetailSheet({
                   </dd>
                 </div>
               ) : null}
+              {tracksAttendance && !isCancelled(booking) ? (
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                  <dt className="text-muted-foreground">Coming</dt>
+                  <dd>
+                    {booking.no_show_at
+                      ? "Did not come"
+                      : booking.attendance_confirmed_at
+                        ? `Confirmed ${formatDay(booking.attendance_confirmed_at, zone)}`
+                        : "Not confirmed"}
+                  </dd>
+                </div>
+              ) : null}
               {zone === booking.timezone ? null : (
                 <div className="grid gap-1 px-4 py-3">
                   <dt className="text-muted-foreground">Their time</dt>
@@ -174,6 +209,22 @@ export function BookingDetailSheet({
                     <Video />
                     Join call
                   </a>
+                </Button>
+              ) : null}
+              {tracksAttendance && over ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={noShow.isPending}
+                  onClick={() =>
+                    noShow.mutate({
+                      unid: booking.unid,
+                      marked: booking.no_show_at === null,
+                    })
+                  }
+                >
+                  {noShow.isPending ? <Loader2 className="animate-spin" /> : null}
+                  {booking.no_show_at ? "They did come" : "Mark no-show"}
                 </Button>
               ) : null}
               {canCancel ? (

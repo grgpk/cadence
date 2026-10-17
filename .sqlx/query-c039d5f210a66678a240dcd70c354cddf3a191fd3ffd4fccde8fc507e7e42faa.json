@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at\n         FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC LIMIT $2",
+  "query": "SELECT unid, host_unid, lead_unid, slot_start, (EXTRACT(EPOCH FROM slot_end - slot_start) / 60)::int AS \"minutes!\", timezone, invitee_name, invitee_email, status AS \"status: BookingStatus\", google_meet_url AS meeting_url, google_event_id, manage_token, created_at, attendance_confirmed_at, no_show_at\n         FROM bookings WHERE host_unid = $1 ORDER BY slot_start DESC LIMIT $2",
   "describe": {
     "columns": [
       {
@@ -140,6 +140,28 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 13,
+        "name": "attendance_confirmed_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "attendance_confirmed_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "no_show_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "no_show_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -161,8 +183,10 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      true
     ]
   },
-  "hash": "ad9b59647c993c89762957125c64305531ade9a464f74fd7d50b310e890c358b"
+  "hash": "c039d5f210a66678a240dcd70c354cddf3a191fd3ffd4fccde8fc507e7e42faa"
 }

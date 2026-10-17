@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { Booking } from "../../bindings/Booking";
 import {
   agendaDays,
+  attendanceOf,
   dayCall,
   dayPlan,
   firstName,
   lanes,
   matchesSearch,
+  showUpRate,
   splitBookings,
 } from "./bookings";
 
@@ -26,6 +28,8 @@ function booking(unid: string, slotStart: string, status: Booking["status"]): Bo
     minutes: 30,
     meeting_url: null,
     created_at: "2026-10-01T00:00:00Z",
+    attendance_confirmed_at: null,
+    no_show_at: null,
   };
 }
 
@@ -211,5 +215,33 @@ describe("dayPlan", () => {
     const late = [booking("late", "2026-10-14T23:30:00Z", "confirmed")];
     expect(ids(dayPlan(late, "Asia/Tbilisi", NOW).later)).toEqual(["late"]);
     expect(ids(dayPlan(late, "UTC", NOW).today)).toEqual(["late"]);
+  });
+});
+
+describe("attendanceOf", () => {
+  const now = Date.parse("2026-10-17T12:00:00Z");
+  const ahead = booking("a", "2026-10-18T09:00:00Z", "confirmed");
+  it("reads a call ahead as confirmed or not yet", () => {
+    expect(attendanceOf(ahead, now)).toBe("unconfirmed");
+    expect(
+      attendanceOf({ ...ahead, attendance_confirmed_at: "2026-10-17T10:00:00Z" }, now),
+    ).toBe("confirmed");
+  });
+  it("says nothing about a past or cancelled call, unless it was missed", () => {
+    const past = { ...ahead, slot_start: "2026-10-16T09:00:00Z" };
+    expect(attendanceOf(past, now)).toBeNull();
+    expect(attendanceOf({ ...past, no_show_at: "2026-10-16T10:00:00Z" }, now)).toBe(
+      "no_show",
+    );
+    expect(
+      attendanceOf(booking("b", "2026-10-18T09:00:00Z", "cancelled"), now),
+    ).toBeNull();
+  });
+});
+
+describe("showUpRate", () => {
+  it("is a whole percent, and nothing without held calls", () => {
+    expect(showUpRate(8, 1)).toBe(88);
+    expect(showUpRate(0, 0)).toBeNull();
   });
 });

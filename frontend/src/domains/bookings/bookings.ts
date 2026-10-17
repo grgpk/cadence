@@ -3,6 +3,8 @@ import { queryOptions } from "@tanstack/react-query";
 import type { Booking } from "../../bindings/Booking";
 import type { BookingDetail } from "../../bindings/BookingDetail";
 import type { BookingStatus } from "../../bindings/BookingStatus";
+import type { Insights } from "../../bindings/Insights";
+import type { UnfinishedLead } from "../../bindings/UnfinishedLead";
 import { api } from "../../lib/api";
 import {
   addDays,
@@ -36,6 +38,52 @@ export const bookingDetailQuery = (unid: string) =>
 
 export function cancelBooking(unid: string): Promise<Booking> {
   return api<Booking>(`/api/bookings/${unid}/cancel`, { method: "POST" });
+}
+
+/** Marks, or unmarks, a call that is over as one the invitee missed. */
+export function setNoShow(unid: string, noShow: boolean): Promise<Booking> {
+  return api<Booking>(`/api/bookings/${unid}/no-show`, {
+    method: "POST",
+    body: JSON.stringify({ no_show: noShow }),
+  });
+}
+
+/** Business: people who started booking and left. */
+export const unfinishedLeadsQuery = queryOptions({
+  queryKey: QUERY_KEYS.unfinishedLeads,
+  queryFn: () => api<UnfinishedLead[]>("/api/host/leads/unfinished"),
+});
+
+/** Sends someone who left the host's times, once. */
+export function followUp(unid: string): Promise<void> {
+  return api<void>(`/api/host/leads/${unid}/follow-up`, { method: "POST" });
+}
+
+/** Business: the last 7 days in numbers. */
+export const insightsQuery = queryOptions({
+  queryKey: QUERY_KEYS.insights,
+  queryFn: () => api<Insights>("/api/host/insights"),
+});
+
+/** Where a call stands on attendance, for a host who tracks it. */
+export type Attendance = "confirmed" | "unconfirmed" | "no_show" | null;
+
+export function attendanceOf(
+  booking: Pick<
+    Booking,
+    "status" | "slot_start" | "attendance_confirmed_at" | "no_show_at"
+  >,
+  now: number,
+): Attendance {
+  if (isCancelled(booking)) return null;
+  if (booking.no_show_at) return "no_show";
+  if (new Date(booking.slot_start).getTime() < now) return null;
+  return booking.attendance_confirmed_at ? "confirmed" : "unconfirmed";
+}
+
+/** The share of held calls the invitee came to, in whole percent. */
+export function showUpRate(held: number, noShows: number): number | null {
+  return held === 0 ? null : Math.round(((held - noShows) * 100) / held);
 }
 
 /** Whether a call's invitee matches what the host typed, by name or email. */

@@ -62,7 +62,12 @@ export function bestYearlySaving(offers: readonly PlanOffer[]): number {
 }
 
 /** What a visitor tells the pricing page about their week. */
-export type WeekNeeds = { callsPerWeek: number; severalKinds: boolean };
+export type WeekNeeds = {
+  callsPerWeek: number;
+  severalKinds: boolean;
+  /** Following up with people who left, and seeing who shows up. */
+  clientTools: boolean;
+};
 
 /** The slider's top stop, shown as "30+". */
 export const MAX_CALLS_PER_WEEK = 30;
@@ -71,18 +76,23 @@ export const MAX_CALLS_PER_WEEK = 30;
 export const DEFAULT_INTERVAL: BillingInterval = INTERVAL.YEAR;
 
 /** Lands on Pro: a little more than Free's monthly limit allows. */
-const DEFAULT_NEEDS: WeekNeeds = { callsPerWeek: 8, severalKinds: false };
+const DEFAULT_NEEDS: WeekNeeds = {
+  callsPerWeek: 8,
+  severalKinds: false,
+  clientTools: false,
+};
 
 /** The pricing page's answers, as they sit in its URL. Defaults stay out. */
 type PricingSearch = {
   interval?: BillingInterval;
   calls?: number;
   kinds?: "several";
+  tools?: "yes";
 };
 
 /** Keeps the answers a link can carry and drops the rest. */
 export function pricingSearch(search: Record<string, unknown>): PricingSearch {
-  const { interval, calls, kinds } = search;
+  const { interval, calls, kinds, tools } = search;
   const result: PricingSearch = {};
   if (interval === INTERVAL.MONTH || interval === INTERVAL.YEAR)
     result.interval = interval;
@@ -91,6 +101,7 @@ export function pricingSearch(search: Record<string, unknown>): PricingSearch {
     result.calls = Math.min(MAX_CALLS_PER_WEEK, Math.max(1, Math.round(count)));
   }
   if (kinds === "several") result.kinds = kinds;
+  if (tools === "yes") result.tools = tools;
   return result;
 }
 
@@ -98,6 +109,7 @@ export function needsFrom(search: PricingSearch): WeekNeeds {
   return {
     callsPerWeek: search.calls ?? DEFAULT_NEEDS.callsPerWeek,
     severalKinds: search.kinds === "several",
+    clientTools: search.tools === "yes",
   };
 }
 
@@ -109,6 +121,7 @@ export function searchFor(interval: BillingInterval, needs: WeekNeeds): PricingS
       ? {}
       : { calls: needs.callsPerWeek }),
     ...(needs.severalKinds ? { kinds: "several" as const } : {}),
+    ...(needs.clientTools ? { tools: "yes" as const } : {}),
   };
 }
 
@@ -127,7 +140,11 @@ function severalKindsAllowed(entitlements: Entitlements): boolean {
 function covers(entitlements: Entitlements, needs: WeekNeeds): boolean {
   const included = entitlements.included_bookings_per_month;
   const enoughCalls = included === null || callsPerMonth(needs.callsPerWeek) <= included;
-  return enoughCalls && (!needs.severalKinds || severalKindsAllowed(entitlements));
+  return (
+    enoughCalls &&
+    (!needs.severalKinds || severalKindsAllowed(entitlements)) &&
+    (!needs.clientTools || (entitlements.win_back && entitlements.attendance))
+  );
 }
 
 /**
@@ -143,13 +160,20 @@ export function recommendPlan(offers: readonly PlanOffer[], needs: WeekNeeds): P
 export function fitReason(offers: readonly PlanOffer[], needs: WeekNeeds): string {
   const cheapest = offers[0];
   if (!cheapest) return "";
-  const name = PLAN_NAMES[recommendPlan(offers, needs)];
+  const recommended = recommendPlan(offers, needs);
+  const name = PLAN_NAMES[recommended];
   const included = cheapest.entitlements.included_bookings_per_month;
   const monthly = callsPerMonth(needs.callsPerWeek);
   if (covers(cheapest.entitlements, needs)) {
     return included === null
       ? `${name} covers your week.`
       : `${name} covers your week: about ${monthly} of the ${included} bookings it includes each month.`;
+  }
+  if (
+    needs.clientTools &&
+    recommendPlan(offers, { ...needs, clientTools: false }) !== recommended
+  ) {
+    return `${name} fits: follow up with people who left, see who will show up, and get your week in numbers.`;
   }
   if (needs.severalKinds && !severalKindsAllowed(cheapest.entitlements)) {
     return `${name} fits: several kinds of call on one link. ${PLAN_NAMES[cheapest.plan]} has one.`;
@@ -226,8 +250,14 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
     ],
   },
   {
-    title: "Automation",
-    rows: [{ label: "Webhooks", value: (e) => e.webhooks }],
+    title: "Business tools",
+    rows: [
+      { label: "Send your times to people who left", value: (e) => e.win_back },
+      { label: "Invitees confirm they are coming", value: (e) => e.attendance },
+      { label: "No-show tracking", value: (e) => e.attendance },
+      { label: "Your week in numbers, every Monday", value: (e) => e.insights },
+      { label: "Webhooks", value: (e) => e.webhooks },
+    ],
   },
 ];
 
@@ -246,13 +276,19 @@ export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
     "Reminders 24h, 2h and 30 min before",
     "Your own booking form questions",
   ],
-  business: ["Everything in Pro", "Webhooks for your own tools"],
+  business: [
+    "Everything in Pro",
+    "Win back people who left without booking",
+    "Know who will show up",
+    "Your week in numbers, every Monday",
+    "Webhooks for your own tools",
+  ],
 };
 
 export const PLAN_TAGLINES: Record<Plan, string> = {
   free: "For trying Cadence with a few calls a week.",
   pro: "For people whose work runs on calls.",
-  business: "For running a business on bookings.",
+  business: "For turning bookings into clients.",
 };
 
 export const PLAN_CTA: Record<Plan, string> = {

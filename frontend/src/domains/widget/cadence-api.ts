@@ -148,6 +148,11 @@ export const managedBookingQuery = (token: string) =>
     queryFn: () => api<ManagedBooking>(managePath(token)),
   });
 
+/** The invitee says they are coming, from their reminder. */
+export function attendManagedBooking(token: string): Promise<ManagedBooking> {
+  return api<ManagedBooking>(`${managePath(token)}/attend`, { method: "POST" });
+}
+
 export function cancelManagedBooking(token: string): Promise<ManagedBooking> {
   return api<ManagedBooking>(`${managePath(token)}/cancel`, { method: "POST" });
 }

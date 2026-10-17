@@ -15,6 +15,8 @@ import {
   CalendarView,
 } from "../../domains/bookings/calendar-view";
 import { BookingDetailSheet } from "../../domains/bookings/booking-detail-sheet";
+import { UnfinishedPanel } from "../../domains/bookings/unfinished-panel";
+import { billingQuery } from "../../domains/billing/billing-api";
 import {
   bookingsQuery,
   matchesSearch,
@@ -65,10 +67,12 @@ function BookingList({
   search,
   empty,
   onOpen,
+  tracksAttendance,
 }: {
   loading: boolean;
   bookings: Booking[];
   timeZone?: string;
+  tracksAttendance?: boolean;
   /** What the host typed, to say so when it leaves nothing. */
   search: string;
   empty: React.ReactNode;
@@ -79,7 +83,13 @@ function BookingList({
       {loading ? (
         <TableSkeleton />
       ) : bookings.length > 0 ? (
-        <Agenda bookings={bookings} timeZone={timeZone} onOpen={onOpen} heading="h2" />
+        <Agenda
+          bookings={bookings}
+          timeZone={timeZone}
+          onOpen={onOpen}
+          tracksAttendance={tracksAttendance}
+          heading="h2"
+        />
       ) : search.trim() ? (
         <EmptyState
           icon={Search}
@@ -97,6 +107,8 @@ function BookingsPage() {
   const query = useQuery(bookingsQuery);
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
+  const billing = useQuery(billingQuery);
+  const tools = billing.data?.entitlements;
   const [search, setSearch] = useState("");
   const { view = VIEW.list, mode, offset = 0 } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -173,110 +185,117 @@ function BookingsPage() {
           />
         )
       ) : (
-        <Tabs defaultValue={TABS.UPCOMING}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <TabsList>
-              <TabsTrigger value={TABS.UPCOMING}>
-                Upcoming
-                {loading ? null : (
-                  <span className="text-muted-foreground tabular-nums">
-                    {upcoming.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value={TABS.PAST}>
-                Past
-                {loading ? null : (
-                  <span className="text-muted-foreground tabular-nums">
-                    {past.length}
-                  </span>
-                )}
-              </TabsTrigger>
-              <TabsTrigger value={TABS.CANCELLED}>
-                Cancelled
-                {loading ? null : (
-                  <span className="text-muted-foreground tabular-nums">
-                    {cancelled.length}
-                  </span>
-                )}
-              </TabsTrigger>
-            </TabsList>
-            <div className="relative w-full sm:w-64">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                aria-label="Search bookings by name or email"
-                placeholder="Search by name or email"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="bg-card pl-8"
-              />
+        <>
+          {tools?.win_back ? <UnfinishedPanel timeZone={timeZone} /> : null}
+          <Tabs defaultValue={TABS.UPCOMING}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <TabsList>
+                <TabsTrigger value={TABS.UPCOMING}>
+                  Upcoming
+                  {loading ? null : (
+                    <span className="text-muted-foreground tabular-nums">
+                      {upcoming.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value={TABS.PAST}>
+                  Past
+                  {loading ? null : (
+                    <span className="text-muted-foreground tabular-nums">
+                      {past.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value={TABS.CANCELLED}>
+                  Cancelled
+                  {loading ? null : (
+                    <span className="text-muted-foreground tabular-nums">
+                      {cancelled.length}
+                    </span>
+                  )}
+                </TabsTrigger>
+              </TabsList>
+              <div className="relative w-full sm:w-64">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  aria-label="Search bookings by name or email"
+                  placeholder="Search by name or email"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  className="bg-card pl-8"
+                />
+              </div>
             </div>
-          </div>
-          <TabsContent value={TABS.UPCOMING}>
-            <BookingList
-              loading={loading}
-              bookings={upcoming}
-              timeZone={timeZone}
-              search={search}
-              onOpen={open}
-              empty={
-                <EmptyState
-                  icon={CalendarDays}
-                  title="No upcoming calls"
-                  description="A call shows up here as soon as someone picks a time. Send your link to get the first one."
-                  action={
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={!slug}
-                      onClick={() => slug && copyBookingLink(slug)}
-                    >
-                      <Copy />
-                      Copy link
-                    </Button>
-                  }
-                />
-              }
-            />
-          </TabsContent>
-          <TabsContent value={TABS.PAST}>
-            <BookingList
-              loading={loading}
-              bookings={past}
-              timeZone={timeZone}
-              search={search}
-              onOpen={open}
-              empty={
-                <EmptyState
-                  icon={CalendarDays}
-                  title="No past calls"
-                  description="Calls move here once they have started."
-                />
-              }
-            />
-          </TabsContent>
-          <TabsContent value={TABS.CANCELLED}>
-            <BookingList
-              loading={loading}
-              bookings={cancelled}
-              timeZone={timeZone}
-              search={search}
-              onOpen={open}
-              empty={
-                <EmptyState
-                  icon={CalendarDays}
-                  title="No cancelled calls"
-                  description="A call you or the person who booked it cancels is kept here."
-                />
-              }
-            />
-          </TabsContent>
-        </Tabs>
+            <TabsContent value={TABS.UPCOMING}>
+              <BookingList
+                loading={loading}
+                bookings={upcoming}
+                timeZone={timeZone}
+                search={search}
+                onOpen={open}
+                tracksAttendance={tools?.attendance}
+                empty={
+                  <EmptyState
+                    icon={CalendarDays}
+                    title="No upcoming calls"
+                    description="A call shows up here as soon as someone picks a time. Send your link to get the first one."
+                    action={
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={!slug}
+                        onClick={() => slug && copyBookingLink(slug)}
+                      >
+                        <Copy />
+                        Copy link
+                      </Button>
+                    }
+                  />
+                }
+              />
+            </TabsContent>
+            <TabsContent value={TABS.PAST}>
+              <BookingList
+                loading={loading}
+                bookings={past}
+                timeZone={timeZone}
+                search={search}
+                onOpen={open}
+                tracksAttendance={tools?.attendance}
+                empty={
+                  <EmptyState
+                    icon={CalendarDays}
+                    title="No past calls"
+                    description="Calls move here once they have started."
+                  />
+                }
+              />
+            </TabsContent>
+            <TabsContent value={TABS.CANCELLED}>
+              <BookingList
+                loading={loading}
+                bookings={cancelled}
+                timeZone={timeZone}
+                search={search}
+                onOpen={open}
+                tracksAttendance={tools?.attendance}
+                empty={
+                  <EmptyState
+                    icon={CalendarDays}
+                    title="No cancelled calls"
+                    description="A call you or the person who booked it cancels is kept here."
+                  />
+                }
+              />
+            </TabsContent>
+          </Tabs>
+        </>
       )}
       <BookingDetailSheet
         unid={openUnid}
         timeZone={timeZone}
+        tracksAttendance={tools?.attendance ?? false}
         onClose={() => setOpenUnid(null)}
       />
     </>

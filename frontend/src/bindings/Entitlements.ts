@@ -19,4 +19,17 @@ custom_questions: boolean, custom_accent: boolean,
 /**
  * No "Booked with Cadence" link on the booking page.
  */
-hide_branding: boolean, max_event_types: number | null, webhooks: boolean, };
+hide_branding: boolean, max_event_types: number | null, webhooks: boolean, 
+/**
+ * The host emails people who started a booking and left, once each.
+ */
+win_back: boolean, 
+/**
+ * Invitees confirm they are coming; the host hears about the rest and
+ * marks no-shows.
+ */
+attendance: boolean, 
+/**
+ * The weekly numbers card and email.
+ */
+insights: boolean, };

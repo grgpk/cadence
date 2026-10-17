@@ -25,6 +25,8 @@ What the exploration found:
 
 ## Tier matrix (single source of truth: `backend/src/domain/billing/plans.rs`)
 
+Later changes: Plan 30 makes Free's 25 bookings included rather than a cap. Plan 31 moves several event types into Pro. Plan 33 adds the Business tools (`win_back`, `attendance`, `insights`). The table below is the original matrix.
+
 | Entitlement | Free | Pro (trial) | Business |
 |---|---|---|---|
 | Bookings per month (host timezone) | 25 | unlimited | unlimited |

@@ -115,6 +115,9 @@ pub struct BookingPage {
     pub accepting_bookings: bool,
     /// The Cadence logo under the card. Paid plans leave it off.
     pub show_branding: bool,
+    /// Business: the form says the host may email once if the visitor leaves
+    /// without booking.
+    pub follow_up_notice: bool,
 }
 
 /// A kind of call as a visitor picks it on the host's page.

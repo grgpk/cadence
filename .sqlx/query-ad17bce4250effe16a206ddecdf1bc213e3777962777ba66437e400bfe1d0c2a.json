@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT l.unid, l.first_name, l.last_name, l.email AS \"email!\", l.updated_at AS left_at\n           FROM leads l\n           WHERE l.host_unid = $1\n             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'\n             AND l.followed_up_at IS NULL\n             AND l.updated_at >= $2\n             AND l.updated_at < now() - interval '1 hour'\n             AND NOT EXISTS (\n                 SELECT 1 FROM bookings b\n                 WHERE b.host_unid = l.host_unid\n                   AND lower(b.invitee_email) = lower(l.email)\n                   AND b.created_at >= l.created_at - interval '1 day'\n             )\n           ORDER BY l.updated_at DESC\n           LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "first_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "last_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "email!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "left_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "ad17bce4250effe16a206ddecdf1bc213e3777962777ba66437e400bfe1d0c2a"
+}

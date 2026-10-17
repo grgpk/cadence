@@ -42,6 +42,9 @@ impl Plan {
                 hide_branding: false,
                 max_event_types: Some(1),
                 webhooks: false,
+                win_back: false,
+                attendance: false,
+                insights: false,
             },
             Self::Pro => Entitlements {
                 included_bookings_per_month: None,
@@ -51,6 +54,9 @@ impl Plan {
                 hide_branding: true,
                 max_event_types: None,
                 webhooks: false,
+                win_back: false,
+                attendance: false,
+                insights: false,
             },
             Self::Business => Entitlements {
                 included_bookings_per_month: None,
@@ -60,6 +66,9 @@ impl Plan {
                 hide_branding: true,
                 max_event_types: None,
                 webhooks: true,
+                win_back: true,
+                attendance: true,
+                insights: true,
             },
         }
     }
@@ -182,6 +191,13 @@ pub struct Entitlements {
     pub hide_branding: bool,
     pub max_event_types: Option<u32>,
     pub webhooks: bool,
+    /// The host emails people who started a booking and left, once each.
+    pub win_back: bool,
+    /// Invitees confirm they are coming; the host hears about the rest and
+    /// marks no-shows.
+    pub attendance: bool,
+    /// The weekly numbers card and email.
+    pub insights: bool,
 }
 
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, TS)]
@@ -327,6 +343,9 @@ mod tests {
         assert!(free.reminders.len() < pro.reminders.len());
         assert!(!free.custom_questions && pro.custom_questions && business.custom_questions);
         assert!(!pro.webhooks && business.webhooks);
+        assert!(!pro.win_back && business.win_back);
+        assert!(!pro.attendance && business.attendance);
+        assert!(!pro.insights && business.insights);
         assert_eq!(business.max_event_types, None);
     }
 }

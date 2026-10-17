@@ -34,6 +34,9 @@ function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
       hide_branding: false,
       max_event_types: 1,
       webhooks: false,
+      win_back: false,
+      attendance: false,
+      insights: false,
     },
     ...overrides,
   };

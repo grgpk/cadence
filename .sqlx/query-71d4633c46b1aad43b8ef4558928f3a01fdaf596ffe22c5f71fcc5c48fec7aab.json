@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT e.id, e.email, e.template, e.payload,\n                  b.slot_start AS \"call_start?\", b.status AS \"call_status?: BookingStatus\"\n           FROM email_queue e LEFT JOIN bookings b ON b.unid = e.booking_unid\n           WHERE e.sent_at IS NULL AND e.send_at <= now() AND e.attempts < $1\n           ORDER BY e.send_at ASC LIMIT 1\n           FOR UPDATE OF e SKIP LOCKED",
+  "query": "SELECT e.id, e.email, e.template, e.payload,\n                  b.slot_start AS \"call_start?\", b.status AS \"call_status?: BookingStatus\",\n                  b.attendance_confirmed_at IS NOT NULL AS \"call_confirmed?\"\n           FROM email_queue e LEFT JOIN bookings b ON b.unid = e.booking_unid\n           WHERE e.sent_at IS NULL AND e.send_at <= now() AND e.attempts < $1\n           ORDER BY e.send_at ASC LIMIT 1\n           FOR UPDATE OF e SKIP LOCKED",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,12 @@
             "name": "status"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "call_confirmed?",
+        "type_info": "Bool",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -81,8 +87,9 @@
       false,
       true,
       false,
-      false
+      false,
+      null
     ]
   },
-  "hash": "307c83bac2278a34fd1830f18b87d9cfe4dab25b525ff23b6037a14b08dff0d9"
+  "hash": "71d4633c46b1aad43b8ef4558928f3a01fdaf596ffe22c5f71fcc5c48fec7aab"
 }

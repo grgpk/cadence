@@ -55,6 +55,8 @@ pub struct PendingEmail {
     /// `None` for an email that is not about a call.
     pub call_start: Option<DateTime<Utc>>,
     pub call_status: Option<BookingStatus>,
+    /// The invitee said they are coming.
+    pub call_confirmed: Option<bool>,
 }
 
 /// The next due email, locked until the transaction ends. Rows another
@@ -65,7 +67,8 @@ pub async fn claim_next(
     sqlx::query_as!(
         PendingEmail,
         r#"SELECT e.id, e.email, e.template, e.payload,
-                  b.slot_start AS "call_start?", b.status AS "call_status?: BookingStatus"
+                  b.slot_start AS "call_start?", b.status AS "call_status?: BookingStatus",
+                  b.attendance_confirmed_at IS NOT NULL AS "call_confirmed?"
            FROM email_queue e LEFT JOIN bookings b ON b.unid = e.booking_unid
            WHERE e.sent_at IS NULL AND e.send_at <= now() AND e.attempts < $1
            ORDER BY e.send_at ASC LIMIT 1

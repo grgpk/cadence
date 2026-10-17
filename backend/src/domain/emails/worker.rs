@@ -14,8 +14,9 @@ use super::{
     service::{self, Delivery, RenderedEmail},
 };
 use crate::domain::{
-    auth::service as auth, google_calendar::service as google_calendar,
-    rate_limits::service as rate_limits, webhooks::service as webhooks,
+    auth::service as auth, bookings::service as bookings,
+    google_calendar::service as google_calendar, rate_limits::service as rate_limits,
+    webhooks::service as webhooks,
 };
 
 /// The most emails one pass sends, so the sweep after it is never starved.
@@ -130,6 +131,10 @@ pub async fn sweep(pool: &PgPool) {
         google_calendar::forget_old_states(pool).await,
     );
     unswept("webhook deliveries", webhooks::forget_old(pool).await);
+    unswept(
+        "weekly insights",
+        bookings::queue_weekly_insights(pool).await,
+    );
 }
 
 /// Logs a sweep step that failed; the next minute tries again.

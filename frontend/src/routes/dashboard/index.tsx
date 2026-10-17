@@ -16,7 +16,10 @@ import {
   availabilityQuery,
   hostSettingsQuery,
 } from "../../domains/dashboard/host-api";
+import { InsightsCard } from "../../domains/dashboard/insights-card";
 import { TodayCard, TodayCardSkeleton } from "../../domains/dashboard/today-card";
+import { billingQuery } from "../../domains/billing/billing-api";
+import { useClockPreference } from "../../hooks/use-clock-preference";
 import { EmptyState } from "../../domains/shared/empty-state";
 import { ErrorState } from "../../domains/shared/error-state";
 import { PageHeader } from "../../domains/shared/page-header";
@@ -60,6 +63,8 @@ function DashboardHome() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const overrides = useQuery(availabilityOverridesQuery);
+  const billing = useQuery(billingQuery);
+  const [hour12] = useClockPreference();
   const [openUnid, setOpenUnid] = useState<string | null>(null);
   const slug = settings.data?.public_slug;
   const timeZone = settings.data?.timezone;
@@ -132,16 +137,24 @@ function DashboardHome() {
               }
             />
           ) : (
-            <Agenda bookings={later} timeZone={timeZone} onOpen={openBooking} />
+            <Agenda
+              bookings={later}
+              timeZone={timeZone}
+              onOpen={openBooking}
+              tracksAttendance={billing.data?.entitlements.attendance}
+            />
           )}
         </Card>
       )}
+
+      {billing.data?.entitlements.insights ? <InsightsCard hour12={hour12} /> : null}
 
       <SetupSummary />
 
       <BookingDetailSheet
         unid={openUnid}
         timeZone={timeZone}
+        tracksAttendance={billing.data?.entitlements.attendance}
         onClose={() => setOpenUnid(null)}
       />
     </>

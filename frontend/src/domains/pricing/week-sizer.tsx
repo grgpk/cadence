@@ -67,6 +67,16 @@ export function WeekSizer({
           I offer more than one kind of call
         </Label>
       </div>
+      <div className="flex items-center gap-3">
+        <Switch
+          id={`${id}-tools`}
+          checked={needs.clientTools}
+          onCheckedChange={(checked) => onChange({ ...needs, clientTools: checked })}
+        />
+        <Label htmlFor={`${id}-tools`} className="font-normal">
+          I want to follow up with people and see who shows up
+        </Label>
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t pt-4">
         <p aria-live="polite" className="max-w-md font-medium">
           {fitReason(offers, needs)}

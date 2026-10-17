@@ -68,6 +68,10 @@ pub struct Booking {
     #[ts(skip)]
     pub manage_token: String,
     pub created_at: DateTime<Utc>,
+    /// The invitee said they are coming. Cleared when the call moves.
+    pub attendance_confirmed_at: Option<DateTime<Utc>>,
+    /// The host marked that the invitee did not come.
+    pub no_show_at: Option<DateTime<Utc>>,
 }
 
 /// What the invitee gets back after booking: the call and the secret that
@@ -101,6 +105,15 @@ pub struct ManagedBooking {
     pub event_slug: String,
     /// `false` once the call is cancelled or has started.
     pub can_change: bool,
+    /// The invitee said they are coming.
+    pub attendance_confirmed: bool,
+}
+
+/// The host marks whether the invitee came to a call that is over.
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/NoShowRequest.ts")]
+pub struct NoShowRequest {
+    pub no_show: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, TS)]
@@ -116,4 +129,39 @@ pub struct BookingDetail {
     pub booking: Booking,
     /// `None` when the call was booked without the form.
     pub lead: Option<Lead>,
+}
+
+/// A Business host's last 7 days, and what the last 30 say about their week.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/Insights.ts")]
+pub struct Insights {
+    /// Calls booked in the last 7 days.
+    pub booked: i32,
+    /// Calls that took place in the last 7 days.
+    pub held: i32,
+    /// Of those, the invitees who said they were coming.
+    pub confirmed: i32,
+    /// Of those, the invitees who did not come.
+    pub no_shows: i32,
+    /// People who gave an email on the form and left, in the last 7 days.
+    pub unfinished: i32,
+    /// The weekday and hour most calls land on, over 30 days.
+    pub busiest: Option<BusiestTime>,
+    /// Where booked invitees came from (`utm_source`), over 30 days.
+    pub sources: Vec<SourceCount>,
+}
+
+/// On the host's clock; weekday 0 is Monday.
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/BusiestTime.ts")]
+pub struct BusiestTime {
+    pub weekday: i32,
+    pub hour: i32,
+}
+
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/SourceCount.ts")]
+pub struct SourceCount {
+    pub source: String,
+    pub bookings: i32,
 }

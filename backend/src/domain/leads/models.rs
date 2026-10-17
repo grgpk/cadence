@@ -66,3 +66,16 @@ pub struct Lead {
 pub struct SubmitLeadRequest {
     pub source_page: Option<String>,
 }
+
+/// Someone who started booking with the host, gave an email and left without
+/// a call. Business hosts can send them their times once.
+#[derive(Debug, Serialize, TS, sqlx::FromRow)]
+#[ts(export, export_to = "../../frontend/src/bindings/UnfinishedLead.ts")]
+pub struct UnfinishedLead {
+    pub unid: Uuid,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub email: String,
+    /// When they last typed on the form.
+    pub left_at: DateTime<Utc>,
+}

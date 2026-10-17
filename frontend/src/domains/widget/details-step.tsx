@@ -363,7 +363,9 @@ export function DetailsStep({
           </Alert>
         ) : null}
 
-        <ConsentNotice />
+        <ConsentNotice
+          followUpHost={page.follow_up_notice ? page.host_name : undefined}
+        />
 
         <div className="flex items-center justify-between gap-3 border-t pt-5">
           <Button type="button" variant="ghost" onClick={onBack}>

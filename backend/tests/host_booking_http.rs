@@ -1107,6 +1107,7 @@ async fn an_invitee_reads_their_call_through_the_manage_link(pool: PgPool) {
             "slug": slug,
             "event_slug": "call",
             "can_change": true,
+            "attendance_confirmed": false,
         })
     );
     for wrong in ["nope".to_owned(), unid.to_string()] {
@@ -2400,7 +2401,7 @@ async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
 
     // Booked 3 hours ahead: the 24 hour reminder is already past.
     let now = start - Duration::hours(3);
-    emails::service::booked(&mut connection, &booking, &page, &Reminder::ALL, now)
+    emails::service::booked(&mut connection, &booking, &page, &Reminder::ALL, false, now)
         .await
         .expect("queued");
     assert_eq!(
@@ -2415,7 +2416,7 @@ async fn the_email_queue_decides_what_each_call_event_sends(pool: PgPool) {
 
     // Moved, seen from 30 hours ahead: what waited is replaced, every reminder is ahead.
     let now = start - Duration::hours(30);
-    emails::service::rescheduled(&mut connection, &booking, &page, &Reminder::ALL, now)
+    emails::service::rescheduled(&mut connection, &booking, &page, &Reminder::ALL, false, now)
         .await
         .expect("queued");
     assert_eq!(
@@ -2950,4 +2951,143 @@ async fn a_calendly_setup_comes_in_and_the_first_link_keeps_working(pool: PgPool
     assert_eq!(status, StatusCode::OK);
     assert_eq!(saved["event_types"], 1);
     assert_eq!(saved["event_types_left_out"], 1);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_business_tools_are_closed_to_pro(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let start = *slots(&app, &slug).await.first().expect("open times");
+    let (unid, _) = book(&app, &slug, start).await;
+    for path in ["/api/host/leads/unfinished", "/api/host/insights"] {
+        let (status, _) = get(&app, path, Some(&host.cookie)).await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{path} on the Pro trial");
+    }
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/bookings/{unid}/no-show"),
+        Some(&host.cookie),
+        Some(json!({ "no_show": true })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(
+        !waiting_emails(&pool, unid)
+            .await
+            .iter()
+            .any(|line| line.starts_with("host_unconfirmed")),
+        "Pro hosts get no unconfirmed heads-up"
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_business_host_sends_their_times_once_to_someone_who_left(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    give_business(&pool, &host).await;
+    let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
+    assert_eq!(
+        page["follow_up_notice"], true,
+        "the form says it may happen"
+    );
+
+    let lead_unid = Uuid::new_v4();
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{lead_unid}"),
+        None,
+        Some(json!({ "first_name": "Jo", "email": "jo@example.com" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let unfinished = || async {
+        let (status, list) = get(&app, "/api/host/leads/unfinished", Some(&host.cookie)).await;
+        assert_eq!(status, StatusCode::OK);
+        list.as_array().map_or(0, Vec::len)
+    };
+    assert_eq!(unfinished().await, 0, "someone typing now has not left");
+
+    sqlx::query_scalar!(
+        "UPDATE leads SET updated_at = now() - interval '2 hours' WHERE unid = $1 RETURNING 1",
+        lead_unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the lead is older");
+    assert_eq!(unfinished().await, 1);
+
+    let path = format!("/api/host/leads/{lead_unid}/follow-up");
+    let (status, _) = send(&app, Method::POST, &path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(account_notices(&pool, "lead_follow_up").await, 1);
+    let (status, _) = send(&app, Method::POST, &path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "only once");
+    assert_eq!(unfinished().await, 0, "followed up, so off the list");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_business_host_knows_who_comes_and_who_did_not(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    give_business(&pool, &host).await;
+    let start = *slots(&app, &slug).await.last().expect("open times");
+    let (unid, token) = book(&app, &slug, start).await;
+    assert!(
+        waiting_emails(&pool, unid)
+            .await
+            .contains(&"host_unconfirmed -> nino@example.com".to_owned()),
+        "the host hears 2 hours ahead unless the invitee confirms"
+    );
+
+    let (status, call) = send(
+        &app,
+        Method::POST,
+        &format!("/api/manage/{token}/attend"),
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(call["attendance_confirmed"], true);
+
+    let no_show = |marked: bool| {
+        let app = app.clone();
+        let cookie = host.cookie.clone();
+        async move {
+            send(
+                &app,
+                Method::POST,
+                &format!("/api/bookings/{unid}/no-show"),
+                Some(&cookie),
+                Some(json!({ "no_show": marked })),
+            )
+            .await
+        }
+    };
+    assert_eq!(no_show(true).await.0, StatusCode::CONFLICT, "not over yet");
+
+    // The call took place yesterday.
+    sqlx::query_scalar!(
+        "UPDATE bookings SET slot_start = now() - interval '1 day', slot_end = now() - interval '23 hours'
+         WHERE unid = $1 RETURNING 1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the call is in the past");
+    let (status, marked) = no_show(true).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(marked["no_show_at"].is_string());
+
+    let (status, week) = get(&app, "/api/host/insights", Some(&host.cookie)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(week["booked"], 1);
+    assert_eq!(week["held"], 1);
+    assert_eq!(week["confirmed"], 1);
+    assert_eq!(week["no_shows"], 1);
+
+    let (_, unmarked) = no_show(false).await;
+    assert!(unmarked["no_show_at"].is_null(), "a mistake can be undone");
 }

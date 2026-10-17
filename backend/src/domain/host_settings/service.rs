@@ -75,6 +75,13 @@ pub async fn update(
     }
 }
 
+/// The host's IANA timezone; UTC before they picked one.
+pub async fn timezone(pool: &PgPool, host_unid: Uuid) -> AppResult<String> {
+    Ok(db::find(pool, host_unid)
+        .await?
+        .map_or_else(|| DEFAULT_TIMEZONE.to_owned(), |settings| settings.timezone))
+}
+
 /// Picks where the host's calls happen.
 ///
 /// A custom link needs the link. Google Meet may be picked before a calendar
@@ -176,6 +183,7 @@ async fn with_plan(
         page.accepting_bookings = false;
     }
     page.show_branding = !entitlements.hide_branding;
+    page.follow_up_notice = entitlements.win_back;
     Ok(page)
 }
 
