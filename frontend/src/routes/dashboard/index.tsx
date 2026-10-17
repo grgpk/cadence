@@ -17,6 +17,7 @@ import {
   hostSettingsQuery,
 } from "../../domains/dashboard/host-api";
 import { InsightsCard } from "../../domains/dashboard/insights-card";
+import { SwitchingCard } from "../../domains/dashboard/switching-card";
 import { TodayCard, TodayCardSkeleton } from "../../domains/dashboard/today-card";
 import { billingQuery } from "../../domains/billing/billing-api";
 import { useClockPreference } from "../../hooks/use-clock-preference";
@@ -86,6 +87,8 @@ function DashboardHome() {
       />
 
       <SetupProblems />
+
+      {bookings.data?.length === 0 ? <SwitchingCard /> : null}
 
       {failed ? (
         <Card className="py-5">

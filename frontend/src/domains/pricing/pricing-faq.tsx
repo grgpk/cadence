@@ -37,6 +37,11 @@ const QUESTIONS = [
       "Nothing is deleted. Your settings, questions and calls stay saved. Paid features, such as extra reminders and your own form questions, pause until you upgrade again.",
   },
   {
+    question: "Can I bring my setup from another scheduler?",
+    answer:
+      "Yes. From Calendly, paste a personal access token and your event types, weekly hours, days off and timezone come over in a minute. Your Calendly account is not changed.",
+  },
+  {
     question: "Do you give refunds?",
     answer:
       "We do not refund part of a period. When you cancel, you keep your plan until the period you paid for ends.",
