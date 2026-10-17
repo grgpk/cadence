@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use chrono::{DateTime, Utc};
@@ -111,22 +111,33 @@ pub async fn unfinished(
     host_unid: Uuid,
     since: DateTime<Utc>,
 ) -> Result<Vec<UnfinishedLead>, sqlx::Error> {
+    // One row per person, their latest try. Someone who was sent the host's
+    // times once, from any of their tries, is not listed again.
     sqlx::query_as!(
         UnfinishedLead,
-        r#"SELECT l.unid, l.first_name, l.last_name, l.email AS "email!", l.updated_at AS left_at
-           FROM leads l
-           WHERE l.host_unid = $1
-             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
-             AND l.followed_up_at IS NULL
-             AND l.updated_at >= $2
-             AND l.updated_at < now() - interval '1 hour'
-             AND NOT EXISTS (
-                 SELECT 1 FROM bookings b
-                 WHERE b.host_unid = l.host_unid
-                   AND lower(b.invitee_email) = lower(l.email)
-                   AND b.created_at >= l.created_at - interval '1 day'
-             )
-           ORDER BY l.updated_at DESC
+        r#"SELECT unid, first_name, last_name, email AS "email!", left_at AS "left_at!"
+           FROM (
+               SELECT DISTINCT ON (lower(l.email))
+                      l.unid, l.first_name, l.last_name, l.email, l.updated_at AS left_at
+               FROM leads l
+               WHERE l.host_unid = $1
+                 AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+                 AND l.updated_at >= $2
+                 AND l.updated_at < now() - interval '1 hour'
+                 AND NOT EXISTS (
+                     SELECT 1 FROM leads o
+                     WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)
+                       AND o.followed_up_at IS NOT NULL
+                 )
+                 AND NOT EXISTS (
+                     SELECT 1 FROM bookings b
+                     WHERE b.host_unid = l.host_unid
+                       AND lower(b.invitee_email) = lower(l.email)
+                       AND b.created_at >= l.created_at - interval '1 day'
+                 )
+               ORDER BY lower(l.email), l.updated_at DESC
+           ) latest
+           ORDER BY left_at DESC
            LIMIT 50"#,
         host_unid,
         since,
@@ -135,21 +146,39 @@ pub async fn unfinished(
     .await
 }
 
-/// Marks the one follow-up as sent. Returns `None` when the lead is not the
-/// host's, has no email, or was followed up already.
+/// Marks the one follow-up as sent, for a lead the unfinished list would
+/// show: the host's, still not booked, in the window, and a person never
+/// followed up before. `None` otherwise.
 pub async fn mark_followed_up(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     host_unid: Uuid,
     unid: Uuid,
+    since: DateTime<Utc>,
 ) -> Result<Option<UnfinishedLead>, sqlx::Error> {
     sqlx::query_as!(
         UnfinishedLead,
-        r#"UPDATE leads SET followed_up_at = now()
-           WHERE host_unid = $1 AND unid = $2 AND followed_up_at IS NULL AND email IS NOT NULL
-           RETURNING unid, first_name, last_name, email AS "email!", updated_at AS left_at"#,
+        r#"UPDATE leads l SET followed_up_at = now()
+           WHERE l.host_unid = $1 AND l.unid = $2
+             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+             AND l.updated_at >= $3
+             AND l.updated_at < now() - interval '1 hour'
+             AND NOT EXISTS (
+                 SELECT 1 FROM leads o
+                 WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)
+                   AND o.followed_up_at IS NOT NULL
+             )
+             AND NOT EXISTS (
+                 SELECT 1 FROM bookings b
+                 WHERE b.host_unid = l.host_unid
+                   AND lower(b.invitee_email) = lower(l.email)
+                   AND b.created_at >= l.created_at - interval '1 day'
+             )
+           RETURNING l.unid, l.first_name, l.last_name, l.email AS "email!",
+                     l.updated_at AS left_at"#,
         host_unid,
         unid,
+        since,
     )
-    .fetch_optional(pool)
+    .fetch_optional(connection)
     .await
 }

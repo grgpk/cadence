@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE leads SET followed_up_at = now()\n           WHERE host_unid = $1 AND unid = $2 AND followed_up_at IS NULL AND email IS NOT NULL\n           RETURNING unid, first_name, last_name, email AS \"email!\", updated_at AS left_at",
+  "query": "UPDATE leads l SET followed_up_at = now()\n           WHERE l.host_unid = $1 AND l.unid = $2\n             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'\n             AND l.updated_at >= $3\n             AND l.updated_at < now() - interval '1 hour'\n             AND NOT EXISTS (\n                 SELECT 1 FROM leads o\n                 WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)\n                   AND o.followed_up_at IS NOT NULL\n             )\n             AND NOT EXISTS (\n                 SELECT 1 FROM bookings b\n                 WHERE b.host_unid = l.host_unid\n                   AND lower(b.invitee_email) = lower(l.email)\n                   AND b.created_at >= l.created_at - interval '1 day'\n             )\n           RETURNING l.unid, l.first_name, l.last_name, l.email AS \"email!\",\n                     l.updated_at AS left_at",
   "describe": {
     "columns": [
       {
@@ -62,7 +62,8 @@
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Uuid",
+        "Timestamptz"
       ]
     },
     "nullable": [
@@ -73,5 +74,5 @@
       false
     ]
   },
-  "hash": "1a24a4f55bbef85c9dd25edb2f5684e245b90dbe8de427ca1c857d31f3b9ac14"
+  "hash": "2b891dd87ddcff596e1dae9a9f4fbfa9d285c13aac17ee55747fdbff75313243"
 }

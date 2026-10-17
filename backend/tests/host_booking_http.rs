@@ -3025,6 +3025,30 @@ async fn a_business_host_sends_their_times_once_to_someone_who_left(pool: PgPool
     let (status, _) = send(&app, Method::POST, &path, Some(&host.cookie), None).await;
     assert_eq!(status, StatusCode::CONFLICT, "only once");
     assert_eq!(unfinished().await, 0, "followed up, so off the list");
+
+    // Jo comes back, starts again and leaves again: still only one email.
+    let again = Uuid::new_v4();
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{again}"),
+        None,
+        Some(json!({ "first_name": "Jo", "email": "JO@example.com" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    sqlx::query_scalar!(
+        "UPDATE leads SET updated_at = now() - interval '2 hours' WHERE unid = $1 RETURNING 1",
+        again,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the lead is older");
+    assert_eq!(unfinished().await, 0, "the same person, already sent");
+    let path = format!("/api/host/leads/{again}/follow-up");
+    let (status, _) = send(&app, Method::POST, &path, Some(&host.cookie), None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "once per person, not per try");
+    assert_eq!(account_notices(&pool, "lead_follow_up").await, 1);
 }
 
 #[sqlx::test(migrations = "../migrations")]

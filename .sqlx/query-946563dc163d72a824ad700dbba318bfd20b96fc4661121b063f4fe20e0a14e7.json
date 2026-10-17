@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT l.unid, l.first_name, l.last_name, l.email AS \"email!\", l.updated_at AS left_at\n           FROM leads l\n           WHERE l.host_unid = $1\n             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'\n             AND l.followed_up_at IS NULL\n             AND l.updated_at >= $2\n             AND l.updated_at < now() - interval '1 hour'\n             AND NOT EXISTS (\n                 SELECT 1 FROM bookings b\n                 WHERE b.host_unid = l.host_unid\n                   AND lower(b.invitee_email) = lower(l.email)\n                   AND b.created_at >= l.created_at - interval '1 day'\n             )\n           ORDER BY l.updated_at DESC\n           LIMIT 50",
+  "query": "SELECT unid, first_name, last_name, email AS \"email!\", left_at AS \"left_at!\"\n           FROM (\n               SELECT DISTINCT ON (lower(l.email))\n                      l.unid, l.first_name, l.last_name, l.email, l.updated_at AS left_at\n               FROM leads l\n               WHERE l.host_unid = $1\n                 AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\\.[^@[:space:]]+$'\n                 AND l.updated_at >= $2\n                 AND l.updated_at < now() - interval '1 hour'\n                 AND NOT EXISTS (\n                     SELECT 1 FROM leads o\n                     WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)\n                       AND o.followed_up_at IS NOT NULL\n                 )\n                 AND NOT EXISTS (\n                     SELECT 1 FROM bookings b\n                     WHERE b.host_unid = l.host_unid\n                       AND lower(b.invitee_email) = lower(l.email)\n                       AND b.created_at >= l.created_at - interval '1 day'\n                 )\n               ORDER BY lower(l.email), l.updated_at DESC\n           ) latest\n           ORDER BY left_at DESC\n           LIMIT 50",
   "describe": {
     "columns": [
       {
@@ -49,7 +49,7 @@
       },
       {
         "ordinal": 4,
-        "name": "left_at",
+        "name": "left_at!",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
@@ -73,5 +73,5 @@
       false
     ]
   },
-  "hash": "ad17bce4250effe16a206ddecdf1bc213e3777962777ba66437e400bfe1d0c2a"
+  "hash": "946563dc163d72a824ad700dbba318bfd20b96fc4661121b063f4fe20e0a14e7"
 }

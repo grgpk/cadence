@@ -158,19 +158,26 @@ pub async fn unfinished(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Unfinis
 pub async fn follow_up(pool: &PgPool, host: &UserRecord, unid: Uuid) -> AppResult<()> {
     ensure_win_back(pool, host.unid).await?;
     let settings = host_settings::get_or_create(pool, host).await?;
-    let lead = db::mark_followed_up(pool, host.unid, unid)
+    let since = Utc::now() - Duration::days(UNFINISHED_DAYS);
+    // Marked and queued together: a failed queue leaves it unmarked to retry.
+    let mut transaction = pool.begin().await?;
+    let lead = db::mark_followed_up(&mut transaction, host.unid, unid, since)
         .await?
-        .ok_or_else(|| AppError::Conflict("this person was already sent your times".to_owned()))?;
+        .ok_or_else(|| {
+            AppError::Conflict(
+                "this person was sent your times, booked, or left too long ago".to_owned(),
+            )
+        })?;
     let booking_url = format!("{}/book/{}", emails::app_url(), settings.public_slug);
-    let mut connection = pool.acquire().await?;
     emails::queue_lead_follow_up(
-        &mut connection,
+        &mut transaction,
         &lead.email,
         lead.first_name.as_deref(),
         &host.full_name,
         &booking_url,
     )
     .await?;
+    transaction.commit().await?;
     Ok(())
 }
 

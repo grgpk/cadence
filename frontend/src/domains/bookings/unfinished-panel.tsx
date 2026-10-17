@@ -23,8 +23,15 @@ function UnfinishedRow({ lead, timeZone }: { lead: UnfinishedLead; timeZone?: st
       await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.unfinishedLeads });
       toast.success(`Sent your times to ${lead.email}`);
     },
-    onError: (error) =>
-      toast.error(errorMessage(error, { 409: `${lead.email} already has your times.` })),
+    onError: (error) => {
+      toast.error(
+        errorMessage(error, {
+          409: `${lead.email} has your times already, or has booked since.`,
+        }),
+      );
+      // The list was stale: show it as it is now.
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.unfinishedLeads });
+    },
   });
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 py-3">
