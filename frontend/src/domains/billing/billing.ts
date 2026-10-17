@@ -2,6 +2,7 @@ import type { AdminPlan } from "../../bindings/AdminPlan";
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { Plan } from "../../bindings/Plan";
+import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
 import { formatDate } from "../../lib/format";
 import { INTERVAL, PLAN, PLAN_NAMES } from "../pricing/pricing";
@@ -70,6 +71,24 @@ export function bookingUsage(summary: BillingSummary): number | null {
   const limit = summary.entitlements.max_bookings_per_month;
   if (limit === null || limit === 0) return null;
   return Math.min(1, summary.bookings_this_month / limit);
+}
+
+/**
+ * During a trial, this month against Free's limit: what dropping to Free
+ * would mean. `null` when there is nothing to decide.
+ */
+export function freeAllowanceLine(
+  summary: Pick<BillingSummary, "status" | "entitlements" | "bookings_this_month">,
+  offers: readonly PlanOffer[],
+): string | null {
+  if (summary.status !== STATUS.TRIALING) return null;
+  if (summary.entitlements.max_bookings_per_month !== null) return null;
+  const limit = offers.find((offer) => offer.plan === PLAN.FREE)?.entitlements
+    .max_bookings_per_month;
+  if (limit == null) return null;
+  return summary.bookings_this_month > limit
+    ? `That is over Free's ${limit} a month.`
+    : `Free allows ${limit} a month.`;
 }
 
 /** One sentence on where the host's plan stands. */

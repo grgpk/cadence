@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
+import type { PlanOffer } from "../../bindings/PlanOffer";
 import { PLAN } from "../pricing/pricing";
 import {
   bookingUsage,
   checkoutIntent,
+  freeAllowanceLine,
   hasPortal,
   planAction,
   planCounts,
@@ -144,5 +146,40 @@ describe("planCounts", () => {
       pro: 2,
       business: 0,
     });
+  });
+});
+
+describe("freeAllowanceLine", () => {
+  const free = summary();
+  const offers: PlanOffer[] = [
+    { plan: PLAN.FREE, prices: [], entitlements: free.entitlements },
+  ];
+  const unlimited = (bookings: number) =>
+    summary({
+      plan: PLAN.PRO,
+      status: STATUS.TRIALING,
+      bookings_this_month: bookings,
+      entitlements: { ...free.entitlements, max_bookings_per_month: null },
+    });
+
+  it("measures an unlimited month against Free's limit", () => {
+    expect(freeAllowanceLine(unlimited(12), offers)).toBe("Free allows 25 a month.");
+    expect(freeAllowanceLine(unlimited(31), offers)).toBe(
+      "That is over Free's 25 a month.",
+    );
+  });
+
+  it("says nothing outside a trial or when Free has no limit", () => {
+    expect(freeAllowanceLine(free, offers)).toBeNull();
+    expect(
+      freeAllowanceLine({ ...unlimited(12), status: STATUS.ACTIVE }, offers),
+    ).toBeNull();
+    const roomy: PlanOffer[] = [
+      {
+        ...offers[0],
+        entitlements: { ...free.entitlements, max_bookings_per_month: null },
+      } as PlanOffer,
+    ];
+    expect(freeAllowanceLine(unlimited(12), roomy)).toBeNull();
   });
 });

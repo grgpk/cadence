@@ -1,4 +1,5 @@
 import { Link } from "@tanstack/react-router";
+import { Check } from "lucide-react";
 import { useState } from "react";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
@@ -12,10 +13,10 @@ import { CompareTable } from "./compare-table";
 import { PlanCard } from "./plan-card";
 import {
   bestYearlySaving,
-  DEFAULT_NEEDS,
   INTERVAL,
   PLAN,
   PLAN_CTA,
+  PLAN_NAMES,
   recommendPlan,
   type WeekNeeds,
 } from "./pricing";
@@ -50,11 +51,22 @@ function StartButton({
   );
 }
 
-export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
-  const [interval, setInterval] = useState<BillingInterval>(INTERVAL.YEAR);
-  const [needs, setNeeds] = useState<WeekNeeds>(DEFAULT_NEEDS);
+export function PricingPage({
+  offers,
+  interval,
+  needs,
+  onChange,
+}: {
+  offers: readonly PlanOffer[];
+  interval: BillingInterval;
+  needs: WeekNeeds;
+  onChange: (interval: BillingInterval, needs: WeekNeeds) => void;
+}) {
+  // The plan the phone-width table shows: the recommended one until picked by hand.
+  const [compared, setCompared] = useState<Plan | null>(null);
   const saving = bestYearlySaving(offers);
   const recommended = recommendPlan(offers, needs);
+  const recommendedOffer = offers.find((offer) => offer.plan === recommended);
 
   return (
     <PublicLayout>
@@ -68,7 +80,20 @@ export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
           </p>
 
           <div className="mt-10 max-w-3xl motion-safe:animate-rise motion-safe:[animation-delay:300ms]">
-            <WeekSizer offers={offers} needs={needs} onChange={setNeeds} />
+            <WeekSizer
+              offers={offers}
+              needs={needs}
+              onChange={(next) => onChange(interval, next)}
+              action={
+                recommendedOffer ? (
+                  <StartButton
+                    offer={recommendedOffer}
+                    interval={interval}
+                    recommended={recommended}
+                  />
+                ) : null
+              }
+            />
           </div>
 
           <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
@@ -76,7 +101,7 @@ export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
             <SegmentedControl
               label="Billing period"
               value={interval}
-              onChange={setInterval}
+              onChange={(next) => onChange(next, needs)}
               options={[
                 { value: INTERVAL.MONTH, label: "Monthly" },
                 {
@@ -114,11 +139,24 @@ export function PricingPage({ offers }: { offers: readonly PlanOffer[] }) {
           <h2 className="font-display font-wide text-3xl font-bold tracking-tight sm:text-4xl">
             Compare plans
           </h2>
-          <div className="mt-10">
+          <div className="mt-8 md:hidden">
+            <SegmentedControl
+              label="Plan to compare"
+              value={compared ?? recommended}
+              onChange={setCompared}
+              options={offers.map((offer) => ({
+                value: offer.plan,
+                label: PLAN_NAMES[offer.plan],
+                icon: offer.plan === recommended ? Check : undefined,
+              }))}
+            />
+          </div>
+          <div className="mt-6 md:mt-10">
             <CompareTable
               offers={offers}
               interval={interval}
               highlight={recommended}
+              shown={compared ?? recommended}
               renderAction={(offer) => (
                 <StartButton
                   offer={offer}

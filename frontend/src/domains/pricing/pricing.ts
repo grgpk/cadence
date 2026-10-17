@@ -67,8 +67,50 @@ export type WeekNeeds = { callsPerWeek: number; severalKinds: boolean };
 /** The slider's top stop, shown as "30+". */
 export const MAX_CALLS_PER_WEEK = 30;
 
+/** Yearly first: it is the cheaper way to pay. */
+export const DEFAULT_INTERVAL: BillingInterval = INTERVAL.YEAR;
+
 /** Lands on Pro: a little more than Free's monthly limit allows. */
-export const DEFAULT_NEEDS: WeekNeeds = { callsPerWeek: 8, severalKinds: false };
+const DEFAULT_NEEDS: WeekNeeds = { callsPerWeek: 8, severalKinds: false };
+
+/** The pricing page's answers, as they sit in its URL. Defaults stay out. */
+type PricingSearch = {
+  interval?: BillingInterval;
+  calls?: number;
+  kinds?: "several";
+};
+
+/** Keeps the answers a link can carry and drops the rest. */
+export function pricingSearch(search: Record<string, unknown>): PricingSearch {
+  const { interval, calls, kinds } = search;
+  const result: PricingSearch = {};
+  if (interval === INTERVAL.MONTH || interval === INTERVAL.YEAR)
+    result.interval = interval;
+  const count = Number(calls);
+  if (calls !== undefined && Number.isFinite(count)) {
+    result.calls = Math.min(MAX_CALLS_PER_WEEK, Math.max(1, Math.round(count)));
+  }
+  if (kinds === "several") result.kinds = kinds;
+  return result;
+}
+
+export function needsFrom(search: PricingSearch): WeekNeeds {
+  return {
+    callsPerWeek: search.calls ?? DEFAULT_NEEDS.callsPerWeek,
+    severalKinds: search.kinds === "several",
+  };
+}
+
+/** The URL for these answers, leaving out whatever is the default. */
+export function searchFor(interval: BillingInterval, needs: WeekNeeds): PricingSearch {
+  return {
+    ...(interval === DEFAULT_INTERVAL ? {} : { interval }),
+    ...(needs.callsPerWeek === DEFAULT_NEEDS.callsPerWeek
+      ? {}
+      : { calls: needs.callsPerWeek }),
+    ...(needs.severalKinds ? { kinds: "several" as const } : {}),
+  };
+}
 
 /** Calls a week as calls in a month, rounded up. */
 export function callsPerMonth(callsPerWeek: number): number {

@@ -1,4 +1,4 @@
-import { useId } from "react";
+import { type ReactNode, useId } from "react";
 
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Card } from "../../components/ui/card";
@@ -17,10 +17,13 @@ export function WeekSizer({
   offers,
   needs,
   onChange,
+  action,
 }: {
   offers: readonly PlanOffer[];
   needs: WeekNeeds;
   onChange: (needs: WeekNeeds) => void;
+  /** Starts the plan that fits, next to the reason it fits. */
+  action: ReactNode;
 }) {
   const id = useId();
   const calls = needs.callsPerWeek;
@@ -64,9 +67,12 @@ export function WeekSizer({
           I offer more than one kind of call
         </Label>
       </div>
-      <p aria-live="polite" className="border-t pt-4 font-medium">
-        {fitReason(offers, needs)}
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t pt-4">
+        <p aria-live="polite" className="max-w-md font-medium">
+          {fitReason(offers, needs)}
+        </p>
+        {action}
+      </div>
     </Card>
   );
 }

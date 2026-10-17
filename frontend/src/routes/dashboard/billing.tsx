@@ -22,7 +22,7 @@ export const Route = createFileRoute("/dashboard/billing")({
 function BillingRoute() {
   const { checkout, ...intent } = Route.useSearch();
   const navigate = useNavigate();
-  const onConfirmed = useCallback(
+  const clearSearch = useCallback(
     () => void navigate({ to: ROUTES.dashboardBilling, search: {}, replace: true }),
     [navigate],
   );
@@ -30,7 +30,8 @@ function BillingRoute() {
     <BillingPage
       intent={intent}
       checkoutDone={checkout === "done"}
-      onConfirmed={onConfirmed}
+      onConfirmed={clearSearch}
+      onDismissPick={clearSearch}
     />
   );
 }

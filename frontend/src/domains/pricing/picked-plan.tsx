@@ -4,7 +4,7 @@ import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { ROUTES } from "../../lib/routes";
-import { formatCents, INTERVAL, PLAN_NAMES, priceFor } from "./pricing";
+import { DEFAULT_INTERVAL, formatCents, INTERVAL, PLAN_NAMES, priceFor } from "./pricing";
 
 /** The plan picked on the pricing page, shown while signing up for it. */
 export function PickedPlan({
@@ -31,7 +31,11 @@ export function PickedPlan({
             </span>
           ) : null}
         </p>
-        <Link to={ROUTES.pricing} className="font-medium underline underline-offset-4">
+        <Link
+          to={ROUTES.pricing}
+          search={interval === DEFAULT_INTERVAL ? {} : { interval }}
+          className="font-medium underline underline-offset-4"
+        >
           Change
         </Link>
       </div>

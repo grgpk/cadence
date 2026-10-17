@@ -47,17 +47,27 @@ export function CompareTable({
   offers,
   interval,
   highlight,
+  shown,
   renderAction,
 }: {
   offers: readonly PlanOffer[];
   interval: BillingInterval;
   /** The plan that fits the visitor's week: its column is tinted. */
   highlight?: Plan;
+  /** At phone width only this plan's column shows, so nothing scrolls sideways. */
+  shown?: Plan;
   renderAction: (offer: PlanOffer) => ReactNode;
 }) {
-  const tint = (plan: Plan) => plan === highlight && "bg-dusk/5";
+  const column = (plan: Plan) =>
+    cn(
+      plan === highlight && "bg-dusk/5",
+      shown && plan !== shown && "hidden md:table-cell",
+    );
   return (
-    <Table className="min-w-[36rem] table-fixed" containerClassName="md:overflow-visible">
+    <Table
+      className={cn("table-fixed", shown ? "md:min-w-[36rem]" : "min-w-[36rem]")}
+      containerClassName="md:overflow-visible"
+    >
       {/* Pinned below the 3.5rem site header, only where the table does not
           scroll sideways: a scrolling box would pin it inside itself. */}
       <TableHeader className="z-10 bg-card md:sticky md:top-14 shadow-[inset_0_-1px_var(--color-border)]">
@@ -68,7 +78,7 @@ export function CompareTable({
           {offers.map((offer) => (
             <TableHead
               key={offer.plan}
-              className={cn("h-auto py-3 text-center", tint(offer.plan))}
+              className={cn("h-auto py-3 text-center", column(offer.plan))}
             >
               <span className="block font-semibold">{PLAN_NAMES[offer.plan]}</span>
               <span className="text-clock block text-sm font-normal text-muted-foreground">
@@ -82,13 +92,13 @@ export function CompareTable({
         {FEATURE_GROUPS.map((group) => (
           <Fragment key={group.title}>
             <TableRow className="bg-muted/40 hover:bg-muted/40">
-              <TableHead
-                scope="colgroup"
-                colSpan={offers.length + 1}
-                className="font-semibold"
-              >
+              {/* A cell per column, not one wide span: hidden columns stay hidden. */}
+              <TableHead scope="rowgroup" className="font-semibold">
                 {group.title}
               </TableHead>
+              {offers.map((offer) => (
+                <TableCell key={offer.plan} className={column(offer.plan)} />
+              ))}
             </TableRow>
             {group.rows.map((row) => (
               <TableRow key={row.label}>
@@ -101,7 +111,7 @@ export function CompareTable({
                 {offers.map((offer) => (
                   <TableCell
                     key={offer.plan}
-                    className={cn("text-center", tint(offer.plan))}
+                    className={cn("text-center", column(offer.plan))}
                   >
                     <Cell value={row.value(offer.entitlements)} />
                   </TableCell>
@@ -113,7 +123,7 @@ export function CompareTable({
         <TableRow className="hover:bg-transparent">
           <TableCell />
           {offers.map((offer) => (
-            <TableCell key={offer.plan} className={cn("py-4", tint(offer.plan))}>
+            <TableCell key={offer.plan} className={cn("py-4", column(offer.plan))}>
               <div className="grid">{renderAction(offer)}</div>
             </TableCell>
           ))}

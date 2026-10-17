@@ -11,7 +11,14 @@ import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { errorMessage } from "../../lib/error-message";
 import { PlanCard } from "../pricing/plan-card";
-import { bestYearlySaving, INTERVAL, PLAN, PLAN_NAMES } from "../pricing/pricing";
+import {
+  bestYearlySaving,
+  formatCents,
+  INTERVAL,
+  PLAN,
+  PLAN_NAMES,
+  priceFor,
+} from "../pricing/pricing";
 import { ErrorState } from "../shared/error-state";
 import { PageHeader } from "../shared/page-header";
 import { PanelCard } from "../shared/panel-card";
@@ -21,11 +28,13 @@ import { billingPlansQuery, billingQuery, goToCheckout, goToPortal } from "./bil
 import {
   bookingUsage,
   type CheckoutIntent,
+  freeAllowanceLine,
   hasPortal,
   isBilled,
   planAction,
   STATUS,
   statusLine,
+  trialDaysLeft,
 } from "./billing";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
@@ -37,9 +46,16 @@ const PAYMENT_ERRORS = {
   503: "Payments are not set up yet. Try again later.",
 };
 
-function CurrentPlan({ summary }: { summary: BillingSummary }) {
+function CurrentPlan({
+  summary,
+  offers,
+}: {
+  summary: BillingSummary;
+  offers: readonly PlanOffer[];
+}) {
   const usage = bookingUsage(summary);
   const limit = summary.entitlements.max_bookings_per_month;
+  const allowance = freeAllowanceLine(summary, offers);
   return (
     <PanelCard title="Current plan" description={statusLine(summary, Date.now())}>
       <div className="flex flex-wrap items-center gap-3">
@@ -55,9 +71,10 @@ function CurrentPlan({ summary }: { summary: BillingSummary }) {
           <span className="text-muted-foreground">Bookings this month</span>
           <span className="font-medium">
             {summary.bookings_this_month}
-            {limit === null ? " · unlimited" : ` of ${limit}`}
+            {limit === null ? null : ` of ${limit}`}
           </span>
         </div>
+        {allowance ? <p className="text-sm text-muted-foreground">{allowance}</p> : null}
         {usage === null ? null : (
           <div
             role="progressbar"
@@ -73,6 +90,65 @@ function CurrentPlan({ summary }: { summary: BillingSummary }) {
             />
           </div>
         )}
+      </div>
+    </PanelCard>
+  );
+}
+
+/** The plan picked on the pricing page, one click from Checkout. */
+function FinishPick({
+  summary,
+  offer,
+  interval,
+  onCheckout,
+  onDismiss,
+  pending,
+}: {
+  summary: BillingSummary;
+  offer: PlanOffer;
+  interval: BillingInterval;
+  onCheckout: () => void;
+  onDismiss: () => void;
+  pending: boolean;
+}) {
+  const name = PLAN_NAMES[offer.plan];
+  const price = priceFor(offer, interval);
+  const days = trialDaysLeft(summary, Date.now());
+  return (
+    <PanelCard
+      title="Finish your pick"
+      description={
+        days === null
+          ? `Subscribe to keep ${name} features on.`
+          : `Your trial runs ${days} more ${days === 1 ? "day" : "days"}. Subscribing now keeps ${name} after it ends.`
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <p>
+          <span className="font-display font-wide text-xl font-bold">{name}</span>
+          <span className="ml-2 text-muted-foreground">
+            {interval === INTERVAL.YEAR ? "yearly" : "monthly"}
+            {price ? (
+              <span className="text-clock">
+                {" "}
+                · {formatCents(price.amount_cents)} a{" "}
+                {interval === INTERVAL.YEAR ? "year" : "month"}
+                {interval === INTERVAL.YEAR
+                  ? ` (${formatCents(price.monthly_cents)} / month)`
+                  : null}
+              </span>
+            ) : null}
+          </span>
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="ghost" onClick={onDismiss} disabled={pending}>
+            Decide later
+          </Button>
+          <Button onClick={onCheckout} disabled={pending}>
+            {pending ? <Loader2 className="animate-spin" /> : null}
+            Subscribe to {name}
+          </Button>
+        </div>
       </div>
     </PanelCard>
   );
@@ -123,7 +199,7 @@ function PlanButton({
           disabled={pending}
         >
           {pending ? <Loader2 className="animate-spin" /> : null}
-          {summary.plan === offer.plan ? `Keep ${name}` : `Choose ${name}`}
+          Subscribe to {name}
         </Button>
       );
   }
@@ -133,12 +209,15 @@ export function BillingPage({
   intent,
   checkoutDone,
   onConfirmed,
+  onDismissPick,
 }: {
   intent: Partial<CheckoutIntent>;
   /** Back from Stripe Checkout. */
   checkoutDone: boolean;
   /** The paid plan arrived: the page can drop `?checkout=done`. */
   onConfirmed: () => void;
+  /** Drop the pricing page's pick from the URL. */
+  onDismissPick: () => void;
 }) {
   const [arrivedAt] = useState(() => Date.now());
   const billing = useQuery({
@@ -165,14 +244,19 @@ export function BillingPage({
 
   const summary = billing.data;
   const confirmed = checkoutDone && summary !== undefined && isBilled(summary);
+  const planName = summary ? PLAN_NAMES[summary.plan] : "";
   useEffect(() => {
     if (!confirmed) return;
-    toast.success("Payment received. Thank you!");
+    toast.success(`Subscribed to ${planName}.`);
     onConfirmed();
-  }, [confirmed, onConfirmed]);
+  }, [confirmed, onConfirmed, planName]);
 
   const featured: Plan = intent.plan ?? summary?.plan ?? PLAN.PRO;
   const saving = bestYearlySaving(plans.data ?? []);
+  const pickedOffer =
+    intent.plan && summary && planAction(summary, intent.plan) === "checkout"
+      ? plans.data?.find((offer) => offer.plan === intent.plan)
+      : undefined;
 
   return (
     <>
@@ -196,7 +280,19 @@ export function BillingPage({
           onRetry={() => void billing.refetch()}
         />
       ) : summary ? (
-        <CurrentPlan summary={summary} />
+        <>
+          {pickedOffer ? (
+            <FinishPick
+              summary={summary}
+              offer={pickedOffer}
+              interval={interval}
+              onCheckout={() => checkout.mutate({ plan: pickedOffer.plan, interval })}
+              onDismiss={onDismissPick}
+              pending={leaving}
+            />
+          ) : null}
+          <CurrentPlan summary={summary} offers={plans.data ?? []} />
+        </>
       ) : (
         <Skeleton className="h-44 w-full" />
       )}

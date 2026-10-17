@@ -9,9 +9,12 @@ import {
   fitReason,
   formatCents,
   INTERVAL,
+  needsFrom,
   PLAN,
   priceFor,
+  pricingSearch,
   recommendPlan,
+  searchFor,
   yearlySaving,
 } from "./pricing";
 
@@ -152,5 +155,28 @@ describe("recommendPlan", () => {
     expect(fitReason(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
       "Business fits: several kinds of call on one link. Free has one.",
     );
+  });
+});
+
+describe("pricingSearch", () => {
+  it("keeps the answers a link can carry", () => {
+    expect(pricingSearch({ interval: "month", calls: "12", kinds: "several" })).toEqual({
+      interval: INTERVAL.MONTH,
+      calls: 12,
+      kinds: "several",
+    });
+  });
+
+  it("clamps calls and drops what it does not know", () => {
+    expect(pricingSearch({ calls: 0 })).toEqual({ calls: 1 });
+    expect(pricingSearch({ calls: 99 })).toEqual({ calls: 30 });
+    expect(pricingSearch({ interval: "week", calls: "lots", kinds: "many" })).toEqual({});
+  });
+
+  it("round-trips through the needs, leaving defaults out", () => {
+    expect(needsFrom({})).toEqual({ callsPerWeek: 8, severalKinds: false });
+    expect(searchFor(INTERVAL.YEAR, needsFrom({}))).toEqual({});
+    const search = { interval: INTERVAL.MONTH, calls: 3, kinds: "several" as const };
+    expect(searchFor(INTERVAL.MONTH, needsFrom(search))).toEqual(search);
   });
 });

@@ -199,6 +199,8 @@ Files:
 
 `/pricing` asks before it lists. A week sizer (calls a week, plus "I offer more than one kind of call") picks the cheapest plan whose entitlements cover the week (`recommendPlan` in `domains/pricing/pricing.ts`, read from `PlanOffer.entitlements`, never hard-coded limits). That plan gets the dusk ring, a "Fits your week" badge, the solid CTA, and a tinted column in the comparison table. Yearly prices show the monthly price crossed out and the dollars saved. The comparison table pins its plan header on wide screens and ends with the same start buttons. `/register?plan=&interval=` shows the picked plan with a link back to `/pricing`. The only new UI primitive is the shadcn `Slider`, which comes from `radix-ui`, already a dependency.
 
+The sizer ends in the recommended plan's start button, so the answer and the action sit together on a phone. The answers live in the URL (`?interval=&calls=&kinds=`, defaults left out, `pricingSearch` drops the rest), so the back button, a shared link and register's "Change" keep them. At phone width the comparison table shows one plan's column at a time, switched with a segmented control that starts on the recommended plan. On `/dashboard/billing?plan=&interval=`, a "Finish your pick" panel offers "Subscribe to {plan}" in one click, or "Decide later" to drop the pick. During a trial, the current plan panel shows this month against Free's limit. Every checkout button on billing says "Subscribe to {plan}", and the confirmation toast says "Subscribed to {plan}."
+
 ## Milestones (each one leaves the app shippable)
 
 1. ✅ **Catalog and trial:** the migration, `plans.rs`, `effective_plan`, `GET /api/billing/plans` and `/me`, the trial on registration, bindings, and the seed.
