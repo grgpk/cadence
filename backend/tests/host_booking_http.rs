@@ -9,6 +9,10 @@ use axum::{
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode, header},
 };
+use cadence_backend::domain::calendly::{
+    client::{Calendly, FAKE_TOKEN},
+    models::{ApiEventType, ApiInterval, ApiRule, ApiSchedule, ApiUser, CalendlyAccount},
+};
 use cadence_backend::{
     app_state::AppState,
     build_app,
@@ -62,6 +66,7 @@ fn app_with_calendar(pool: &PgPool) -> (Router, InMemoryCalendar) {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(calendar.clone()),
         payments: None,
+        calendly: Calendly::fake(calendly_account()),
     });
     (app, calendar)
 }
@@ -2792,4 +2797,157 @@ async fn a_call_outlives_its_type_and_the_last_type_stays(pool: PgPool) {
         .expect("an id")
         .to_owned();
     assert_eq!(delete(first).await, StatusCode::CONFLICT);
+}
+
+/// The Calendly account the fake answers `FAKE_TOKEN` with: two calls, two
+/// weekly stretches and a day off next week, in Berlin.
+fn calendly_account() -> CalendlyAccount {
+    let kind = |name: &str, slug: &str, minutes: i32| ApiEventType {
+        name: Some(name.to_owned()),
+        slug: Some(slug.to_owned()),
+        duration: minutes,
+        description_plain: None,
+        active: true,
+        kind: "solo".to_owned(),
+        pooling_type: None,
+    };
+    let weekly = |wday: &str, from: &str, to: &str| ApiRule {
+        kind: "wday".to_owned(),
+        wday: Some(wday.to_owned()),
+        date: None,
+        intervals: vec![ApiInterval {
+            from: from.to_owned(),
+            to: to.to_owned(),
+        }],
+    };
+    CalendlyAccount {
+        user: ApiUser {
+            uri: "https://api.calendly.com/users/ME".to_owned(),
+            timezone: Some("Europe/Berlin".to_owned()),
+        },
+        event_types: vec![
+            kind("Intro call", "intro", 30),
+            kind("Deep dive", "deep-dive", 60),
+        ],
+        schedule: Some(ApiSchedule {
+            default: true,
+            timezone: "Europe/Berlin".to_owned(),
+            rules: vec![
+                weekly("monday", "09:00", "12:00"),
+                weekly("wednesday", "14:00", "17:00"),
+                ApiRule {
+                    kind: "date".to_owned(),
+                    wday: None,
+                    date: Some((Utc::now() + Duration::days(7)).date_naive()),
+                    intervals: vec![],
+                },
+            ],
+        }),
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_calendly_setup_comes_in_and_the_first_link_keeps_working(pool: PgPool) {
+    let app = app(&pool);
+    let (host, _) = host_with_hours(&app, "nino@example.com").await;
+    let preview_path = "/api/host/import/calendly/preview";
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        preview_path,
+        Some(&host.cookie),
+        Some(json!({ "token": "wrong" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "a token Calendly refuses");
+
+    let (status, preview) = send(
+        &app,
+        Method::POST,
+        preview_path,
+        Some(&host.cookie),
+        Some(json!({ "token": FAKE_TOKEN })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(preview["timezone"], "Europe/Berlin");
+    assert_eq!(preview["event_types"].as_array().map(Vec::len), Some(2));
+    assert_eq!(preview["weekly"].as_array().map(Vec::len), Some(2));
+    assert_eq!(preview["dates"].as_array().map(Vec::len), Some(1));
+
+    let import = json!({
+        "timezone": preview["timezone"],
+        "event_types": preview["event_types"],
+        "weekly": preview["weekly"],
+        "dates": preview["dates"],
+    });
+    let (status, saved) = send(
+        &app,
+        Method::POST,
+        "/api/host/import/calendly",
+        Some(&host.cookie),
+        Some(import.clone()),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["event_types"], 2, "the Pro trial brings both calls");
+    assert_eq!(saved["event_types_left_out"], 0);
+
+    let (_, settings) = get(&app, "/api/host/settings", Some(&host.cookie)).await;
+    assert_eq!(settings["timezone"], "Europe/Berlin");
+    let (_, hours) = get(&app, "/api/availability", Some(&host.cookie)).await;
+    let hours: Vec<(i64, &str, &str, i64)> = hours
+        .as_array()
+        .expect("a list of hours")
+        .iter()
+        .map(|rule| {
+            (
+                rule["weekday"].as_i64().unwrap_or_default(),
+                rule["start_time"].as_str().unwrap_or_default(),
+                rule["end_time"].as_str().unwrap_or_default(),
+                rule["slot_minutes"].as_i64().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        hours,
+        [
+            (0, "09:00:00", "12:00:00", 30),
+            (2, "14:00:00", "17:00:00", 30)
+        ],
+        "the old hours are replaced, cut into the first call's length"
+    );
+    let (_, types) = get(&app, "/api/host/event-types", Some(&host.cookie)).await;
+    let types: Vec<(&str, &str)> = types
+        .as_array()
+        .expect("a list of types")
+        .iter()
+        .map(|kind| {
+            (
+                kind["slug"].as_str().unwrap_or_default(),
+                kind["title"].as_str().unwrap_or_default(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        types,
+        [("call", "Intro call"), ("deep-dive", "Deep dive")],
+        "the first call keeps its link"
+    );
+
+    // On Free, the second kind of call stays behind.
+    let (other, _) = host_with_hours(&app, "ana@example.com").await;
+    end_trial(&pool, &other).await;
+    let (status, saved) = send(
+        &app,
+        Method::POST,
+        "/api/host/import/calendly",
+        Some(&other.cookie),
+        Some(import),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(saved["event_types"], 1);
+    assert_eq!(saved["event_types_left_out"], 1);
 }

@@ -3,6 +3,7 @@ pub mod availability;
 pub mod billing;
 pub mod bookings;
 pub mod bug_reports;
+pub mod calendly;
 pub mod calling_visits;
 pub mod emails;
 pub mod event_types;

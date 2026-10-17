@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Copy, Loader2, Plus } from "lucide-react";
+import { ChevronRight, Copy, Import, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import type { EventType } from "../../../bindings/EventType";
@@ -106,10 +106,21 @@ function EventTypesPage() {
         title="Event types"
         description="The kinds of call people can book from your link. With one, your link opens it straight away; with several, people pick one."
         actions={
-          <Button onClick={() => create.mutate()} disabled={!canAdd || create.isPending}>
-            {create.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-            New event type
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link to={ROUTES.dashboardImportCalendly}>
+                <Import />
+                Import from Calendly
+              </Link>
+            </Button>
+            <Button
+              onClick={() => create.mutate()}
+              disabled={!canAdd || create.isPending}
+            >
+              {create.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
+              New event type
+            </Button>
+          </>
         }
       />
       {billing.data && types.data && !canAdd ? (

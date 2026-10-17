@@ -107,6 +107,25 @@ pub async fn save_override(
     Ok(DateOverride { date, ranges })
 }
 
+/// Replaces all weekly hours, as an import does. Every rule is checked first,
+/// so a bad one changes nothing.
+pub async fn replace_weekly(
+    pool: &PgPool,
+    host_unid: Uuid,
+    rules: Vec<AvailabilityRuleInput>,
+) -> AppResult<()> {
+    if i64::try_from(rules.len()).unwrap_or(i64::MAX) > RULES_MAX {
+        return Err(AppError::BadRequest(format!(
+            "a host can have at most {RULES_MAX} availability rules"
+        )));
+    }
+    for rule in &rules {
+        validate(rule)?;
+    }
+    db::replace_weekly(pool, host_unid, &rules).await?;
+    Ok(())
+}
+
 pub async fn delete_override(pool: &PgPool, host_unid: Uuid, date: NaiveDate) -> AppResult<()> {
     if db::delete_override(pool, host_unid, date).await? {
         Ok(())

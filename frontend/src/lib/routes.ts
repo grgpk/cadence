@@ -21,6 +21,7 @@ export const ROUTES = {
   dashboardSettings: "/dashboard/settings",
   dashboardEventTypes: "/dashboard/event-types",
   dashboardEventType: "/dashboard/event-types/$unid",
+  dashboardImportCalendly: "/dashboard/event-types/import",
   dashboardBilling: "/dashboard/billing",
   admin: "/admin",
 } as const;

@@ -9,6 +9,7 @@ use axum::{
     body::{Body, to_bytes},
     http::{Method, Request, StatusCode, header},
 };
+use cadence_backend::domain::calendly::{client::Calendly, models::CalendlyAccount};
 use cadence_backend::{
     app_state::AppState,
     build_app,
@@ -43,6 +44,7 @@ fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
         payments,
+        calendly: Calendly::fake(CalendlyAccount::default()),
     })
 }
 

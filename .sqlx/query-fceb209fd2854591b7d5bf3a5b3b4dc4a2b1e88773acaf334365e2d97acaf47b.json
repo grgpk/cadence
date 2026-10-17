@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO availability (host_unid, weekday, start_time, end_time, slot_minutes)\n         SELECT $1, weekday, start_time, end_time, slot_minutes\n         FROM UNNEST($2::int[], $3::time[], $4::time[], $5::int[])\n              AS r(weekday, start_time, end_time, slot_minutes)\n         RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "availability",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4Array",
+        "TimeArray",
+        "TimeArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "fceb209fd2854591b7d5bf3a5b3b4dc4a2b1e88773acaf334365e2d97acaf47b"
+}

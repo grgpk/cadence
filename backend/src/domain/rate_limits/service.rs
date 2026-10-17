@@ -41,6 +41,8 @@ pub const SLOTS_PER_ADDRESS: Limit = Limit::new("slots_address", 120, 10);
 /// Recording a visit and updating it share one budget.
 pub const CALLING_VISIT_PER_ADDRESS: Limit = Limit::new("calling_visit_address", 60, 10);
 pub const BUG_REPORT_PER_ADDRESS: Limit = Limit::new("bug_report_address", 30, 10);
+/// Each Calendly preview reads several pages of the host's account.
+pub const CALENDLY_IMPORT_PER_HOST: Limit = Limit::new("calendly_import_host", 10, 60);
 
 /// Longer subjects are cut, so a made-up header cannot outgrow the index.
 const SUBJECT_MAX: usize = 254;

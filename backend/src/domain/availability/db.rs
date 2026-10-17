@@ -72,6 +72,40 @@ pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> Result<bool, sql
     Ok(deleted.is_some())
 }
 
+/// Replaces all of the host's weekly hours in one go.
+pub async fn replace_weekly(
+    pool: &PgPool,
+    host_unid: Uuid,
+    rules: &[AvailabilityRuleInput],
+) -> Result<(), sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    sqlx::query_scalar!(
+        "DELETE FROM availability WHERE host_unid = $1 RETURNING id",
+        host_unid
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    let weekdays: Vec<i32> = rules.iter().map(|rule| rule.weekday).collect();
+    let starts: Vec<NaiveTime> = rules.iter().map(|rule| rule.start_time).collect();
+    let ends: Vec<NaiveTime> = rules.iter().map(|rule| rule.end_time).collect();
+    let slots: Vec<i32> = rules.iter().map(|rule| rule.slot_minutes).collect();
+    sqlx::query_scalar!(
+        "INSERT INTO availability (host_unid, weekday, start_time, end_time, slot_minutes)
+         SELECT $1, weekday, start_time, end_time, slot_minutes
+         FROM UNNEST($2::int[], $3::time[], $4::time[], $5::int[])
+              AS r(weekday, start_time, end_time, slot_minutes)
+         RETURNING id",
+        host_unid,
+        &weekdays,
+        &starts,
+        &ends,
+        &slots,
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await
+}
+
 /// The host's date overrides from `from` on, in date and time order.
 pub async fn list_overrides(
     pool: &PgPool,

@@ -43,6 +43,7 @@ import { Route as DashboardAppsInstalledRouteImport } from './routes/dashboard/a
 import { Route as DashboardCalendarCallbackRouteImport } from './routes/dashboard/calendar/callback'
 import { Route as DashboardEventTypesIndexRouteImport } from './routes/dashboard/event-types/index'
 import { Route as DashboardEventTypesUnidRouteImport } from './routes/dashboard/event-types/$unid'
+import { Route as DashboardEventTypesImportRouteImport } from './routes/dashboard/event-types/import'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -216,6 +217,12 @@ const DashboardEventTypesUnidRoute = DashboardEventTypesUnidRouteImport.update({
   path: '/event-types/$unid',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardEventTypesImportRoute =
+  DashboardEventTypesImportRouteImport.update({
+    id: '/event-types/import',
+    path: '/event-types/import',
+    getParentRoute: () => DashboardRouteRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -250,6 +257,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
   '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
+  '/dashboard/event-types/import': typeof DashboardEventTypesImportRoute
   '/dashboard/apps/': typeof DashboardAppsIndexRoute
   '/dashboard/event-types/': typeof DashboardEventTypesIndexRoute
 }
@@ -284,6 +292,7 @@ export interface FileRoutesByTo {
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
   '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
+  '/dashboard/event-types/import': typeof DashboardEventTypesImportRoute
   '/dashboard/apps': typeof DashboardAppsIndexRoute
   '/dashboard/event-types': typeof DashboardEventTypesIndexRoute
 }
@@ -321,6 +330,7 @@ export interface FileRoutesById {
   '/dashboard/apps/installed': typeof DashboardAppsInstalledRoute
   '/dashboard/calendar/callback': typeof DashboardCalendarCallbackRoute
   '/dashboard/event-types/$unid': typeof DashboardEventTypesUnidRoute
+  '/dashboard/event-types/import': typeof DashboardEventTypesImportRoute
   '/dashboard/apps/': typeof DashboardAppsIndexRoute
   '/dashboard/event-types/': typeof DashboardEventTypesIndexRoute
 }
@@ -359,6 +369,7 @@ export interface FileRouteTypes {
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
     | '/dashboard/event-types/$unid'
+    | '/dashboard/event-types/import'
     | '/dashboard/apps/'
     | '/dashboard/event-types/'
   fileRoutesByTo: FileRoutesByTo
@@ -393,6 +404,7 @@ export interface FileRouteTypes {
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
     | '/dashboard/event-types/$unid'
+    | '/dashboard/event-types/import'
     | '/dashboard/apps'
     | '/dashboard/event-types'
   id:
@@ -429,6 +441,7 @@ export interface FileRouteTypes {
     | '/dashboard/apps/installed'
     | '/dashboard/calendar/callback'
     | '/dashboard/event-types/$unid'
+    | '/dashboard/event-types/import'
     | '/dashboard/apps/'
     | '/dashboard/event-types/'
   fileRoutesById: FileRoutesById
@@ -690,6 +703,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardEventTypesUnidRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/dashboard/event-types/import': {
+      id: '/dashboard/event-types/import'
+      path: '/event-types/import'
+      fullPath: '/dashboard/event-types/import'
+      preLoaderRoute: typeof DashboardEventTypesImportRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
   }
 }
 
@@ -731,6 +751,7 @@ interface DashboardRouteRouteChildren {
   DashboardAppsInstalledRoute: typeof DashboardAppsInstalledRoute
   DashboardCalendarCallbackRoute: typeof DashboardCalendarCallbackRoute
   DashboardEventTypesUnidRoute: typeof DashboardEventTypesUnidRoute
+  DashboardEventTypesImportRoute: typeof DashboardEventTypesImportRoute
   DashboardAppsIndexRoute: typeof DashboardAppsIndexRoute
   DashboardEventTypesIndexRoute: typeof DashboardEventTypesIndexRoute
 }
@@ -745,6 +766,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardAppsInstalledRoute: DashboardAppsInstalledRoute,
   DashboardCalendarCallbackRoute: DashboardCalendarCallbackRoute,
   DashboardEventTypesUnidRoute: DashboardEventTypesUnidRoute,
+  DashboardEventTypesImportRoute: DashboardEventTypesImportRoute,
   DashboardAppsIndexRoute: DashboardAppsIndexRoute,
   DashboardEventTypesIndexRoute: DashboardEventTypesIndexRoute,
 }

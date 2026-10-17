@@ -1,6 +1,8 @@
 use sqlx::PgPool;
 
-use crate::domain::{billing::stripe::Payments, google_calendar::calendar::HostCalendar};
+use crate::domain::{
+    billing::stripe::Payments, calendly::client::Calendly, google_calendar::calendar::HostCalendar,
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -9,4 +11,6 @@ pub struct AppState {
     pub calendar: HostCalendar,
     /// Stripe, or `None` when its keys are not set: no checkout then.
     pub payments: Option<Payments>,
+    /// Calendly's API for imports; a fixed account in tests.
+    pub calendly: Calendly,
 }

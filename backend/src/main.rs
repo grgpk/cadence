@@ -4,6 +4,7 @@ use anyhow::Context;
 use axum::http::{HeaderValue, Method, header};
 use cadence_backend::app_state::AppState;
 use cadence_backend::domain::billing::stripe::Payments;
+use cadence_backend::domain::calendly::client::Calendly;
 use cadence_backend::domain::google_calendar::calendar::{GoogleCalendar, HostCalendar};
 use cadence_backend::tracing_setup::setup_tracing;
 use sqlx::postgres::PgPoolOptions;
@@ -52,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
         pool,
         calendar,
         payments,
+        calendly: Calendly::live(),
     })
     .layer(TraceLayer::new_for_http())
     .layer(
