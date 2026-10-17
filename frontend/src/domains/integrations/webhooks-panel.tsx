@@ -194,8 +194,8 @@ function EndpointRow({
           <ChevronRight className="size-4 transition-transform" />
           Recent deliveries
         </CollapsibleTrigger>
-        <CollapsibleContent className="pt-2">
-          {open ? <Deliveries unid={endpoint.unid} /> : null}
+        <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+          <div className="pt-2">{open ? <Deliveries unid={endpoint.unid} /> : null}</div>
         </CollapsibleContent>
       </Collapsible>
       <ConfirmDialog

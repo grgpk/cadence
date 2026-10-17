@@ -248,7 +248,7 @@ export function TodayCard({
                       onClick={() => onOpen(booking)}
                       style={place(from, to)}
                       className={cn(
-                        "absolute inset-y-0 flex min-w-0 cursor-pointer items-center rounded-md px-1.5 text-sm font-medium",
+                        "absolute inset-y-0 flex min-w-0 cursor-pointer items-center rounded-md px-1.5 text-sm font-medium transition-colors",
                         // A call that is over is an outline; one to come is solid ink.
                         to <= nowMinutes
                           ? "border border-foreground/40 bg-card text-muted-foreground hover:bg-muted"

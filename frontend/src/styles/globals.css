@@ -256,6 +256,24 @@
   view-transition-name: booked-block;
 }
 
+/* The host's avatar and name: one element from picking a call to booking it. */
+@utility vt-host {
+  view-transition-name: host;
+}
+
+/* A clickable surface gives a little under the pointer, like a button does. */
+@utility press {
+  transition-property: scale, color, background-color, border-color, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+
+  @media (prefers-reduced-motion: no-preference) {
+    &:active:not(:disabled) {
+      scale: 0.98;
+    }
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -317,6 +335,11 @@
 ::view-transition-group(booked-block) {
   animation-duration: 0.5s;
   animation-timing-function: cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+
+::view-transition-group(host) {
+  animation-duration: 0.3s;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* A thin rail becomes a wide block: stretch the color, do not letterbox it. */

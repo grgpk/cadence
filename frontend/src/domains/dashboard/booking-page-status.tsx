@@ -158,7 +158,7 @@ export function SetupProblems() {
               <Link
                 to={problem.fix.to}
                 hash={problem.fix.hash}
-                className="group flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
+                className="group flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 active:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
               >
                 <span
                   className={cn(

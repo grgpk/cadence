@@ -212,6 +212,10 @@ function Booking({
   );
 }
 
+/** The raised card the booking flow sits in; the pick-a-call page uses it too. */
+export const BOOKING_FRAME =
+  "overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-12px_rgb(0_0_0/0.14)]";
+
 export function BookingCard({
   pageRef,
   page,
@@ -236,7 +240,7 @@ export function BookingCard({
 
   return (
     <div className="@container w-full">
-      <div className="overflow-hidden rounded-2xl border bg-card shadow-[0_1px_2px_rgb(0_0_0/0.04),0_12px_32px_-12px_rgb(0_0_0/0.14)]">
+      <div className={BOOKING_FRAME}>
         {mounted ? (
           <Booking
             pageRef={pageRef}

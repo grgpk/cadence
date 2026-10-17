@@ -2,9 +2,9 @@ import { Clock, Globe, Video } from "lucide-react";
 import type { ReactNode } from "react";
 
 import type { BookingPage } from "../../bindings/BookingPage";
-import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { callPlace, CONFERENCING_APP } from "../integrations/conferencing";
 import { GoogleMeetIcon } from "../integrations/google-meet-icon";
+import { HostBadge } from "./host-badge";
 
 /** Left column of the booking card: who the call is with, and where and when it happens. */
 export function BookingSummary({
@@ -28,16 +28,7 @@ export function BookingSummary({
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <div className="flex items-center gap-2.5">
-          <Avatar aria-hidden="true">
-            <AvatarFallback className="bg-primary font-display font-semibold text-primary-foreground">
-              {page.host_name.trim().charAt(0).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-          <p className="min-w-0 text-sm font-medium break-words text-muted-foreground">
-            {page.host_name}
-          </p>
-        </div>
+        <HostBadge name={page.host_name} />
         <h1 className="mt-3 font-display text-2xl leading-tight font-semibold tracking-tight break-words">
           {page.title}
         </h1>

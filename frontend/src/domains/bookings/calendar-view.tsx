@@ -318,7 +318,7 @@ function TimeGrid({
                         width: `calc(${100 / width}% - 4px)`,
                       }}
                       className={cn(
-                        "absolute flex min-h-5 flex-col overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs leading-tight shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                        "absolute flex min-h-5 flex-col overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs leading-tight shadow-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
                         // A call that is over fades; one to come is solid.
                         past
                           ? "border-muted-foreground/50 bg-muted text-muted-foreground hover:bg-muted/80"
@@ -402,7 +402,7 @@ function MonthGrid({
                 onClick={() => onPickDay(day)}
                 aria-label={longDayLabel(day)}
                 className={cn(
-                  "text-clock grid size-7 shrink-0 place-items-center self-center rounded-full text-sm outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                  "text-clock grid size-7 shrink-0 place-items-center self-center rounded-full text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50",
                   !day.inMonth && "text-muted-foreground",
                   isToday &&
                     "bg-signal font-semibold text-signal-foreground hover:bg-signal/85",
@@ -418,7 +418,7 @@ function MonthGrid({
                     type="button"
                     onClick={() => onOpen(booking)}
                     title={`${booking.invitee_name}, ${time}`}
-                    className="flex min-w-0 items-center gap-1 rounded-sm px-1 text-left text-xs outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    className="flex min-w-0 items-center gap-1 rounded-sm px-1 text-left text-xs transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   >
                     <span
                       aria-hidden="true"
@@ -435,7 +435,7 @@ function MonthGrid({
                 <button
                   type="button"
                   onClick={() => onPickDay(day)}
-                  className="rounded-sm px-1 text-left text-xs font-medium text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                  className="rounded-sm px-1 text-left text-xs font-medium text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
                 >
                   +{more} more
                 </button>

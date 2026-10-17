@@ -77,7 +77,7 @@ export function AppCard({
       to={ROUTES.dashboardApp}
       params={{ slug: app.slug }}
       className={cn(
-        "flex flex-col rounded-xl border bg-card text-card-foreground shadow-xs transition-colors hover:border-foreground/30",
+        "press flex flex-col rounded-xl border bg-card text-card-foreground shadow-xs hover:border-foreground/30",
         FOCUS,
       )}
     >
