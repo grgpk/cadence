@@ -15,13 +15,14 @@ const ATTENDANCE: Record<
   Exclude<Attendance, null>,
   { label: string; className: string }
 > = {
-  confirmed: { label: "Confirmed", className: "border-success/40 text-success" },
-  unconfirmed: { label: "Not confirmed yet", className: "text-muted-foreground" },
+  // "Coming", never "Confirmed": a booking's own status already says confirmed.
+  confirmed: { label: "Coming", className: "border-success/40 text-success" },
+  unconfirmed: { label: "No reply yet", className: "text-muted-foreground" },
   no_show: { label: "No-show", className: "border-destructive/40 text-destructive" },
 };
 
 /** Whether the invitee said they are coming, or did not come. */
-function AttendanceBadge({ attendance }: { attendance: Attendance }) {
+export function AttendanceBadge({ attendance }: { attendance: Attendance }) {
   if (attendance === null) return null;
   const { label, className } = ATTENDANCE[attendance];
   return (

@@ -25,7 +25,15 @@ import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { ErrorState } from "../shared/error-state";
 import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
 import { QUESTIONS } from "../widget/booking-form";
-import { bookingDetailQuery, cancelBooking, isCancelled, setNoShow } from "./bookings";
+import { AttendanceBadge } from "./agenda";
+import {
+  attendanceOf,
+  bookingDetailQuery,
+  cancelBooking,
+  isCancelled,
+  isConfirmed,
+  setNoShow,
+} from "./bookings";
 
 /** Where each form question's answer is kept on the lead. */
 const ANSWERS = {
@@ -148,8 +156,11 @@ export function BookingDetailSheet({
                 The call and what they told you before it.
               </SheetDescription>
             </div>
-            {booking ? (
+            {/* Confirmed is every booking's normal state; only say when it is not. */}
+            {booking && !isConfirmed(booking) ? (
               <StatusBadge value={booking.status} statuses={BOOKING_STATUS} />
+            ) : booking && tracksAttendance ? (
+              <AttendanceBadge attendance={attendanceOf(booking, Date.now())} />
             ) : null}
           </div>
           {booking && zone ? <CallBlock booking={booking} timeZone={zone} /> : null}
@@ -209,8 +220,8 @@ export function BookingDetailSheet({
                     {booking.no_show_at
                       ? "Did not come"
                       : booking.attendance_confirmed_at
-                        ? `Confirmed ${formatDay(booking.attendance_confirmed_at, zone)}`
-                        : "Not confirmed"}
+                        ? `Said yes on ${formatDay(booking.attendance_confirmed_at, zone)}`
+                        : "No reply yet"}
                   </dd>
                 </div>
               ) : null}

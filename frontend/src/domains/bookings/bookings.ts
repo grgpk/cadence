@@ -18,9 +18,15 @@ import { QUERY_KEYS } from "../../lib/query-keys";
 import { zonedTime } from "../../lib/zoned-time";
 
 const CANCELLED: BookingStatus = "cancelled";
+const CONFIRMED: BookingStatus = "confirmed";
 
 export function isCancelled(booking: Pick<Booking, "status">): boolean {
   return booking.status === CANCELLED;
+}
+
+/** A booking that went through: the normal state, not whether the invitee is coming. */
+export function isConfirmed(booking: Pick<Booking, "status">): boolean {
+  return booking.status === CONFIRMED;
 }
 
 /** The signed-in host's bookings. */
