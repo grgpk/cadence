@@ -71,9 +71,7 @@ export function TimesPreview() {
             <span
               className={`absolute inset-y-0 left-0 ${rail} ${picked ? "w-full" : "w-[3px]"}`}
             />
-            <span className={`relative ${picked ? "text-day-foreground" : ""}`}>
-              {time}
-            </span>
+            <span className="relative text-day-foreground">{time}</span>
           </span>
         ))}
       </div>
