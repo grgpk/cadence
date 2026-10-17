@@ -235,15 +235,15 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
 export const PLAN_HIGHLIGHTS: Record<Plan, readonly string[]> = {
   free: [
     "One booking page",
-    "25 bookings a month",
+    "25 bookings a month included",
     "Google Calendar and Meet",
     "Reminder a day before",
   ],
   pro: [
+    "No Cadence logo on your page",
     "Unlimited bookings",
     "Reminders 24h, 2h and 30 min before",
     "Your own booking form questions",
-    "No Cadence logo on your page",
   ],
   business: [
     "Everything in Pro",
@@ -263,3 +263,21 @@ export const PLAN_CTA: Record<Plan, string> = {
   pro: "Start 14-day Pro trial",
   business: "Start with Business",
 };
+
+/** What every plan promises, in the words the page, cards and FAQ share. */
+export const PROMISES = {
+  neverTurnedAway: {
+    title: "Nobody is turned away.",
+    detail: "Past the bookings Free includes, your page stays open.",
+  },
+  priceStays: {
+    title: "Your price stays.",
+    detail: "It never goes up while you stay subscribed.",
+  },
+  nothingDeleted: {
+    title: "Nothing is deleted.",
+    detail: "Change plans or cancel, and your settings wait for you.",
+  },
+} as const;
+
+export type PricingPromise = keyof typeof PROMISES;

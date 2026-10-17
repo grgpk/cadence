@@ -21,6 +21,7 @@ import {
   type WeekNeeds,
 } from "./pricing";
 import { PricingFaq } from "./pricing-faq";
+import { Promises } from "./promises";
 import { WeekSizer } from "./week-sizer";
 
 /** Sign-up, carrying a paid pick through to checkout. */
@@ -79,7 +80,7 @@ export function PricingPage({
             Every account starts with 14 days of Pro. No card needed.
           </p>
 
-          <div className="mt-10 max-w-3xl motion-safe:animate-rise motion-safe:[animation-delay:300ms]">
+          <div className="mt-10 grid items-start gap-10 motion-safe:animate-rise motion-safe:[animation-delay:300ms] lg:grid-cols-[minmax(0,48rem)_1fr] lg:gap-14">
             <WeekSizer
               offers={offers}
               needs={needs}
@@ -94,6 +95,9 @@ export function PricingPage({
                 ) : null
               }
             />
+            <div className="lg:pt-6">
+              <Promises />
+            </div>
           </div>
 
           <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
@@ -129,7 +133,7 @@ export function PricingPage({
             ))}
           </div>
           <p className="mt-6 text-sm text-muted-foreground">
-            Every plan starts with 14 days of Pro. Change or cancel any time.
+            Every account starts with 14 days of Pro. Change or cancel any time.
           </p>
         </div>
       </section>

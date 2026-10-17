@@ -1,8 +1,13 @@
 # Plan 30: pricing promises
 
-Status: in progress. Free no longer closes the page, and the price lock is
-enforced in the Stripe setup and the webhook. The promises on `/pricing` come
-next.
+Status: done. Free no longer closes the page. The price lock is enforced in
+the Stripe setup and the webhook. The promises sit beside the week sizer on
+`/pricing` and are repeated in the cards and the FAQ. All checks pass:
+- Rust: fmt, clippy and every test.
+- Frontend: build, typecheck, lint, knip and 205 tests.
+
+`/pricing` was screenshotted in dark mode at 1440px and in light mode at
+390px.
 
 ## Goal
 
@@ -100,5 +105,5 @@ wire fields `BookingPage.full` and `HostPage.full` are removed.
 
 - [x] Free never refuses a booking; the host is told once a month.
 - [x] The price lock is enforced in the setup script and in the webhook.
-- [ ] The promises are on `/pricing`, in the cards and in the FAQ.
-- [ ] Rust and frontend checks pass; screenshots at 1440 and 390.
+- [x] The promises are on `/pricing`, in the cards and in the FAQ.
+- [x] Rust and frontend checks pass; screenshots at 1440 and 390.

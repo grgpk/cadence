@@ -22,9 +22,19 @@ const QUESTIONS = [
       "Yes, at any time from your dashboard. A change between plans is prorated. When you cancel, your plan stays until the end of the period you paid for.",
   },
   {
+    question: "What happens after 25 bookings on Free?",
+    answer:
+      "Your page stays open and people keep booking. Nobody is turned away. We email you once that month so you can decide whether Pro is worth it.",
+  },
+  {
+    question: "Will my price go up?",
+    answer:
+      "Not while you stay subscribed. If our prices change, they change for new subscriptions only. You keep the price you signed up at.",
+  },
+  {
     question: "What happens when I go back to Free?",
     answer:
-      "Your settings stay saved. Paid features, such as extra reminders and your own form questions, pause until you upgrade again.",
+      "Nothing is deleted. Your settings, questions and calls stay saved. Paid features, such as extra reminders and your own form questions, pause until you upgrade again.",
   },
   {
     question: "Do you give refunds?",
