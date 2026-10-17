@@ -313,7 +313,7 @@ function SettingsPage() {
           </div>
           <nav
             aria-label="Settings sections"
-            className="sticky top-8 hidden gap-1 border-l pl-4 text-sm xl:grid"
+            className="sticky top-20 hidden gap-1 border-l pl-4 text-sm xl:grid"
           >
             {Object.entries(SECTION_TITLES).map(([id, title]) => (
               <a

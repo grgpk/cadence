@@ -43,7 +43,7 @@ export function PanelCard({
 }) {
   return (
     // No overflow clipping: a sticky save bar inside must be free to stick.
-    <Card id={id} className="scroll-mt-16 gap-0 py-0">
+    <Card id={id} className="scroll-mt-20 gap-0 py-0">
       <PanelHeader title={title} description={description} />
       <div className="grid gap-5 p-5">{children}</div>
       {footer ? (
