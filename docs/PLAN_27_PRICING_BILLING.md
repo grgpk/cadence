@@ -1,6 +1,6 @@
 # Plan 27: pricing, plans and billing
 
-Status: in progress. Milestones 1–5 are done: plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), Stripe Checkout, the Customer Portal and signed webhooks (tested against a fake Stripe), the Free plan's limits with their emails, and the admin Plans page. Still open: an end-to-end run against Stripe test mode, which needs the account's keys and four prices. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
+Status: done. Plans and the 14-day Pro trial, the public `/pricing` page (a paid pick is carried through sign-up to `/dashboard/billing`), Stripe Checkout, the Customer Portal and signed webhooks, the Free plan's limits with their emails, and the admin Plans page. Run against Stripe test mode on 2026-10-17, with `stripe listen` forwarding to the backend: checkout made a real session, a subscription with `user_unid` metadata turned a trialing host into Pro/month, a switch to Business/year unlocked event types and webhooks, cancel at period end showed, a replayed event was acknowledged and ignored, a second checkout got 409, and the deleted subscription left the host on Free. Not run live: a failed renewal (`past_due`), which needs a test clock; it is covered by the fake-Stripe tests. Business features follow in Plan 28 (event types) and Plan 29 (webhooks).
 
 ## Goal
 

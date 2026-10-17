@@ -111,9 +111,9 @@ cadence/
 | 24 | `PLAN_24_CIVIL_DAY.md` | one civil day module for keys, weeks, month grids and labels; zoned time moved to lib; week labels read "Oct 19 to 25" | 🔄 in progress |
 | 25 | `PLAN_25_BOOKING_SESSION.md` | booking session module: visit, lead and booking outside React, one confirmation address type, one taken-time check | 🔄 in progress |
 | 26 | `PLAN_26_SLOT_PICKER.md` | one slot picker for booking and rescheduling: month, week and list on both pages, one pick and set of states, one 12h/24h choice | 🔄 in progress |
-| 27 | `PLAN_27_PRICING_BILLING.md` | public pricing page, Free/Pro/Business, Stripe checkout and portal, 14-day Pro trial, plan limits enforced, billing page | 🔄 in progress |
-| 28 | `PLAN_28_EVENT_TYPES.md` | several event types per host, `/book/$slug/$type`, Business only | 🔄 in progress |
-| 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | 🔄 in progress |
+| 27 | `PLAN_27_PRICING_BILLING.md` | public pricing page, Free/Pro/Business, Stripe checkout and portal, 14-day Pro trial, plan limits enforced, billing page | ✅ done |
+| 28 | `PLAN_28_EVENT_TYPES.md` | several event types per host, `/book/$slug/$type`, Business only | ✅ done |
+| 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 
