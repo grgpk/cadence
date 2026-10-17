@@ -111,7 +111,6 @@ pub async fn host_page(pool: &PgPool, slug: &str) -> AppResult<HostPage> {
     Ok(HostPage {
         host_name: host.host_name,
         accepting_bookings: host.is_active,
-        full: billing::monthly_limit_reached(pool, host.host_unid, &entitlements).await?,
         show_branding: !entitlements.hide_branding,
         calendar_connected: host.calendar_connected,
         types,
@@ -128,10 +127,10 @@ pub async fn display_page(pool: &PgPool, slug: &str, type_slug: &str) -> AppResu
 }
 
 /// Resolves a public link to a kind of call that can be booked right now. A
-/// paused one, and a page with no bookings left this month, looks unknown here.
+/// paused one looks unknown here. A plan's included bookings never close it.
 pub async fn bookable_page(pool: &PgPool, slug: &str, type_slug: &str) -> AppResult<BookingPage> {
     let page = display_page(pool, slug, type_slug).await?;
-    if page.accepting_bookings && !page.full {
+    if page.accepting_bookings {
         Ok(page)
     } else {
         Err(AppError::NotFound)
@@ -177,7 +176,6 @@ async fn with_plan(
         page.accepting_bookings = false;
     }
     page.show_branding = !entitlements.hide_branding;
-    page.full = billing::monthly_limit_reached(pool, page.host_unid, &entitlements).await?;
     Ok(page)
 }
 

@@ -108,4 +108,14 @@ pub struct StripeSubscriptionItem {
 #[derive(Debug, Deserialize)]
 pub struct StripePrice {
     pub id: String,
+    /// `plan`, set by `scripts/stripe-setup.sh`: a price replaced after a
+    /// price change is still known by it (the price lock).
+    #[serde(default)]
+    pub metadata: HashMap<String, String>,
+    pub recurring: Option<StripeRecurring>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StripeRecurring {
+    pub interval: String,
 }

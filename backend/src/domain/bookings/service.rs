@@ -178,7 +178,7 @@ async fn announce_booking(
         .await?;
     }
     transaction.commit().await?;
-    billing::notice_if_full(
+    billing::notice_if_past_included(
         &pool,
         host_unid,
         &entitlements,

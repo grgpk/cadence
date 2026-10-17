@@ -66,29 +66,29 @@ export function planAction(summary: BillingSummary, plan: Plan): PlanAction {
   return "checkout";
 }
 
-/** How much of the month's bookings are used, as a share from 0 to 1. */
+/** How much of the month's included bookings are used, as a share from 0 to 1. */
 export function bookingUsage(summary: BillingSummary): number | null {
-  const limit = summary.entitlements.max_bookings_per_month;
+  const limit = summary.entitlements.included_bookings_per_month;
   if (limit === null || limit === 0) return null;
   return Math.min(1, summary.bookings_this_month / limit);
 }
 
 /**
- * During a trial, this month against Free's limit: what dropping to Free
- * would mean. `null` when there is nothing to decide.
+ * During a trial, this month against what Free includes: what dropping to
+ * Free would mean. `null` when there is nothing to decide.
  */
 export function freeAllowanceLine(
   summary: Pick<BillingSummary, "status" | "entitlements" | "bookings_this_month">,
   offers: readonly PlanOffer[],
 ): string | null {
   if (summary.status !== STATUS.TRIALING) return null;
-  if (summary.entitlements.max_bookings_per_month !== null) return null;
+  if (summary.entitlements.included_bookings_per_month !== null) return null;
   const limit = offers.find((offer) => offer.plan === PLAN.FREE)?.entitlements
-    .max_bookings_per_month;
+    .included_bookings_per_month;
   if (limit == null) return null;
   return summary.bookings_this_month > limit
-    ? `That is over Free's ${limit} a month.`
-    : `Free allows ${limit} a month.`;
+    ? `That is past the ${limit} a month Free includes.`
+    : `Free includes ${limit} a month.`;
 }
 
 /** One sentence on where the host's plan stands. */
@@ -107,14 +107,14 @@ export function statusLine(summary: BillingSummary, now: number): string {
     case STATUS.ACTIVE:
       if (!periodEnd) return `You are on ${name}.`;
       return summary.cancel_at_period_end
-        ? `${name} ends on ${periodEnd}. You move to Free then.`
+        ? `${name} ends on ${periodEnd}. You move to Free then, and nothing is deleted.`
         : `${name} renews ${summary.interval === INTERVAL.YEAR ? "yearly" : "monthly"} on ${periodEnd}.`;
     case STATUS.PAST_DUE:
       return `The last payment failed. Update your card to keep ${name}.`;
     case STATUS.INCOMPLETE:
       return "The first payment did not go through. Try checking out again.";
     case STATUS.CANCELED:
-      return "Your subscription has ended. You are on Free.";
+      return "Your subscription has ended. You are on Free, and nothing was deleted.";
     case STATUS.COMPED:
       return `${name} is on us. There is nothing to pay.`;
     default:

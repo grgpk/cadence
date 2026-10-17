@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { CalendarOff, CircleAlert, Clock } from "lucide-react";
+import { CalendarCheck, CircleAlert, Clock } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "../../components/ui/alert";
 import { Button } from "../../components/ui/button";
@@ -9,8 +9,8 @@ import { billingQuery } from "./billing-api";
 import { bookingUsage, STATUS, TRIAL_WARNING_DAYS, trialDaysLeft } from "./billing";
 
 /**
- * Above every dashboard page: a payment that failed, a month with no
- * bookings left, or a trial about to end.
+ * Above every dashboard page: a payment that failed, a month past the
+ * bookings the plan includes, or a trial about to end.
  */
 export function PlanBanner() {
   const { data: summary } = useQuery(billingQuery);
@@ -34,15 +34,18 @@ export function PlanBanner() {
   if (bookingUsage(summary) === 1) {
     return (
       <Alert>
-        <CalendarOff className="size-4" />
-        <AlertTitle>Your booking page is full for this month</AlertTitle>
+        <CalendarCheck className="size-4" />
+        <AlertTitle>
+          You've had {summary.bookings_this_month} bookings this month
+        </AlertTitle>
         <AlertDescription>
           <p>
-            Free takes {summary.entitlements.max_bookings_per_month} bookings a month.
-            Calls already booked still stand and can still move.
+            Free includes {summary.entitlements.included_bookings_per_month} a month. Your
+            page stays open, so nobody is turned away. Upgrade for more reminders, your
+            own questions and no Cadence logo.
           </p>
           <Button size="sm" className="mt-2" asChild>
-            <Link to={ROUTES.dashboardBilling}>Upgrade</Link>
+            <Link to={ROUTES.dashboardBilling}>See plans</Link>
           </Button>
         </AlertDescription>
       </Alert>

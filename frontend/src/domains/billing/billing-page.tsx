@@ -54,7 +54,7 @@ function CurrentPlan({
   offers: readonly PlanOffer[];
 }) {
   const usage = bookingUsage(summary);
-  const limit = summary.entitlements.max_bookings_per_month;
+  const limit = summary.entitlements.included_bookings_per_month;
   const allowance = freeAllowanceLine(summary, offers);
   return (
     <PanelCard title="Current plan" description={statusLine(summary, Date.now())}>
@@ -71,7 +71,7 @@ function CurrentPlan({
           <span className="text-muted-foreground">Bookings this month</span>
           <span className="font-medium">
             {summary.bookings_this_month}
-            {limit === null ? null : ` of ${limit}`}
+            {limit === null ? null : ` of ${limit} included`}
           </span>
         </div>
         {allowance ? <p className="text-sm text-muted-foreground">{allowance}</p> : null}
@@ -85,7 +85,8 @@ function CurrentPlan({
             className="h-2 overflow-hidden rounded-full bg-muted"
           >
             <div
-              className={usage >= 1 ? "h-full bg-destructive" : "h-full bg-primary"}
+              // Past what the plan includes nothing breaks: a warning, not an error.
+              className={usage >= 1 ? "h-full bg-warning" : "h-full bg-primary"}
               style={{ width: `${usage * 100}%` }}
             />
           </div>

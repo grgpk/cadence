@@ -113,9 +113,6 @@ pub struct BookingPage {
     pub buffer_minutes: i32,
     /// `false` while the host has paused the page.
     pub accepting_bookings: bool,
-    /// The host's plan has no bookings left this month. Calls already booked
-    /// can still move; new ones wait for next month.
-    pub full: bool,
     /// The Cadence logo under the card. Paid plans leave it off.
     pub show_branding: bool,
 }
@@ -139,8 +136,6 @@ pub struct HostPage {
     pub host_name: String,
     /// `false` while the host has paused the page.
     pub accepting_bookings: bool,
-    /// The host's plan has no bookings left this month.
-    pub full: bool,
     pub show_branding: bool,
     pub calendar_connected: bool,
     /// Bookable kinds of call, oldest first. Types past the host's plan are

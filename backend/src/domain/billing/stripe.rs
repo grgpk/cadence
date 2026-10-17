@@ -12,6 +12,7 @@ use serde::Deserialize;
 use thiserror::Error;
 use uuid::Uuid;
 
+use super::models::StripePrice;
 use super::plans::{BillingInterval, Plan};
 use crate::signature::{self, BadSignature};
 
@@ -42,12 +43,22 @@ impl PriceIds {
             .map(|(_, _, id)| id.as_str())
     }
 
-    /// The plan and interval a Stripe price stands for.
-    pub fn plan_of(&self, price_id: &str) -> Option<(Plan, BillingInterval)> {
-        self.0
-            .iter()
-            .find(|(_, _, id)| id == price_id)
-            .map(|(plan, interval, _)| (*plan, *interval))
+    /// The plan and interval a Stripe price stands for: one of today's
+    /// prices, or an older one a subscriber keeps after a price change,
+    /// known by its `plan` metadata.
+    pub fn plan_of(&self, price: &StripePrice) -> Option<(Plan, BillingInterval)> {
+        if let Some((plan, interval, _)) = self.0.iter().find(|(_, _, id)| *id == price.id) {
+            return Some((*plan, *interval));
+        }
+        let named = price.metadata.get("plan")?;
+        let plan = Plan::ALL
+            .into_iter()
+            .find(|plan| *plan != Plan::Free && plan.as_str() == named)?;
+        let every = &price.recurring.as_ref()?.interval;
+        let interval = [BillingInterval::Month, BillingInterval::Year]
+            .into_iter()
+            .find(|interval| interval.as_str() == every)?;
+        Some((plan, interval))
     }
 }
 
@@ -222,6 +233,9 @@ async fn post(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use super::super::models::StripeRecurring;
     use super::*;
 
     #[test]
@@ -236,9 +250,43 @@ mod tests {
             Some("price_py")
         );
         assert_eq!(
-            prices.plan_of("price_py"),
+            prices.plan_of(&price("price_py", None, None)),
             Some((Plan::Pro, BillingInterval::Year))
         );
-        assert_eq!(prices.plan_of("price_other"), None);
+        assert_eq!(prices.plan_of(&price("price_other", None, None)), None);
+    }
+
+    fn price(id: &str, plan: Option<&str>, interval: Option<&str>) -> StripePrice {
+        StripePrice {
+            id: id.to_owned(),
+            metadata: plan
+                .map(|plan| HashMap::from([("plan".to_owned(), plan.to_owned())]))
+                .unwrap_or_default(),
+            recurring: interval.map(|interval| StripeRecurring {
+                interval: interval.to_owned(),
+            }),
+        }
+    }
+
+    #[test]
+    fn an_older_price_keeps_its_plan_by_metadata() {
+        let prices = PriceIds::new(vec![]);
+        assert_eq!(
+            prices.plan_of(&price("price_old", Some("business"), Some("month"))),
+            Some((Plan::Business, BillingInterval::Month))
+        );
+        assert_eq!(
+            prices.plan_of(&price("price_old", Some("free"), Some("month"))),
+            None,
+            "Free is never paid for"
+        );
+        assert_eq!(
+            prices.plan_of(&price("price_old", Some("pro"), Some("week"))),
+            None
+        );
+        assert_eq!(
+            prices.plan_of(&price("price_old", None, Some("month"))),
+            None
+        );
     }
 }

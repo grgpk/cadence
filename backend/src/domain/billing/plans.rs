@@ -35,7 +35,7 @@ impl Plan {
     pub const fn entitlements(self) -> Entitlements {
         match self {
             Self::Free => Entitlements {
-                max_bookings_per_month: Some(25),
+                included_bookings_per_month: Some(25),
                 reminders: &[Reminder::Before24h],
                 custom_questions: false,
                 custom_accent: false,
@@ -44,7 +44,7 @@ impl Plan {
                 webhooks: false,
             },
             Self::Pro => Entitlements {
-                max_bookings_per_month: None,
+                included_bookings_per_month: None,
                 reminders: &Reminder::ALL,
                 custom_questions: true,
                 custom_accent: true,
@@ -53,7 +53,7 @@ impl Plan {
                 webhooks: false,
             },
             Self::Business => Entitlements {
-                max_bookings_per_month: None,
+                included_bookings_per_month: None,
                 reminders: &Reminder::ALL,
                 custom_questions: true,
                 custom_accent: true,
@@ -163,14 +163,16 @@ impl Reminder {
     pub const ALL: [Self; 3] = [Self::Before24h, Self::Before2h, Self::Before30m];
 }
 
-/// What a plan allows. `None` limits are unlimited. Each flag is one
+/// What a plan allows. `None` means unlimited. Each flag is one
 /// independent feature.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/Entitlements.ts")]
 pub struct Entitlements {
-    /// Calls booked in one calendar month of the host's timezone.
-    pub max_bookings_per_month: Option<u32>,
+    /// Calls a calendar month (host's timezone) the plan includes. Past it
+    /// the page stays open and the host is asked to upgrade: nobody booking
+    /// is ever turned away.
+    pub included_bookings_per_month: Option<u32>,
     #[ts(as = "Vec<Reminder>")]
     pub reminders: &'static [Reminder],
     /// The `ask_*` booking form questions.

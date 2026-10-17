@@ -79,7 +79,7 @@ export function PublicBookingPage({
 }) {
   return (
     <BookingShell showBranding={page.show_branding}>
-      {page.accepting_bookings && !page.full ? (
+      {page.accepting_bookings ? (
         <BookingCard
           pageRef={pageRef}
           page={page}
@@ -96,7 +96,7 @@ export function PublicBookingPage({
 
 /** A host's link with several kinds of call: the visitor picks one. */
 export function HostTypesPage({ slug, host }: { slug: string; host: HostPage }) {
-  const taking = host.accepting_bookings && !host.full && host.types.length > 0;
+  const taking = host.accepting_bookings && host.types.length > 0;
   return (
     <BookingShell showBranding={host.show_branding}>
       {taking ? (

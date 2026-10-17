@@ -114,7 +114,7 @@ For production, use a live key and `scripts/stripe-setup.sh --live`, and take th
 The rule is "keep the data, stop applying it".
 
 - **The page carries the plan** (`host_settings::service::with_plan`): every page load applies the host's entitlements, so bookings, slots, leads and the public payload all see the same thing.
-  - `full`: Free's 25 calls this month (non-cancelled, booked this calendar month in the host's timezone) are used up. `bookable_page` then answers 404, as for a paused page, so slots, new bookings and the form close. Moving an existing call still works. The public page shows its "not taking bookings right now" card.
+  - Replaced by Plan 30: Free's 25 are now included bookings, and the page never closes. Before that, `full`: Free's 25 calls this month (non-cancelled, booked this calendar month in the host's timezone) are used up. `bookable_page` then answers 404, as for a paused page, so slots, new bookings and the form close. Moving an existing call still works. The public page shows its "not taking bookings right now" card.
   - `ask_*` flags are switched off without `custom_questions`; the saved settings keep them.
   - `show_branding`: the Cadence logo under the booking card, hidden on paid plans.
   - Two calls booked at the same moment at 24 can both get through; the limit is a business limit, not a lock.

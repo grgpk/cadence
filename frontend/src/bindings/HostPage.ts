@@ -9,11 +9,7 @@ export type HostPage = { host_name: string,
 /**
  * `false` while the host has paused the page.
  */
-accepting_bookings: boolean, 
-/**
- * The host's plan has no bookings left this month.
- */
-full: boolean, show_branding: boolean, calendar_connected: boolean, 
+accepting_bookings: boolean, show_branding: boolean, calendar_connected: boolean, 
 /**
  * Bookable kinds of call, oldest first. Types past the host's plan are
  * left out.

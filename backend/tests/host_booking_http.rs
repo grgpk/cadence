@@ -2528,7 +2528,7 @@ async fn a_free_host_sends_one_reminder_and_shows_the_logo(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
-async fn a_free_page_takes_no_new_calls_once_the_month_is_full(pool: PgPool) {
+async fn a_free_page_keeps_taking_calls_past_the_included_month(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     end_trial(&pool, &host).await;
@@ -2536,33 +2536,21 @@ async fn a_free_page_takes_no_new_calls_once_the_month_is_full(pool: PgPool) {
     let open = slots(&app, &slug).await;
     let (first, second) = (open[0], open[1]);
 
-    // The 25th call fills the month, and the host hears of it once.
-    let (_, token) = book(&app, &slug, first).await;
+    // The 25th call is the last Free includes, and the host hears of it once.
+    book(&app, &slug, first).await;
     assert_eq!(account_notices(&pool, "host_booking_limit").await, 1);
 
-    let (status, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(page["full"], true);
-    assert_eq!(
-        page["accepting_bookings"], true,
-        "the host did not pause it"
-    );
+    // Nobody booking is turned away past it.
     let (status, _) = get(&app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(status, StatusCode::OK);
     let path = format!("/api/hosts/{slug}/types/call/bookings");
     let (status, _) = send(&app, Method::POST, &path, None, Some(booking(second, None))).await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
-
-    // A call already booked can still move.
-    let (status, _) = send(
-        &app,
-        Method::POST,
-        &format!("/api/manage/{token}/reschedule"),
-        None,
-        Some(json!({ "slot_start": second })),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(
+        account_notices(&pool, "host_booking_limit").await,
+        1,
+        "told once a month"
+    );
 }
 
 #[sqlx::test(migrations = "../migrations")]

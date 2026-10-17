@@ -589,16 +589,16 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
     let (headline, details, button) = match template {
         TRIAL_ENDING_TEMPLATE => (
             "Your Pro trial ends in 3 days",
-            "After that your page moves to Free: 25 bookings a month and one reminder. \
-             Your settings stay saved. Pick a plan to keep everything as it is.",
+            "After that your page moves to Free: 25 included bookings a month and one \
+             reminder. Your settings stay saved. Pick a plan to keep everything as it is.",
             "Pick a plan",
         ),
         HOST_BOOKING_LIMIT_TEMPLATE => (
-            "Your booking page is full for this month",
-            "You have used the 25 bookings Free gives each month, so your page takes no \
-             new calls until next month. Calls already booked still stand, and people can \
-             still move them. Upgrade to take bookings again today.",
-            "Upgrade",
+            "You've had 25 bookings this month",
+            "Free includes 25 a month. Your page stays open, so nobody is turned away. \
+             Pro adds reminders 2 hours and 30 minutes before, your own form questions \
+             and no Cadence logo, from $8 a month.",
+            "See plans",
         ),
         _ => (
             "Your Cadence payment failed",
@@ -1070,7 +1070,7 @@ mod tests {
             (TRIAL_ENDING_TEMPLATE, "Your Pro trial ends in 3 days"),
             (
                 HOST_BOOKING_LIMIT_TEMPLATE,
-                "Your booking page is full for this month",
+                "You've had 25 bookings this month",
             ),
             (PAYMENT_FAILED_TEMPLATE, "Your Cadence payment failed"),
         ] {

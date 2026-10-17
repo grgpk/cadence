@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,\n                  0::bigint AS \"type_rank!\",\n                  u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  e.title, e.description, w.timezone,\n                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,\n                  e.ask_investment_comfort, e.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app AS \"conferencing_app: ConferencingApp\", w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,\n                  -- A call already booked can move while its type is off.\n                  w.is_active AS accepting_bookings,\n                  false AS \"full!\", true AS \"show_branding!\"\n           FROM bookings b\n           JOIN widget_settings w ON w.host_unid = b.host_unid\n           JOIN users u ON u.unid = w.host_unid\n           JOIN LATERAL (\n               SELECT t.unid, t.slug, t.duration_minutes, t.title, t.description,\n                      t.ask_currently_working_on, t.ask_how_heard_about_us, t.ask_what_stopping_you,\n                      t.ask_investment_comfort, t.ask_urgency_level,\n                      t.minimum_notice_hours, t.booking_window_days, t.buffer_minutes\n               FROM event_types t WHERE t.host_unid = b.host_unid\n               ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid\n               LIMIT 1\n           ) e ON true\n           WHERE b.unid = $1 AND u.status = $2",
+  "query": "SELECT w.host_unid, e.unid AS event_type_unid, e.slug AS event_slug, e.duration_minutes,\n                  0::bigint AS \"type_rank!\",\n                  u.email AS host_email, w.public_slug, u.full_name AS host_name,\n                  e.title, e.description, w.timezone,\n                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,\n                  e.ask_investment_comfort, e.ask_urgency_level,\n                  EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS \"calendar_connected!\",\n                  w.conferencing_app AS \"conferencing_app: ConferencingApp\", w.meeting_link, w.meeting_link IS NOT NULL AS \"has_meeting_link!\",\n                  e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,\n                  -- A call already booked can move while its type is off.\n                  w.is_active AS accepting_bookings,\n                  true AS \"show_branding!\"\n           FROM bookings b\n           JOIN widget_settings w ON w.host_unid = b.host_unid\n           JOIN users u ON u.unid = w.host_unid\n           JOIN LATERAL (\n               SELECT t.unid, t.slug, t.duration_minutes, t.title, t.description,\n                      t.ask_currently_working_on, t.ask_how_heard_about_us, t.ask_what_stopping_you,\n                      t.ask_investment_comfort, t.ask_urgency_level,\n                      t.minimum_notice_hours, t.booking_window_days, t.buffer_minutes\n               FROM event_types t WHERE t.host_unid = b.host_unid\n               ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid\n               LIMIT 1\n           ) e ON true\n           WHERE b.unid = $1 AND u.status = $2",
   "describe": {
     "columns": [
       {
@@ -254,12 +254,6 @@
       },
       {
         "ordinal": 24,
-        "name": "full!",
-        "type_info": "Bool",
-        "origin": "Expression"
-      },
-      {
-        "ordinal": 25,
         "name": "show_branding!",
         "type_info": "Bool",
         "origin": "Expression"
@@ -296,9 +290,8 @@
       false,
       false,
       false,
-      null,
       null
     ]
   },
-  "hash": "8be0edfeb8ed4b1185a86e8da45ad2728a0496e4936d334d9cee50d662d80909"
+  "hash": "db68fe3afb0bb4e80f80fe9a466b0ce8f898454051f2100cba2ab48b10710d67"
 }

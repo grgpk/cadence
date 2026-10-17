@@ -27,7 +27,7 @@ function summary(overrides: Partial<BillingSummary> = {}): BillingSummary {
     cancel_at_period_end: false,
     bookings_this_month: 10,
     entitlements: {
-      max_bookings_per_month: 25,
+      included_bookings_per_month: 25,
       reminders: ["before_24h"],
       custom_questions: false,
       custom_accent: false,
@@ -107,7 +107,10 @@ describe("bookingUsage", () => {
     expect(bookingUsage(summary())).toBe(0.4);
     expect(bookingUsage(summary({ bookings_this_month: 40 }))).toBe(1);
     const unlimited = summary();
-    unlimited.entitlements = { ...unlimited.entitlements, max_bookings_per_month: null };
+    unlimited.entitlements = {
+      ...unlimited.entitlements,
+      included_bookings_per_month: null,
+    };
     expect(bookingUsage(unlimited)).toBeNull();
   });
 });
@@ -130,7 +133,7 @@ describe("statusLine", () => {
       /^Pro renews yearly on Oct 1[5-7], 2027\.$/,
     );
     expect(statusLine({ ...renewing, cancel_at_period_end: true }, NOW)).toMatch(
-      /^Pro ends on .* You move to Free then\.$/,
+      /^Pro ends on .* You move to Free then, and nothing is deleted\.$/,
     );
     expect(statusLine(summary({ plan: PLAN.PRO, status: STATUS.PAST_DUE }), NOW)).toMatch(
       /payment failed/,
@@ -159,13 +162,13 @@ describe("freeAllowanceLine", () => {
       plan: PLAN.PRO,
       status: STATUS.TRIALING,
       bookings_this_month: bookings,
-      entitlements: { ...free.entitlements, max_bookings_per_month: null },
+      entitlements: { ...free.entitlements, included_bookings_per_month: null },
     });
 
   it("measures an unlimited month against Free's limit", () => {
-    expect(freeAllowanceLine(unlimited(12), offers)).toBe("Free allows 25 a month.");
+    expect(freeAllowanceLine(unlimited(12), offers)).toBe("Free includes 25 a month.");
     expect(freeAllowanceLine(unlimited(31), offers)).toBe(
-      "That is over Free's 25 a month.",
+      "That is past the 25 a month Free includes.",
     );
   });
 
@@ -177,7 +180,7 @@ describe("freeAllowanceLine", () => {
     const roomy: PlanOffer[] = [
       {
         ...offers[0],
-        entitlements: { ...free.entitlements, max_bookings_per_month: null },
+        entitlements: { ...free.entitlements, included_bookings_per_month: null },
       } as PlanOffer,
     ];
     expect(freeAllowanceLine(unlimited(12), roomy)).toBeNull();

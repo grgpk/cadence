@@ -46,27 +46,16 @@ pub async fn start_trial(
     .await
 }
 
-/// Whether the host's plan has no bookings left this month.
-pub async fn monthly_limit_reached(
-    pool: &PgPool,
-    host_unid: Uuid,
-    entitlements: &Entitlements,
-) -> Result<bool, sqlx::Error> {
-    let Some(limit) = entitlements.max_bookings_per_month else {
-        return Ok(false);
-    };
-    Ok(db::bookings_this_month(pool, host_unid).await? >= i64::from(limit))
-}
-
-/// Tells the host once a month, when the call just booked used the month up.
-pub async fn notice_if_full(
+/// Tells the host once a month, when the call just booked is the last one
+/// their plan includes. The page stays open after it.
+pub async fn notice_if_past_included(
     pool: &PgPool,
     host_unid: Uuid,
     entitlements: &Entitlements,
     email: &str,
     full_name: &str,
 ) -> Result<(), sqlx::Error> {
-    let Some(limit) = entitlements.max_bookings_per_month else {
+    let Some(limit) = entitlements.included_bookings_per_month else {
         return Ok(());
     };
     if db::bookings_this_month(pool, host_unid).await? != i64::from(limit) {
@@ -293,7 +282,7 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
         None => db::user_by_customer(&mut transaction, &subscription.customer).await?,
     };
     let item = subscription.items.data.first();
-    let price = item.and_then(|item| payments.prices().plan_of(&item.price.id));
+    let price = item.and_then(|item| payments.prices().plan_of(&item.price));
     let (Some(user_unid), Some((plan, interval))) = (user_unid, price) else {
         tracing::warn!(event = %event.id, "stripe subscription for no known host or price");
         return Ok(transaction.commit().await?);

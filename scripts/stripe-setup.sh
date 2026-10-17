@@ -7,6 +7,11 @@
 #   scripts/stripe-setup.sh --live   live mode, for production only
 #
 # The amounts match backend/src/domain/billing/plans.rs.
+#
+# Price lock: a subscriber's price never goes up while they stay subscribed.
+# A changed amount gets a new price that takes over the lookup key, so new
+# checkouts use it; the old price stays, and Stripe keeps every existing
+# subscription on it. Never edit or archive a price someone pays.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -78,12 +83,14 @@ product_for() {
     json_field "$made" "id"
 }
 
-# A recurring price, found by its lookup key or made.
+# A recurring price, found by its lookup key or made. A new amount makes a new
+# price and moves the lookup key to it (see "Price lock" above).
 price_for() {
     local product=$1 lookup_key=$2 amount=$3 interval=$4
     local found
     found=$(stripe_api GET "/prices" -G -d "lookup_keys[]=$lookup_key")
-    if [[ $(count_of "$found") != "0" ]]; then
+    if [[ $(count_of "$found") != "0" ]] &&
+        [[ $(json_field "$found" "data.0.unit_amount") == "$amount" ]]; then
         json_field "$found" "data.0.id"
         return
     fi
@@ -93,7 +100,8 @@ price_for() {
         -d "currency=$CURRENCY" \
         -d "unit_amount=$amount" \
         -d "recurring[interval]=$interval" \
-        -d "lookup_key=$lookup_key")
+        -d "lookup_key=$lookup_key" \
+        -d "transfer_lookup_key=true")
     json_field "$made" "id"
 }
 
@@ -107,15 +115,32 @@ set_env() {
     fi
 }
 
+# Points NAME at the plan's price. Every price, and the one NAME pointed at
+# before, carries its plan in metadata: the backend knows a subscriber's older
+# price by it, so a price change never drops anyone's plan (the price lock).
+set_price() {
+    local name=$1 plan=$2 product=$3 lookup_key=$4 amount=$5 interval=$6
+    local old new
+    old=$(grep -E "^$name=" "$ENV_FILE" | tail -1 | cut -d= -f2- | tr -d '"' || true)
+    new=$(price_for "$product" "$lookup_key" "$amount" "$interval")
+    stripe_api POST "/prices/$new" -d "metadata[plan]=$plan" >/dev/null
+    if [[ -n "$old" && "$old" != "$new" ]]; then
+        # From another account or mode it is not ours to tag: say so, go on.
+        (stripe_api POST "/prices/$old" -d "metadata[plan]=$plan" >/dev/null 2>&1) ||
+            echo "Could not tag the old $name price $old; check it by hand." >&2
+    fi
+    set_env "$name" "$new"
+}
+
 echo "Products..."
 PRO=$(product_for pro "Cadence Pro")
 BUSINESS=$(product_for business "Cadence Business")
 
 echo "Prices..."
-set_env STRIPE_PRICE_PRO_MONTH "$(price_for "$PRO" cadence_pro_month 1000 month)"
-set_env STRIPE_PRICE_PRO_YEAR "$(price_for "$PRO" cadence_pro_year 9600 year)"
-set_env STRIPE_PRICE_BUSINESS_MONTH "$(price_for "$BUSINESS" cadence_business_month 1600 month)"
-set_env STRIPE_PRICE_BUSINESS_YEAR "$(price_for "$BUSINESS" cadence_business_year 15600 year)"
+set_price STRIPE_PRICE_PRO_MONTH pro "$PRO" cadence_pro_month 1000 month
+set_price STRIPE_PRICE_PRO_YEAR pro "$PRO" cadence_pro_year 9600 year
+set_price STRIPE_PRICE_BUSINESS_MONTH business "$BUSINESS" cadence_business_month 1600 month
+set_price STRIPE_PRICE_BUSINESS_YEAR business "$BUSINESS" cadence_business_year 15600 year
 
 echo
 echo "Done. $ENV_FILE now has:"

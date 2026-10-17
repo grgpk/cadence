@@ -122,9 +122,11 @@ function severalKindsAllowed(entitlements: Entitlements): boolean {
   return max === null || max > 1;
 }
 
+/** Whether the plan includes the week. Past its included bookings a page
+ * still takes calls, but the plan is no longer the one that fits. */
 function covers(entitlements: Entitlements, needs: WeekNeeds): boolean {
-  const max = entitlements.max_bookings_per_month;
-  const enoughCalls = max === null || callsPerMonth(needs.callsPerWeek) <= max;
+  const included = entitlements.included_bookings_per_month;
+  const enoughCalls = included === null || callsPerMonth(needs.callsPerWeek) <= included;
   return enoughCalls && (!needs.severalKinds || severalKindsAllowed(entitlements));
 }
 
@@ -142,16 +144,17 @@ export function fitReason(offers: readonly PlanOffer[], needs: WeekNeeds): strin
   const cheapest = offers[0];
   if (!cheapest) return "";
   const name = PLAN_NAMES[recommendPlan(offers, needs)];
-  const limit = cheapest.entitlements.max_bookings_per_month;
+  const included = cheapest.entitlements.included_bookings_per_month;
+  const monthly = callsPerMonth(needs.callsPerWeek);
   if (covers(cheapest.entitlements, needs)) {
-    return limit === null
+    return included === null
       ? `${name} covers your week.`
-      : `${name} covers your week: about ${callsPerMonth(needs.callsPerWeek)} of ${limit} bookings a month.`;
+      : `${name} covers your week: about ${monthly} of the ${included} bookings it includes each month.`;
   }
   if (needs.severalKinds && !severalKindsAllowed(cheapest.entitlements)) {
     return `${name} fits: several kinds of call on one link. ${PLAN_NAMES[cheapest.plan]} has one.`;
   }
-  return `${name} fits: unlimited bookings. ${PLAN_NAMES[cheapest.plan]} stops at ${limit} a month.`;
+  return `${name} fits: about ${monthly} bookings a month, past the ${included} ${PLAN_NAMES[cheapest.plan]} includes.`;
 }
 
 /** A cell of the comparison table: included, left out, or a value. */
@@ -184,9 +187,10 @@ export const FEATURE_GROUPS: readonly FeatureGroup[] = [
     rows: [
       { label: "Booking page with your own link", value: everyPlan },
       {
-        label: "Bookings per month",
-        value: (e) => limit(e.max_bookings_per_month, "a month"),
+        label: "Bookings a month",
+        value: (e) => limit(e.included_bookings_per_month, "included"),
       },
+      { label: "Nobody is turned away past it", value: everyPlan },
       {
         label: "Event types",
         value: (e) =>

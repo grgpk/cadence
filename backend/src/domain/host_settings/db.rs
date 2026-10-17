@@ -101,7 +101,7 @@ pub async fn find_type_page(
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
                   (w.is_active AND e.is_active) AS "accepting_bookings!",
                   -- Set from the host's plan by the service.
-                  false AS "full!", true AS "show_branding!"
+                  true AS "show_branding!"
            FROM widget_settings w
            JOIN users u ON u.unid = w.host_unid
            JOIN event_types e ON e.host_unid = w.host_unid
@@ -133,7 +133,7 @@ pub async fn page_of_booking(
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
                   -- A call already booked can move while its type is off.
                   w.is_active AS accepting_bookings,
-                  false AS "full!", true AS "show_branding!"
+                  true AS "show_branding!"
            FROM bookings b
            JOIN widget_settings w ON w.host_unid = b.host_unid
            JOIN users u ON u.unid = w.host_unid

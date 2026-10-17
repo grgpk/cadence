@@ -114,6 +114,7 @@ cadence/
 | 27 | `PLAN_27_PRICING_BILLING.md` | public pricing page, Free/Pro/Business, Stripe checkout and portal, 14-day Pro trial, plan limits enforced, billing page | ✅ done |
 | 28 | `PLAN_28_EVENT_TYPES.md` | several event types per host, `/book/$slug/$type`, Business only | ✅ done |
 | 29 | `PLAN_29_WEBHOOKS.md` | signed booking webhooks with retries, Business only | ✅ done |
+| 30 | `PLAN_30_PRICING_PROMISES.md` | Free never turns invitees away, price lock, nothing deleted; promises on `/pricing` | 🔄 in progress |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

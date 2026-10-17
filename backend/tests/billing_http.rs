@@ -162,7 +162,7 @@ async fn the_catalog_is_public_and_lists_every_plan(pool: PgPool) {
         .filter_map(|offer| offer["plan"].as_str())
         .collect();
     assert_eq!(names, ["free", "pro", "business"]);
-    assert_eq!(plans[0]["entitlements"]["max_bookings_per_month"], 25);
+    assert_eq!(plans[0]["entitlements"]["included_bookings_per_month"], 25);
     assert_eq!(plans[1]["prices"][1]["monthly_cents"], 800);
 }
 

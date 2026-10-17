@@ -2,14 +2,16 @@
 import type { Reminder } from "./Reminder";
 
 /**
- * What a plan allows. `None` limits are unlimited. Each flag is one
+ * What a plan allows. `None` means unlimited. Each flag is one
  * independent feature.
  */
 export type Entitlements = { 
 /**
- * Calls booked in one calendar month of the host's timezone.
+ * Calls a calendar month (host's timezone) the plan includes. Past it
+ * the page stays open and the host is asked to upgrade: nobody booking
+ * is ever turned away.
  */
-max_bookings_per_month: number | null, reminders: Array<Reminder>, 
+included_bookings_per_month: number | null, reminders: Array<Reminder>, 
 /**
  * The `ask_*` booking form questions.
  */

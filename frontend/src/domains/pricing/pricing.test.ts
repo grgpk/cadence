@@ -19,7 +19,7 @@ import {
 } from "./pricing";
 
 const FREE: Entitlements = {
-  max_bookings_per_month: 25,
+  included_bookings_per_month: 25,
   reminders: ["before_24h"],
   custom_questions: false,
   custom_accent: false,
@@ -30,7 +30,7 @@ const FREE: Entitlements = {
 
 const PRO: Entitlements = {
   ...FREE,
-  max_bookings_per_month: null,
+  included_bookings_per_month: null,
   reminders: ["before_24h", "before_2h", "before_30m"],
   custom_questions: true,
 };
@@ -96,8 +96,8 @@ describe("bestYearlySaving", () => {
 
 describe("FEATURE_GROUPS", () => {
   it("reads limits and reminders from the entitlements", () => {
-    expect(row("Bookings per month").value(FREE)).toBe("25 a month");
-    expect(row("Bookings per month").value(PRO)).toBe("Unlimited");
+    expect(row("Bookings a month").value(FREE)).toBe("25 included");
+    expect(row("Bookings a month").value(PRO)).toBe("Unlimited");
     expect(row("Reminders before the call").value(FREE)).toBe("24h");
     expect(row("Reminders before the call").value(PRO)).toBe("24h, 2h, 30 min");
     expect(row("Your own booking form questions").value(FREE)).toBe(false);
@@ -138,7 +138,7 @@ describe("recommendPlan", () => {
 
   it("reads the limits from the entitlements", () => {
     const roomy = [
-      { ...offers[0], entitlements: { ...FREE, max_bookings_per_month: null } },
+      { ...offers[0], entitlements: { ...FREE, included_bookings_per_month: null } },
     ];
     expect(
       recommendPlan(roomy as PlanOffer[], { callsPerWeek: 30, severalKinds: false }),
@@ -147,10 +147,10 @@ describe("recommendPlan", () => {
 
   it("says why the plan fits", () => {
     expect(fitReason(offers, { callsPerWeek: 3, severalKinds: false })).toBe(
-      "Free covers your week: about 13 of 25 bookings a month.",
+      "Free covers your week: about 13 of the 25 bookings it includes each month.",
     );
     expect(fitReason(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
-      "Pro fits: unlimited bookings. Free stops at 25 a month.",
+      "Pro fits: about 35 bookings a month, past the 25 Free includes.",
     );
     expect(fitReason(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
       "Business fits: several kinds of call on one link. Free has one.",
