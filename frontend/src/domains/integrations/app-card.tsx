@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { cn } from "cn";
-import { Check, ChevronRight, Link as LinkIcon, Webhook } from "lucide-react";
+import { Check, ChevronRight, LayoutGrid } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
 import { ROUTES } from "../../lib/routes";
 import {
   APP_CATEGORY,
@@ -128,109 +129,51 @@ export function SoonRow({ app }: { app: AppEntry }) {
   );
 }
 
-/** A host's day as hour cells: busy ones from the calendar, kept off the page. */
-function CalendarSketch() {
-  const cells = ["open", "busy", "open", "open", "busy", "busy", "open", "open"] as const;
-  return (
-    <div aria-hidden="true" className="flex gap-1">
-      {cells.map((cell, index) => (
-        <span
-          key={index}
-          className={cn(
-            "h-9 flex-1 rounded-sm border",
-            cell === "busy"
-              ? "border-dusk/50 bg-[repeating-linear-gradient(135deg,var(--color-dusk)_0_1.5px,transparent_1.5px_6px)] opacity-60"
-              : index < 4
-                ? "border-dawn bg-dawn/35 dark:bg-dawn/10"
-                : "border-noon bg-noon/30 dark:bg-noon/10",
-          )}
-        />
-      ))}
-    </div>
-  );
-}
-
-/** A booked call and the link people join it from. */
-function ConferencingSketch() {
-  return (
-    <div aria-hidden="true" className="flex h-9 items-center gap-2">
-      <span className="flex h-full shrink-0 flex-col justify-center rounded-sm border-l-4 border-noon bg-primary px-2 text-[0.6875rem] leading-tight text-primary-foreground">
-        <span className="font-semibold">Ana</span>
-        <span className="text-clock opacity-80">10:00</span>
-      </span>
-      <span className="h-px flex-1 border-t border-dashed border-foreground/40" />
-      <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-full border bg-card px-2.5 text-xs text-muted-foreground">
-        <LinkIcon className="size-3 shrink-0" />
-        <span className="truncate">meet.google.com/ana-call</span>
-      </span>
-    </div>
-  );
-}
-
-/** A booked call, posted on to the host's own server. */
-function AutomationSketch() {
-  return (
-    <div aria-hidden="true" className="flex h-9 items-center gap-2">
-      <span className="flex h-full shrink-0 flex-col justify-center rounded-sm border-l-4 border-noon bg-primary px-2 text-[0.6875rem] leading-tight text-primary-foreground">
-        <span className="font-semibold">Ana</span>
-        <span className="text-clock opacity-80">10:00</span>
-      </span>
-      <span className="h-px flex-1 border-t border-dashed border-foreground/40" />
-      <span className="flex h-7 min-w-0 items-center gap-1.5 rounded-full border bg-card px-2.5 font-mono text-xs text-muted-foreground">
-        <Webhook className="size-3 shrink-0" />
-        <span className="truncate">POST /hooks/cadence</span>
-      </span>
-    </div>
-  );
-}
-
-const SKETCHES = {
-  [APP_CATEGORY.calendar]: CalendarSketch,
-  [APP_CATEGORY.conferencing]: ConferencingSketch,
-  [APP_CATEGORY.automation]: AutomationSketch,
-};
-
-/** A category of apps, picked to show only its apps. */
-export function CategoryTile({
-  category,
-  count,
+/** The store's category filter: all apps, or one category at a time. */
+export function CategoryFilter({
   selected,
-  onToggle,
+  countOf,
+  onSelect,
 }: {
-  category: AppCategory;
-  count: number;
-  selected: boolean;
-  onToggle: () => void;
+  selected: AppCategory | undefined;
+  countOf: (category: AppCategory | undefined) => number;
+  onSelect: (category: AppCategory | undefined) => void;
 }) {
-  const info = CATEGORY_INFO[category];
-  const Sketch = SKETCHES[category];
+  const options = [undefined, ...Object.values(APP_CATEGORY)];
   return (
-    <button
-      type="button"
-      aria-pressed={selected}
-      onClick={onToggle}
-      className={cn(
-        "grid gap-4 rounded-xl border bg-muted/40 p-4 text-left transition-colors hover:border-foreground/30",
-        selected && "border-foreground bg-card hover:border-foreground",
-        FOCUS,
-      )}
-    >
-      <div className="rounded-lg border bg-background p-3">
-        <Sketch />
-      </div>
-      <span className="flex items-end justify-between gap-3">
-        <span>
-          <span className="block font-display font-wide text-lg font-semibold tracking-tight">
-            {info.name}
-          </span>
-          <span className="mt-0.5 block text-sm text-muted-foreground">
-            {info.description}
-          </span>
-        </span>
-        <span className="text-clock shrink-0 text-sm text-muted-foreground">
-          {selected ? "Showing" : `${count} apps`}
-        </span>
-      </span>
-    </button>
+    <div className="grid gap-2">
+      <fieldset className="flex flex-wrap gap-2">
+        <legend className="sr-only">Categories</legend>
+        {options.map((category) => {
+          const info = category ? CATEGORY_INFO[category] : null;
+          const Icon = info?.icon ?? LayoutGrid;
+          const active = selected === category;
+          return (
+            <Button
+              key={category ?? "all"}
+              type="button"
+              size="sm"
+              variant={active ? "default" : "outline"}
+              aria-pressed={active}
+              onClick={() => onSelect(category)}
+              className="rounded-full"
+            >
+              <Icon />
+              {info?.name ?? "All apps"}
+              <span
+                className={cn("text-clock text-xs", !active && "text-muted-foreground")}
+              >
+                {countOf(category)}
+              </span>
+            </Button>
+          );
+        })}
+      </fieldset>
+      {selected ? (
+        <p className="text-sm text-muted-foreground">
+          {CATEGORY_INFO[selected].description}
+        </p>
+      ) : null}
+    </div>
   );
 }

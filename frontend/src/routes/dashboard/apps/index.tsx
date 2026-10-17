@@ -5,7 +5,7 @@ import { useState } from "react";
 
 import { Input } from "../../../components/ui/input";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
-import { AppCard, CategoryTile, SoonRow } from "../../../domains/integrations/app-card";
+import { AppCard, CategoryFilter, SoonRow } from "../../../domains/integrations/app-card";
 import {
   APP_CATEGORY,
   type AppCategory,
@@ -97,25 +97,15 @@ function AppStorePage() {
         }
       />
 
-      <section className="grid gap-3">
-        <h2 className="text-lg font-semibold">Categories</h2>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {CATEGORIES.map((each) => (
-            <CategoryTile
-              key={each}
-              category={each}
-              count={APPS.filter((app) => app.category === each).length}
-              selected={category === each}
-              onToggle={() =>
-                void navigate({
-                  search: category === each ? {} : { category: each },
-                  replace: true,
-                })
-              }
-            />
-          ))}
-        </div>
-      </section>
+      <CategoryFilter
+        selected={category}
+        countOf={(each) =>
+          each ? APPS.filter((app) => app.category === each).length : APPS.length
+        }
+        onSelect={(each) =>
+          void navigate({ search: each ? { category: each } : {}, replace: true })
+        }
+      />
 
       <AppGrid
         title="Available"
