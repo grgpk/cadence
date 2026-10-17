@@ -96,6 +96,9 @@ enum Gateway {
 struct FakeLedger {
     credits: Vec<(String, Credit)>,
     failing: bool,
+    /// Subscriptions as "Stripe" has them now, by id. One not here is read
+    /// from the event, as before.
+    subscriptions: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// The fake's invoices are paid unless their id says otherwise, as one
@@ -263,6 +266,47 @@ impl Payments {
             ),
         ];
         post(client, secret_key, "/billing_portal/sessions", &form).await
+    }
+
+    /// The subscription as Stripe has it now. An event's copy can be older
+    /// than one already applied, or from the same second as a newer one.
+    /// `None` from the fake when a test set nothing.
+    pub async fn current_subscription(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Option<serde_json::Value>, PaymentsError> {
+        let (client, secret_key) = match &self.gateway {
+            Gateway::Stripe { client, secret_key } => (client, secret_key),
+            Gateway::Fake(ledger) => {
+                return Ok(ledger
+                    .lock()
+                    .ok()
+                    .and_then(|ledger| ledger.subscriptions.get(subscription_id).cloned()));
+            }
+        };
+        let path = format!("/subscriptions/{subscription_id}");
+        let sent = client
+            .get(format!("{API}{path}"))
+            .bearer_auth(secret_key.as_ref())
+            .send()
+            .await;
+        checked(&path, sent)
+            .await?
+            .json::<serde_json::Value>()
+            .await
+            .map(Some)
+            .map_err(|error| PaymentsError::Request(error.into()))
+    }
+
+    /// For tests: what the fake answers for this subscription from now on.
+    pub fn fake_subscription(&self, subscription_id: &str, subscription: serde_json::Value) {
+        if let Gateway::Fake(ledger) = &self.gateway
+            && let Ok(mut ledger) = ledger.lock()
+        {
+            ledger
+                .subscriptions
+                .insert(subscription_id.to_owned(), subscription);
+        }
     }
 
     /// Whether the invoice took real money: a promotion code can make a

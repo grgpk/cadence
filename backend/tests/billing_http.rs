@@ -479,6 +479,30 @@ async fn an_ended_subscription_ends_the_plan_even_with_a_price_nobody_knows(pool
     assert_eq!(ended["status"], "canceled");
 }
 
+#[sqlx::test(migrations = "../migrations")]
+async fn events_from_one_second_in_any_order_leave_stripes_latest_state(pool: PgPool) {
+    let payments = fake_payments();
+    let app = app_with(&pool, Some(payments.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    // Stripe has the subscription active now.
+    payments.fake_subscription(
+        "sub_1",
+        json!({
+            "id": "sub_1", "customer": "cus_1", "status": "active", "cancel_at_period_end": false,
+            "metadata": { "user_unid": unid.to_string() },
+            "items": { "data": [{ "price": { "id": PRO_MONTH }, "current_period_end": 1_900_000_000 }] },
+        }),
+    );
+
+    // Both events are from second 100; the "incomplete" one arrives last.
+    subscription_event(&app, "evt_2", "updated", 100, unid, PRO_MONTH, "active").await;
+    subscription_event(&app, "evt_1", "created", 100, unid, PRO_MONTH, "incomplete").await;
+
+    let now = summary(&app, &cookie).await;
+    assert_eq!(now["status"], "active");
+    assert_eq!(now["plan"], "pro");
+}
+
 /// Ada invites Ben; returns their ids and Ada's cookie.
 async fn invitation(app: &Router) -> (Uuid, String, Uuid) {
     let (ada, ada_cookie) = register(app, "ada@example.com").await;

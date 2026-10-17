@@ -491,17 +491,23 @@ fn instant(seconds: i64) -> Option<DateTime<Utc>> {
 /// Applies one verified Stripe event, once. Events this app does not act on
 /// are recorded and acknowledged, so Stripe stops sending them.
 pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent) -> AppResult<()> {
+    let ended = match event.kind.as_str() {
+        "customer.subscription.created" | "customer.subscription.updated" => Some(false),
+        "customer.subscription.deleted" => Some(true),
+        _ => None,
+    };
+    // Read before the transaction, so no Stripe call holds it open.
+    let subscription = match ended {
+        Some(_) => Some(current_state(payments, event.data.object).await?),
+        None => None,
+    };
     let mut transaction = pool.begin().await?;
     if !db::record_event(&mut transaction, &event.id, &event.kind).await? {
         return Ok(());
     }
-    let ended = match event.kind.as_str() {
-        "customer.subscription.created" | "customer.subscription.updated" => false,
-        "customer.subscription.deleted" => true,
-        _ => return Ok(transaction.commit().await?),
+    let (Some(ended), Some(subscription)) = (ended, subscription) else {
+        return Ok(transaction.commit().await?);
     };
-    let subscription: StripeSubscription = serde_json::from_value(event.data.object)
-        .map_err(|error| AppError::BadRequest(format!("unreadable subscription: {error}")))?;
     let user_unid = match subscription
         .metadata
         .get("user_unid")
@@ -562,6 +568,27 @@ pub async fn apply_event(pool: &PgPool, payments: &Payments, event: StripeEvent)
         .await;
     }
     Ok(())
+}
+
+/// The subscription an event is about, as Stripe has it now: whatever order
+/// events arrive in, the one applied last carries the latest state. A
+/// failed read fails the event, and Stripe sends it again.
+async fn current_state(
+    payments: &Payments,
+    object: serde_json::Value,
+) -> AppResult<StripeSubscription> {
+    let unreadable = |error: serde_json::Error| {
+        AppError::BadRequest(format!("unreadable subscription: {error}"))
+    };
+    let sent: StripeSubscription = serde_json::from_value(object).map_err(unreadable)?;
+    match payments
+        .current_subscription(&sent.id)
+        .await
+        .map_err(payments_failed)?
+    {
+        Some(now) => serde_json::from_value(now).map_err(unreadable),
+        None => Ok(sent),
+    }
 }
 
 /// A host who pays no longer needs the trial reminder; a host whose renewal
