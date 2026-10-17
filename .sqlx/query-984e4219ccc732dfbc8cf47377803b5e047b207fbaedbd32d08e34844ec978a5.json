@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO availability_overrides (host_unid, date, start_time, end_time, slot_minutes)\n             SELECT $1, $2, start_time, end_time, slot_minutes\n             FROM UNNEST($3::time[], $4::time[], $5::int[]) AS r(start_time, end_time, slot_minutes)\n             RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "availability_overrides",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Date",
+        "TimeArray",
+        "TimeArray",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "984e4219ccc732dfbc8cf47377803b5e047b207fbaedbd32d08e34844ec978a5"
+}

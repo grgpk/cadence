@@ -138,7 +138,11 @@ pub async fn page_of_booking(
            JOIN widget_settings w ON w.host_unid = b.host_unid
            JOIN users u ON u.unid = w.host_unid
            JOIN LATERAL (
-               SELECT * FROM event_types t WHERE t.host_unid = b.host_unid
+               SELECT t.unid, t.slug, t.duration_minutes, t.title, t.description,
+                      t.ask_currently_working_on, t.ask_how_heard_about_us, t.ask_what_stopping_you,
+                      t.ask_investment_comfort, t.ask_urgency_level,
+                      t.minimum_notice_hours, t.booking_window_days, t.buffer_minutes
+               FROM event_types t WHERE t.host_unid = b.host_unid
                ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid
                LIMIT 1
            ) e ON true

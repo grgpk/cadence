@@ -147,18 +147,16 @@ impl BugReportsService {
             r#"WITH unique_bugs AS (
                 SELECT DISTINCT ON (similarityhash)
                     id, unid, bugtype, similarityhash, message, exceptionmessage,
-                    stacktrace, userlogin, url, useragent, application, created
+                    stacktrace, userlogin, url, useragent, application, created,
+                    -- Window functions run before DISTINCT ON, so this counts the whole group.
+                    COUNT(*) OVER (PARTITION BY similarityhash) AS similar_count
                 FROM bug_reports
                 ORDER BY similarityhash, created DESC
-            ), counted AS (
-                SELECT u.*,
-                    (SELECT COUNT(*) FROM bug_reports b2 WHERE b2.similarityhash = u.similarityhash) AS similar_count
-                FROM unique_bugs u
             )
             SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,
                 stacktrace, userlogin, url, useragent, application, created,
                     COUNT(*) OVER() AS total_count, similar_count
-            FROM counted ORDER BY created DESC LIMIT 500"#,
+            FROM unique_bugs ORDER BY created DESC LIMIT 500"#,
         )
         .fetch_all(pool)
         .await?;
@@ -260,6 +258,31 @@ mod contract_tests {
             return Err(sqlx::Error::RowNotFound);
         };
         assert!(exception_message.len() <= 512);
+        Ok(())
+    }
+
+    #[sqlx::test(migrations = "../migrations")]
+    async fn list_shows_each_bug_once_with_how_often_it_happened(
+        pool: PgPool,
+    ) -> Result<(), sqlx::Error> {
+        let report = |message: &str| NewBugReport {
+            bug_type: AdminBugType::Bug,
+            message: message.to_owned(),
+            user_login: None,
+            stack_trace: None,
+            url: None,
+            user_agent: None,
+        };
+        for message in ["same failure", "same failure", "same failure", "other"] {
+            BugReportsService::add(&pool, &report(message)).await?;
+        }
+
+        let listed = BugReportsService::list(&pool).await?;
+
+        let mut counts: Vec<i64> = listed.iter().map(|bug| bug.similar_count).collect();
+        counts.sort_unstable();
+        assert_eq!(counts, vec![1, 3]);
+        assert!(listed.iter().all(|bug| bug.total_count == 2));
         Ok(())
     }
 }

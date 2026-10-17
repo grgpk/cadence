@@ -1,4 +1,4 @@
-use chrono::NaiveDate;
+use chrono::{NaiveDate, NaiveTime};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -113,17 +113,22 @@ pub async fn replace_override(
         .fetch_one(&mut *tx)
         .await?;
     }
-    for range in ranges {
+    if !ranges.is_empty() {
+        let starts: Vec<NaiveTime> = ranges.iter().map(|range| range.start_time).collect();
+        let ends: Vec<NaiveTime> = ranges.iter().map(|range| range.end_time).collect();
+        let slots: Vec<i32> = ranges.iter().map(|range| range.slot_minutes).collect();
         sqlx::query_scalar!(
             "INSERT INTO availability_overrides (host_unid, date, start_time, end_time, slot_minutes)
-             VALUES ($1, $2, $3, $4, $5) RETURNING id",
+             SELECT $1, $2, start_time, end_time, slot_minutes
+             FROM UNNEST($3::time[], $4::time[], $5::int[]) AS r(start_time, end_time, slot_minutes)
+             RETURNING id",
             host_unid,
             date,
-            range.start_time,
-            range.end_time,
-            range.slot_minutes,
+            &starts,
+            &ends,
+            &slots,
         )
-        .fetch_one(&mut *tx)
+        .fetch_all(&mut *tx)
         .await?;
     }
     tx.commit().await

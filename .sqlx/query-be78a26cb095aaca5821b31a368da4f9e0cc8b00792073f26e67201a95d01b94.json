@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "WITH unique_bugs AS (\n                SELECT DISTINCT ON (similarityhash)\n                    id, unid, bugtype, similarityhash, message, exceptionmessage,\n                    stacktrace, userlogin, url, useragent, application, created\n                FROM bug_reports\n                ORDER BY similarityhash, created DESC\n            ), counted AS (\n                SELECT u.*,\n                    (SELECT COUNT(*) FROM bug_reports b2 WHERE b2.similarityhash = u.similarityhash) AS similar_count\n                FROM unique_bugs u\n            )\n            SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,\n                stacktrace, userlogin, url, useragent, application, created,\n                    COUNT(*) OVER() AS total_count, similar_count\n            FROM counted ORDER BY created DESC LIMIT 500",
+  "query": "WITH unique_bugs AS (\n                SELECT DISTINCT ON (similarityhash)\n                    id, unid, bugtype, similarityhash, message, exceptionmessage,\n                    stacktrace, userlogin, url, useragent, application, created,\n                    -- Window functions run before DISTINCT ON, so this counts the whole group.\n                    COUNT(*) OVER (PARTITION BY similarityhash) AS similar_count\n                FROM bug_reports\n                ORDER BY similarityhash, created DESC\n            )\n            SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,\n                stacktrace, userlogin, url, useragent, application, created,\n                    COUNT(*) OVER() AS total_count, similar_count\n            FROM unique_bugs ORDER BY created DESC LIMIT 500",
   "describe": {
     "columns": [
       {
@@ -168,5 +168,5 @@
       null
     ]
   },
-  "hash": "6f46c223b8ebccd26ab0713f3f94928fa7c06261f2f09583d5b3d66dea818f85"
+  "hash": "be78a26cb095aaca5821b31a368da4f9e0cc8b00792073f26e67201a95d01b94"
 }
