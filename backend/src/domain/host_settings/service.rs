@@ -10,11 +10,13 @@ use super::{
         AdminHost, BookingPage, ConferencingApp, ConferencingUpdate, DEFAULT_ACCENT, HostPage,
         HostSettings,
     },
+    preview,
 };
 use crate::{
     domain::{
         auth::models::UserRecord,
         billing::{plans::Entitlements, service as billing},
+        emails::service as emails,
         event_types::service as event_types,
     },
     error::{AppError, AppResult},
@@ -147,6 +149,25 @@ pub async fn host_page(pool: &PgPool, slug: &str) -> AppResult<HostPage> {
         accent_color: shown_accent(&entitlements, Some(host.accent_color)),
         types,
     })
+}
+
+/// The picture a shared link shows, as PNG. A paused page has none.
+pub async fn preview_png(pool: &PgPool, slug: &str) -> AppResult<Vec<u8>> {
+    let page = host_page(pool, slug).await?;
+    if !page.accepting_bookings {
+        return Err(AppError::NotFound);
+    }
+    let site = emails::app_url();
+    let site = site
+        .strip_prefix("https://")
+        .or_else(|| site.strip_prefix("http://"))
+        .unwrap_or(&site);
+    let card = preview::PreviewCard::of(&page, format!("{site}/book/{}", slug.to_lowercase()));
+    // Drawing takes a few milliseconds of CPU: off the async threads.
+    tokio::task::spawn_blocking(move || preview::render(&card))
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("link preview did not render")))
 }
 
 /// Resolves a public link to one kind of call, for reading. A paused page or

@@ -12,7 +12,7 @@ import type { Lead } from "../../bindings/Lead";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
 import type { TimeSlot } from "../../bindings/TimeSlot";
 import { api } from "../../lib/api";
-import { SERVER_API_URL } from "../../lib/api-url";
+import { CLIENT_API_URL, SERVER_API_URL } from "../../lib/api-url";
 import { QUERY_KEYS } from "../../lib/query-keys";
 
 const NOT_FOUND = 404;
@@ -22,6 +22,20 @@ export type PageRef = { host: string; type: string };
 
 function hostPath(host: string): string {
   return `/api/hosts/${encodeURIComponent(host)}`;
+}
+
+/**
+ * The meta tags that give a shared link the host's own picture: name,
+ * colour and kinds of call. Chat apps fetch it from the public API.
+ */
+export function previewMeta(host: string) {
+  const image = `${CLIENT_API_URL}${hostPath(host)}/preview.png`;
+  return [
+    { property: "og:image", content: image },
+    { property: "og:image:width", content: "1200" },
+    { property: "og:image:height", content: "630" },
+    { name: "twitter:image", content: image },
+  ];
 }
 
 function typePath({ host, type }: PageRef): string {

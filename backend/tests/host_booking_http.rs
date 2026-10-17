@@ -2862,6 +2862,41 @@ fn calendly_account() -> CalendlyAccount {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_shared_link_shows_the_hosts_own_picture(pool: PgPool) {
+    let app = app(&pool);
+    let (_, slug) = host_with_hours(&app, "nino@example.com").await;
+    let fetch = |path: String| {
+        let app = app.clone();
+        async move {
+            let request = Request::builder()
+                .uri(path)
+                .body(Body::empty())
+                .expect("request is well formed");
+            let response = app.oneshot(request).await.expect("router responds");
+            let status = response.status();
+            let kind = response
+                .headers()
+                .get("content-type")
+                .and_then(|value| value.to_str().ok())
+                .unwrap_or_default()
+                .to_owned();
+            let body = to_bytes(response.into_body(), usize::MAX)
+                .await
+                .expect("body is readable");
+            (status, kind, body)
+        }
+    };
+
+    let (status, kind, body) = fetch(format!("/api/hosts/{slug}/preview.png")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(kind, "image/png");
+    assert!(body.starts_with(b"\x89PNG"));
+
+    let (status, _, _) = fetch("/api/hosts/nobody-here/preview.png".to_owned()).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn a_calendly_import_that_fails_halfway_changes_nothing(pool: PgPool) {
     let app = app(&pool);
     let (host, _) = host_with_hours(&app, "nino@example.com").await;

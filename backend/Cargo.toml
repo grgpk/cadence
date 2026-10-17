@@ -36,6 +36,7 @@ ts-rs = { version = "10", features = ["serde-compat", "uuid-impl", "chrono-impl"
 tower-http = { version = "0.6", features = ["cors", "request-id", "trace"] }
 urlencoding = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
+resvg = { version = "0.48", default-features = false, features = ["text"] }
 
 [dev-dependencies]
 # HTTP tests drive the router in-process with `oneshot`.

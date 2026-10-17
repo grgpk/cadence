@@ -1,7 +1,11 @@
 import { createFileRoute, notFound } from "@tanstack/react-router";
 
 import { RouteError } from "../../domains/shared/not-found";
-import { getBookingPage, getHostPage } from "../../domains/widget/cadence-api";
+import {
+  getBookingPage,
+  getHostPage,
+  previewMeta,
+} from "../../domains/widget/cadence-api";
 import {
   HostTypesPage,
   PublicBookingPage,
@@ -30,7 +34,7 @@ export const Route = createFileRoute("/book/$slug")({
       : null;
     return { country, host, page };
   },
-  head: ({ loaderData }) => {
+  head: ({ loaderData, params }) => {
     if (!loaderData) return { meta: [{ title: APP_NAME }] };
     const { host, page } = loaderData;
     const title = page
@@ -43,6 +47,7 @@ export const Route = createFileRoute("/book/$slug")({
         { name: "description", content: description },
         { property: "og:title", content: title },
         { property: "og:description", content: description },
+        ...previewMeta(params.slug),
       ],
     };
   },

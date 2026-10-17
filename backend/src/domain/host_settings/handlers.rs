@@ -1,6 +1,8 @@
 use axum::{
     Json,
     extract::{Path, State},
+    http::header,
+    response::IntoResponse,
 };
 
 use super::{
@@ -18,6 +20,21 @@ pub async fn host_page(
     Path(slug): Path<String>,
 ) -> AppResult<Json<HostPage>> {
     Ok(Json(service::host_page(&state.pool, &slug).await?))
+}
+
+/// The PNG a shared link shows. Kept an hour by apps and caches.
+pub async fn preview(
+    State(state): State<AppState>,
+    Path(slug): Path<String>,
+) -> AppResult<impl IntoResponse> {
+    let png = service::preview_png(&state.pool, &slug).await?;
+    Ok((
+        [
+            (header::CONTENT_TYPE, "image/png"),
+            (header::CACHE_CONTROL, "public, max-age=3600"),
+        ],
+        png,
+    ))
 }
 
 pub async fn type_page(
