@@ -589,6 +589,10 @@ struct AccountEmail {
 pub fn with_trial_losses(payload: Option<&Value>, losses: Vec<String>) -> Option<Value> {
     let mut email: AccountEmail = read(payload);
     email.losing = Some(losses);
+    // Rows queued by a migration carry only the name.
+    email
+        .billing_url
+        .get_or_insert_with(|| format!("{}{BILLING_PATH}", app_url()));
     payload_of(&email).ok()
 }
 
@@ -1278,6 +1282,8 @@ mod tests {
         .expect("a payload");
         let personal = email(TRIAL_ENDING_TEMPLATE, &filled);
         assert!(personal.text.contains("What changes for you"));
+        // A row queued without a link still gets one.
+        assert!(personal.text.contains("/dashboard/billing"));
         assert!(
             personal
                 .text
