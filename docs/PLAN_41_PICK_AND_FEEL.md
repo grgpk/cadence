@@ -65,6 +65,13 @@ None. `HostPage` already has the host name, accent and event types.
   visitors read it, in the host's accent, with the booking rules in plain
   words. It follows the form as the host types, and says when the call is off.
 
+## Availability tabs
+
+- Weekly hours and Dates are two tabs instead of two stacked grids, so the
+  page shows one at a time. The open tab lives in the URL (`?tab=dates`);
+  links without it land on Weekly hours. The Dates tab counts the dates set
+  apart from today on.
+
 ## Tests
 
 No logic changed. Frontend checks, plus a browser pass: hover and tab through

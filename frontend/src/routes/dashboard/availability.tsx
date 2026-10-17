@@ -4,6 +4,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import type { AvailabilityRule } from "../../bindings/AvailabilityRule";
 import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { DatesCalendar } from "../../domains/availability/dates-calendar";
 import { hoursLabel, roomyWeek, weekTotals } from "../../domains/availability/hours-math";
 import { WeekCanvas } from "../../domains/availability/week-canvas";
@@ -20,10 +21,18 @@ import { PageHeader } from "../../domains/shared/page-header";
 import { PanelHeader } from "../../domains/shared/panel-card";
 import { TableSkeleton } from "../../domains/shared/table-skeleton";
 import { APP_NAME } from "../../lib/config";
+import { dayKey } from "../../lib/civil-day";
 import { zoneName } from "../../lib/format";
+import { zonedTime } from "../../lib/zoned-time";
 import { ROUTES } from "../../lib/routes";
 
+const TAB = { week: "week", dates: "dates" } as const;
+type AvailabilitySearch = { tab?: typeof TAB.dates };
+
 export const Route = createFileRoute("/dashboard/availability")({
+  // The open tab lives in the URL, so a reload stays on Dates.
+  validateSearch: (search): AvailabilitySearch =>
+    search.tab === TAB.dates ? { tab: TAB.dates } : {},
   head: () => ({ meta: [{ title: `Availability | ${APP_NAME}` }] }),
   component: AvailabilityPage,
 });
@@ -45,8 +54,14 @@ function AvailabilityPage() {
   const query = useQuery(availabilityQuery);
   const overrides = useQuery(availabilityOverridesQuery);
   const settings = useQuery(hostSettingsQuery);
+  const { tab } = Route.useSearch();
+  const navigate = Route.useNavigate();
   const timezone = settings.data?.timezone;
   const week = roomyWeek(weekHours(query.data ?? []));
+  const today = timezone ? dayKey(zonedTime(new Date(), timezone)) : null;
+  const setApart = today
+    ? overrides.data?.filter((day) => day.date >= today).length
+    : undefined;
 
   return (
     <>
@@ -70,43 +85,64 @@ function AvailabilityPage() {
           onRetry={() => void query.refetch()}
         />
       ) : (
-        <div className="grid gap-6">
-          <Card className="gap-0 py-0">
-            <PanelHeader
-              title="Weekly hours"
-              description="Drag across a day to open it. Drag a range to move it, or its ends to stretch it."
-            />
-            {query.isPending ? (
-              <TableSkeleton rows={7} />
-            ) : (
-              <WeekCanvas rules={query.data} week={week} />
-            )}
-          </Card>
-          <Card className="gap-0 py-0">
-            <PanelHeader
-              title="Dates"
-              description="Take a date off, or give it other hours. Every other date follows the weekly hours."
-            />
-            {overrides.isError ? (
-              <div className="p-5">
-                <ErrorState
-                  title="Your dates did not load"
-                  error={overrides.error}
-                  onRetry={() => void overrides.refetch()}
-                />
-              </div>
-            ) : query.isPending || overrides.isPending || !timezone ? (
-              <TableSkeleton rows={5} />
-            ) : (
-              <DatesCalendar
-                rules={query.data}
-                overrides={overrides.data}
-                timezone={timezone}
-                week={week}
+        <Tabs
+          value={tab ?? TAB.week}
+          onValueChange={(next) =>
+            void navigate({
+              search: next === TAB.dates ? { tab: TAB.dates } : {},
+              replace: true,
+            })
+          }
+        >
+          <TabsList className="max-sm:w-full">
+            <TabsTrigger value={TAB.week}>Weekly hours</TabsTrigger>
+            <TabsTrigger value={TAB.dates}>
+              Dates
+              {setApart ? (
+                <span className="text-muted-foreground tabular-nums">{setApart}</span>
+              ) : null}
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value={TAB.week} className="motion-safe:animate-step-in">
+            <Card className="gap-0 py-0">
+              <PanelHeader
+                title="Weekly hours"
+                description="Drag across a day to open it. Drag a range to move it, or its ends to stretch it."
               />
-            )}
-          </Card>
-        </div>
+              {query.isPending ? (
+                <TableSkeleton rows={7} />
+              ) : (
+                <WeekCanvas rules={query.data} week={week} />
+              )}
+            </Card>
+          </TabsContent>
+          <TabsContent value={TAB.dates} className="motion-safe:animate-step-in">
+            <Card className="gap-0 py-0">
+              <PanelHeader
+                title="Dates"
+                description="Take a date off, or give it other hours. Every other date follows the weekly hours."
+              />
+              {overrides.isError ? (
+                <div className="p-5">
+                  <ErrorState
+                    title="Your dates did not load"
+                    error={overrides.error}
+                    onRetry={() => void overrides.refetch()}
+                  />
+                </div>
+              ) : query.isPending || overrides.isPending || !timezone ? (
+                <TableSkeleton rows={5} />
+              ) : (
+                <DatesCalendar
+                  rules={query.data}
+                  overrides={overrides.data}
+                  timezone={timezone}
+                  week={week}
+                />
+              )}
+            </Card>
+          </TabsContent>
+        </Tabs>
       )}
     </>
   );

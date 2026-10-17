@@ -34,7 +34,8 @@ export function WeekRuler({ week, row }: { week: WeekHours; row: string }) {
       aria-hidden="true"
       className={cn(row, "@container border-b bg-muted/40 pt-3 pb-0")}
     >
-      <span className="hidden sm:block" />
+      {/* Lines up with the day names once WeekCanvas's `week` container is wide. */}
+      <span className="hidden @3xl/week:block" />
       <div
         className="grid"
         style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}

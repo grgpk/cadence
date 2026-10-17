@@ -43,8 +43,13 @@ import {
 } from "./hours-math";
 import { useHours } from "./use-hours";
 
-/** Day name, the day's track, its calls: the same columns in every row. */
-const WEEK_ROW = "grid gap-x-4 gap-y-2 px-5 sm:grid-cols-[8.5rem_minmax(0,1fr)_5.5rem]";
+/**
+ * Day name, the day's track, its calls: the same columns in every row. The
+ * columns follow the card's width, not the window's, so a card squeezed by the
+ * sidebar stacks instead of shrinking its tracks to slivers.
+ */
+const WEEK_ROW =
+  "grid gap-x-4 gap-y-2 px-4 @3xl/week:grid-cols-[8.5rem_minmax(0,1fr)_5.5rem] @3xl/week:px-5";
 const LAST_MINUTE = 23 * 60 + 45;
 /** Arrow keys may take a range anywhere in the day; the ruler grows to follow. */
 const WHOLE_DAY: Bounds = { min: 0, max: LAST_MINUTE };
@@ -76,6 +81,16 @@ type Drag = {
 type Form = { add: { start: string; end: string } | null } | { ruleId: number };
 
 const blockId = (id: number) => `hours-block-${id}`;
+
+/** "10 AM–2 PM", or "10:00–14:00": the same range for a block with little room. */
+function shortRangeLabel(span: Span, hour12: boolean): string {
+  // "14" alone reads as a count, so only a 12 hour clock drops whole minutes.
+  const clock = (minute: number) => {
+    const label = formatClock(clockTime(minute), hour12);
+    return hour12 ? label.replace(":00", "") : label;
+  };
+  return `${clock(span.from)}–${clock(span.to)}`;
+}
 
 function rangeLabel(span: Span, hour12: boolean): string {
   return `${formatClock(clockTime(span.from), hour12)} to ${formatClock(clockTime(span.to), hour12)}`;
@@ -194,7 +209,7 @@ function Block({
       onKeyDown={onKeyDown}
       onBlur={onBlur}
       className={cn(
-        "group/block absolute inset-y-1 flex cursor-grab items-center overflow-hidden rounded-md outline-none select-none",
+        "group/block @container absolute inset-y-1 flex cursor-grab items-center overflow-hidden rounded-md outline-none select-none",
         // The snap from one quarter hour to the next glides instead of jumping.
         "transition-[left,width,box-shadow] duration-100 ease-out motion-reduce:transition-none",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50",
@@ -215,8 +230,10 @@ function Block({
           className={cn("absolute inset-y-0 border-y", OPEN_STYLES[part.phase])}
         />
       ))}
+      {/* A short range says "10 AM–2 PM"; one with room says it in full. */}
       <span className="relative truncate px-3 text-clock text-sm font-medium">
-        {rangeLabel(span, hour12)}
+        <span className="@[10.5rem]:hidden">{shortRangeLabel(span, hour12)}</span>
+        <span className="hidden @[10.5rem]:inline">{rangeLabel(span, hour12)}</span>
       </span>
       {rule && !saving ? (
         <>
@@ -474,13 +491,13 @@ function DayRow({
     : null;
 
   return (
-    <div className={cn(WEEK_ROW, "py-3 sm:items-center")}>
+    <div className={cn(WEEK_ROW, "py-3 @3xl/week:items-center")}>
       <div className="flex items-center gap-1">
         <h3 className="text-sm font-semibold">{name}</h3>
-        <span className="ml-auto text-clock text-sm text-muted-foreground sm:hidden">
+        <span className="ml-auto text-clock text-sm text-muted-foreground @3xl/week:hidden">
           {calls > 0 ? callsLabel(calls) : "Off"}
         </span>
-        <span className="sm:order-first sm:-ml-2">
+        <span className="@3xl/week:order-first @3xl/week:-ml-2">
           <DayMenu weekday={weekday} rules={rules} onAdd={() => setForm({ add: null })} />
         </span>
       </div>
@@ -590,7 +607,7 @@ function DayRow({
           />
         ) : null}
       </div>
-      <p className="hidden text-right text-clock text-sm sm:block">
+      <p className="hidden text-right text-clock text-sm @3xl/week:block">
         {calls > 0 ? (
           callsLabel(calls)
         ) : (
@@ -613,7 +630,7 @@ export function WeekCanvas({
   week: WeekHours;
 }) {
   return (
-    <div className="divide-y">
+    <div className="@container/week divide-y">
       <WeekRuler week={week} row={WEEK_ROW} />
       {WEEKDAYS.map((weekday) => (
         <DayRow
