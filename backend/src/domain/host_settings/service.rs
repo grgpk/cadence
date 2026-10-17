@@ -1,6 +1,6 @@
 use chrono::Utc;
 use reqwest::Url;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use time_tz::timezones;
 use uuid::Uuid;
 
@@ -64,20 +64,32 @@ async fn find_or_insert(pool: &PgPool, user: &UserRecord) -> AppResult<HostSetti
 pub async fn update(
     pool: &PgPool,
     host_unid: Uuid,
+    settings: HostSettings,
+) -> AppResult<HostSettings> {
+    update_in(pool, &mut *pool.acquire().await?, host_unid, settings).await
+}
+
+/// Saves the settings through `connection`, as part of a larger change.
+pub async fn update_in(
+    pool: &PgPool,
+    connection: &mut PgConnection,
+    host_unid: Uuid,
     mut settings: HostSettings,
 ) -> AppResult<HostSettings> {
     settings.public_slug = settings.public_slug.trim().to_lowercase();
     settings.accent_color = settings.accent_color.trim().to_lowercase();
     validate(&settings)?;
     // A colour already saved stays saved on any plan; picking a new one is Pro.
-    let saved = db::find(pool, host_unid).await?.ok_or(AppError::NotFound)?;
+    let saved = db::find(&mut *connection, host_unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
     if settings.accent_color != saved.accent_color {
         let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
         if !entitlements.custom_accent {
             return Err(AppError::PlanRequired("your accent colour"));
         }
     }
-    match db::update(pool, host_unid, &settings).await {
+    match db::update(&mut *connection, host_unid, &settings).await {
         Ok(Some(saved)) => Ok(saved),
         Ok(None) => Err(AppError::NotFound),
         Err(error) if is_unique_violation(&error) => {

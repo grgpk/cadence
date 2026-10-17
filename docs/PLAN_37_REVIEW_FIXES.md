@@ -95,17 +95,70 @@ month in the host's timezone, as the FAQ says.
 - **Invite note:** "Yours arrives once you are on a paid plan."
 - **Unfinished panel:** a refused follow-up refreshes the list and says why.
 
-## Left on purpose
+## The findings first left for later (part 2)
 
-- **Two Checkout tabs:** they can create two subscriptions. That needs a
-  customer made before Checkout; it is rare and visible in Stripe.
-- **Same-second events:** Stripe events from the same second can apply in
-  the wrong order. Fetching the subscription from Stripe on each event
-  would fix it.
-- **Weekly insights:** the email assumes one worker. Its loop stops at the
-  first failing host.
-- **Calendly import:** it is not atomic (from Plan 32's notes).
-- **Admin comp:** an admin can comp any user, not only hosts.
-- **Webhook retries:** queued retries continue after an endpoint is paused.
-- **Dark-mode accent:** a dark accent has low contrast as a focus ring on
-  a dark page.
+All seven were then fixed as well.
+
+### Weekly insights email
+
+- One host failing is logged and the loop goes on, instead of costing every
+  later host their week.
+- Each host is queued under `pg_advisory_xact_lock` and checked again under
+  it, so two workers in one minute queue one email. Test:
+  `two_workers_in_one_minute_queue_one_weekly_email`.
+- `weekly_due` skips timezones Postgres does not know, which used to fail
+  the query for everyone.
+
+### Webhook deliveries
+
+The worker gives a delivery up, without sending it, when its endpoint is
+paused or the host's plan no longer has webhooks. The panel shows why.
+Before, retries went on for a day.
+
+### Admin comp
+
+An admin can comp hosts only; anyone else gets 400.
+
+### Accent colour on dark pages
+
+`forDarkPage` lightens a colour until it reaches 3:1 against the dark page,
+and `.host-accent` in globals.css picks the light or dark version. Checked:
+`#1e1b4b` shows as `#787693` in dark mode, with a visible focus ring.
+
+### Webhooks read the subscription as Stripe has it now
+
+`apply_event` fetches `GET /v1/subscriptions/{id}` before its transaction
+and applies that. Events from the same second, or out of order, can no
+longer leave an older state. Test:
+`events_from_one_second_in_any_order_leave_stripes_latest_state`.
+
+### One Checkout at a time
+
+Migration `0023_add_checkout_session.sql` adds
+`subscriptions.stripe_checkout_session_id`. Checkout now:
+1. makes the Stripe customer first and stores it, so every tab shares one;
+2. asks Stripe whether it already bills that customer (409 if so, even
+   before the webhook lands);
+3. expires the previous session, then stores the new one.
+
+Checked in Stripe test mode: the first of two tabs shows "this checkout
+session has timed out"; the second paid; a further checkout got 409.
+
+### Calendly import, all or nothing
+
+`calendly::apply` runs in one transaction. The writes it uses have `_in`
+versions taking the connection:
+- `host_settings::update_in`;
+- `availability::replace_weekly_in` and `save_override_in`;
+- `event_types::list_in`, `create_in` and `update_in`.
+
+Their single-query `db` functions take any `PgExecutor`, and the
+multi-query ones take `Acquire`, so other callers did not change. Only the
+plan is read from the pool. An import brings at most 366 dates. Test:
+`a_calendly_import_that_fails_halfway_changes_nothing`.
+
+## Still open
+
+- **Weekly email after an email change:** it is matched by address, so a
+  host who changes their email that week can get a second one.
+- **Refunds:** a refund does not take a referral credit back.

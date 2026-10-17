@@ -1,5 +1,5 @@
 use chrono::Utc;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
 
 use super::{
@@ -29,26 +29,46 @@ pub async fn ensure_first(pool: &PgPool, host_unid: Uuid) -> AppResult<()> {
 
 /// The host's types, oldest first, each saying whether it is offered now.
 pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<EventType>> {
-    ensure_first(pool, host_unid).await?;
+    list_in(pool, &mut *pool.acquire().await?, host_unid).await
+}
+
+/// The same, reading through `connection`, so a transaction sees its own
+/// writes. The plan is read from `pool`: a transaction never changes it.
+pub async fn list_in(
+    pool: &PgPool,
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+) -> AppResult<Vec<EventType>> {
+    db::ensure_first(&mut *connection, host_unid).await?;
     let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
-    let mut types = db::list(pool, host_unid).await?;
+    let mut types = db::list(&mut *connection, host_unid).await?;
     mark_bookable(&mut types, allowed(&entitlements));
     Ok(types)
 }
 
 pub async fn create(pool: &PgPool, host_unid: Uuid, input: EventTypeInput) -> AppResult<EventType> {
+    create_in(pool, &mut *pool.acquire().await?, host_unid, input).await
+}
+
+/// Adds a type through `connection`, as part of a larger change.
+pub async fn create_in(
+    pool: &PgPool,
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+    input: EventTypeInput,
+) -> AppResult<EventType> {
     let input = cleaned(input)?;
     let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
-    if db::list(pool, host_unid).await?.len() >= allowed(&entitlements) {
+    if db::list(&mut *connection, host_unid).await?.len() >= allowed(&entitlements) {
         return Err(AppError::PlanRequired("more event types"));
     }
     if !entitlements.custom_questions && input.asks().contains(&true) {
         return Err(AppError::PlanRequired("custom booking questions"));
     }
-    db::insert(pool, host_unid, &input)
+    db::insert(&mut *connection, host_unid, &input)
         .await
         .map_err(slug_taken)?;
-    find(pool, host_unid, None).await
+    find_in(pool, connection, host_unid, None).await
 }
 
 pub async fn update(
@@ -57,11 +77,22 @@ pub async fn update(
     unid: Uuid,
     input: EventTypeInput,
 ) -> AppResult<EventType> {
+    update_in(pool, &mut *pool.acquire().await?, host_unid, unid, input).await
+}
+
+/// Changes a type through `connection`, as part of a larger change.
+pub async fn update_in(
+    pool: &PgPool,
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+    unid: Uuid,
+    input: EventTypeInput,
+) -> AppResult<EventType> {
     let input = cleaned(input)?;
     let entitlements = billing::entitlements_for(pool, host_unid, Utc::now()).await?;
     if !entitlements.custom_questions {
         // Questions saved under a paid plan stay saved; new ones need one.
-        let saved = find(pool, host_unid, Some(unid)).await?;
+        let saved = find_in(pool, connection, host_unid, Some(unid)).await?;
         if input
             .asks()
             .into_iter()
@@ -71,11 +102,11 @@ pub async fn update(
             return Err(AppError::PlanRequired("custom booking questions"));
         }
     }
-    db::update(pool, host_unid, unid, &input)
+    db::update(&mut *connection, host_unid, unid, &input)
         .await
         .map_err(slug_taken)?
         .ok_or(AppError::NotFound)?;
-    find(pool, host_unid, Some(unid)).await
+    find_in(pool, connection, host_unid, Some(unid)).await
 }
 
 /// A host keeps at least one kind of call. Calls booked with a deleted type
@@ -94,8 +125,13 @@ pub async fn delete(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<()>
 }
 
 /// One type with `bookable` set; the newest when `unid` is `None`.
-async fn find(pool: &PgPool, host_unid: Uuid, unid: Option<Uuid>) -> AppResult<EventType> {
-    let types = list(pool, host_unid).await?;
+async fn find_in(
+    pool: &PgPool,
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+    unid: Option<Uuid>,
+) -> AppResult<EventType> {
+    let types = list_in(pool, connection, host_unid).await?;
     let found = match unid {
         Some(unid) => types.into_iter().find(|kind| kind.unid == unid),
         None => types.into_iter().last(),

@@ -1,10 +1,13 @@
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use super::models::{AdminHost, BookingPage, ConferencingApp, EventTypeCard, HostSettings};
 use crate::domain::auth::models::UserStatus;
 
-pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>, sqlx::Error> {
+pub async fn find<'e, E: PgExecutor<'e>>(
+    executor: E,
+    host_unid: Uuid,
+) -> Result<Option<HostSettings>, sqlx::Error> {
     sqlx::query_as!(
         HostSettings,
         r#"SELECT public_slug, timezone, meeting_link,
@@ -12,7 +15,7 @@ pub async fn find(pool: &PgPool, host_unid: Uuid) -> Result<Option<HostSettings>
            FROM widget_settings WHERE host_unid = $1"#,
         host_unid,
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
 }
 
@@ -37,8 +40,8 @@ pub async fn insert(
     .await
 }
 
-pub async fn update(
-    pool: &PgPool,
+pub async fn update<'e, E: PgExecutor<'e>>(
+    executor: E,
     host_unid: Uuid,
     settings: &HostSettings,
 ) -> Result<Option<HostSettings>, sqlx::Error> {
@@ -54,7 +57,7 @@ pub async fn update(
         settings.is_active,
         settings.accent_color,
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
 }
 

@@ -1,5 +1,5 @@
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use time::{Date, Month, PrimitiveDateTime, Time};
 use time_tz::{PrimitiveDateTimeExt, timezones};
 use uuid::Uuid;
@@ -82,6 +82,16 @@ pub async fn save_override(
     pool: &PgPool,
     host_unid: Uuid,
     date: NaiveDate,
+    ranges: Vec<HoursRange>,
+) -> AppResult<DateOverride> {
+    save_override_in(&mut *pool.acquire().await?, host_unid, date, ranges).await
+}
+
+/// Saves one date's hours through `connection`, as part of a larger change.
+pub async fn save_override_in(
+    connection: &mut PgConnection,
+    host_unid: Uuid,
+    date: NaiveDate,
     mut ranges: Vec<HoursRange>,
 ) -> AppResult<DateOverride> {
     let today = Utc::now().date_naive();
@@ -103,7 +113,7 @@ pub async fn save_override(
             "the hours on one date must not overlap".to_owned(),
         ));
     }
-    db::replace_override(pool, host_unid, date, &ranges).await?;
+    db::replace_override(connection, host_unid, date, &ranges).await?;
     Ok(DateOverride { date, ranges })
 }
 
@@ -111,6 +121,15 @@ pub async fn save_override(
 /// so a bad one changes nothing.
 pub async fn replace_weekly(
     pool: &PgPool,
+    host_unid: Uuid,
+    rules: Vec<AvailabilityRuleInput>,
+) -> AppResult<()> {
+    replace_weekly_in(&mut *pool.acquire().await?, host_unid, rules).await
+}
+
+/// The same through `connection`, as part of a larger change.
+pub async fn replace_weekly_in(
+    connection: &mut PgConnection,
     host_unid: Uuid,
     rules: Vec<AvailabilityRuleInput>,
 ) -> AppResult<()> {
@@ -122,7 +141,7 @@ pub async fn replace_weekly(
     for rule in &rules {
         validate(rule)?;
     }
-    db::replace_weekly(pool, host_unid, &rules).await?;
+    db::replace_weekly(connection, host_unid, &rules).await?;
     Ok(())
 }
 

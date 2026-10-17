@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
 use chrono::{Duration, NaiveDate, NaiveTime, Utc};
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 
 use super::{
     client::{Calendly, CalendlyError},
@@ -42,6 +42,8 @@ const DURATION_MINUTES: (i32, i32) = (5, 240);
 const DEFAULT_SLOT_MINUTES: i32 = 30;
 /// Dates further ahead than this cannot have their own hours.
 const DATES_AHEAD_DAYS: i64 = 366;
+/// One date override per day of that year, at most.
+const DATES_MAX: usize = 366;
 
 /// Reads the Calendly account behind `token` and shows what would come in.
 pub async fn preview(
@@ -244,6 +246,11 @@ pub async fn apply(
     {
         return Err(AppError::BadRequest("unknown timezone".to_owned()));
     }
+    if import.dates.len() > DATES_MAX {
+        return Err(AppError::BadRequest(format!(
+            "an import brings at most {DATES_MAX} dates"
+        )));
+    }
     let slot_minutes = import
         .event_types
         .first()
@@ -252,10 +259,12 @@ pub async fn apply(
                 .clamp(DURATION_MINUTES.0, DURATION_MINUTES.1)
         });
 
+    // All of it or none: a failure halfway leaves the account as it was.
+    let mut transaction = pool.begin().await?;
     if let Some(timezone) = import.timezone {
         let mut settings = host_settings::get_or_create(pool, user).await?;
         settings.timezone = timezone;
-        host_settings::update(pool, user.unid, settings).await?;
+        host_settings::update_in(pool, &mut transaction, user.unid, settings).await?;
     }
     let weekly_hours = u32::try_from(import.weekly.len()).unwrap_or(u32::MAX);
     if !import.weekly.is_empty() {
@@ -269,7 +278,7 @@ pub async fn apply(
                 slot_minutes,
             })
             .collect();
-        availability::replace_weekly(pool, user.unid, rules).await?;
+        availability::replace_weekly_in(&mut transaction, user.unid, rules).await?;
     }
     let dates = u32::try_from(import.dates.len()).unwrap_or(u32::MAX);
     for date in import.dates {
@@ -282,9 +291,11 @@ pub async fn apply(
                 slot_minutes,
             })
             .collect();
-        availability::save_override(pool, user.unid, date.date, ranges).await?;
+        availability::save_override_in(&mut transaction, user.unid, date.date, ranges).await?;
     }
-    let (event_types, event_types_left_out) = save_types(pool, user, import.event_types).await?;
+    let (event_types, event_types_left_out) =
+        save_types(pool, &mut transaction, user, import.event_types).await?;
+    transaction.commit().await?;
     Ok(CalendlyImported {
         event_types,
         event_types_left_out,
@@ -297,10 +308,11 @@ pub async fn apply(
 /// added while the plan allows. Returns how many were saved and left out.
 async fn save_types(
     pool: &PgPool,
+    connection: &mut PgConnection,
     user: &UserRecord,
     imported: Vec<ImportedEventType>,
 ) -> AppResult<(u32, u32)> {
-    let existing = event_types::list(pool, user.unid).await?;
+    let existing = event_types::list_in(pool, connection, user.unid).await?;
     let Some(first) = existing.first() else {
         return Ok((0, 0));
     };
@@ -330,9 +342,9 @@ async fn save_types(
             is_active: true,
         };
         let result = if is_first {
-            event_types::update(pool, user.unid, first.unid, input).await
+            event_types::update_in(pool, connection, user.unid, first.unid, input).await
         } else {
-            event_types::create(pool, user.unid, input).await
+            event_types::create_in(pool, connection, user.unid, input).await
         };
         match result {
             Ok(_) => saved += 1,

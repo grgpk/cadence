@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use super::models::{EventType, EventTypeInput};
@@ -7,7 +7,10 @@ use super::models::{EventType, EventTypeInput};
 const FIRST_SLUG: &str = "call";
 
 /// The host's types, oldest first: the order a plan's limit counts in.
-pub async fn list(pool: &PgPool, host_unid: Uuid) -> Result<Vec<EventType>, sqlx::Error> {
+pub async fn list<'e, E: PgExecutor<'e>>(
+    executor: E,
+    host_unid: Uuid,
+) -> Result<Vec<EventType>, sqlx::Error> {
     sqlx::query_as!(
         EventType,
         r#"SELECT unid, slug, title, description, duration_minutes, buffer_minutes,
@@ -19,12 +22,15 @@ pub async fn list(pool: &PgPool, host_unid: Uuid) -> Result<Vec<EventType>, sqlx
            FROM event_types WHERE host_unid = $1 ORDER BY created_at, unid"#,
         host_unid,
     )
-    .fetch_all(pool)
+    .fetch_all(executor)
     .await
 }
 
 /// Gives a host their first kind of call, unless they have one.
-pub async fn ensure_first(pool: &PgPool, host_unid: Uuid) -> Result<(), sqlx::Error> {
+pub async fn ensure_first<'e, E: PgExecutor<'e>>(
+    executor: E,
+    host_unid: Uuid,
+) -> Result<(), sqlx::Error> {
     sqlx::query_scalar!(
         "INSERT INTO event_types (host_unid, slug)
          SELECT $1, $2 WHERE NOT EXISTS (SELECT 1 FROM event_types WHERE host_unid = $1)
@@ -33,13 +39,13 @@ pub async fn ensure_first(pool: &PgPool, host_unid: Uuid) -> Result<(), sqlx::Er
         host_unid,
         FIRST_SLUG,
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
     .map(|_| ())
 }
 
-pub async fn insert(
-    pool: &PgPool,
+pub async fn insert<'e, E: PgExecutor<'e>>(
+    executor: E,
     host_unid: Uuid,
     input: &EventTypeInput,
 ) -> Result<EventType, sqlx::Error> {
@@ -71,13 +77,13 @@ pub async fn insert(
         input.ask_urgency_level,
         input.is_active,
     )
-    .fetch_one(pool)
+    .fetch_one(executor)
     .await
 }
 
 /// `None` when the host has no such type.
-pub async fn update(
-    pool: &PgPool,
+pub async fn update<'e, E: PgExecutor<'e>>(
+    executor: E,
     host_unid: Uuid,
     unid: Uuid,
     input: &EventTypeInput,
@@ -111,7 +117,7 @@ pub async fn update(
         input.ask_urgency_level,
         input.is_active,
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
     .await
 }
 

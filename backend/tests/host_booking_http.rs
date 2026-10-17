@@ -2862,6 +2862,53 @@ fn calendly_account() -> CalendlyAccount {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_calendly_import_that_fails_halfway_changes_nothing(pool: PgPool) {
+    let app = app(&pool);
+    let (host, _) = host_with_hours(&app, "nino@example.com").await;
+    let (_, preview) = send(
+        &app,
+        Method::POST,
+        "/api/host/import/calendly/preview",
+        Some(&host.cookie),
+        Some(json!({ "token": FAKE_TOKEN })),
+    )
+    .await;
+    let (_, settings_before) = get(&app, "/api/host/settings", Some(&host.cookie)).await;
+    let (_, hours_before) = get(&app, "/api/availability", Some(&host.cookie)).await;
+    let (_, types_before) = get(&app, "/api/host/event-types", Some(&host.cookie)).await;
+
+    // The third kind of call is refused, after the hours and the first two
+    // would already have been written.
+    let mut types = preview["event_types"].as_array().expect("a list").clone();
+    let mut broken = types[1].clone();
+    broken["title"] = json!("x".repeat(200));
+    broken["slug"] = json!("broken");
+    types.push(broken);
+    let import = json!({
+        "timezone": preview["timezone"],
+        "event_types": types,
+        "weekly": preview["weekly"],
+        "dates": preview["dates"],
+    });
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        "/api/host/import/calendly",
+        Some(&host.cookie),
+        Some(import),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (_, settings_after) = get(&app, "/api/host/settings", Some(&host.cookie)).await;
+    let (_, hours_after) = get(&app, "/api/availability", Some(&host.cookie)).await;
+    let (_, types_after) = get(&app, "/api/host/event-types", Some(&host.cookie)).await;
+    assert_eq!(settings_after["timezone"], settings_before["timezone"]);
+    assert_eq!(hours_after, hours_before, "the hours are as they were");
+    assert_eq!(types_after, types_before, "the calls are as they were");
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn a_calendly_setup_comes_in_and_the_first_link_keeps_working(pool: PgPool) {
     let app = app(&pool);
     let (host, _) = host_with_hours(&app, "nino@example.com").await;

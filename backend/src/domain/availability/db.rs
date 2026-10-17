@@ -1,5 +1,5 @@
 use chrono::{NaiveDate, NaiveTime};
-use sqlx::PgPool;
+use sqlx::{Acquire, PgPool, Postgres};
 use uuid::Uuid;
 
 use super::models::{AvailabilityRule, AvailabilityRuleInput, HoursRange, OverrideRow};
@@ -73,12 +73,12 @@ pub async fn delete(pool: &PgPool, host_unid: Uuid, id: i64) -> Result<bool, sql
 }
 
 /// Replaces all of the host's weekly hours in one go.
-pub async fn replace_weekly(
-    pool: &PgPool,
+pub async fn replace_weekly<'a, A: Acquire<'a, Database = Postgres>>(
+    connection: A,
     host_unid: Uuid,
     rules: &[AvailabilityRuleInput],
 ) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
+    let mut tx = connection.begin().await?;
     sqlx::query_scalar!(
         "DELETE FROM availability WHERE host_unid = $1 RETURNING id",
         host_unid
@@ -124,13 +124,13 @@ pub async fn list_overrides(
 }
 
 /// Replaces everything stored for `date`. No ranges stores a day off.
-pub async fn replace_override(
-    pool: &PgPool,
+pub async fn replace_override<'a, A: Acquire<'a, Database = Postgres>>(
+    connection: A,
     host_unid: Uuid,
     date: NaiveDate,
     ranges: &[HoursRange],
 ) -> Result<(), sqlx::Error> {
-    let mut tx = pool.begin().await?;
+    let mut tx = connection.begin().await?;
     sqlx::query_scalar!(
         "DELETE FROM availability_overrides WHERE host_unid = $1 AND date = $2 RETURNING id",
         host_unid,
