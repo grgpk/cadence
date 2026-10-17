@@ -7,6 +7,13 @@ Status: done.
 Checked in the browser: a local host on monthly Pro sees "Pay yearly and
 save $24" on Billing, at desktop and phone width.
 
+Checked in Stripe test mode (2026-10-17), after a real Checkout:
+- "Switch to yearly" opened Stripe's "Confirm your updates" screen: $96 a
+  year, $76 due today (credit for the unused month and a $10 invite
+  credit).
+- After confirming, Stripe returned to Billing, the webhook set the
+  interval to yearly, and the box was gone.
+
 ## Goal
 
 A host who pays monthly pays 20% more than they need to, and the only way

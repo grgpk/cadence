@@ -10,6 +10,13 @@ Checked in the browser:
   `/register?ref=<address>`;
 - the invitation note on sign-up.
 
+Checked in Stripe test mode (2026-10-17), with two hosts paying through
+real Checkout:
+- the invited host got a −$10 balance transaction when they paid;
+- the inviter's credit waited while they were on the trial, then arrived
+  when they paid;
+- a resent `customer.subscription.created` event credited nobody again.
+
 ## Goal
 
 Hosts bring hosts. Each host has an invite link. When someone signs up with
