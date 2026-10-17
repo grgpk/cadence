@@ -7,6 +7,8 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { checkoutIntent } from "../domains/billing/billing";
+import { getPlans } from "../domains/pricing/pricing-api";
+import { PickedPlan } from "../domains/pricing/picked-plan";
 import { AuthCard, PasswordInput } from "../domains/shared/auth-card";
 import { ConsentNotice } from "../domains/shared/consent-notice";
 import { RouteError } from "../domains/shared/not-found";
@@ -30,6 +32,9 @@ export const Route = createFileRoute("/register")({
         : redirect({ to: ROUTES.dashboard });
     }
   },
+  loaderDeps: ({ search }) => ({ picked: Boolean(search.plan) }),
+  // Prices only for the picked-plan summary; sign-up never waits on a failure.
+  loader: ({ deps }) => (deps.picked ? getPlans().catch(() => []) : []),
   head: () => ({ meta: [{ title: `Create account | ${APP_NAME}` }, NOINDEX_META] }),
   component: RegisterPage,
   errorComponent: RouteError,
@@ -37,6 +42,7 @@ export const Route = createFileRoute("/register")({
 
 function RegisterPage() {
   const intent = Route.useSearch();
+  const offers = Route.useLoaderData();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const registerMutation = useMutation({
@@ -85,6 +91,9 @@ function RegisterPage() {
         </>
       }
     >
+      {intent.plan && intent.interval ? (
+        <PickedPlan plan={intent.plan} interval={intent.interval} offers={offers} />
+      ) : null}
       <div className="grid gap-2">
         <Label htmlFor="full_name">Name</Label>
         <Input id="full_name" name="full_name" autoComplete="name" required />

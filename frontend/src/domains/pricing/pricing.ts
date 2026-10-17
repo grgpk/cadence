@@ -22,9 +22,6 @@ export const PLAN_NAMES: Record<Plan, string> = {
   business: "Business",
 };
 
-/** The plan the pricing page points people to. */
-export const FEATURED_PLAN: Plan = PLAN.PRO;
-
 /** The plan's price for `interval`. `undefined` for Free. */
 export function priceFor(
   offer: PlanOffer,
@@ -39,20 +36,80 @@ export function formatCents(cents: number): string {
   return Number.isInteger(dollars) ? `$${dollars}` : `$${dollars.toFixed(2)}`;
 }
 
+/** What a year costs paid monthly, and what paying yearly saves. `undefined` for Free. */
+export function yearlySaving(
+  offer: PlanOffer,
+): { fullYearCents: number; savedCents: number } | undefined {
+  const month = priceFor(offer, INTERVAL.MONTH);
+  const year = priceFor(offer, INTERVAL.YEAR);
+  if (!month || !year) return undefined;
+  const fullYearCents = month.amount_cents * 12;
+  return { fullYearCents, savedCents: fullYearCents - year.amount_cents };
+}
+
 /**
  * The most a yearly price saves over twelve monthly ones, in whole percent,
  * rounded down so the page never promises more than it gives.
  */
 export function bestYearlySaving(offers: readonly PlanOffer[]): number {
   const savings = offers.map((offer) => {
-    const month = priceFor(offer, INTERVAL.MONTH);
-    const year = priceFor(offer, INTERVAL.YEAR);
-    if (!month || !year) return 0;
-    const twelveMonths = month.amount_cents * 12;
+    const saving = yearlySaving(offer);
+    if (!saving) return 0;
     // Whole cents times 100 first, so 20% stays 20 and not 19.999….
-    return Math.floor(((twelveMonths - year.amount_cents) * 100) / twelveMonths);
+    return Math.floor((saving.savedCents * 100) / saving.fullYearCents);
   });
   return Math.max(0, ...savings);
+}
+
+/** What a visitor tells the pricing page about their week. */
+export type WeekNeeds = { callsPerWeek: number; severalKinds: boolean };
+
+/** The slider's top stop, shown as "30+". */
+export const MAX_CALLS_PER_WEEK = 30;
+
+/** Lands on Pro: a little more than Free's monthly limit allows. */
+export const DEFAULT_NEEDS: WeekNeeds = { callsPerWeek: 8, severalKinds: false };
+
+/** Calls a week as calls in a month, rounded up. */
+export function callsPerMonth(callsPerWeek: number): number {
+  return Math.ceil((callsPerWeek * 52) / 12);
+}
+
+function severalKindsAllowed(entitlements: Entitlements): boolean {
+  const max = entitlements.max_event_types;
+  return max === null || max > 1;
+}
+
+function covers(entitlements: Entitlements, needs: WeekNeeds): boolean {
+  const max = entitlements.max_bookings_per_month;
+  const enoughCalls = max === null || callsPerMonth(needs.callsPerWeek) <= max;
+  return enoughCalls && (!needs.severalKinds || severalKindsAllowed(entitlements));
+}
+
+/**
+ * The cheapest plan whose entitlements cover the week. The offers come
+ * cheapest first; the last one stands in when nothing covers it.
+ */
+export function recommendPlan(offers: readonly PlanOffer[], needs: WeekNeeds): Plan {
+  const fit = offers.find((offer) => covers(offer.entitlements, needs));
+  return (fit ?? offers.at(-1))?.plan ?? PLAN.FREE;
+}
+
+/** One line on why the recommended plan fits, against the cheapest plan. */
+export function fitReason(offers: readonly PlanOffer[], needs: WeekNeeds): string {
+  const cheapest = offers[0];
+  if (!cheapest) return "";
+  const name = PLAN_NAMES[recommendPlan(offers, needs)];
+  const limit = cheapest.entitlements.max_bookings_per_month;
+  if (covers(cheapest.entitlements, needs)) {
+    return limit === null
+      ? `${name} covers your week.`
+      : `${name} covers your week: about ${callsPerMonth(needs.callsPerWeek)} of ${limit} bookings a month.`;
+  }
+  if (needs.severalKinds && !severalKindsAllowed(cheapest.entitlements)) {
+    return `${name} fits: several kinds of call on one link. ${PLAN_NAMES[cheapest.plan]} has one.`;
+  }
+  return `${name} fits: unlimited bookings. ${PLAN_NAMES[cheapest.plan]} stops at ${limit} a month.`;
 }
 
 /** A cell of the comparison table: included, left out, or a value. */
@@ -156,7 +213,7 @@ export const PLAN_TAGLINES: Record<Plan, string> = {
 };
 
 export const PLAN_CTA: Record<Plan, string> = {
-  free: "Start free",
-  pro: "Start 14-day free trial",
+  free: "Start on Free",
+  pro: "Start 14-day Pro trial",
   business: "Start with Business",
 };

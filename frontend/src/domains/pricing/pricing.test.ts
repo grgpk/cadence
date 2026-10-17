@@ -4,11 +4,15 @@ import type { Entitlements } from "../../bindings/Entitlements";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import {
   bestYearlySaving,
+  callsPerMonth,
   FEATURE_GROUPS,
+  fitReason,
   formatCents,
   INTERVAL,
   PLAN,
   priceFor,
+  recommendPlan,
+  yearlySaving,
 } from "./pricing";
 
 const FREE: Entitlements = {
@@ -28,10 +32,17 @@ const PRO: Entitlements = {
   custom_questions: true,
 };
 
-function offer(plan: PlanOffer["plan"], month: number, year: number): PlanOffer {
+const BUSINESS: Entitlements = { ...PRO, max_event_types: null, webhooks: true };
+
+function offer(
+  plan: PlanOffer["plan"],
+  month: number,
+  year: number,
+  entitlements: Entitlements = PRO,
+): PlanOffer {
   return {
     plan,
-    entitlements: PRO,
+    entitlements,
     prices: [
       { interval: INTERVAL.MONTH, amount_cents: month, monthly_cents: month },
       { interval: INTERVAL.YEAR, amount_cents: year, monthly_cents: year / 12 },
@@ -87,5 +98,59 @@ describe("FEATURE_GROUPS", () => {
     expect(row("Reminders before the call").value(FREE)).toBe("24h");
     expect(row("Reminders before the call").value(PRO)).toBe("24h, 2h, 30 min");
     expect(row("Your own booking form questions").value(FREE)).toBe(false);
+  });
+});
+
+describe("yearlySaving", () => {
+  it("compares a year paid monthly with the yearly price", () => {
+    expect(yearlySaving(offer(PLAN.PRO, 1000, 9600))).toEqual({
+      fullYearCents: 12000,
+      savedCents: 2400,
+    });
+    expect(
+      yearlySaving({ plan: PLAN.FREE, prices: [], entitlements: FREE }),
+    ).toBeUndefined();
+  });
+});
+
+describe("recommendPlan", () => {
+  const offers: PlanOffer[] = [
+    { plan: PLAN.FREE, prices: [], entitlements: FREE },
+    offer(PLAN.PRO, 1000, 9600),
+    offer(PLAN.BUSINESS, 1600, 15600, BUSINESS),
+  ];
+
+  it("picks the cheapest plan that covers the week", () => {
+    expect(callsPerMonth(5)).toBe(22);
+    expect(recommendPlan(offers, { callsPerWeek: 5, severalKinds: false })).toBe(
+      PLAN.FREE,
+    );
+    expect(recommendPlan(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
+      PLAN.PRO,
+    );
+    expect(recommendPlan(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
+      PLAN.BUSINESS,
+    );
+  });
+
+  it("reads the limits from the entitlements", () => {
+    const roomy = [
+      { ...offers[0], entitlements: { ...FREE, max_bookings_per_month: null } },
+    ];
+    expect(
+      recommendPlan(roomy as PlanOffer[], { callsPerWeek: 30, severalKinds: false }),
+    ).toBe(PLAN.FREE);
+  });
+
+  it("says why the plan fits", () => {
+    expect(fitReason(offers, { callsPerWeek: 3, severalKinds: false })).toBe(
+      "Free covers your week: about 13 of 25 bookings a month.",
+    );
+    expect(fitReason(offers, { callsPerWeek: 8, severalKinds: false })).toBe(
+      "Pro fits: unlimited bookings. Free stops at 25 a month.",
+    );
+    expect(fitReason(offers, { callsPerWeek: 2, severalKinds: true })).toBe(
+      "Business fits: several kinds of call on one link. Free has one.",
+    );
   });
 });

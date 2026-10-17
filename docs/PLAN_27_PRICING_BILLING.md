@@ -195,6 +195,10 @@ Files:
 - Add the shadcn `accordion` component (`pnpm dlx shadcn add accordion`).
 - `/pricing` reads the user on the client with a `sessionQuery` on `/api/auth/me` that treats 401 as null, because the root guard only loads the user on protected paths.
 
+### Pricing page UX pass
+
+`/pricing` asks before it lists. A week sizer (calls a week, plus "I offer more than one kind of call") picks the cheapest plan whose entitlements cover the week (`recommendPlan` in `domains/pricing/pricing.ts`, read from `PlanOffer.entitlements`, never hard-coded limits). That plan gets the dusk ring, a "Fits your week" badge, the solid CTA, and a tinted column in the comparison table. Yearly prices show the monthly price crossed out and the dollars saved. The comparison table pins its plan header on wide screens and ends with the same start buttons. `/register?plan=&interval=` shows the picked plan with a link back to `/pricing`. The only new UI primitive is the shadcn `Slider`, which comes from `radix-ui`, already a dependency.
+
 ## Milestones (each one leaves the app shippable)
 
 1. ✅ **Catalog and trial:** the migration, `plans.rs`, `effective_plan`, `GET /api/billing/plans` and `/me`, the trial on registration, bindings, and the seed.
