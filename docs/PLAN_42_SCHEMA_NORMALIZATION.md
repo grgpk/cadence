@@ -22,9 +22,9 @@ row: a person, a question, an answer, a visit. Migrations hold no `ALTER`.
 - `bug_reports` had both `id` and `unid` and run-together names (`bugtype`,
   `created`). `bookings.cancelled_at` repeated `status` and was never read.
 
-Production is rebuilt from scratch with `reset_db.sh`: the migrations were
-rewritten and renumbered, so a database that ran the old ones does not
-upgrade.
+Production is rebuilt from scratch (DEPLOYMENT.md, "Reset production
+database"): the migrations were rewritten and renumbered, so a database that
+ran the old ones does not upgrade. `reset_db.sh` is for local databases only.
 
 ## Data model
 

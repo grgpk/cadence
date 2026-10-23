@@ -78,8 +78,38 @@ ssh root@37.27.157.169 'cd /root/cadence && docker compose --env-file .env -f do
 curl -fsS https://bookcadence.app/health
 ```
 
-Production migrations run when backend starts. Add new migration files; never
-edit one already applied. Revert bad deploy by reverting commit on `main`.
+Production migrations run when backend starts. Schema changes edit the table's
+CREATE migration, so a deploy that changes an applied migration needs a
+production reset (below); otherwise sqlx reports a checksum mismatch and the
+backend restarts in a loop. Revert bad deploy by reverting commit on `main`.
+
+## Reset production database
+
+This deletes all production data. Never use `reset_db.sh` here: it targets
+`127.0.0.1` and loads the dev seed. Check the backend logs first:
+
+```sh
+ssh root@37.27.157.169 'docker logs --tail 50 "$(docker ps -aq --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=backend)"'
+```
+
+Then on the server, back up, stop the backend, recreate the database, and start
+the backend so it runs the migrations. No seed is applied.
+
+```sh
+ssh root@37.27.157.169
+cd /root/cadence
+./scripts/backup-db.sh
+DB=$(docker ps -q  --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=db)
+BE=$(docker ps -aq --filter label=com.docker.compose.project=cadence --filter label=com.docker.compose.service=backend)
+docker stop "$BE"
+docker exec "$DB" sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d postgres \
+  -c "DROP DATABASE \"$POSTGRES_DB\" WITH (FORCE);" \
+  -c "CREATE DATABASE \"$POSTGRES_DB\";"'
+docker start "$BE"
+docker logs -f "$BE"
+```
+
+Verify with `curl -fsS https://bookcadence.app/health`.
 
 ## Backups
 
