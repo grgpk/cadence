@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE event_types SET slug = $3, title = $4, description = $5, duration_minutes = $6,\n                buffer_minutes = $7, minimum_notice_hours = $8, booking_window_days = $9,\n                is_active = $10, updated_at = now()\n         WHERE host_unid = $1 AND unid = $2\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "76245c3f6e0a4efb9b4b20a015e5cc1221dae9876c4106a503b4337ee865225a"
+}

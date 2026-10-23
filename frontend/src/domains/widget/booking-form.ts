@@ -1,5 +1,6 @@
-import type { BookingPage } from "../../bindings/BookingPage";
+import type { LeadAnswer } from "../../bindings/LeadAnswer";
 import type { LeadUpdate } from "../../bindings/LeadUpdate";
+import type { Question as QuestionKey } from "../../bindings/Question";
 import { DEFAULT_TIMEZONE, getCountryByVariant } from "../shared/phone/country";
 import {
   formatForCountry,
@@ -33,10 +34,7 @@ export const EMPTY_FORM: FormValues = {
   urgencyLevel: "",
 };
 
-/** The switches a host sets for the optional questions. */
-type AskedQuestions = Pick<BookingPage, Extract<keyof BookingPage, `ask_${string}`>>;
-
-type QuestionBase = { flag: keyof AskedQuestions; label: string };
+type QuestionBase = { key: QuestionKey; label: string };
 type Question = QuestionBase &
   (
     | { kind: "text"; field: "currentlyWorkingOn"; placeholder: string }
@@ -56,21 +54,21 @@ export const QUESTIONS: Question[] = [
   {
     kind: "text",
     field: "currentlyWorkingOn",
-    flag: "ask_currently_working_on",
+    key: "currently_working_on",
     label: "What are you currently working on?",
     placeholder: "A product, a job search, a career change",
   },
   {
     kind: "many",
     field: "howHeard",
-    flag: "ask_how_heard_about_us",
+    key: "how_heard_about_us",
     label: "How did you hear about us?",
     options: ["Word of Mouth", "Google", "LinkedIn", "YouTube"],
   },
   {
     kind: "many",
     field: "whatStoppingYou",
-    flag: "ask_what_stopping_you",
+    key: "what_stopping_you",
     label: "What is stopping you?",
     options: [
       "Lack of time",
@@ -82,14 +80,14 @@ export const QUESTIONS: Question[] = [
   {
     kind: "one",
     field: "investmentComfort",
-    flag: "ask_investment_comfort",
+    key: "investment_comfort",
     label: "Investment comfort",
     options: INVESTMENT_OPTIONS,
   },
   {
     kind: "one",
     field: "urgencyLevel",
-    flag: "ask_urgency_level",
+    key: "urgency_level",
     label: "How urgent is this?",
     options: [
       "1-3 (Nice to have)",
@@ -125,33 +123,38 @@ export function queryValue(search: string, key: string): string | null {
   return new URLSearchParams(search).get(key);
 }
 
-function qualification(values: FormValues): LeadUpdate["qualification_status"] {
-  // Without an investment answer there is nothing to qualify on.
-  if (!values.investmentComfort) return null;
-  return values.investmentComfort === INVESTMENT_OPTIONS[0] ? "NotSure" : "Qualified";
+/** What a lead answered to one question, if it did. */
+export function answerTo(
+  answers: readonly LeadAnswer[],
+  key: QuestionKey,
+): string | null {
+  return answers.find((answer) => answer.question === key)?.answer ?? null;
 }
 
-export function leadUpdate(
-  values: FormValues,
-  arrival: Pick<Arrival, "path" | "search">,
-): LeadUpdate {
+/** A question's answer as one line; several picks are joined by commas. */
+function answerOf(values: FormValues, question: Question): string {
+  const value = values[question.field];
+  return typeof value === "string" ? value.trim() : value.join(", ");
+}
+
+/**
+ * The form as the lead stores it. Every answer is sent, an empty one too, so
+ * an answer taken back is removed; the server keeps only asked questions.
+ */
+export function leadUpdate(values: FormValues, visitUnid: string | null): LeadUpdate {
   const country = getCountryByVariant(values.countryVariant);
+  const answers: LeadAnswer[] = QUESTIONS.map((question) => ({
+    question: question.key,
+    answer: answerOf(values, question),
+  }));
   return {
     first_name: values.firstName.trim() || null,
     last_name: values.lastName.trim() || null,
     email: values.email.trim() || null,
     phone: values.phone.trim() || null,
     country_code: country ? String(country.dialCode) : null,
-    investment_comfort: values.investmentComfort || null,
-    what_stopping_you: values.whatStoppingYou.join(", ") || null,
-    how_heard_about_us: values.howHeard.join(", ") || null,
-    currently_working_on: values.currentlyWorkingOn.trim() || null,
-    urgency_level: values.urgencyLevel || null,
-    source_page: arrival.path,
-    utm_source: queryValue(arrival.search, "utm_source"),
-    utm_medium: queryValue(arrival.search, "utm_medium"),
-    utm_campaign: queryValue(arrival.search, "utm_campaign"),
-    qualification_status: qualification(values),
+    answers,
+    calling_visit_unid: visitUnid,
   };
 }
 
@@ -175,14 +178,17 @@ function validPhone(values: FormValues): boolean {
 type FormErrors = Partial<Record<keyof FormValues, string>>;
 
 /** One message per invalid field; an empty object means the form can be sent. */
-export function formErrors(values: FormValues, asked: AskedQuestions): FormErrors {
+export function formErrors(
+  values: FormValues,
+  asked: readonly QuestionKey[],
+): FormErrors {
   const errors: FormErrors = {};
   if (!validName(values.firstName)) errors.firstName = "Enter your first name.";
   if (!validName(values.lastName)) errors.lastName = "Enter your last name.";
   if (!validEmail(values.email)) errors.email = "Enter a valid email address.";
   if (!validPhone(values)) errors.phone = "Enter a complete phone number.";
   for (const question of QUESTIONS) {
-    if (!asked[question.flag] || question.kind === "text") continue;
+    if (!asked.includes(question.key) || question.kind === "text") continue;
     if (values[question.field].length === 0) {
       errors[question.field] =
         question.kind === "many" ? "Pick at least one option." : "Pick one option.";

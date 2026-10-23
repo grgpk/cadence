@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use super::models::{AdminHost, BookingPage, ConferencingApp, EventTypeCard, HostSettings};
 use crate::domain::auth::models::UserStatus;
+use crate::domain::event_types::models::Question;
 
 pub async fn find<'e, E: PgExecutor<'e>>(
     executor: E,
@@ -98,8 +99,9 @@ pub async fn find_type_page(
                      AND (o.created_at, o.unid) < (e.created_at, e.unid)) AS "type_rank!",
                   u.email AS host_email, w.public_slug, u.full_name AS host_name,
                   e.title, e.description, w.timezone,
-                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,
-                  e.ask_investment_comfort, e.ask_urgency_level,
+                  ARRAY(SELECT q.question FROM event_type_questions q
+                        WHERE q.event_type_unid = e.unid ORDER BY q.question)
+                      AS "questions!: Vec<Question>",
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
                   w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
@@ -130,8 +132,9 @@ pub async fn page_of_booking(
                   0::bigint AS "type_rank!",
                   u.email AS host_email, w.public_slug, u.full_name AS host_name,
                   e.title, e.description, w.timezone,
-                  e.ask_currently_working_on, e.ask_how_heard_about_us, e.ask_what_stopping_you,
-                  e.ask_investment_comfort, e.ask_urgency_level,
+                  ARRAY(SELECT q.question FROM event_type_questions q
+                        WHERE q.event_type_unid = e.unid ORDER BY q.question)
+                      AS "questions!: Vec<Question>",
                   EXISTS(SELECT 1 FROM google_calendar_config g WHERE g.host_unid = w.host_unid) AS "calendar_connected!",
                   w.conferencing_app AS "conferencing_app: ConferencingApp", w.meeting_link, w.meeting_link IS NOT NULL AS "has_meeting_link!",
                   e.minimum_notice_hours, e.booking_window_days, e.buffer_minutes,
@@ -143,8 +146,6 @@ pub async fn page_of_booking(
            JOIN users u ON u.unid = w.host_unid
            JOIN LATERAL (
                SELECT t.unid, t.slug, t.duration_minutes, t.title, t.description,
-                      t.ask_currently_working_on, t.ask_how_heard_about_us, t.ask_what_stopping_you,
-                      t.ask_investment_comfort, t.ask_urgency_level,
                       t.minimum_notice_hours, t.booking_window_days, t.buffer_minutes
                FROM event_types t WHERE t.host_unid = b.host_unid
                ORDER BY (t.unid IS NOT DISTINCT FROM b.event_type_unid) DESC, t.created_at, t.unid

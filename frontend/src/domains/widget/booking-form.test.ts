@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  answerTo,
   EMPTY_FORM,
   type FormValues,
   formErrors,
@@ -9,13 +10,7 @@ import {
   toggleValue,
 } from "./booking-form";
 
-const NOTHING_ASKED = {
-  ask_currently_working_on: false,
-  ask_how_heard_about_us: false,
-  ask_what_stopping_you: false,
-  ask_investment_comfort: false,
-  ask_urgency_level: false,
-};
+const NOTHING_ASKED = [] as const;
 
 const VALID: FormValues = {
   ...EMPTY_FORM,
@@ -58,12 +53,11 @@ describe("formErrors", () => {
   });
 
   it("requires an answer only to the choice questions a host asks", () => {
-    const errors = formErrors(VALID, {
-      ...NOTHING_ASKED,
-      ask_currently_working_on: true,
-      ask_how_heard_about_us: true,
-      ask_urgency_level: true,
-    });
+    const errors = formErrors(VALID, [
+      "currently_working_on",
+      "how_heard_about_us",
+      "urgency_level",
+    ]);
     expect(errors).toEqual({
       howHeard: "Pick at least one option.",
       urgencyLevel: "Pick one option.",
@@ -79,9 +73,7 @@ describe("toggleValue", () => {
 });
 
 describe("leadUpdate", () => {
-  const arrival = { path: "/book/ana", search: "?utm_source=ads&utm_medium=cpc" };
-
-  it("trims the answers and leaves blank ones out", () => {
+  it("trims the answers and sends a blank one empty", () => {
     const update = leadUpdate(
       {
         ...VALID,
@@ -89,20 +81,16 @@ describe("leadUpdate", () => {
         currentlyWorkingOn: "   ",
         howHeard: ["A friend", "Search"],
       },
-      arrival,
+      null,
     );
     expect(update.first_name).toBe("Ana");
-    expect(update.currently_working_on).toBeNull();
-    expect(update.how_heard_about_us).toBe("A friend, Search");
+    expect(answerTo(update.answers, "currently_working_on")).toBe("");
+    expect(answerTo(update.answers, "how_heard_about_us")).toBe("A friend, Search");
     expect(update.country_code).toBe("33");
   });
 
-  it("says where the visitor came from", () => {
-    const update = leadUpdate(VALID, arrival);
-    expect(update.source_page).toBe("/book/ana");
-    expect(update.utm_source).toBe("ads");
-    expect(update.utm_medium).toBe("cpc");
-    expect(update.utm_campaign).toBeNull();
+  it("names the visit the form was opened in", () => {
+    expect(leadUpdate(VALID, "visit-1").calling_visit_unid).toBe("visit-1");
   });
 });
 

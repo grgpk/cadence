@@ -39,6 +39,9 @@ production has already run them.
 - `bookings.no_show_at`.
 - `leads.followed_up_at`.
 
+Plan 42 later folded this migration into the CREATE migrations; see
+`PLAN_42_SCHEMA_NORMALIZATION.md`.
+
 `Entitlements` gains `win_back`, `attendance` and `insights`, true for
 Business only.
 

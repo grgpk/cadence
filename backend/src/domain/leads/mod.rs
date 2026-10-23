@@ -1,3 +1,4 @@
+pub mod contacts;
 pub mod db;
 pub mod handlers;
 pub mod models;

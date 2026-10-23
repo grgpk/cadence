@@ -117,6 +117,12 @@ INSERT INTO event_types (
     )
 ON CONFLICT DO NOTHING;
 
+-- The coaching call asks two of its questions.
+INSERT INTO event_type_questions (event_type_unid, question) VALUES
+    ('e1000000-0000-4000-8000-000000000001', 'investment_comfort'),
+    ('e1000000-0000-4000-8000-000000000001', 'what_stopping_you')
+ON CONFLICT DO NOTHING;
+
 -- Monday through Sunday windows. Service weekday numbering: Monday = 0.
 INSERT INTO availability (
     id,
@@ -251,112 +257,51 @@ INSERT INTO calling_visits (
     )
 ON CONFLICT DO NOTHING;
 
--- Lead form records in each qualification state.
+-- The people behind the leads and bookings, one row each.
+INSERT INTO contacts (
+    unid,
+    host_unid,
+    email,
+    first_name,
+    last_name,
+    phone,
+    country_code,
+    created_at,
+    updated_at
+) VALUES
+    ('c0000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-100000000003', 'maya.chen@example.com', 'Maya', 'Chen', '+1 212 555 0142', 'US', now() - interval '3 days', now() - interval '3 days'),
+    ('c0000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-100000000003', 'oliver.grant@example.com', 'Oliver', 'Grant', '+44 20 7946 0958', 'GB', now() - interval '2 days', now() - interval '2 days'),
+    ('c0000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-100000000003', 'sofia.martin@example.com', 'Sofia', 'Martin', NULL, 'FR', now() - interval '10 days', now() - interval '9 days'),
+    ('c0000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-100000000003', 'noah.kowalski@example.com', 'Noah', 'Kowalski', '+49 30 5550 1832', 'DE', now() - interval '6 hours', now() - interval '6 hours')
+ON CONFLICT DO NOTHING;
+
+-- Lead forms, each from its visit. Noah left without submitting.
 INSERT INTO leads (
     unid,
     host_unid,
-    created_at,
-    updated_at,
-    first_name,
-    last_name,
-    email,
-    phone,
-    country_code,
-    investment_comfort,
-    what_stopping_you,
-    source_page,
-    utm_source,
-    utm_medium,
-    utm_campaign,
-    qualification_status,
+    contact_unid,
+    calling_visit_unid,
     form_submitted_at,
-    ip_address,
-    user_agent
+    created_at,
+    updated_at
 ) VALUES
-    (
-        '30000000-0000-4000-8000-000000000001',
-        '00000000-0000-4000-8000-100000000003',
-        now() - interval '3 days',
-        now() - interval '3 days',
-        'Maya',
-        'Chen',
-        'maya.chen@example.com',
-        '+1 212 555 0142',
-        'US',
-        'Comfortable investing in focused support',
-        'I have interviews but struggle to explain my impact clearly.',
-        '/book-a-call',
-        'google',
-        'organic',
-        'career-coaching',
-        'Qualified',
-        now() - interval '3 days',
-        '203.0.113.10',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0)'
-    ),
-    (
-        '30000000-0000-4000-8000-000000000002',
-        '00000000-0000-4000-8000-100000000003',
-        now() - interval '2 days',
-        now() - interval '2 days',
-        'Oliver',
-        'Grant',
-        'oliver.grant@example.com',
-        '+44 20 7946 0958',
-        'GB',
-        'I need to understand the options first',
-        'I keep applying to roles without getting interviews.',
-        '/book-a-call',
-        'linkedin',
-        'social',
-        'october-outreach',
-        'NotSure',
-        now() - interval '2 days',
-        '203.0.113.11',
-        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)'
-    ),
-    (
-        '30000000-0000-4000-8000-000000000003',
-        '00000000-0000-4000-8000-100000000003',
-        now() - interval '10 days',
-        now() - interval '9 days',
-        'Sofia',
-        'Martin',
-        'sofia.martin@example.com',
-        NULL,
-        'FR',
-        'Not ready to invest right now',
-        'I am still exploring whether I want to change careers.',
-        '/book-a-call',
-        'newsletter',
-        'email',
-        'career-reset',
-        'Disqualified',
-        now() - interval '10 days',
-        '203.0.113.12',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-    ),
-    (
-        '30000000-0000-4000-8000-000000000004',
-        '00000000-0000-4000-8000-100000000003',
-        now() - interval '6 hours',
-        now() - interval '6 hours',
-        'Noah',
-        'Kowalski',
-        'noah.kowalski@example.com',
-        '+49 30 5550 1832',
-        'DE',
-        'I want to compare coaching options',
-        'I am unsure how to position a move from engineering into leadership.',
-        '/',
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        NULL,
-        '203.0.113.13',
-        'Mozilla/5.0 (Linux; Android 14; Pixel 8)'
-    )
+    ('30000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-100000000003', 'c0000000-0000-4000-8000-000000000001', '20000000-0000-4000-8000-000000000001', now() - interval '3 days', now() - interval '3 days', now() - interval '3 days'),
+    ('30000000-0000-4000-8000-000000000002', '00000000-0000-4000-8000-100000000003', 'c0000000-0000-4000-8000-000000000002', '20000000-0000-4000-8000-000000000002', now() - interval '2 days', now() - interval '2 days', now() - interval '2 days'),
+    ('30000000-0000-4000-8000-000000000003', '00000000-0000-4000-8000-100000000003', 'c0000000-0000-4000-8000-000000000003', '20000000-0000-4000-8000-000000000003', now() - interval '10 days', now() - interval '10 days', now() - interval '9 days'),
+    ('30000000-0000-4000-8000-000000000004', '00000000-0000-4000-8000-100000000003', 'c0000000-0000-4000-8000-000000000004', '20000000-0000-4000-8000-000000000004', NULL, now() - interval '6 hours', now() - interval '6 hours')
+ON CONFLICT DO NOTHING;
+
+-- Their answers. The investment answer makes Maya qualified and Oliver and
+-- Sofia not sure yet.
+INSERT INTO lead_answers (lead_unid, question, answer) VALUES
+    ('30000000-0000-4000-8000-000000000001', 'investment_comfort', '$2,000–5,000 (career investment)'),
+    ('30000000-0000-4000-8000-000000000001', 'what_stopping_you', 'I have interviews but struggle to explain my impact clearly.'),
+    ('30000000-0000-4000-8000-000000000002', 'investment_comfort', '$100–500 (courses, books)'),
+    ('30000000-0000-4000-8000-000000000002', 'what_stopping_you', 'I keep applying to roles without getting interviews.'),
+    ('30000000-0000-4000-8000-000000000003', 'investment_comfort', '$100–500 (courses, books)'),
+    ('30000000-0000-4000-8000-000000000003', 'what_stopping_you', 'I am still exploring whether I want to change careers.'),
+    ('30000000-0000-4000-8000-000000000004', 'investment_comfort', '$500–2,000 (serious training)'),
+    ('30000000-0000-4000-8000-000000000004', 'what_stopping_you', 'I am unsure how to position a move from engineering into leadership.')
 ON CONFLICT DO NOTHING;
 
 -- Bookings include confirmed, pending, and cancelled states.
@@ -365,17 +310,14 @@ INSERT INTO bookings (
     unid,
     host_unid,
     event_type_unid,
+    contact_unid,
     lead_unid,
-    calling_visit_unid,
     slot_start,
     slot_end,
     timezone,
-    invitee_name,
-    invitee_email,
     status,
     google_event_id,
     google_meet_url,
-    cancelled_at,
     created_at,
     updated_at
 ) VALUES
@@ -383,17 +325,14 @@ INSERT INTO bookings (
         '40000000-0000-4000-8000-000000000001',
         '00000000-0000-4000-8000-100000000003',
         'e1000000-0000-4000-8000-000000000001',
+        'c0000000-0000-4000-8000-000000000001',
         '30000000-0000-4000-8000-000000000001',
-        '20000000-0000-4000-8000-000000000001',
         date_trunc('day', now()) + interval '2 days 10 hours',
         date_trunc('day', now()) + interval '2 days 10 hours 30 minutes',
         'America/New_York',
-        'Maya Chen',
-        'maya.chen@example.com',
         'confirmed',
         'cadence-demo-event-001',
         'https://meet.google.com/demo-cadence-001',
-        NULL,
         now() - interval '3 days',
         now() - interval '3 days'
     ),
@@ -401,15 +340,12 @@ INSERT INTO bookings (
         '40000000-0000-4000-8000-000000000002',
         '00000000-0000-4000-8000-100000000003',
         'e1000000-0000-4000-8000-000000000001',
+        'c0000000-0000-4000-8000-000000000002',
         '30000000-0000-4000-8000-000000000002',
-        '20000000-0000-4000-8000-000000000002',
         date_trunc('day', now()) + interval '4 days 14 hours',
         date_trunc('day', now()) + interval '4 days 14 hours 30 minutes',
         'Europe/London',
-        'Oliver Grant',
-        'oliver.grant@example.com',
         'pending',
-        NULL,
         NULL,
         NULL,
         now() - interval '2 days',
@@ -419,17 +355,14 @@ INSERT INTO bookings (
         '40000000-0000-4000-8000-000000000003',
         '00000000-0000-4000-8000-100000000003',
         'e1000000-0000-4000-8000-000000000001',
+        'c0000000-0000-4000-8000-000000000003',
         '30000000-0000-4000-8000-000000000003',
-        NULL,
         date_trunc('day', now()) + interval '6 days 11 hours',
         date_trunc('day', now()) + interval '6 days 11 hours 30 minutes',
         'Europe/Paris',
-        'Sofia Martin',
-        'sofia.martin@example.com',
         'cancelled',
         'cadence-demo-event-003',
         NULL,
-        now() - interval '8 days',
         now() - interval '10 days',
         now() - interval '8 days'
     )
@@ -547,21 +480,19 @@ ON CONFLICT DO NOTHING;
 
 -- Bug monitor fixtures. Two rows share a hash so admin aggregation is visible.
 INSERT INTO bug_reports (
-    id,
     unid,
-    bugtype,
-    similarityhash,
+    bug_type,
+    similarity_hash,
     message,
-    exceptionmessage,
-    stacktrace,
-    userlogin,
+    exception_message,
+    stack_trace,
+    user_login,
     url,
-    useragent,
+    user_agent,
     application,
-    created
+    created_at
 ) VALUES
     (
-        1001,
         '60000000-0000-4000-8000-000000000001',
         'JsError',
         610001,
@@ -575,7 +506,6 @@ INSERT INTO bug_reports (
         now() - interval '4 days'
     ),
     (
-        1002,
         '60000000-0000-4000-8000-000000000002',
         'JsError',
         610001,
@@ -589,7 +519,6 @@ INSERT INTO bug_reports (
         now() - interval '3 days'
     ),
     (
-        1003,
         '60000000-0000-4000-8000-000000000003',
         'Database',
         610002,
@@ -669,8 +598,3 @@ SELECT setval(
     true
 );
 
-SELECT setval(
-    pg_get_serial_sequence('bug_reports', 'id'),
-    COALESCE((SELECT MAX(id) FROM bug_reports), 1),
-    true
-);

@@ -1,0 +1,138 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid, slug, title, description, duration_minutes, buffer_minutes,\n                  minimum_notice_hours, booking_window_days,\n                  ARRAY(SELECT q.question FROM event_type_questions q\n                        WHERE q.event_type_unid = event_types.unid ORDER BY q.question)\n                      AS \"questions!: Vec<Question>\",\n                  is_active,\n                  -- Set from the host's plan by the service.\n                  true AS \"bookable!\"\n           FROM event_types WHERE host_unid = $1 ORDER BY created_at, unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "slug",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "slug"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "title",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "duration_minutes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "duration_minutes"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "buffer_minutes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "buffer_minutes"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "minimum_notice_hours",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "minimum_notice_hours"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "booking_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "booking_window_days"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "questions!: Vec<Question>",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 9,
+        "name": "is_active",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "event_types",
+            "name": "is_active"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "bookable!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "e02eb43c1363cc5b91b4249cf72fcc2e0f02d008e87a47677f960c07ccde95e8"
+}

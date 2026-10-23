@@ -217,11 +217,7 @@ async fn with_plan(
 ) -> AppResult<BookingPage> {
     let entitlements = billing::entitlements_for(pool, page.host_unid, Utc::now()).await?;
     if !entitlements.custom_questions {
-        page.ask_currently_working_on = false;
-        page.ask_how_heard_about_us = false;
-        page.ask_what_stopping_you = false;
-        page.ask_investment_comfort = false;
-        page.ask_urgency_level = false;
+        page.questions.clear();
     }
     if new_calls
         && usize::try_from(page.type_rank).unwrap_or(usize::MAX) >= types_allowed(&entitlements)

@@ -388,10 +388,9 @@ pub async fn trial_usage(
         r#"SELECT
              (SELECT count(*) FROM event_types e
               WHERE e.host_unid = $1 AND e.is_active)::int AS "active_types!",
-             COALESCE((SELECT bool_or(e.ask_currently_working_on OR e.ask_how_heard_about_us
-                                      OR e.ask_what_stopping_you OR e.ask_investment_comfort
-                                      OR e.ask_urgency_level)
-                       FROM event_types e WHERE e.host_unid = $1 AND e.is_active), false) AS "asks!",
+             EXISTS(SELECT 1 FROM event_type_questions q
+                    JOIN event_types e ON e.unid = q.event_type_unid
+                    WHERE e.host_unid = $1 AND e.is_active) AS "asks!",
              COALESCE((SELECT w.accent_color <> $2 FROM widget_settings w
                        WHERE w.host_unid = $1), false) AS "custom_accent!",
              (SELECT count(*) FROM bookings b

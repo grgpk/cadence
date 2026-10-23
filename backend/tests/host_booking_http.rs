@@ -40,13 +40,6 @@ use uuid::Uuid;
 
 /// The link `cadence_host` gets: its name as a slug.
 const HOST_SLUG: &str = "cadence-host";
-const QUESTION_FLAGS: [&str; 5] = [
-    "ask_currently_working_on",
-    "ask_how_heard_about_us",
-    "ask_what_stopping_you",
-    "ask_investment_comfort",
-    "ask_urgency_level",
-];
 
 struct Host {
     unid: Uuid,
@@ -232,7 +225,6 @@ async fn slots(app: &Router, slug: &str) -> Vec<DateTime<Utc>> {
 fn booking(start: DateTime<Utc>, lead_unid: Option<Uuid>) -> Value {
     json!({
         "lead_unid": lead_unid,
-        "calling_visit_unid": null,
         "slot_start": start,
         "timezone": "Europe/Paris",
         "invitee_name": "Ada Lovelace",
@@ -282,9 +274,7 @@ async fn public_page_shows_no_ids_and_asks_nothing_by_default(pool: PgPool) {
     assert!(page.get("host_unid").is_none());
     assert!(page.get("email").is_none());
     assert_eq!(page["host_name"], "Cadence Host");
-    for flag in QUESTION_FLAGS {
-        assert_eq!(page[flag], false, "{flag}");
-    }
+    assert_eq!(page["questions"], json!([]));
 
     let (status, _) = get(&app, "/api/hosts/CADENCE-HOST/types/call", None).await;
     assert_eq!(status, StatusCode::OK, "links are case-insensitive");
@@ -381,13 +371,13 @@ async fn settings_are_validated_and_stay_with_their_host(pool: PgPool) {
     assert_eq!(saved, changed);
     let mut kind = first_type(&app, &ada).await;
     kind["title"] = json!("Talk to Ada");
-    kind["ask_urgency_level"] = json!(true);
+    kind["questions"] = json!(["urgency_level"]);
     let (status, _) = save_type(&app, &ada, &kind).await;
     assert_eq!(status, StatusCode::OK);
 
     let (_, page) = get(&app, "/api/hosts/ada/types/call", None).await;
     assert_eq!(page["title"], "Talk to Ada");
-    assert_eq!(page["ask_urgency_level"], true);
+    assert_eq!(page["questions"], json!(["urgency_level"]));
     let (status, _) = get(&app, "/api/hosts/ada-lovelace/types/call", None).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "the old link is gone");
     assert_eq!(settings(&app, &grace).await, grace_settings);
@@ -404,35 +394,30 @@ async fn answers_are_kept_only_for_questions_the_host_asks(pool: PgPool) {
     let answers = json!({
         "first_name": "Linus",
         "email": "linus@example.com",
-        "investment_comfort": "$500–2,000 (serious training)",
-        "how_heard_about_us": "Google",
-        "what_stopping_you": "Lack of time",
-        "currently_working_on": "A kernel",
-        "urgency_level": "7-8 (High priority)",
-        "qualification_status": "Qualified",
+        "answers": [
+            { "question": "investment_comfort", "answer": "$500–2,000 (serious training)" },
+            { "question": "how_heard_about_us", "answer": "Google" },
+            { "question": "what_stopping_you", "answer": "Lack of time" },
+            { "question": "currently_working_on", "answer": "A kernel" },
+            { "question": "urgency_level", "answer": "7-8 (High priority)" },
+        ],
     });
 
     let (status, lead) = send(&app, Method::POST, &path, None, Some(answers.clone())).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(lead["first_name"], "Linus");
-    for field in [
-        "investment_comfort",
-        "how_heard_about_us",
-        "what_stopping_you",
-        "currently_working_on",
-        "urgency_level",
-        "qualification_status",
-    ] {
-        assert_eq!(lead[field], Value::Null, "{field}");
-    }
+    assert_eq!(lead["answers"], json!([]));
+    assert_eq!(lead["qualification_status"], Value::Null);
 
-    kind["ask_investment_comfort"] = json!(true);
+    kind["questions"] = json!(["investment_comfort"]);
     let (status, _) = save_type(&app, &host, &kind).await;
     assert_eq!(status, StatusCode::OK);
     let (_, lead) = send(&app, Method::POST, &path, None, Some(answers)).await;
-    assert_eq!(lead["investment_comfort"], "$500–2,000 (serious training)");
+    assert_eq!(
+        lead["answers"],
+        json!([{ "question": "investment_comfort", "answer": "$500–2,000 (serious training)" }])
+    );
     assert_eq!(lead["qualification_status"], "Qualified");
-    assert_eq!(lead["how_heard_about_us"], Value::Null);
 }
 
 #[sqlx::test(migrations = "../migrations")]
@@ -739,7 +724,7 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     let other = register(&app, "Grace Hopper", "grace@example.com").await;
     let mut asking = first_type(&app, &host).await;
-    asking["ask_urgency_level"] = json!(true);
+    asking["questions"] = json!(["urgency_level"]);
     let (status, _) = save_type(&app, &host, &asking).await;
     assert_eq!(status, StatusCode::OK);
 
@@ -753,8 +738,10 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
             "first_name": "Ada",
             "phone": "555 0100",
             "country_code": "+995",
-            "urgency_level": "7-8 (High priority)",
-            "how_heard_about_us": "Google",
+            "answers": [
+                { "question": "urgency_level", "answer": "7-8 (High priority)" },
+                { "question": "how_heard_about_us", "answer": "Google" },
+            ],
         })),
     )
     .await;
@@ -796,11 +783,10 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
     assert_eq!(detail["booking"], as_booked);
     assert_eq!(detail["lead"]["phone"], "555 0100");
     assert_eq!(detail["lead"]["country_code"], "+995");
-    assert_eq!(detail["lead"]["urgency_level"], "7-8 (High priority)");
     assert_eq!(
-        detail["lead"]["how_heard_about_us"],
-        Value::Null,
-        "not asked"
+        detail["lead"]["answers"],
+        json!([{ "question": "urgency_level", "answer": "7-8 (High priority)" }]),
+        "only asked questions keep an answer"
     );
 
     let (status, detail) = get(
@@ -1671,7 +1657,7 @@ async fn emails_about_a_cancelled_call_are_dropped(pool: PgPool) {
     let (cancelled, _) = book(&app, &slug, start).await;
     make_due(&pool, cancelled).await;
     sqlx::query_scalar!(
-        "UPDATE bookings SET status = 'cancelled', cancelled_at = now() WHERE unid = $1 RETURNING 1",
+        "UPDATE bookings SET status = 'cancelled' WHERE unid = $1 RETURNING 1",
         cancelled,
     )
     .fetch_one(&pool)
@@ -1886,9 +1872,19 @@ async fn a_booking_with_bad_details_is_refused_and_takes_no_time(pool: PgPool) {
     }
 
     // A visit that was never recorded is bad input, not a server failure.
-    let (status, body) = try_booking("calling_visit_unid", json!(Uuid::new_v4())).await;
+    let (status, body) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{}", Uuid::new_v4()),
+        None,
+        Some(json!({ "calling_visit_unid": Uuid::new_v4() })),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert_eq!(body["error"], "invalid input: booking data is invalid");
+    assert_eq!(
+        body["error"],
+        "invalid input: calling_visit_unid is unknown"
+    );
 
     assert_eq!(slots(&app, &slug).await, open, "nothing was booked");
     let (status, _) = try_booking("invitee_name", json!("a".repeat(120))).await;
@@ -2482,10 +2478,14 @@ async fn end_trial(pool: &PgPool, host: &Host) {
 /// `count` calls booked this month, in the past so they hold no open time.
 async fn past_calls_this_month(pool: &PgPool, host: &Host, count: i32) {
     sqlx::query_scalar!(
-        r#"INSERT INTO bookings (host_unid, slot_start, slot_end, invitee_name, invitee_email)
-           SELECT $1, now() - make_interval(hours => n + 1), now() - make_interval(hours => n),
-                  'Past caller', 'past@example.com'
-           FROM generate_series(1, $2) AS n
+        r#"WITH caller AS (
+               INSERT INTO contacts (host_unid, email, first_name)
+               VALUES ($1, 'past@example.com', 'Past caller')
+               RETURNING unid
+           )
+           INSERT INTO bookings (host_unid, contact_unid, slot_start, slot_end)
+           SELECT $1, caller.unid, now() - make_interval(hours => n + 1), now() - make_interval(hours => n)
+           FROM caller, generate_series(1, $2) AS n
            RETURNING 1"#,
         host.unid,
         count,
@@ -2578,24 +2578,23 @@ async fn questions_need_a_paid_plan_and_stay_saved_without_one(pool: PgPool) {
     let app = app(&pool);
     let (host, slug) = host_with_hours(&app, "nino@example.com").await;
     let mut asking = first_type(&app, &host).await;
-    asking["ask_urgency_level"] = json!(true);
+    asking["questions"] = json!(["urgency_level"]);
     let (status, _) = save_type(&app, &host, &asking).await;
     assert_eq!(status, StatusCode::OK, "the trial includes questions");
 
     end_trial(&pool, &host).await;
     let (_, page) = get(&app, &format!("/api/hosts/{slug}/types/call"), None).await;
-    assert_eq!(page["ask_urgency_level"], false, "not asked on Free");
+    assert_eq!(page["questions"], json!([]), "not asked on Free");
     let mut saved = first_type(&app, &host).await;
-    assert_eq!(saved["ask_urgency_level"], true, "still saved");
+    assert_eq!(saved["questions"], json!(["urgency_level"]), "still saved");
 
     saved["title"] = json!("Intro call");
     let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::OK, "other changes still save");
-    saved["ask_investment_comfort"] = json!(true);
+    saved["questions"] = json!(["urgency_level", "investment_comfort"]);
     let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    saved["ask_investment_comfort"] = json!(false);
-    saved["ask_urgency_level"] = json!(false);
+    saved["questions"] = json!([]);
     let (status, _) = save_type(&app, &host, &saved).await;
     assert_eq!(status, StatusCode::OK, "turning one off is fine");
 }
@@ -3251,7 +3250,7 @@ async fn a_trial_host_sees_what_free_would_take_away(pool: PgPool) {
     let app = app(&pool);
     let (host, _) = host_with_hours(&app, "nino@example.com").await;
     let mut kind = first_type(&app, &host).await;
-    kind["ask_urgency_level"] = json!(true);
+    kind["questions"] = json!(["urgency_level"]);
     let (status, _) = save_type(&app, &host, &kind).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(

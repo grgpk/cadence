@@ -23,18 +23,17 @@ pub struct NewBugReport {
 }
 
 struct AdminBugReportRow {
-    id: i64,
     unid: Uuid,
-    bugtype: String,
-    similarityhash: i32,
+    bug_type: String,
+    similarity_hash: i32,
     message: Option<String>,
-    exceptionmessage: Option<String>,
-    stacktrace: Option<String>,
-    userlogin: Option<String>,
+    exception_message: Option<String>,
+    stack_trace: Option<String>,
+    user_login: Option<String>,
     url: Option<String>,
-    useragent: Option<String>,
+    user_agent: Option<String>,
     application: Option<String>,
-    created: DateTime<Utc>,
+    created_at: DateTime<Utc>,
     total_count: Option<i64>,
     similar_count: Option<i64>,
 }
@@ -98,7 +97,7 @@ impl NewBugReport {
 }
 
 impl BugReportsService {
-    pub async fn add(pool: &PgPool, report: &NewBugReport) -> Result<i64, sqlx::Error> {
+    pub async fn add(pool: &PgPool, report: &NewBugReport) -> Result<Uuid, sqlx::Error> {
         let bug_type = report.bug_type.as_str();
         let message = NewBugReport::bounded(Some(&report.message), 16_384).unwrap_or_default();
         let exception_message = {
@@ -119,12 +118,12 @@ impl BugReportsService {
         let similarity_hash = report.similarity_hash();
         let application = std::env::var("HOSTNAME").ok();
 
-        let id = sqlx::query_scalar::<_, i64>(
+        let unid = sqlx::query_scalar::<_, Uuid>(
             "INSERT INTO bug_reports (
-                bugtype, similarityhash, message, exceptionmessage,
-                stacktrace, userlogin, url, useragent, application
+                bug_type, similarity_hash, message, exception_message,
+                stack_trace, user_login, url, user_agent, application
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-            RETURNING id",
+            RETURNING unid",
         )
         .bind(bug_type)
         .bind(similarity_hash)
@@ -138,25 +137,25 @@ impl BugReportsService {
         .fetch_one(pool)
         .await?;
 
-        Ok(id)
+        Ok(unid)
     }
 
     pub async fn list(pool: &PgPool) -> Result<Vec<AdminBugReport>, sqlx::Error> {
         let rows = sqlx::query_as!(
             AdminBugReportRow,
             r#"WITH unique_bugs AS (
-                SELECT DISTINCT ON (similarityhash)
-                    id, unid, bugtype, similarityhash, message, exceptionmessage,
-                    stacktrace, userlogin, url, useragent, application, created,
+                SELECT DISTINCT ON (similarity_hash)
+                    unid, bug_type, similarity_hash, message, exception_message,
+                    stack_trace, user_login, url, user_agent, application, created_at,
                     -- Window functions run before DISTINCT ON, so this counts the whole group.
-                    COUNT(*) OVER (PARTITION BY similarityhash) AS similar_count
+                    COUNT(*) OVER (PARTITION BY similarity_hash) AS similar_count
                 FROM bug_reports
-                ORDER BY similarityhash, created DESC
+                ORDER BY similarity_hash, created_at DESC
             )
-            SELECT id, unid, bugtype, similarityhash, message, exceptionmessage,
-                stacktrace, userlogin, url, useragent, application, created,
+            SELECT unid, bug_type, similarity_hash, message, exception_message,
+                stack_trace, user_login, url, user_agent, application, created_at,
                     COUNT(*) OVER() AS total_count, similar_count
-            FROM unique_bugs ORDER BY created DESC LIMIT 500"#,
+            FROM unique_bugs ORDER BY created_at DESC LIMIT 500"#,
         )
         .fetch_all(pool)
         .await?;
@@ -164,18 +163,17 @@ impl BugReportsService {
         Ok(rows
             .into_iter()
             .map(|row| AdminBugReport {
-                id: row.id,
                 unid: row.unid,
-                bugtype: row.bugtype,
-                similarityhash: row.similarityhash,
+                bug_type: row.bug_type,
+                similarity_hash: row.similarity_hash,
                 message: row.message,
-                exceptionmessage: row.exceptionmessage,
-                stacktrace: row.stacktrace,
-                userlogin: row.userlogin,
+                exception_message: row.exception_message,
+                stack_trace: row.stack_trace,
+                user_login: row.user_login,
                 url: row.url,
-                useragent: row.useragent,
+                user_agent: row.user_agent,
                 application: row.application,
-                created: row.created,
+                created_at: row.created_at,
                 total_count: row.total_count.unwrap_or_default(),
                 similar_count: row.similar_count.unwrap_or_default(),
             })
@@ -205,26 +203,25 @@ mod contract_tests {
             user_agent: Some("Mozilla/5.0".to_owned()),
         };
 
-        let id = BugReportsService::add(&pool, &report).await?;
-        assert!(id > 0);
+        let unid = BugReportsService::add(&pool, &report).await?;
 
         #[derive(sqlx::FromRow)]
         struct BugRow {
-            bugtype: String,
-            userlogin: Option<String>,
+            bug_type: String,
+            user_login: Option<String>,
             url: Option<String>,
         }
 
         let row = sqlx::query_as!(
             BugRow,
-            "SELECT bugtype, userlogin, url FROM bug_reports WHERE id = $1",
-            id,
+            "SELECT bug_type, user_login, url FROM bug_reports WHERE unid = $1",
+            unid,
         )
         .fetch_one(&pool)
         .await?;
 
-        assert_eq!(row.bugtype, "JsError");
-        assert_eq!(row.userlogin, Some("octocat".to_owned()));
+        assert_eq!(row.bug_type, "JsError");
+        assert_eq!(row.user_login, Some("octocat".to_owned()));
         assert_eq!(row.url, Some("https://rustify.rs/v2/calling".to_owned()));
         Ok(())
     }
@@ -246,11 +243,11 @@ mod contract_tests {
             user_agent: None,
         };
 
-        let id = BugReportsService::add(&pool, &report).await?;
+        let unid = BugReportsService::add(&pool, &report).await?;
 
         let exception_message: Option<String> =
-            sqlx::query_scalar("SELECT exceptionmessage FROM bug_reports WHERE id = $1")
-                .bind(id)
+            sqlx::query_scalar("SELECT exception_message FROM bug_reports WHERE unid = $1")
+                .bind(unid)
                 .fetch_one(&pool)
                 .await?;
 

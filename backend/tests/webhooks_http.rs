@@ -155,7 +155,7 @@ async fn book_first_slot(app: &Router, slug: &str) {
     .await;
     let start = slots[0]["start"].clone();
     let booking = json!({
-        "lead_unid": null, "calling_visit_unid": null, "slot_start": start,
+        "lead_unid": null, "slot_start": start,
         "timezone": "Europe/Paris", "invitee_name": "Ada Lovelace", "invitee_email": "ada@example.com",
     });
     let path = format!("/api/hosts/{slug}/types/call/bookings");

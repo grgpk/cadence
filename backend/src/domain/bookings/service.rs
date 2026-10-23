@@ -20,7 +20,7 @@ use crate::{
             models::{BookingPage, ConferencingApp},
             service as host_settings,
         },
-        leads::{db as leads_db, service as leads},
+        leads::{contacts, db as leads_db, service as leads},
         webhooks::{models::WebhookEvent, service as webhooks},
     },
     error::{AppError, AppResult},
@@ -65,17 +65,22 @@ pub async fn create(
         mut transaction,
         slot,
     } = slots::reserve(pool, calendar, page, request.slot_start, now, None).await?;
+    let contact_unid = contacts::for_booking(
+        &mut transaction,
+        host_unid,
+        &request.invitee_name,
+        &request.invitee_email,
+    )
+    .await?;
     let booking = match db::create(
         &mut transaction,
         host_unid,
         page.event_type_unid,
+        contact_unid,
         request.lead_unid,
-        request.calling_visit_unid,
         slot.start,
         slots::end_of(&slot),
         &request.timezone,
-        &request.invitee_name,
-        &request.invitee_email,
         // Replaced below by Google's Meet link when the host picked Meet and
         // Google made one.
         page.meeting_link.as_deref(),
@@ -86,7 +91,7 @@ pub async fn create(
         Err(error) if is_unique_violation(&error) => {
             return Err(AppError::Conflict(SLOT_TAKEN.to_owned()));
         }
-        // The visit or the lead the request names does not exist.
+        // The lead the request names does not exist.
         Err(error) if is_foreign_key_violation(&error) => {
             return Err(AppError::BadRequest("booking data is invalid".to_owned()));
         }

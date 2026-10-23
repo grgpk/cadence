@@ -16,7 +16,6 @@ import { Button } from "../../components/ui/button";
 import { lengthLabel } from "../../lib/format";
 import { ROUTES } from "../../lib/routes";
 import { BOOKING_FRAME } from "../widget/booking-card";
-import { QUESTIONS } from "../widget/booking-form";
 import { HostBadge } from "../widget/host-badge";
 import { accentStyle } from "../widget/public-booking-page";
 
@@ -51,7 +50,7 @@ function ruleLines(values: EventTypeInput) {
       text: buffer === 0 ? "Back to back allowed" : `${buffer} min kept free around it`,
     });
   }
-  const asked = QUESTIONS.filter((question) => values[question.flag]).length;
+  const asked = values.questions.length;
   if (asked > 0) {
     lines.push({
       icon: MessageCircleQuestion,

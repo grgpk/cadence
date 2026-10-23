@@ -39,6 +39,7 @@ import {
   NOTICE_HOURS,
   SLUG_PATTERN,
   WINDOW_DAYS,
+  withQuestion,
 } from "./event-types";
 
 const ID = "event-type";
@@ -353,18 +354,19 @@ export function EventTypeForm({
               </PlanNotice>
             ) : null}
             {QUESTIONS.map((question) => (
-              <div
-                key={question.flag}
-                className="flex items-center justify-between gap-4"
-              >
-                <Label htmlFor={`${ID}-${question.flag}`} className="font-normal">
+              <div key={question.key} className="flex items-center justify-between gap-4">
+                <Label htmlFor={`${ID}-${question.key}`} className="font-normal">
                   {question.label}
                 </Label>
                 <Switch
-                  id={`${ID}-${question.flag}`}
-                  checked={values[question.flag]}
-                  disabled={questionsLocked && !original[question.flag]}
-                  onCheckedChange={(checked) => update({ [question.flag]: checked })}
+                  id={`${ID}-${question.key}`}
+                  checked={values.questions.includes(question.key)}
+                  disabled={questionsLocked && !original.questions.includes(question.key)}
+                  onCheckedChange={(checked) =>
+                    update({
+                      questions: withQuestion(values.questions, question.key, checked),
+                    })
+                  }
                 />
               </div>
             ))}

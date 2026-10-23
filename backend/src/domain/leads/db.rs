@@ -1,107 +1,173 @@
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool};
 use uuid::Uuid;
 
 use chrono::{DateTime, Utc};
 
-use super::models::{Lead, LeadUpdate, UnfinishedLead};
+use super::models::{LeadAnswer, LeadRow, UnfinishedLead};
+use crate::domain::event_types::models::Question;
 
 pub struct LeadsDb;
 
+/// Saves the lead row, once the host's. `None` holds the contact it had.
+/// A lead id another host already uses is `RowNotFound`.
 pub async fn upsert(
-    pool: &PgPool,
+    connection: &mut PgConnection,
     host_unid: Uuid,
     unid: Uuid,
-    update: &LeadUpdate,
-) -> Result<Lead, sqlx::Error> {
-    sqlx::query_as!(
-        Lead,
-        "INSERT INTO leads (unid, host_unid, first_name, last_name, email, phone, country_code, investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level, source_page, utm_source, utm_medium, utm_campaign, qualification_status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+    calling_visit_unid: Option<Uuid>,
+) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO leads (unid, host_unid, calling_visit_unid) VALUES ($1, $2, $3)
          ON CONFLICT (unid) DO UPDATE SET
-             first_name = COALESCE($3, leads.first_name), last_name = COALESCE($4, leads.last_name),
-             email = COALESCE($5, leads.email), phone = COALESCE($6, leads.phone), country_code = COALESCE($7, leads.country_code),
-             investment_comfort = COALESCE($8, leads.investment_comfort), what_stopping_you = COALESCE($9, leads.what_stopping_you),
-             how_heard_about_us = COALESCE($10, leads.how_heard_about_us), currently_working_on = COALESCE($11, leads.currently_working_on),
-             urgency_level = COALESCE($12, leads.urgency_level), source_page = COALESCE($13, leads.source_page),
-             utm_source = COALESCE($14, leads.utm_source), utm_medium = COALESCE($15, leads.utm_medium),
-             utm_campaign = COALESCE($16, leads.utm_campaign), qualification_status = COALESCE($17, leads.qualification_status),
+             calling_visit_unid = COALESCE($3, leads.calling_visit_unid),
              updated_at = now()
          WHERE leads.host_unid = $2
-         RETURNING unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,
-                   investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,
-                   source_page, utm_source, utm_medium, utm_campaign,
-                   qualification_status, form_submitted_at",
+         RETURNING contact_unid",
         unid,
         host_unid,
-        update.first_name.as_deref(),
-        update.last_name.as_deref(),
-        update.email.as_deref(),
-        update.phone.as_deref(),
-        update.country_code.as_deref(),
-        update.investment_comfort.as_deref(),
-        update.what_stopping_you.as_deref(),
-        update.how_heard_about_us.as_deref(),
-        update.currently_working_on.as_deref(),
-        update.urgency_level.as_deref(),
-        update.source_page.as_deref(),
-        update.utm_source.as_deref(),
-        update.utm_medium.as_deref(),
-        update.utm_campaign.as_deref(),
-        update.qualification_status.as_deref(),
+        calling_visit_unid,
     )
-    .fetch_one(pool)
+    .fetch_one(connection)
     .await
 }
 
-pub async fn find(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> Result<Option<Lead>, sqlx::Error> {
+pub async fn set_contact(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    contact_unid: Uuid,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE leads SET contact_unid = $2 WHERE unid = $1 RETURNING 1",
+        unid,
+        contact_unid,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// Saves the given answers; an empty one removes the saved answer.
+pub async fn save_answers(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    answers: &[LeadAnswer],
+) -> Result<(), sqlx::Error> {
+    for LeadAnswer { question, answer } in answers {
+        if answer.is_empty() {
+            sqlx::query_scalar!(
+                "DELETE FROM lead_answers WHERE lead_unid = $1 AND question = $2 RETURNING 1",
+                unid,
+                question as &Question,
+            )
+            .fetch_optional(&mut *connection)
+            .await?;
+        } else {
+            sqlx::query_scalar!(
+                "INSERT INTO lead_answers (lead_unid, question, answer) VALUES ($1, $2, $3)
+                 ON CONFLICT (lead_unid, question) DO UPDATE SET answer = $3
+                 RETURNING 1",
+                unid,
+                question as &Question,
+                answer,
+            )
+            .fetch_one(&mut *connection)
+            .await?;
+        }
+    }
+    Ok(())
+}
+
+pub async fn find<'e, E: PgExecutor<'e>>(
+    executor: E,
+    host_unid: Uuid,
+    unid: Uuid,
+) -> Result<Option<LeadRow>, sqlx::Error> {
     sqlx::query_as!(
-        Lead,
-        "SELECT unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,
-                investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,
-                source_page, utm_source, utm_medium, utm_campaign,
-                qualification_status, form_submitted_at FROM leads WHERE host_unid = $1 AND unid = $2",
+        LeadRow,
+        r#"SELECT l.unid, l.host_unid, l.created_at, l.updated_at,
+                  c.first_name AS "first_name?", c.last_name AS "last_name?", c.email AS "email?",
+                  c.phone AS "phone?", c.country_code AS "country_code?",
+                  v.source_page AS "source_page?", v.utm_source AS "utm_source?",
+                  v.utm_medium AS "utm_medium?", v.utm_campaign AS "utm_campaign?",
+                  l.form_submitted_at
+           FROM leads l
+           LEFT JOIN contacts c ON c.unid = l.contact_unid
+           LEFT JOIN calling_visits v ON v.unid = l.calling_visit_unid
+           WHERE l.host_unid = $1 AND l.unid = $2"#,
         host_unid,
         unid,
     )
-    .fetch_optional(pool)
+    .fetch_optional(executor)
+    .await
+}
+
+/// One saved answer and the lead it belongs to.
+pub struct AnswerRow {
+    pub lead_unid: Uuid,
+    pub question: Question,
+    pub answer: String,
+}
+
+impl From<AnswerRow> for LeadAnswer {
+    fn from(row: AnswerRow) -> Self {
+        Self {
+            question: row.question,
+            answer: row.answer,
+        }
+    }
+}
+
+/// The answers of the given leads.
+pub async fn answers<'e, E: PgExecutor<'e>>(
+    executor: E,
+    lead_unids: &[Uuid],
+) -> Result<Vec<AnswerRow>, sqlx::Error> {
+    sqlx::query_as!(
+        AnswerRow,
+        r#"SELECT lead_unid, question AS "question: Question", answer
+           FROM lead_answers WHERE lead_unid = ANY($1) ORDER BY question"#,
+        lead_unids,
+    )
+    .fetch_all(executor)
     .await
 }
 
 impl LeadsDb {
-    pub async fn list_all(pool: &PgPool) -> Result<Vec<Lead>, sqlx::Error> {
+    pub async fn list_all(pool: &PgPool) -> Result<Vec<LeadRow>, sqlx::Error> {
         sqlx::query_as!(
-            Lead,
-            "SELECT unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,
-                    investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,
-                    source_page, utm_source, utm_medium, utm_campaign,
-                    qualification_status, form_submitted_at
-             FROM leads ORDER BY created_at DESC",
+            LeadRow,
+            r#"SELECT l.unid, l.host_unid, l.created_at, l.updated_at,
+                      c.first_name AS "first_name?", c.last_name AS "last_name?", c.email AS "email?",
+                      c.phone AS "phone?", c.country_code AS "country_code?",
+                      v.source_page AS "source_page?", v.utm_source AS "utm_source?",
+                      v.utm_medium AS "utm_medium?", v.utm_campaign AS "utm_campaign?",
+                      l.form_submitted_at
+               FROM leads l
+               LEFT JOIN contacts c ON c.unid = l.contact_unid
+               LEFT JOIN calling_visits v ON v.unid = l.calling_visit_unid
+               ORDER BY l.created_at DESC"#,
         )
         .fetch_all(pool)
         .await
     }
 }
 
+/// `false` when the host has no such lead.
 pub async fn mark_submitted(
     pool: &PgPool,
     host_unid: Uuid,
     unid: Uuid,
-    source_page: Option<&str>,
-) -> Result<Lead, sqlx::Error> {
-    sqlx::query_as!(
-        Lead,
-        "UPDATE leads SET form_submitted_at = now(), source_page = COALESCE($3, source_page), updated_at = now()
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE leads SET form_submitted_at = now(), updated_at = now()
          WHERE host_unid = $1 AND unid = $2
-         RETURNING unid, host_unid, created_at, updated_at, first_name, last_name, email, phone, country_code,
-                   investment_comfort, what_stopping_you, how_heard_about_us, currently_working_on, urgency_level,
-                   source_page, utm_source, utm_medium, utm_campaign,
-                   qualification_status, form_submitted_at",
+         RETURNING 1",
         host_unid,
         unid,
-        source_page,
     )
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
+    .map(|row| row.is_some())
 }
 
 /// People who gave an email on the form after `since`, have been gone an
@@ -117,25 +183,21 @@ pub async fn unfinished(
         UnfinishedLead,
         r#"SELECT unid, first_name, last_name, email AS "email!", left_at AS "left_at!"
            FROM (
-               SELECT DISTINCT ON (lower(l.email))
-                      l.unid, l.first_name, l.last_name, l.email, l.updated_at AS left_at
+               SELECT DISTINCT ON (c.unid)
+                      l.unid, c.first_name, c.last_name, c.email, l.updated_at AS left_at
                FROM leads l
+               JOIN contacts c ON c.unid = l.contact_unid
                WHERE l.host_unid = $1
-                 AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+                 AND c.email IS NOT NULL
+                 AND c.followed_up_at IS NULL
                  AND l.updated_at >= $2
                  AND l.updated_at < now() - interval '1 hour'
                  AND NOT EXISTS (
-                     SELECT 1 FROM leads o
-                     WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)
-                       AND o.followed_up_at IS NOT NULL
-                 )
-                 AND NOT EXISTS (
                      SELECT 1 FROM bookings b
-                     WHERE b.host_unid = l.host_unid
-                       AND lower(b.invitee_email) = lower(l.email)
+                     WHERE b.contact_unid = c.unid
                        AND b.created_at >= l.created_at - interval '1 day'
                  )
-               ORDER BY lower(l.email), l.updated_at DESC
+               ORDER BY c.unid, l.updated_at DESC
            ) latest
            ORDER BY left_at DESC
            LIMIT 50"#,
@@ -157,23 +219,20 @@ pub async fn mark_followed_up(
 ) -> Result<Option<UnfinishedLead>, sqlx::Error> {
     sqlx::query_as!(
         UnfinishedLead,
-        r#"UPDATE leads l SET followed_up_at = now()
+        r#"UPDATE contacts c SET followed_up_at = now()
+           FROM leads l
            WHERE l.host_unid = $1 AND l.unid = $2
-             AND l.email ~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+             AND c.unid = l.contact_unid
+             AND c.email IS NOT NULL
+             AND c.followed_up_at IS NULL
              AND l.updated_at >= $3
              AND l.updated_at < now() - interval '1 hour'
              AND NOT EXISTS (
-                 SELECT 1 FROM leads o
-                 WHERE o.host_unid = l.host_unid AND lower(o.email) = lower(l.email)
-                   AND o.followed_up_at IS NOT NULL
-             )
-             AND NOT EXISTS (
                  SELECT 1 FROM bookings b
-                 WHERE b.host_unid = l.host_unid
-                   AND lower(b.invitee_email) = lower(l.email)
+                 WHERE b.contact_unid = c.unid
                    AND b.created_at >= l.created_at - interval '1 day'
              )
-           RETURNING l.unid, l.first_name, l.last_name, l.email AS "email!",
+           RETURNING l.unid, c.first_name, c.last_name, c.email AS "email!",
                      l.updated_at AS left_at"#,
         host_unid,
         unid,

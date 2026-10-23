@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO event_type_questions (event_type_unid, question)\n         SELECT $1, question FROM unnest($2::text[]) AS question\n         ON CONFLICT DO NOTHING\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "7405a4406cfc25c5379cce464fb5f2f7e0878c01f67fe7b99f1d1961787d1f33"
+}

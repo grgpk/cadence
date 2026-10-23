@@ -6,6 +6,7 @@ import { DetailSheet } from "../../domains/admin/components/detail-sheet";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
 import { TwoLine, type Column } from "../../domains/shared/data-table";
 import { LEAD_STATUS, StatusBadge } from "../../domains/shared/status-badge";
+import { answerTo } from "../../domains/widget/booking-form";
 import { APP_NAME } from "../../lib/config";
 import { formatDateTime } from "../../lib/format";
 
@@ -37,11 +38,23 @@ const COLUMNS: Column<Lead>[] = [
             description={lead.email ?? "No email yet"}
             fields={[
               { label: "Phone", value: lead.phone ? formatPhone(lead) : null },
-              { label: "Working on", value: lead.currently_working_on },
-              { label: "What is stopping them", value: lead.what_stopping_you },
-              { label: "Investment comfort", value: lead.investment_comfort },
-              { label: "Urgency", value: lead.urgency_level },
-              { label: "Heard about us from", value: lead.how_heard_about_us },
+              {
+                label: "Working on",
+                value: answerTo(lead.answers, "currently_working_on"),
+              },
+              {
+                label: "What is stopping them",
+                value: answerTo(lead.answers, "what_stopping_you"),
+              },
+              {
+                label: "Investment comfort",
+                value: answerTo(lead.answers, "investment_comfort"),
+              },
+              { label: "Urgency", value: answerTo(lead.answers, "urgency_level") },
+              {
+                label: "Heard about us from",
+                value: answerTo(lead.answers, "how_heard_about_us"),
+              },
               { label: "Came from page", value: lead.source_page },
               {
                 label: "Campaign",

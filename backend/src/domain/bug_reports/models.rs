@@ -66,19 +66,17 @@ pub struct AddBugReportResponse {
 #[derive(Debug, Clone, Serialize, TS, sqlx::FromRow)]
 #[ts(export, export_to = "../../frontend/src/bindings/AdminBugReport.ts")]
 pub struct AdminBugReport {
-    #[ts(type = "number")]
-    pub id: i64,
     pub unid: Uuid,
-    pub bugtype: String,
-    pub similarityhash: i32,
+    pub bug_type: String,
+    pub similarity_hash: i32,
     pub message: Option<String>,
-    pub exceptionmessage: Option<String>,
-    pub stacktrace: Option<String>,
-    pub userlogin: Option<String>,
+    pub exception_message: Option<String>,
+    pub stack_trace: Option<String>,
+    pub user_login: Option<String>,
     pub url: Option<String>,
-    pub useragent: Option<String>,
+    pub user_agent: Option<String>,
     pub application: Option<String>,
-    pub created: DateTime<Utc>,
+    pub created_at: DateTime<Utc>,
     #[ts(type = "number")]
     pub total_count: i64,
     #[ts(type = "number")]

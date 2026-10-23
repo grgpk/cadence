@@ -13,7 +13,7 @@ export type Entitlements = {
  */
 included_bookings_per_month: number | null, reminders: Array<Reminder>, 
 /**
- * The `ask_*` booking form questions.
+ * The booking form questions a kind of call can ask.
  */
 custom_questions: boolean, custom_accent: boolean, 
 /**

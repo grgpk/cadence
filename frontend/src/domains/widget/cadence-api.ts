@@ -53,15 +53,8 @@ export function saveLead(
   });
 }
 
-export function submitLead(
-  pageRef: PageRef,
-  leadUnid: string,
-  sourcePage: string,
-): Promise<Lead> {
-  return api<Lead>(`${typePath(pageRef)}/leads/${leadUnid}/submit`, {
-    method: "POST",
-    body: JSON.stringify({ source_page: sourcePage }),
-  });
+export function submitLead(pageRef: PageRef, leadUnid: string): Promise<Lead> {
+  return api<Lead>(`${typePath(pageRef)}/leads/${leadUnid}/submit`, { method: "POST" });
 }
 
 export function createCallingVisit(request: CallingVisitRequest): Promise<CallingVisit> {

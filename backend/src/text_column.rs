@@ -3,9 +3,11 @@
 //! The column keeps its `CHECK` constraint; in Rust the value is the enum, so
 //! a status or an app can only be one of its variants.
 
-/// Implements sqlx's `Type`, `Encode` and `Decode` for `$type`, an enum with
-/// `const fn as_str(self) -> &'static str`, listing every variant so a stored
-/// value reads back as the one whose `as_str` it is.
+/// Implements sqlx's `Type`, `PgHasArrayType`, `Encode` and `Decode` for
+/// `$type`, an enum with `const fn as_str(self) -> &'static str`.
+///
+/// Listing every variant makes a stored value read back as the one whose
+/// `as_str` it is. A `TEXT[]` reads as a `Vec` of it.
 macro_rules! text_column {
     ($type:ident: $($variant:ident),+ $(,)?) => {
         impl sqlx::Type<sqlx::Postgres> for $type {
@@ -24,6 +26,16 @@ macro_rules! text_column {
                 buf: &mut sqlx::postgres::PgArgumentBuffer,
             ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
                 <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
+            }
+        }
+
+        impl sqlx::postgres::PgHasArrayType for $type {
+            fn array_type_info() -> sqlx::postgres::PgTypeInfo {
+                <&str as sqlx::postgres::PgHasArrayType>::array_type_info()
+            }
+
+            fn array_compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+                <&str as sqlx::postgres::PgHasArrayType>::array_compatible(ty)
             }
         }
 

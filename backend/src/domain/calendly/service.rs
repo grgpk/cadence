@@ -334,11 +334,11 @@ async fn save_types(
             buffer_minutes: first.buffer_minutes,
             minimum_notice_hours: first.minimum_notice_hours,
             booking_window_days: first.booking_window_days,
-            ask_currently_working_on: is_first && first.ask_currently_working_on,
-            ask_how_heard_about_us: is_first && first.ask_how_heard_about_us,
-            ask_what_stopping_you: is_first && first.ask_what_stopping_you,
-            ask_investment_comfort: is_first && first.ask_investment_comfort,
-            ask_urgency_level: is_first && first.ask_urgency_level,
+            questions: if is_first {
+                first.questions.clone()
+            } else {
+                Vec::new()
+            },
             is_active: true,
         };
         let result = if is_first {

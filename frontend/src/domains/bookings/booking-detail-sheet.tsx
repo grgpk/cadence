@@ -5,7 +5,6 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import type { Booking } from "../../bindings/Booking";
-import type { Lead } from "../../bindings/Lead";
 import { Avatar, AvatarFallback } from "../../components/ui/avatar";
 import { Button } from "../../components/ui/button";
 import {
@@ -24,7 +23,7 @@ import { ConfirmDialog } from "../shared/confirm-dialog";
 import { PHASE_STYLES } from "../shared/day-phase-styles";
 import { ErrorState } from "../shared/error-state";
 import { BOOKING_STATUS, StatusBadge } from "../shared/status-badge";
-import { QUESTIONS } from "../widget/booking-form";
+import { answerTo, QUESTIONS } from "../widget/booking-form";
 import { AttendanceBadge } from "./agenda";
 import {
   attendanceOf,
@@ -34,15 +33,6 @@ import {
   isConfirmed,
   setNoShow,
 } from "./bookings";
-
-/** Where each form question's answer is kept on the lead. */
-const ANSWERS = {
-  ask_currently_working_on: "currently_working_on",
-  ask_how_heard_about_us: "how_heard_about_us",
-  ask_what_stopping_you: "what_stopping_you",
-  ask_investment_comfort: "investment_comfort",
-  ask_urgency_level: "urgency_level",
-} as const satisfies Record<(typeof QUESTIONS)[number]["flag"], keyof Lead>;
 
 /** When the call is, as a block on the day: the same rail its row in the list has. */
 function CallBlock({ booking, timeZone }: { booking: Booking; timeZone: string }) {
@@ -133,7 +123,7 @@ export function BookingDetailSheet({
     new Date(booking.slot_start).getTime() > Date.now();
   const answers = QUESTIONS.map((question) => ({
     label: question.label,
-    value: lead?.[ANSWERS[question.flag]],
+    value: lead ? answerTo(lead.answers, question.key) : null,
   })).filter((answer) => answer.value);
 
   return (

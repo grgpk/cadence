@@ -1,18 +1,17 @@
 CREATE TABLE bug_reports (
-    id                BIGSERIAL PRIMARY KEY,
-    unid              UUID NOT NULL DEFAULT gen_random_uuid(),
-    bugtype           TEXT NOT NULL,
-    similarityhash    INTEGER NOT NULL,
+    unid              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bug_type          TEXT NOT NULL,
+    similarity_hash   INTEGER NOT NULL,
     message           TEXT,
-    exceptionmessage  TEXT,
-    stacktrace        TEXT,
-    userlogin         TEXT,
+    exception_message TEXT,
+    stack_trace       TEXT,
+    user_login        TEXT,
     url               TEXT,
-    useragent         TEXT,
+    user_agent        TEXT,
     application       TEXT,
-    created           TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX bug_reports_created_idx ON bug_reports (created DESC);
-CREATE INDEX bug_reports_type_idx ON bug_reports (bugtype);
-CREATE INDEX bug_reports_similarity_idx ON bug_reports (similarityhash);
+CREATE INDEX bug_reports_created_idx ON bug_reports (created_at DESC);
+CREATE INDEX bug_reports_type_idx ON bug_reports (bug_type);
+CREATE INDEX bug_reports_similarity_idx ON bug_reports (similarity_hash);

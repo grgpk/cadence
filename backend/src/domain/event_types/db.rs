@@ -1,7 +1,7 @@
-use sqlx::{PgExecutor, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool};
 use uuid::Uuid;
 
-use super::models::{EventType, EventTypeInput};
+use super::models::{EventType, EventTypeInput, Question};
 
 /// The slug of the kind of call every host starts with.
 const FIRST_SLUG: &str = "call";
@@ -15,8 +15,10 @@ pub async fn list<'e, E: PgExecutor<'e>>(
         EventType,
         r#"SELECT unid, slug, title, description, duration_minutes, buffer_minutes,
                   minimum_notice_hours, booking_window_days,
-                  ask_currently_working_on, ask_how_heard_about_us, ask_what_stopping_you,
-                  ask_investment_comfort, ask_urgency_level, is_active,
+                  ARRAY(SELECT q.question FROM event_type_questions q
+                        WHERE q.event_type_unid = event_types.unid ORDER BY q.question)
+                      AS "questions!: Vec<Question>",
+                  is_active,
                   -- Set from the host's plan by the service.
                   true AS "bookable!"
            FROM event_types WHERE host_unid = $1 ORDER BY created_at, unid"#,
@@ -44,24 +46,17 @@ pub async fn ensure_first<'e, E: PgExecutor<'e>>(
     .map(|_| ())
 }
 
-pub async fn insert<'e, E: PgExecutor<'e>>(
-    executor: E,
+pub async fn insert(
+    connection: &mut PgConnection,
     host_unid: Uuid,
     input: &EventTypeInput,
-) -> Result<EventType, sqlx::Error> {
-    sqlx::query_as!(
-        EventType,
-        r#"INSERT INTO event_types (host_unid, slug, title, description, duration_minutes,
-                                    buffer_minutes, minimum_notice_hours, booking_window_days,
-                                    ask_currently_working_on, ask_how_heard_about_us,
-                                    ask_what_stopping_you, ask_investment_comfort,
-                                    ask_urgency_level, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-           RETURNING unid, slug, title, description, duration_minutes, buffer_minutes,
-                     minimum_notice_hours, booking_window_days,
-                     ask_currently_working_on, ask_how_heard_about_us, ask_what_stopping_you,
-                     ask_investment_comfort, ask_urgency_level, is_active,
-                     true AS "bookable!""#,
+) -> Result<Uuid, sqlx::Error> {
+    let unid = sqlx::query_scalar!(
+        "INSERT INTO event_types (host_unid, slug, title, description, duration_minutes,
+                                  buffer_minutes, minimum_notice_hours, booking_window_days,
+                                  is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+         RETURNING unid",
         host_unid,
         input.slug,
         input.title,
@@ -70,37 +65,27 @@ pub async fn insert<'e, E: PgExecutor<'e>>(
         input.buffer_minutes,
         input.minimum_notice_hours,
         input.booking_window_days,
-        input.ask_currently_working_on,
-        input.ask_how_heard_about_us,
-        input.ask_what_stopping_you,
-        input.ask_investment_comfort,
-        input.ask_urgency_level,
         input.is_active,
     )
-    .fetch_one(executor)
-    .await
+    .fetch_one(&mut *connection)
+    .await?;
+    set_questions(connection, unid, &input.questions).await?;
+    Ok(unid)
 }
 
-/// `None` when the host has no such type.
-pub async fn update<'e, E: PgExecutor<'e>>(
-    executor: E,
+/// `false` when the host has no such type.
+pub async fn update(
+    connection: &mut PgConnection,
     host_unid: Uuid,
     unid: Uuid,
     input: &EventTypeInput,
-) -> Result<Option<EventType>, sqlx::Error> {
-    sqlx::query_as!(
-        EventType,
-        r#"UPDATE event_types SET slug = $3, title = $4, description = $5, duration_minutes = $6,
-                  buffer_minutes = $7, minimum_notice_hours = $8, booking_window_days = $9,
-                  ask_currently_working_on = $10, ask_how_heard_about_us = $11,
-                  ask_what_stopping_you = $12, ask_investment_comfort = $13,
-                  ask_urgency_level = $14, is_active = $15, updated_at = now()
-           WHERE host_unid = $1 AND unid = $2
-           RETURNING unid, slug, title, description, duration_minutes, buffer_minutes,
-                     minimum_notice_hours, booking_window_days,
-                     ask_currently_working_on, ask_how_heard_about_us, ask_what_stopping_you,
-                     ask_investment_comfort, ask_urgency_level, is_active,
-                     true AS "bookable!""#,
+) -> Result<bool, sqlx::Error> {
+    let found = sqlx::query_scalar!(
+        "UPDATE event_types SET slug = $3, title = $4, description = $5, duration_minutes = $6,
+                buffer_minutes = $7, minimum_notice_hours = $8, booking_window_days = $9,
+                is_active = $10, updated_at = now()
+         WHERE host_unid = $1 AND unid = $2
+         RETURNING 1",
         host_unid,
         unid,
         input.slug,
@@ -110,15 +95,40 @@ pub async fn update<'e, E: PgExecutor<'e>>(
         input.buffer_minutes,
         input.minimum_notice_hours,
         input.booking_window_days,
-        input.ask_currently_working_on,
-        input.ask_how_heard_about_us,
-        input.ask_what_stopping_you,
-        input.ask_investment_comfort,
-        input.ask_urgency_level,
         input.is_active,
     )
-    .fetch_optional(executor)
+    .fetch_optional(&mut *connection)
+    .await?
+    .is_some();
+    if found {
+        set_questions(connection, unid, &input.questions).await?;
+    }
+    Ok(found)
+}
+
+/// Replaces the questions a type asks.
+async fn set_questions(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    questions: &[Question],
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM event_type_questions WHERE event_type_unid = $1 RETURNING 1",
+        unid
+    )
+    .fetch_all(&mut *connection)
+    .await?;
+    sqlx::query_scalar!(
+        "INSERT INTO event_type_questions (event_type_unid, question)
+         SELECT $1, question FROM unnest($2::text[]) AS question
+         ON CONFLICT DO NOTHING
+         RETURNING 1",
+        unid,
+        questions as &[Question],
+    )
+    .fetch_all(connection)
     .await
+    .map(|_| ())
 }
 
 /// `false` when the host has no such type. Calls booked with it stay.

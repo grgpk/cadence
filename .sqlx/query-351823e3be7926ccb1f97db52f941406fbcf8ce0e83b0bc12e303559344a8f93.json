@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE contacts c SET\n             email = COALESCE($2, c.email),\n             first_name = COALESCE($3, (SELECT o.first_name FROM contacts o WHERE o.unid = $7 AND o.unid <> $1), c.first_name),\n             last_name = COALESCE($4, (SELECT o.last_name FROM contacts o WHERE o.unid = $7 AND o.unid <> $1), c.last_name),\n             phone = COALESCE($5, (SELECT o.phone FROM contacts o WHERE o.unid = $7 AND o.unid <> $1), c.phone),\n             country_code = COALESCE($6, (SELECT o.country_code FROM contacts o WHERE o.unid = $7 AND o.unid <> $1), c.country_code),\n             updated_at = now()\n         WHERE c.unid = $1\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "351823e3be7926ccb1f97db52f941406fbcf8ce0e83b0bc12e303559344a8f93"
+}

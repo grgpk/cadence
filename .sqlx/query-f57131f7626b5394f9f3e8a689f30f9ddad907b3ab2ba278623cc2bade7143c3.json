@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO leads (unid, host_unid, calling_visit_unid) VALUES ($1, $2, $3)\n         ON CONFLICT (unid) DO UPDATE SET\n             calling_visit_unid = COALESCE($3, leads.calling_visit_unid),\n             updated_at = now()\n         WHERE leads.host_unid = $2\n         RETURNING contact_unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "contact_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "contact_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "f57131f7626b5394f9f3e8a689f30f9ddad907b3ab2ba278623cc2bade7143c3"
+}

@@ -118,7 +118,7 @@ function NeedsAttention() {
     {
       key: "errors",
       count: (bugs.data ?? []).filter(
-        (report) => new Date(report.created).getTime() >= since,
+        (report) => new Date(report.created_at).getTime() >= since,
       ).length,
       one: "kind of error in the last 24 hours",
       many: "kinds of error in the last 24 hours",

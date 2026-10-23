@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin/bug-reports")({
 });
 
 function errorTitle(report: AdminBugReport): string {
-  return report.message ?? report.exceptionmessage ?? "No message recorded";
+  return report.message ?? report.exception_message ?? "No message recorded";
 }
 
 const COLUMNS: Column<AdminBugReport>[] = [
@@ -28,12 +28,12 @@ const COLUMNS: Column<AdminBugReport>[] = [
           <DetailSheet
             trigger={errorTitle(report)}
             title={errorTitle(report)}
-            description={`${report.bugtype}, last seen ${formatDateTime(report.created)}`}
+            description={`${report.bug_type}, last seen ${formatDateTime(report.created_at)}`}
             fields={[
               { label: "Page", value: report.url },
-              { label: "Exception", value: report.exceptionmessage },
-              { label: "Signed in as", value: report.userlogin },
-              { label: "Browser", value: report.useragent },
+              { label: "Exception", value: report.exception_message },
+              { label: "Signed in as", value: report.user_login },
+              { label: "Browser", value: report.user_agent },
               { label: "Application", value: report.application },
               {
                 label: "Times seen",
@@ -43,9 +43,9 @@ const COLUMNS: Column<AdminBugReport>[] = [
           >
             <div className="grid gap-1 border-t px-4 py-3 text-sm">
               <p className="text-muted-foreground">Stack trace</p>
-              {report.stacktrace ? (
+              {report.stack_trace ? (
                 <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs leading-relaxed">
-                  {report.stacktrace}
+                  {report.stack_trace}
                 </pre>
               ) : (
                 <p className="text-muted-foreground">Not recorded</p>
@@ -59,7 +59,7 @@ const COLUMNS: Column<AdminBugReport>[] = [
   },
   {
     header: "Type",
-    cell: (report) => <Badge variant="secondary">{report.bugtype}</Badge>,
+    cell: (report) => <Badge variant="secondary">{report.bug_type}</Badge>,
   },
   {
     header: "Seen",
@@ -69,7 +69,7 @@ const COLUMNS: Column<AdminBugReport>[] = [
   {
     header: "Last seen",
     className: "text-right text-muted-foreground text-clock text-md",
-    cell: (report) => formatDateTime(report.created),
+    cell: (report) => formatDateTime(report.created_at),
   },
 ];
 
@@ -82,7 +82,7 @@ function AdminBugReportsPage() {
       rowKey={(report) => report.unid}
       columns={COLUMNS}
       searchText={(report) =>
-        [errorTitle(report), report.url, report.bugtype, report.userlogin]
+        [errorTitle(report), report.url, report.bug_type, report.user_login]
           .filter(Boolean)
           .join(" ")
       }

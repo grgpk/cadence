@@ -1,0 +1,185 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT l.unid, l.host_unid, l.created_at, l.updated_at,\n                  c.first_name AS \"first_name?\", c.last_name AS \"last_name?\", c.email AS \"email?\",\n                  c.phone AS \"phone?\", c.country_code AS \"country_code?\",\n                  v.source_page AS \"source_page?\", v.utm_source AS \"utm_source?\",\n                  v.utm_medium AS \"utm_medium?\", v.utm_campaign AS \"utm_campaign?\",\n                  l.form_submitted_at\n           FROM leads l\n           LEFT JOIN contacts c ON c.unid = l.contact_unid\n           LEFT JOIN calling_visits v ON v.unid = l.calling_visit_unid\n           WHERE l.host_unid = $1 AND l.unid = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "host_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "host_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "first_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "first_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "last_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "last_name"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "email?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "phone?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "phone"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "country_code?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "country_code"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "source_page?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "source_page"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "utm_source?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "utm_source"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "utm_medium?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "utm_medium"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "utm_campaign?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "calling_visits",
+            "name": "utm_campaign"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "form_submitted_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "form_submitted_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "2f7906ce97f55ba7c3744b8315e2fa3d49425d37426e623ce2e7c1b6d0da3b84"
+}

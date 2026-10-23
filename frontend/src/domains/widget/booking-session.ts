@@ -21,7 +21,7 @@ export type BookingApi = {
   createCallingVisit: (request: CallingVisitRequest) => Promise<CallingVisit>;
   updateCallingVisit: typeof updateCallingVisit;
   saveLead: (pageRef: PageRef, leadUnid: string, update: LeadUpdate) => Promise<Lead>;
-  submitLead: (pageRef: PageRef, leadUnid: string, sourcePage: string) => Promise<Lead>;
+  submitLead: (pageRef: PageRef, leadUnid: string) => Promise<Lead>;
   createBooking: (
     pageRef: PageRef,
     request: CreateBookingRequest,
@@ -129,22 +129,21 @@ export function createBookingSession(
 
     async saveDraft(values) {
       try {
-        await api.saveLead(pageRef, leadUnid, leadUpdate(values, arrival));
+        await api.saveLead(pageRef, leadUnid, leadUpdate(values, visitUnid));
       } catch {
         // The answers are saved again when the visitor books.
       }
     },
 
     async book({ slot, values, timezone, hour12, hostName, title }) {
-      await api.saveLead(pageRef, leadUnid, leadUpdate(values, arrival));
+      await api.saveLead(pageRef, leadUnid, leadUpdate(values, visitUnid));
       if (!leadSubmitted) {
-        await api.submitLead(pageRef, leadUnid, arrival.path);
+        await api.submitLead(pageRef, leadUnid);
         leadSubmitted = true;
         noteVisit({ form_submitted: true });
       }
       const booking = await api.createBooking(pageRef, {
         lead_unid: leadUnid,
-        calling_visit_unid: visitUnid,
         slot_start: slot.start,
         timezone,
         invitee_name: `${values.firstName.trim()} ${values.lastName.trim()}`.trim(),

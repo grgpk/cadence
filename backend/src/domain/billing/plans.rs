@@ -184,7 +184,7 @@ pub struct Entitlements {
     pub included_bookings_per_month: Option<u32>,
     #[ts(as = "Vec<Reminder>")]
     pub reminders: &'static [Reminder],
-    /// The `ask_*` booking form questions.
+    /// The booking form questions a kind of call can ask.
     pub custom_questions: bool,
     pub custom_accent: bool,
     /// No "Booked with Cadence" link on the booking page.

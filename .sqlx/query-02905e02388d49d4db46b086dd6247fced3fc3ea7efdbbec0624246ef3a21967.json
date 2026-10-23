@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM contacts c WHERE c.unid = $1\n           AND NOT EXISTS (SELECT 1 FROM leads l WHERE l.contact_unid = c.unid)\n           AND NOT EXISTS (SELECT 1 FROM bookings b WHERE b.contact_unid = c.unid)\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "02905e02388d49d4db46b086dd6247fced3fc3ea7efdbbec0624246ef3a21967"
+}

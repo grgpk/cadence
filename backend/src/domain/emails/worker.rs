@@ -103,7 +103,6 @@ async fn filled_in(
             let losses = billing::trial_losses_for(connection, &email.email).await?;
             service::with_trial_losses(email.payload.as_ref(), losses)
         }
-        service::TRIAL_STARTED_TEMPLATE => service::with_billing_url(email.payload.as_ref()),
         _ => return Ok(email.clone()),
     };
     Ok(PendingEmail {

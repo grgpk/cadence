@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH caller AS (\n               INSERT INTO contacts (host_unid, email, first_name)\n               VALUES ($1, 'past@example.com', 'Past caller')\n               RETURNING unid\n           )\n           INSERT INTO bookings (host_unid, contact_unid, slot_start, slot_end)\n           SELECT $1, caller.unid, now() - make_interval(hours => n + 1), now() - make_interval(hours => n)\n           FROM caller, generate_series(1, $2) AS n\n           RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "31cb582aecf1f7586d4c64a2367d62f5fe1eb96be11ed26cfb25d24d947964a7"
+}

@@ -14,7 +14,6 @@ use crate::domain::leads::models::Lead;
 )]
 pub struct CreateBookingRequest {
     pub lead_unid: Option<Uuid>,
-    pub calling_visit_unid: Option<Uuid>,
     pub slot_start: DateTime<Utc>,
     pub timezone: String,
     pub invitee_name: String,

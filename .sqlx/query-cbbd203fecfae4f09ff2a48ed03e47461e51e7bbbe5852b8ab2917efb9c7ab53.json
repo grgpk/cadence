@@ -1,0 +1,52 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT bug_type, user_login, url FROM bug_reports WHERE unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bug_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "bug_type"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "user_login",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "user_login"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "bug_reports",
+            "name": "url"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "cbbd203fecfae4f09ff2a48ed03e47461e51e7bbbe5852b8ab2917efb9c7ab53"
+}

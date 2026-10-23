@@ -4,6 +4,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::domain::auth::models::UserStatus;
+use crate::domain::event_types::models::Question;
 use crate::text_column::text_column;
 
 /// The values of the `widget_conferencing_app` check: where every call of a
@@ -100,11 +101,8 @@ pub struct BookingPage {
     pub title: String,
     pub description: String,
     pub timezone: String,
-    pub ask_currently_working_on: bool,
-    pub ask_how_heard_about_us: bool,
-    pub ask_what_stopping_you: bool,
-    pub ask_investment_comfort: bool,
-    pub ask_urgency_level: bool,
+    /// The booking form questions this type asks.
+    pub questions: Vec<Question>,
     pub calendar_connected: bool,
     pub conferencing_app: ConferencingApp,
     /// The link itself is only given to someone who has booked.

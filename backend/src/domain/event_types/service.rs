@@ -47,7 +47,10 @@ pub async fn list_in(
 }
 
 pub async fn create(pool: &PgPool, host_unid: Uuid, input: EventTypeInput) -> AppResult<EventType> {
-    create_in(pool, &mut *pool.acquire().await?, host_unid, input).await
+    let mut transaction = pool.begin().await?;
+    let created = create_in(pool, &mut transaction, host_unid, input).await?;
+    transaction.commit().await?;
+    Ok(created)
 }
 
 /// Adds a type through `connection`, as part of a larger change.
@@ -62,7 +65,7 @@ pub async fn create_in(
     if db::list(&mut *connection, host_unid).await?.len() >= allowed(&entitlements) {
         return Err(AppError::PlanRequired("more event types"));
     }
-    if !entitlements.custom_questions && input.asks().contains(&true) {
+    if !entitlements.custom_questions && !input.questions.is_empty() {
         return Err(AppError::PlanRequired("custom booking questions"));
     }
     db::insert(&mut *connection, host_unid, &input)
@@ -77,7 +80,10 @@ pub async fn update(
     unid: Uuid,
     input: EventTypeInput,
 ) -> AppResult<EventType> {
-    update_in(pool, &mut *pool.acquire().await?, host_unid, unid, input).await
+    let mut transaction = pool.begin().await?;
+    let updated = update_in(pool, &mut transaction, host_unid, unid, input).await?;
+    transaction.commit().await?;
+    Ok(updated)
 }
 
 /// Changes a type through `connection`, as part of a larger change.
@@ -94,10 +100,9 @@ pub async fn update_in(
         // Questions saved under a paid plan stay saved; new ones need one.
         let saved = find_in(pool, connection, host_unid, Some(unid)).await?;
         if input
-            .asks()
-            .into_iter()
-            .zip(saved.asks())
-            .any(|(now, before)| now && !before)
+            .questions
+            .iter()
+            .any(|question| !saved.questions.contains(question))
         {
             return Err(AppError::PlanRequired("custom booking questions"));
         }
@@ -105,6 +110,7 @@ pub async fn update_in(
     db::update(&mut *connection, host_unid, unid, &input)
         .await
         .map_err(slug_taken)?
+        .then_some(())
         .ok_or(AppError::NotFound)?;
     find_in(pool, connection, host_unid, Some(unid)).await
 }
@@ -161,6 +167,10 @@ fn cleaned(mut input: EventTypeInput) -> AppResult<EventTypeInput> {
     input.slug = input.slug.trim().to_lowercase();
     input.title = input.title.trim().to_owned();
     input.description = input.description.trim().to_owned();
+    input
+        .questions
+        .sort_unstable_by_key(|question| question.as_str());
+    input.questions.dedup();
     let bad = |message: &str| Err(AppError::BadRequest(message.to_owned()));
     if !is_link_slug(&input.slug, SLUG_MIN, SLUG_MAX) {
         return bad("link must be 2 to 40 lowercase letters, numbers or single dashes");
@@ -214,11 +224,7 @@ mod tests {
             buffer_minutes: 0,
             minimum_notice_hours: 0,
             booking_window_days: 7,
-            ask_currently_working_on: false,
-            ask_how_heard_about_us: false,
-            ask_what_stopping_you: false,
-            ask_investment_comfort: false,
-            ask_urgency_level: false,
+            questions: Vec::new(),
             is_active,
             bookable: true,
         }

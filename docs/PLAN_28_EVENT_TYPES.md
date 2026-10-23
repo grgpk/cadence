@@ -45,6 +45,9 @@ booking to it, then drops the moved columns from `widget_settings`. Checked on
 a copy of the dev data from before Plan 28: an upgraded and a fresh database
 end with the same columns, constraints and indexes.
 
+Plan 42 later folded this migration into the CREATE migrations; see
+`PLAN_42_SCHEMA_NORMALIZATION.md`.
+
 ```
 widget_settings  host_unid PK, public_slug, timezone, is_active,
                  meeting_link, conferencing_app, accent_color

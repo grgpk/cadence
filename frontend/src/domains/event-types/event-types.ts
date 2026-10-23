@@ -1,6 +1,7 @@
 import type { Entitlements } from "../../bindings/Entitlements";
 import type { EventType } from "../../bindings/EventType";
 import type { EventTypeInput } from "../../bindings/EventTypeInput";
+import type { Question } from "../../bindings/Question";
 import { lengthLabel } from "../../lib/format";
 
 /** The same limits the API enforces. */
@@ -16,6 +17,19 @@ export function inputOf({
   ...input
 }: EventType): EventTypeInput {
   return input;
+}
+
+/**
+ * `questions` with `question` turned on or off, in the order the server
+ * keeps them.
+ */
+export function withQuestion(
+  questions: readonly Question[],
+  question: Question,
+  on: boolean,
+): Question[] {
+  const rest = questions.filter((asked) => asked !== question);
+  return (on ? [...rest, question] : rest).sort();
 }
 
 /** `base`, or `base-2`, `base-3`… whichever the host does not use yet. */
@@ -39,11 +53,7 @@ export function newTypeInput(existing: readonly EventType[]): EventTypeInput {
     buffer_minutes: 0,
     minimum_notice_hours: 4,
     booking_window_days: 7,
-    ask_currently_working_on: false,
-    ask_how_heard_about_us: false,
-    ask_what_stopping_you: false,
-    ask_investment_comfort: false,
-    ask_urgency_level: false,
+    questions: [],
     is_active: true,
   };
 }

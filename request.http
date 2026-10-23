@@ -118,13 +118,13 @@ GET {{baseUrl}}/api/host/event-types
 POST {{baseUrl}}/api/host/event-types
 Content-Type: application/json
 
-{"slug":"deep-dive-2","title":"Deep dive","description":"","duration_minutes":60,"buffer_minutes":15,"minimum_notice_hours":24,"booking_window_days":14,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"is_active":true}
+{"slug":"deep-dive-2","title":"Deep dive","description":"","duration_minutes":60,"buffer_minutes":15,"minimum_notice_hours":24,"booking_window_days":14,"questions":[],"is_active":true}
 
 ### Update an event type (duration_minutes null follows the hours)
 PUT {{baseUrl}}/api/host/event-types/{{eventTypeUnid}}
 Content-Type: application/json
 
-{"slug":"coaching","title":"Book a coaching call","description":"","duration_minutes":null,"buffer_minutes":15,"minimum_notice_hours":4,"booking_window_days":7,"ask_currently_working_on":false,"ask_how_heard_about_us":false,"ask_what_stopping_you":false,"ask_investment_comfort":false,"ask_urgency_level":false,"is_active":true}
+{"slug":"coaching","title":"Book a coaching call","description":"","duration_minutes":null,"buffer_minutes":15,"minimum_notice_hours":4,"booking_window_days":7,"questions":[],"is_active":true}
 
 ### Delete an event type (409 for the last one)
 DELETE {{baseUrl}}/api/host/event-types/{{eventTypeUnid}}
@@ -148,7 +148,7 @@ GET {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/slots
 POST {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/leads/{{leadUnid}}
 Content-Type: application/json
 
-{"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","source_page":"/"}
+{"first_name":"Ada","last_name":"Lovelace","email":"ada@example.com","answers":[{"question":"urgency_level","answer":"7-8 (High priority)"}]}
 
 ### Track widget visit
 POST {{baseUrl}}/api/calling-visits
@@ -161,7 +161,7 @@ Content-Type: application/json
 POST {{baseUrl}}/api/hosts/{{slug}}/types/{{type}}/bookings
 Content-Type: application/json
 
-{"lead_unid":"{{leadUnid}}","calling_visit_unid":null,"slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
+{"lead_unid":"{{leadUnid}}","slot_start":"2026-10-12T07:00:00Z","timezone":"Europe/Paris","invitee_name":"Ada Lovelace","invitee_email":"ada@example.com"}
 
 ### My webhooks (secrets included; Business only)
 GET {{baseUrl}}/api/host/webhooks

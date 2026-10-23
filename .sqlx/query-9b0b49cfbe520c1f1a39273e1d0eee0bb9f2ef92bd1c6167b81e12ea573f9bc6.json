@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO contacts (host_unid, email, first_name) VALUES ($1, $2, $3)\n         ON CONFLICT (host_unid, lower(email)) WHERE email IS NOT NULL\n         DO UPDATE SET updated_at = now()\n         RETURNING unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "9b0b49cfbe520c1f1a39273e1d0eee0bb9f2ef92bd1c6167b81e12ea573f9bc6"
+}

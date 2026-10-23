@@ -1,0 +1,77 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid, first_name, last_name, email AS \"email!\", left_at AS \"left_at!\"\n           FROM (\n               SELECT DISTINCT ON (c.unid)\n                      l.unid, c.first_name, c.last_name, c.email, l.updated_at AS left_at\n               FROM leads l\n               JOIN contacts c ON c.unid = l.contact_unid\n               WHERE l.host_unid = $1\n                 AND c.email IS NOT NULL\n                 AND c.followed_up_at IS NULL\n                 AND l.updated_at >= $2\n                 AND l.updated_at < now() - interval '1 hour'\n                 AND NOT EXISTS (\n                     SELECT 1 FROM bookings b\n                     WHERE b.contact_unid = c.unid\n                       AND b.created_at >= l.created_at - interval '1 day'\n                 )\n               ORDER BY c.unid, l.updated_at DESC\n           ) latest\n           ORDER BY left_at DESC\n           LIMIT 50",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "first_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "first_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "last_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "last_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "email!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "contacts",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "left_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "leads",
+            "name": "updated_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "37d31b4742843a56c162a5b1bc392e8ba8ae3d87709c1583bbc8e080095d0b27"
+}

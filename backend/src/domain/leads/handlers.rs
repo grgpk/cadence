@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use super::service::LeadsService;
 use super::{
-    models::{Lead, LeadUpdate, SubmitLeadRequest, UnfinishedLead},
+    models::{Lead, LeadUpdate, UnfinishedLead},
     service,
 };
 use crate::{
@@ -66,7 +66,6 @@ pub async fn submit(
     State(state): State<AppState>,
     Path((slug, type_slug, lead_unid)): Path<(String, String, Uuid)>,
     headers: HeaderMap,
-    Json(body): Json<SubmitLeadRequest>,
 ) -> AppResult<Json<Lead>> {
     rate_limits::check(
         &state.pool,
@@ -75,13 +74,7 @@ pub async fn submit(
     )
     .await?;
     let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
-    let lead = service::submit(
-        &state.pool,
-        page.host_unid,
-        lead_unid,
-        body.source_page.as_deref(),
-    )
-    .await?;
+    let lead = service::submit(&state.pool, page.host_unid, lead_unid).await?;
     if lead.email.is_none() {
         return Err(AppError::BadRequest(
             "email is required before submit".to_owned(),

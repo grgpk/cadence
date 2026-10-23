@@ -139,7 +139,7 @@ export function DetailsStep({
   // when it is left, and goes quiet the moment it is fixed: it never scolds
   // while the visitor is still typing it.
   const [left, setLeft] = useState<ContactField[]>([]);
-  const allErrors = formErrors(values, page);
+  const allErrors = formErrors(values, page.questions);
   const errors: typeof allErrors = Object.fromEntries(
     Object.entries(allErrors).filter(([field]) =>
       isContactField(field) ? left.includes(field) : attempted,
@@ -152,7 +152,7 @@ export function DetailsStep({
   const edit = (field: ContactField, patch: Partial<FormValues>) => {
     const next = { ...values, ...patch };
     onChange(next);
-    if (left.includes(field) && !formErrors(next, page)[field]) {
+    if (left.includes(field) && !formErrors(next, page.questions)[field]) {
       setLeft(left.filter((each) => each !== field));
     }
   };
@@ -170,10 +170,10 @@ export function DetailsStep({
   const start = new Date(slot.start);
   const phase = dayPhase(zonedTime(start, timezone.iana).hour);
   const textQuestions = QUESTIONS.filter(
-    (question) => question.kind === "text" && page[question.flag],
+    (question) => question.kind === "text" && page.questions.includes(question.key),
   );
   const choiceQuestions = QUESTIONS.filter(
-    (question) => question.kind !== "text" && page[question.flag],
+    (question) => question.kind !== "text" && page.questions.includes(question.key),
   );
 
   return (
