@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useBlocker } from "@tanstack/react-router";
-import { Copy, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -13,7 +13,7 @@ import { billingQuery } from "../../domains/billing/billing-api";
 import { AccentField } from "../../domains/dashboard/accent-field";
 import { AccountSection } from "../../domains/dashboard/account-section";
 import { AppearanceSection } from "../../domains/dashboard/appearance-section";
-import { copyBookingLink } from "../../domains/dashboard/booking-link";
+import { CopyBookingLink } from "../../domains/dashboard/booking-link";
 import { hostSettingsQuery, saveHostSettings } from "../../domains/dashboard/host-api";
 import { SETTINGS_SECTIONS } from "../../domains/dashboard/routes";
 import { ConfirmDialog } from "../../domains/shared/confirm-dialog";
@@ -177,14 +177,7 @@ function SettingsForm({ saved }: { saved: HostSettings }) {
                 className="min-w-24 flex-1 rounded-l-none border-0 bg-card pl-1.5 shadow-none focus-visible:ring-0"
               />
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => copyBookingLink(saved.public_slug)}
-            >
-              <Copy />
-              Copy link
-            </Button>
+            <CopyBookingLink slug={saved.public_slug} variant="outline" />
           </div>
         </Field>
 

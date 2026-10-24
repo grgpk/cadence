@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ChevronRight, Copy, Eye, EyeOff, Loader2, Send, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, EyeOff, Loader2, Send, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -20,6 +20,7 @@ import { billingQuery } from "../billing/billing-api";
 import { PlanNotice } from "../billing/plan-notice";
 import { PLAN_NAMES } from "../pricing/pricing";
 import { ConfirmDialog } from "../shared/confirm-dialog";
+import { CopyButton } from "../shared/copy-button";
 import { Field, fieldHelpId } from "../shared/field";
 import { StatusBadge } from "../shared/status-badge";
 import {
@@ -153,20 +154,14 @@ function EndpointRow({
         >
           {showSecret ? <EyeOff /> : <Eye />}
         </Button>
-        <Button
+        <CopyButton
+          text={endpoint.secret}
+          failure="The secret could not be copied."
           variant="ghost"
           size="icon"
           className="size-7"
           aria-label="Copy secret"
-          onClick={() =>
-            navigator.clipboard.writeText(endpoint.secret).then(
-              () => toast.success("Secret copied"),
-              () => toast.error("The secret could not be copied."),
-            )
-          }
-        >
-          <Copy />
-        </Button>
+        />
         <div className="ml-auto flex gap-2">
           <Button
             variant="outline"

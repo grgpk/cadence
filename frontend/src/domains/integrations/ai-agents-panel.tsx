@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, KeyRound, Loader2, Trash2 } from "lucide-react";
+import { KeyRound, Loader2, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { errorMessage } from "../../lib/error-message";
 import { formatDate, formatDateTime } from "../../lib/format";
 import { QUERY_KEYS } from "../../lib/query-keys";
 import { ConfirmDialog } from "../shared/confirm-dialog";
+import { CopyButton } from "../shared/copy-button";
 import { Field, fieldHelpId } from "../shared/field";
 import {
   accessTokensQuery,
@@ -28,28 +29,20 @@ const CREATE_ERRORS = {
 
 const MCP_URL = mcpUrl(API_URL);
 
-function copy(text: string, what: string) {
-  navigator.clipboard.writeText(text).then(
-    () => toast.success(`${what} copied`),
-    () => toast.error(`The ${what.toLowerCase()} could not be copied.`),
-  );
-}
-
-/** Text to copy as it is, with a button that copies it. */
+/** Text to copy as it is, with a button that copies it and ticks once it has. */
 function Copyable({ label, text }: { label: string; text: string }) {
   return (
     <div className="grid gap-1.5">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{label}</span>
-        <Button
+        <CopyButton
+          text={text}
+          failure={`The ${label.toLowerCase()} could not be copied.`}
           variant="ghost"
           size="icon"
           className="size-7"
           aria-label={`Copy ${label.toLowerCase()}`}
-          onClick={() => copy(text, label)}
-        >
-          <Copy />
-        </Button>
+        />
       </div>
       <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs whitespace-pre">
         {text}

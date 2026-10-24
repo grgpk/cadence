@@ -1,11 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { Copy } from "lucide-react";
-import { toast } from "sonner";
 
-import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { ROUTES } from "../../lib/routes";
 import { formatCents } from "../pricing/pricing";
+import { CopyButton } from "../shared/copy-button";
 import { PanelCard } from "../shared/panel-card";
 import { referralsQuery } from "./billing-api";
 
@@ -16,11 +14,6 @@ export function InviteCard({ paying }: { paying: boolean }) {
   if (!referrals?.code) return null;
   const link = `${window.location.origin}${ROUTES.register}?ref=${referrals.code}`;
   const credit = formatCents(referrals.credit_cents);
-  const copy = () =>
-    navigator.clipboard.writeText(link).then(
-      () => toast.success("Invite link copied"),
-      () => toast.error("The link could not be copied. Select it and copy it."),
-    );
 
   return (
     <PanelCard
@@ -35,10 +28,13 @@ export function InviteCard({ paying }: { paying: boolean }) {
           className="min-w-0 flex-1 basis-64"
           onFocus={(event) => event.currentTarget.select()}
         />
-        <Button variant="outline" onClick={copy}>
-          <Copy />
+        <CopyButton
+          text={link}
+          failure="The link could not be copied. Select it and copy it."
+          variant="outline"
+        >
           Copy link
-        </Button>
+        </CopyButton>
       </div>
       {referrals.invited > 0 ? (
         <p className="text-sm text-muted-foreground">

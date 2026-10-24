@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useBlocker, useNavigate } from "@tanstack/react-router";
-import { Copy, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,7 +25,7 @@ import { bookingPath, ROUTES } from "../../lib/routes";
 import { SLOT_MINUTES } from "../availability/hours-form";
 import { billingQuery } from "../billing/billing-api";
 import { PlanNotice } from "../billing/plan-notice";
-import { copyBookingLink } from "../dashboard/booking-link";
+import { CopyBookingLink } from "../dashboard/booking-link";
 import { ConfirmDialog } from "../shared/confirm-dialog";
 import { Field, fieldHelpId } from "../shared/field";
 import { PanelCard } from "../shared/panel-card";
@@ -197,14 +197,7 @@ export function EventTypeForm({
                   className="min-w-24 flex-1 rounded-l-none border-0 bg-card pl-1.5 shadow-none focus-visible:ring-0"
                 />
               </div>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => copyBookingLink(`${hostSlug}/${original.slug}`)}
-              >
-                <Copy />
-                Copy link
-              </Button>
+              <CopyBookingLink slug={`${hostSlug}/${original.slug}`} variant="outline" />
             </div>
           </Field>
           <Field id={`${ID}-description`} label="Description" optional>

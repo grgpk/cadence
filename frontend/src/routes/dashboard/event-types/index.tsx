@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { ChevronRight, Clock, Copy, Import, Loader2, Plus } from "lucide-react";
+import { ChevronRight, Clock, Import, Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 
 import type { EventType } from "../../../bindings/EventType";
@@ -10,7 +10,7 @@ import { Card } from "../../../components/ui/card";
 import { Skeleton } from "../../../components/ui/skeleton";
 import { billingQuery } from "../../../domains/billing/billing-api";
 import { PlanNotice } from "../../../domains/billing/plan-notice";
-import { copyBookingLink } from "../../../domains/dashboard/booking-link";
+import { CopyBookingLink } from "../../../domains/dashboard/booking-link";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
 import {
   canAddType,
@@ -62,16 +62,15 @@ function TypeRow({ kind, hostSlug }: { kind: EventType; hostSlug: string }) {
           ) : null}
         </div>
       </div>
-      <Button
+      <CopyBookingLink
+        slug={path}
         variant="outline"
         size="sm"
         className="relative z-10"
         aria-label={`Copy link to ${kind.title}`}
-        onClick={() => copyBookingLink(path)}
       >
-        <Copy />
         <span className="max-sm:hidden">Copy link</span>
-      </Button>
+      </CopyBookingLink>
       <ChevronRight
         aria-hidden
         className="size-5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, Copy, ExternalLink } from "lucide-react";
+import { CalendarDays, ExternalLink } from "lucide-react";
 import { cn } from "cn";
 import { useState } from "react";
 
@@ -10,7 +10,7 @@ import { Skeleton } from "../../components/ui/skeleton";
 import { Agenda } from "../../domains/bookings/agenda";
 import { BookingDetailSheet } from "../../domains/bookings/booking-detail-sheet";
 import { bookingsQuery, dayPlan } from "../../domains/bookings/bookings";
-import { copyBookingLink } from "../../domains/dashboard/booking-link";
+import { CopyBookingLink } from "../../domains/dashboard/booking-link";
 import { SetupProblems, SetupSummary } from "../../domains/dashboard/booking-page-status";
 import {
   availabilityOverridesQuery,
@@ -49,10 +49,7 @@ function BookingLink({ slug }: { slug: string | undefined }) {
         {window.location.host}
         {bookingPath(slug)}
       </span>
-      <Button variant="outline" size="sm" onClick={() => copyBookingLink(slug)}>
-        <Copy />
-        Copy link
-      </Button>
+      <CopyBookingLink slug={slug} variant="outline" size="sm" />
       <Button variant="outline" size="sm" asChild>
         <Link to={ROUTES.bookingPage} params={{ slug }} target="_blank">
           <ExternalLink />
@@ -148,15 +145,12 @@ function DashboardHome() {
               title="Nothing booked after today"
               description="Share your booking page and new calls will show up here."
               action={
-                <Button
+                <CopyBookingLink
+                  slug={slug ?? ""}
                   variant="outline"
                   size="sm"
                   disabled={!slug}
-                  onClick={() => slug && copyBookingLink(slug)}
-                >
-                  <Copy />
-                  Copy link
-                </Button>
+                />
               }
             />
           ) : (

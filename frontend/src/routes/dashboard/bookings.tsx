@@ -1,10 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarDays, Copy, List, Search } from "lucide-react";
+import { CalendarDays, List, Search } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import type { Booking } from "../../bindings/Booking";
-import { Button } from "../../components/ui/button";
 import { Card } from "../../components/ui/card";
 import { Input } from "../../components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
@@ -22,7 +21,7 @@ import {
   matchesSearch,
   splitBookings,
 } from "../../domains/bookings/bookings";
-import { copyBookingLink } from "../../domains/dashboard/booking-link";
+import { CopyBookingLink } from "../../domains/dashboard/booking-link";
 import { availabilityQuery, hostSettingsQuery } from "../../domains/dashboard/host-api";
 import { EmptyState } from "../../domains/shared/empty-state";
 import { ErrorState } from "../../domains/shared/error-state";
@@ -241,15 +240,12 @@ function BookingsPage() {
                     title="No upcoming calls"
                     description="A call shows up here as soon as someone picks a time. Send your link to get the first one."
                     action={
-                      <Button
+                      <CopyBookingLink
+                        slug={slug ?? ""}
                         variant="outline"
                         size="sm"
                         disabled={!slug}
-                        onClick={() => slug && copyBookingLink(slug)}
-                      >
-                        <Copy />
-                        Copy link
-                      </Button>
+                      />
                     }
                   />
                 }
