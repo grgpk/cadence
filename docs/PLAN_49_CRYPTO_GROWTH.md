@@ -1,6 +1,11 @@
 # Plan 49: Crypto upgrades, refunds, NOWPayments, production BTCPay, pricing page
 
-Status: in progress.
+Status: implemented.
+- Backend: fmt, clippy, every test passes (crypto 16 HTTP, gateway contract
+  tables for both providers). Frontend: build, typecheck, lint, knip and tests
+  pass.
+- Milestone 4 (NOWPayments) is checked against recorded IPNs only. Milestone 5
+  is the "Crypto payments" section of `DEPLOYMENT.md`.
 - Milestones 1 to 3 are done and checked live against the local BTCPay on
   regtest. A paid Pro month moved to Business for $6.20 with the same end;
   refunding the upgrade went back to Pro, and refunding the month left

@@ -36,6 +36,7 @@ Application runtime secrets are separate and stay on the server:
 | Auth | `JWT_SECRET`, `APP_ENV`, `ENVIRONMENT`, `CORS_ORIGINS` |
 | Google Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` |
 | Resend SMTP | `EMAIL_FROM`, `RESEND_API_KEY`, `RESEND_SMTP_HOST`, `RESEND_SMTP_PORT`, `RESEND_SMTP_USERNAME` |
+| Crypto (optional) | `CRYPTO_PROVIDER`, then `BTCPAY_*` or `NOWPAYMENTS_*`: see [Crypto payments](#crypto-payments) |
 
 Create server runtime env. Never commit it:
 
@@ -118,6 +119,104 @@ docker logs -f "$BE"
 ```
 
 Verify with `curl -fsS https://bookcadence.app/health`.
+
+## Crypto payments
+
+Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 and 49).
+It stays off until `CRYPTO_PROVIDER` is set in `/root/cadence/.env`. Pick one
+provider; switching later is a change to `.env` and a redeploy.
+
+### BTCPay Server (self-hosted, no account anywhere)
+
+Run BTCPay on its own small server, not on the app's. It needs a Bitcoin node,
+and a pruned one keeps the disk small. Check BTCPay's docs for current
+hardware needs before you size it.
+
+1. **Server and DNS.** Point `A pay.bookcadence.app` at the new server.
+2. **Install** with the official
+   [btcpayserver-docker](https://github.com/btcpayserver/btcpayserver-docker):
+
+   ```sh
+   git clone https://github.com/btcpayserver/btcpayserver-docker
+   cd btcpayserver-docker
+   export BTCPAY_HOST="pay.bookcadence.app"
+   export NBITCOIN_NETWORK="mainnet"
+   export BTCPAYGEN_CRYPTO1="btc"
+   export BTCPAYGEN_REVERSEPROXY="nginx"
+   # A pruned node; see the repo's README for the storage fragments.
+   export BTCPAYGEN_ADDITIONAL_FRAGMENTS="opt-save-storage-s"
+   . ./btcpay-setup.sh -i
+   ```
+
+   Wait for the node to sync. The dashboard shows when it is done.
+3. **Admin and store.** The first account you register is the admin. Turn on
+   two-factor sign-in. Create a store named `Cadence` with USD as its default
+   currency.
+4. **Wallet, watch-only.**
+   - Use Store → Wallets → Bitcoin → *Connect an existing wallet*, and enter
+     the extended public key (xpub) of a hardware wallet.
+   - Never generate a hot wallet here: with an xpub, no private key is on the
+     server.
+   - Refunds then wait in Store → Payouts until you approve and sign them with
+     the hardware wallet.
+5. **Checkout settings.**
+   - Invoices expire after 15 minutes (the default).
+   - Payment tolerance is 0%.
+   - The speed policy is *Medium* (one confirmation), which is plenty for
+     $10–$156 plans.
+6. **Webhook.**
+   - Go to Store → Settings → Webhooks → *Create*.
+   - URL `https://bookcadence.app/api/billing/crypto/webhook`, every event,
+     automatic redelivery on.
+   - Copy the secret.
+7. **API key.**
+   - Go to Account → API keys → *Generate*, for the Cadence store only.
+   - Give it these permissions: create invoices, view invoices, create pull
+     payments (for refunds).
+8. **App settings,** then redeploy:
+
+   ```sh
+   CRYPTO_PROVIDER=btcpay
+   BTCPAY_URL=https://pay.bookcadence.app
+   BTCPAY_STORE_ID=<Store settings → General → Store ID>
+   BTCPAY_API_KEY=<the key from step 7>
+   BTCPAY_WEBHOOK_SECRET=<the secret from step 6>
+   ```
+
+9. **Check it** with a small real payment:
+   - `curl -fsS https://bookcadence.app/api/billing/crypto/options` answers
+     `"available":true`.
+   - Pay for a Pro month from Billing. In BTCPay, the webhook's deliveries
+     show `200`.
+   - `/admin/plans` shows the host with a *Crypto* badge.
+   - Refund it from the row's menu, and claim the refund with the emailed link.
+
+If a webhook is missed, the backend asks BTCPay about unsettled invoices every
+5 minutes and credits a paid one anyway.
+
+### NOWPayments (hosted, many coins and stablecoins)
+
+1. **Account.** Make an account at nowpayments.io and set its payout wallet.
+   Follow their KYC rules for your country and volume.
+2. **Keys.** In the dashboard, create an API key and an IPN secret.
+3. **App settings,** then redeploy:
+
+   ```sh
+   CRYPTO_PROVIDER=nowpayments
+   NOWPAYMENTS_API_KEY=<API key>
+   NOWPAYMENTS_IPN_SECRET=<IPN secret>
+   NOWPAYMENTS_IPN_URL=https://bookcadence.app/api/billing/crypto/webhook
+   ```
+
+4. **Try the sandbox first.** It needs its own sandbox account. Set
+   `NOWPAYMENTS_API_URL=https://api-sandbox.nowpayments.io`, because the
+   adapter has only been checked against recorded IPNs.
+
+Limits next to BTCPay:
+- **Missed IPNs:** NOWPayments has no invoice lookup with an API key, so a
+  missed IPN is not caught by the 5-minute check.
+- **Refunds:** refunding from `/admin/plans` takes the time back but sends no
+  money. Send the refund from the NOWPayments dashboard.
 
 ## Backups
 
