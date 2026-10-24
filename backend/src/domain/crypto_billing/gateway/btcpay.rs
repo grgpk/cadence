@@ -41,6 +41,15 @@ struct CreatedInvoice {
     checkout_link: String,
 }
 
+/// An invoice as the API answers it, with only the fields read here.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InvoiceState {
+    status: String,
+    #[serde(default)]
+    additional_status: String,
+}
+
 /// A store webhook event, with only the fields read here.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -117,6 +126,30 @@ impl BtcPay {
         })
     }
 
+    pub(super) async fn invoice_status(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<PaymentStatus, GatewayError> {
+        let invoice: InvoiceState = self
+            .client
+            .get(format!(
+                "{}/api/v1/stores/{}/invoices/{provider_invoice_id}",
+                self.url, self.store_id
+            ))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("token {}", self.api_key),
+            )
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|error| GatewayError::Request(error.into()))?
+            .json()
+            .await
+            .map_err(|error| GatewayError::Request(error.into()))?;
+        Ok(status_of(&invoice))
+    }
+
     pub(super) fn parse_webhook(
         &self,
         headers: &HeaderMap,
@@ -170,6 +203,18 @@ fn read(body: &[u8]) -> Result<Option<PaymentEvent>, WebhookError> {
         provider_invoice_id,
         status,
     }))
+}
+
+/// An invoice's status from the API, in Cadence's words, as its events say it.
+fn status_of(invoice: &InvoiceState) -> PaymentStatus {
+    match (invoice.status.as_str(), invoice.additional_status.as_str()) {
+        ("Settled", _) => PaymentStatus::Paid,
+        ("Processing", _) => PaymentStatus::Processing,
+        ("Expired", "PaidPartial") => PaymentStatus::Underpaid,
+        ("Expired", _) => PaymentStatus::Expired,
+        ("Invalid", _) => PaymentStatus::Failed,
+        _ => PaymentStatus::Pending,
+    }
 }
 
 #[cfg(test)]
@@ -259,6 +304,25 @@ mod tests {
                 })),
                 "{kind} {extra}"
             );
+        }
+    }
+
+    #[test]
+    fn an_invoice_read_back_says_what_its_events_say() {
+        for (status, additional, expected) in [
+            ("New", "None", PaymentStatus::Pending),
+            ("Processing", "None", PaymentStatus::Processing),
+            ("Settled", "PaidLate", PaymentStatus::Paid),
+            ("Settled", "None", PaymentStatus::Paid),
+            ("Expired", "PaidPartial", PaymentStatus::Underpaid),
+            ("Expired", "None", PaymentStatus::Expired),
+            ("Invalid", "Marked", PaymentStatus::Failed),
+        ] {
+            let invoice = InvoiceState {
+                status: status.to_owned(),
+                additional_status: additional.to_owned(),
+            };
+            assert_eq!(status_of(&invoice), expected, "{status} {additional}");
         }
     }
 

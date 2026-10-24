@@ -16,7 +16,10 @@ use cadence_backend::{
     domain::{
         auth::service::make_token,
         calendly::{client::Calendly, models::CalendlyAccount},
-        crypto_billing::gateway::{CryptoPayments, FAKE_SECRET_HEADER},
+        crypto_billing::{
+            gateway::{CryptoPayments, FAKE_SECRET_HEADER, PaymentStatus},
+            worker::reconcile,
+        },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
 };
@@ -394,4 +397,137 @@ async fn an_ended_period_leaves_the_stripe_plan_or_free(pool: PgPool) {
         "free"
     );
     assert_eq!(period_end(&app, &cookie).await, None);
+}
+
+/// Makes the payment look untouched for a while, as one whose events were lost.
+async fn quiet(pool: &PgPool, order: Uuid) -> String {
+    sqlx::query_scalar!(
+        r#"UPDATE crypto_payments SET updated_at = now() - interval '10 minutes'
+           WHERE unid = $1 RETURNING provider_invoice_id AS "invoice!""#,
+        order,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the payment has an invoice")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_paid_invoice_whose_events_were_lost_is_credited_on_the_next_pass(pool: PgPool) {
+    let crypto = CryptoPayments::fake(SECRET);
+    let app = app_with(&pool, Some(crypto.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    let invoice = quiet(&pool, order).await;
+
+    // Nothing new at the provider: nothing to apply.
+    assert_eq!(
+        reconcile(&pool, &crypto, Utc::now()).await.expect("a pass"),
+        0
+    );
+
+    crypto.set_fake_status(&invoice, PaymentStatus::Paid);
+    assert_eq!(
+        reconcile(&pool, &crypto, Utc::now()).await.expect("a pass"),
+        1
+    );
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "pro"
+    );
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+
+    // A paid payment is never asked about again, so it is never paid twice.
+    assert_eq!(
+        reconcile(&pool, &crypto, Utc::now()).await.expect("a pass"),
+        0
+    );
+    assert_eq!(period_end(&app, &cookie).await, Some(end));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_payment_that_just_changed_is_left_to_its_events(pool: PgPool) {
+    let crypto = CryptoPayments::fake(SECRET);
+    let app = app_with(&pool, Some(crypto.clone()));
+    let (_, cookie) = register(&app, "ada@example.com").await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    let invoice = sqlx::query_scalar!(
+        r#"SELECT provider_invoice_id AS "invoice!" FROM crypto_payments WHERE unid = $1"#,
+        order,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the payment has an invoice");
+
+    crypto.set_fake_status(&invoice, PaymentStatus::Paid);
+    assert_eq!(
+        reconcile(&pool, &crypto, Utc::now()).await.expect("a pass"),
+        0
+    );
+    assert_eq!(period_end(&app, &cookie).await, None);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_payment_landing_after_expiry_still_counts(pool: PgPool) {
+    let crypto = CryptoPayments::fake(SECRET);
+    let app = app_with(&pool, Some(crypto.clone()));
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+    let order = checkout(&app, &cookie, "business", "year").await;
+    event(&app, &pool, order, "expired", SECRET).await;
+    let invoice = quiet(&pool, order).await;
+
+    crypto.set_fake_status(&invoice, PaymentStatus::Paid);
+    assert_eq!(
+        reconcile(&pool, &crypto, Utc::now()).await.expect("a pass"),
+        1
+    );
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "business"
+    );
+}
+
+async fn grant_admin(pool: &PgPool, user: Uuid) {
+    sqlx::query_scalar!(
+        "INSERT INTO roleaccesses (grantedto_unid, role) VALUES ($1, 'Admin') RETURNING 1",
+        user,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("role is granted");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_admin_sees_a_plan_paid_in_crypto_and_until_when(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let order = checkout(&app, &cookie, "business", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+
+    let (status, rows) = send(
+        &app,
+        Method::GET,
+        "/api/admin/billing",
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let row = rows
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["email"] == "ada@example.com"))
+        .expect("the host is listed");
+    assert_eq!(row["plan"], "business");
+    let until: DateTime<Utc> =
+        serde_json::from_value(row["crypto_until"].clone()).expect("a crypto end");
+    assert_eq!(period_end(&app, &cookie).await, Some(until));
+    let other = rows
+        .as_array()
+        .and_then(|rows| rows.iter().find(|row| row["email"] == "admin@example.com"))
+        .expect("the admin is listed");
+    assert_eq!(other["crypto_until"], Value::Null);
 }

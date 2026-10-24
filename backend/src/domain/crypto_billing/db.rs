@@ -149,6 +149,31 @@ pub async fn active<'e, E: PgExecutor<'e>>(
     .await
 }
 
+/// A host's running period, for the admin's list of every host.
+pub struct HostPeriod {
+    pub user_unid: Uuid,
+    pub plan: Plan,
+    pub period_end: DateTime<Utc>,
+}
+
+/// Each host's longest running period, one row per host that has one.
+pub async fn active_by_host(
+    pool: &PgPool,
+    now: DateTime<Utc>,
+) -> Result<Vec<HostPeriod>, sqlx::Error> {
+    sqlx::query_as!(
+        HostPeriod,
+        r#"SELECT DISTINCT ON (user_unid) user_unid, plan AS "plan: Plan",
+                  period_end AS "period_end!"
+           FROM crypto_payments
+           WHERE status = 'paid' AND period_end > $1
+           ORDER BY user_unid, period_end DESC"#,
+        now,
+    )
+    .fetch_all(pool)
+    .await
+}
+
 /// Whether a payment was seen and waits for the network, since `since`.
 pub async fn confirming(
     pool: &PgPool,
@@ -174,4 +199,39 @@ pub async fn lock_user(connection: &mut PgConnection, user_unid: Uuid) -> Result
         .fetch_optional(connection)
         .await
         .map(|_| ())
+}
+
+/// A payment whose last word from the provider may not be its final one.
+pub struct Unsettled {
+    pub unid: Uuid,
+    pub provider_invoice_id: String,
+    pub status: PaymentStatus,
+}
+
+/// This provider's payments made since `since` that are not paid or failed
+/// and have been quiet since `quiet_since`, oldest first. Expired and
+/// underpaid ones are in: a payment can still land after expiry.
+pub async fn unsettled(
+    pool: &PgPool,
+    provider: CryptoProvider,
+    since: DateTime<Utc>,
+    quiet_since: DateTime<Utc>,
+    limit: i64,
+) -> Result<Vec<Unsettled>, sqlx::Error> {
+    sqlx::query_as!(
+        Unsettled,
+        r#"SELECT unid, provider_invoice_id AS "provider_invoice_id!",
+                  status AS "status: PaymentStatus"
+           FROM crypto_payments
+           WHERE provider = $1 AND provider_invoice_id IS NOT NULL
+             AND status IN ('pending', 'processing', 'expired', 'underpaid')
+             AND created_at > $2 AND updated_at < $3
+           ORDER BY created_at LIMIT $4"#,
+        provider.as_str(),
+        since,
+        quiet_since,
+        limit,
+    )
+    .fetch_all(pool)
+    .await
 }

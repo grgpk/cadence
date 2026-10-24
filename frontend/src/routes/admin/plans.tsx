@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import type { AdminPlan } from "../../bindings/AdminPlan";
+import { Badge } from "../../components/ui/badge";
 import { AdminDataPage } from "../../domains/admin/components/admin-data-page";
 import { ADMIN_PAGES } from "../../domains/admin/routes";
 import { planCounts, STATUS } from "../../domains/billing/billing";
@@ -19,15 +20,26 @@ export const Route = createFileRoute("/admin/plans")({
   component: AdminPlansPage,
 });
 
-/** The date that matters next: a trial's end, a renewal, or a cancellation. */
+/** Stripe bills this host now, so its renewal is the date that matters. */
+function stripeBills(row: AdminPlan): boolean {
+  return (
+    row.current_period_end !== null &&
+    (row.status === STATUS.ACTIVE || row.status === STATUS.PAST_DUE)
+  );
+}
+
+/**
+ * The date that matters next: the end of a crypto period, a trial's end, a
+ * renewal, or a cancellation.
+ */
 function nextDate(row: AdminPlan): string {
+  if (row.crypto_until && !stripeBills(row)) {
+    return `Crypto paid until ${formatDate(row.crypto_until)}`;
+  }
   if (row.status === STATUS.TRIALING && row.trial_ends_at) {
     return `Trial ends ${formatDate(row.trial_ends_at)}`;
   }
-  if (
-    row.current_period_end &&
-    (row.status === STATUS.ACTIVE || row.status === STATUS.PAST_DUE)
-  ) {
+  if (row.current_period_end && stripeBills(row)) {
     const verb = row.cancel_at_period_end ? "Ends" : "Renews";
     return `${verb} ${formatDate(row.current_period_end)}`;
   }
@@ -47,6 +59,7 @@ const COLUMNS: Column<AdminPlan>[] = [
         {row.status ? (
           <StatusBadge value={row.status} statuses={SUBSCRIPTION_STATUS} />
         ) : null}
+        {row.crypto_until ? <Badge variant="outline">Crypto</Badge> : null}
       </div>
     ),
   },

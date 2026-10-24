@@ -9,9 +9,10 @@
 mod btcpay;
 
 use std::{
+    collections::HashMap,
     env,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -121,11 +122,12 @@ enum Gateway {
     Fake(Arc<Fake>),
 }
 
-/// What the fake gateway needs: the secret its events carry, and a count
-/// for its invoice ids.
+/// What the fake gateway needs: the secret its events carry, a count for
+/// its invoice ids, and the statuses tests say its invoices are in.
 struct Fake {
     secret: String,
     invoices: AtomicUsize,
+    statuses: Mutex<HashMap<String, PaymentStatus>>,
 }
 
 /// The fake's event body: Cadence's own words, no provider's.
@@ -164,6 +166,7 @@ impl CryptoPayments {
             gateway: Gateway::Fake(Arc::new(Fake {
                 secret: secret.to_owned(),
                 invoices: AtomicUsize::new(0),
+                statuses: Mutex::default(),
             })),
         }
     }
@@ -188,6 +191,34 @@ impl CryptoPayments {
                     url: format!("https://crypto.test/i/{}", request.order_id),
                 })
             }
+        }
+    }
+
+    /// Where an invoice stands at the provider now, for a payment whose
+    /// events may have been lost.
+    pub async fn invoice_status(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<PaymentStatus, GatewayError> {
+        match &self.gateway {
+            Gateway::BtcPay(btcpay) => btcpay.invoice_status(provider_invoice_id).await,
+            Gateway::Fake(fake) => Ok(fake
+                .statuses
+                .lock()
+                .map_err(|_| GatewayError::Request(anyhow::anyhow!("fake statuses poisoned")))?
+                .get(provider_invoice_id)
+                .copied()
+                .unwrap_or(PaymentStatus::Pending)),
+        }
+    }
+
+    /// For tests: the fake's invoice is in `status` from now on, as its
+    /// provider would answer when asked. Does nothing on a real gateway.
+    pub fn set_fake_status(&self, provider_invoice_id: &str, status: PaymentStatus) {
+        if let Gateway::Fake(fake) = &self.gateway
+            && let Ok(mut statuses) = fake.statuses.lock()
+        {
+            statuses.insert(provider_invoice_id.to_owned(), status);
         }
     }
 

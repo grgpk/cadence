@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE crypto_payments SET updated_at = now() - interval '10 minutes'\n           WHERE unid = $1 RETURNING provider_invoice_id AS \"invoice!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "invoice!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider_invoice_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "a34b0260eb291824e4ac83a0baea6eb7490d1eb7d0d233fc21b144c0fd1c121b"
+}

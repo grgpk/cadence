@@ -1,0 +1,55 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid, provider_invoice_id AS \"provider_invoice_id!\",\n                  status AS \"status: PaymentStatus\"\n           FROM crypto_payments\n           WHERE provider = $1 AND provider_invoice_id IS NOT NULL\n             AND status IN ('pending', 'processing', 'expired', 'underpaid')\n             AND created_at > $2 AND updated_at < $3\n           ORDER BY created_at LIMIT $4",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "provider_invoice_id!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider_invoice_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "status: PaymentStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "status"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "216d1a57cecf3953e9336761059974c54e69b2c8b95b84553c4b7d961455ae33"
+}

@@ -14,4 +14,9 @@ plan: Plan,
 /**
  * `None` for a host who never had a trial or a subscription.
  */
-status: SubscriptionStatus | null, interval: BillingInterval | null, trial_ends_at: string | null, current_period_end: string | null, cancel_at_period_end: boolean, };
+status: SubscriptionStatus | null, interval: BillingInterval | null, trial_ends_at: string | null, current_period_end: string | null, cancel_at_period_end: boolean, 
+/**
+ * A plan paid for in crypto runs until then (Plan 48). `plan` already
+ * counts it.
+ */
+crypto_until: string | null, };

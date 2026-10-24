@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
     let worker =
         cadence_backend::domain::emails::worker::start(pool.clone(), shutdown_seen.clone());
     let webhook_worker =
-        cadence_backend::domain::webhooks::worker::start(pool.clone(), shutdown_seen);
+        cadence_backend::domain::webhooks::worker::start(pool.clone(), shutdown_seen.clone());
 
     let cors_origins: Vec<HeaderValue> = env::var("CORS_ORIGINS")
         .unwrap_or_else(|_| "http://localhost:3000".to_owned())
@@ -53,6 +53,11 @@ async fn main() -> anyhow::Result<()> {
     if crypto.is_none() {
         info!("CRYPTO_PROVIDER or its settings are not set: crypto payments are off");
     }
+    let crypto_worker = cadence_backend::domain::crypto_billing::worker::start(
+        pool.clone(),
+        crypto.clone(),
+        shutdown_seen,
+    );
     let app = cadence_backend::build_app(AppState {
         pool,
         calendar,
@@ -76,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
     let _ = shutdown.send(true);
     let _ = worker.await;
     let _ = webhook_worker.await;
+    let _ = crypto_worker.await;
     info!("Stopped");
     Ok(())
 }

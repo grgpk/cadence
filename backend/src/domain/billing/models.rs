@@ -63,6 +63,9 @@ pub struct AdminPlan {
     pub trial_ends_at: Option<DateTime<Utc>>,
     pub current_period_end: Option<DateTime<Utc>>,
     pub cancel_at_period_end: bool,
+    /// A plan paid for in crypto runs until then (Plan 48). `plan` already
+    /// counts it.
+    pub crypto_until: Option<DateTime<Utc>>,
 }
 
 /// An admin gives a host a paid plan for free, or takes it back with `None`.

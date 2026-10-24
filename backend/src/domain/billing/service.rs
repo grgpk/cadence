@@ -645,9 +645,11 @@ pub async fn cancellations(pool: &PgPool) -> AppResult<Vec<AdminCancellation>> {
 /// Every host and the plan that applies to them now, newest first.
 pub async fn host_plans(pool: &PgPool, now: DateTime<Utc>) -> AppResult<Vec<AdminPlan>> {
     let rows = db::host_plans(pool).await?;
+    let crypto = crypto_billing::active_by_host(pool, now).await?;
     Ok(rows
         .into_iter()
         .map(|row| {
+            let paid_in_crypto = crypto.get(&row.user_unid).copied();
             let stored = row.plan.zip(row.status).map(|(plan, status)| Subscription {
                 plan,
                 status,
@@ -656,11 +658,13 @@ pub async fn host_plans(pool: &PgPool, now: DateTime<Utc>) -> AppResult<Vec<Admi
                 current_period_end: row.current_period_end,
                 cancel_at_period_end: row.cancel_at_period_end.unwrap_or(false),
             });
+            let plan = effective_plan(stored.as_ref(), now);
             AdminPlan {
                 user_unid: row.user_unid,
                 full_name: row.full_name,
                 email: row.email,
-                plan: effective_plan(stored.as_ref(), now),
+                plan: paid_in_crypto.map_or(plan, |(crypto, _)| crypto.max(plan)),
+                crypto_until: paid_in_crypto.map(|(_, until)| until),
                 status: row.status,
                 interval: row.billing_interval,
                 trial_ends_at: row.trial_ends_at,

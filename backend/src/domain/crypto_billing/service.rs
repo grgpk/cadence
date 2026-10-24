@@ -3,6 +3,8 @@
 //! Hosts opt in from Billing. Stripe is never asked or changed; billing reads
 //! the period running here and gives the host the higher of the two plans.
 
+use std::collections::HashMap;
+
 use chrono::{DateTime, Duration, Months, Utc};
 use sqlx::{PgConnection, PgPool};
 use uuid::Uuid;
@@ -42,6 +44,18 @@ pub async fn active_plan(
     Ok(db::active(pool, user_unid, now)
         .await?
         .map(|period| period.plan))
+}
+
+/// Each host's running crypto plan and its end, for the admin's list.
+pub async fn active_by_host(
+    pool: &PgPool,
+    now: DateTime<Utc>,
+) -> Result<HashMap<Uuid, (Plan, DateTime<Utc>)>, sqlx::Error> {
+    Ok(db::active_by_host(pool, now)
+        .await?
+        .into_iter()
+        .map(|period| (period.user_unid, (period.plan, period.period_end)))
+        .collect())
 }
 
 pub async fn summary(

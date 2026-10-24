@@ -1,7 +1,7 @@
 # Plan 48: Opt-in crypto plan payments, BTCPay Server first
 
 Status: implemented.
-- Backend: fmt, clippy, every test passes (crypto 7 HTTP, billing 24 HTTP unchanged).
+- Backend: fmt, clippy, every test passes (crypto 11 HTTP, billing 24 HTTP unchanged).
 - Frontend: build, typecheck, lint, knip and tests pass.
 - Checked end to end against a local BTCPay Server on regtest: checkout, a
   real payment, signed events, the plan and the renewal email.
@@ -48,6 +48,9 @@ Status: implemented.
   - 409 while Stripe bills the host, or for a different plan while a crypto period runs.
   - 503 without a provider.
 - `POST /api/billing/crypto/webhook`: the provider's signed events.
+- `/api/admin/billing` rows gain `crypto_until`, and their `plan` counts the
+  crypto plan. The admin's Plans page shows a Crypto badge and "Crypto paid
+  until …".
 - `billing::entitlements_for` and `/api/billing/me` give the host the
   **higher** of the Stripe plan and the crypto plan (`Plan` derives `Ord`).
   No Stripe path changed. Trial losses are skipped for a host paying in crypto.
@@ -67,6 +70,20 @@ Status: implemented.
 - **Adding a provider** means one file, one `Gateway` variant, one arm in
   `from_env`, and a contract test that turns the provider's recorded events
   into the same statuses.
+
+## Reconciliation
+
+- `crypto_billing/worker.rs` runs every 5 minutes.
+  - It asks the provider (`CryptoPayments::invoice_status`) about this
+    provider's payments from the last 3 days that are pending, processing,
+    expired or underpaid and have been quiet for 2 minutes.
+  - When the provider says something different, the worker applies it through
+    `service::apply_event`, as if the event had arrived.
+- So an event that was lost, refused or blocked never leaves a paid invoice
+  uncredited. A payment that lands after expiry still counts, and a paid one is
+  never asked about again.
+- Checked live: an invoice paid while BTCPay could not reach the webhook was
+  credited on the worker's first pass.
 
 ## Frontend
 
@@ -115,15 +132,17 @@ Status: implemented.
   - a wrong secret or another invoice changes nothing
   - checkout is refused while Stripe bills or for another plan
   - an ended period leaves the Stripe plan or Free
-- `gateway/btcpay.rs`: the event contract table, bad signatures, and invoices Cadence didn't make.
+  - a paid invoice whose events were lost is credited on the next pass, once
+  - a payment that just changed is left to its events
+  - a payment landing after expiry still counts
+  - the admin sees a plan paid in crypto and until when
+- `gateway/btcpay.rs`: the event contract table, the invoice status read back,
+  bad signatures, and invoices Cadence didn't make.
 - `billing.test.ts`: `cryptoStatusLine`. `emails/service.rs`: the renewal email.
 
 ## Known limits and next steps
 
-- **A missed webhook means a paid invoice is never credited.** BTCPay retries
-  failed deliveries, but a reconciliation pass should still ask the provider
-  about invoices that are pending or processing (`Gateway::invoice_status`).
-- Switching plan mid-period, refunds and the admin's view of crypto plans are
-  out of scope.
+- Switching plan mid-period and refunds are out of scope. A refund is made in
+  BTCPay by hand, and the period then runs out on its own.
 - Production needs a BTCPay Server (self-hosted, or a third-party host) and a
   wallet whose keys stay off the server, such as an xpub or a hardware wallet.
