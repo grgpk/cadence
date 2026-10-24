@@ -55,7 +55,7 @@ pub async fn create(
     let page = host_settings::bookable_page(&state.pool, &slug, &type_slug).await?;
     Ok((
         axum::http::StatusCode::CREATED,
-        Json(service::create(&state.pool, &state.calendar, &page, request).await?),
+        Json(service::create_public(&state.pool, &state.calendar, &page, request).await?),
     ))
 }
 

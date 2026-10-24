@@ -222,7 +222,7 @@ async fn slots(app: &Router, slug: &str) -> Vec<DateTime<Utc>> {
         .collect()
 }
 
-fn booking(start: DateTime<Utc>, lead_unid: Option<Uuid>) -> Value {
+fn booking(start: DateTime<Utc>, lead_unid: Uuid) -> Value {
     json!({
         "lead_unid": lead_unid,
         "slot_start": start,
@@ -232,6 +232,21 @@ fn booking(start: DateTime<Utc>, lead_unid: Option<Uuid>) -> Value {
     })
 }
 
+/// A lead with Ada's phone, as the form saves it before booking.
+async fn lead_with_phone(app: &Router, slug: &str) -> Uuid {
+    let lead_unid = Uuid::new_v4();
+    let (status, _) = send(
+        app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{lead_unid}"),
+        None,
+        Some(json!({ "phone": "555 0100", "country_code": "+995" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    lead_unid
+}
+
 /// Books `start` as Ada and returns the call's id and its manage link token.
 async fn book(app: &Router, slug: &str, start: DateTime<Utc>) -> (Uuid, String) {
     let (status, booked) = send(
@@ -239,7 +254,7 @@ async fn book(app: &Router, slug: &str, start: DateTime<Utc>) -> (Uuid, String) 
         Method::POST,
         &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(app, slug).await)),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -498,7 +513,10 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
         Method::POST,
         &path,
         None,
-        Some(booking(start + Duration::minutes(7), None)),
+        Some(booking(
+            start + Duration::minutes(7),
+            lead_with_phone(&app, &slug).await,
+        )),
     )
     .await;
     assert_eq!(
@@ -512,7 +530,7 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
         Method::POST,
         &path,
         None,
-        Some(booking(start, Some(Uuid::new_v4()))),
+        Some(booking(start, Uuid::new_v4())),
     )
     .await;
     assert_eq!(
@@ -521,11 +539,25 @@ async fn a_booked_time_is_gone_for_the_next_visitor(pool: PgPool) {
         "the lead must be the host's own"
     );
 
-    let (status, booked) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    let (status, booked) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(booked["meeting_url"], Value::Null, "no Google, no own link");
 
-    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
+    )
+    .await;
     assert_eq!(status, StatusCode::CONFLICT);
     assert_eq!(slots(&app, &slug).await, open[1..]);
 
@@ -599,7 +631,7 @@ async fn a_booking_without_google_uses_the_hosts_meeting_link(pool: PgPool) {
         Method::POST,
         &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -698,7 +730,14 @@ async fn a_paused_page_can_be_read_but_not_booked(pool: PgPool) {
     let (status, _) = get(&app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let path = format!("/api/hosts/{slug}/types/call/bookings");
-    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(start, Uuid::new_v4())),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = send(
         &app,
@@ -714,7 +753,14 @@ async fn a_paused_page_can_be_read_but_not_booked(pool: PgPool) {
     paused["is_active"] = json!(true);
     let (status, _) = save_settings(&app, &host, &paused).await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
 }
 
@@ -754,19 +800,41 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
         Method::POST,
         &path,
         None,
-        Some(booking(open[0], Some(lead_unid))),
+        Some(booking(open[0], lead_unid)),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
-    let (status, without_lead) = send(
+    // The page books only someone the form has a phone for.
+    let mut without_lead = booking(open[1], lead_unid);
+    without_lead["lead_unid"] = Value::Null;
+    let (status, body) = send(&app, Method::POST, &path, None, Some(without_lead)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid input: lead_unid is required");
+    let no_phone = Uuid::new_v4();
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{no_phone}"),
+        None,
+        Some(json!({ "first_name": "Ada" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = send(
         &app,
         Method::POST,
         &path,
         None,
-        Some(booking(open[1], None)),
+        Some(booking(open[1], no_phone)),
     )
     .await;
-    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"], "invalid input: phone is required");
+    assert_eq!(
+        slots(&app, &slug).await,
+        open[1..],
+        "nothing more was booked"
+    );
 
     let detail_path = format!("/api/bookings/{}", with_lead["unid"].as_str().expect("id"));
     let (status, detail) = get(&app, &detail_path, Some(&host.cookie)).await;
@@ -788,18 +856,6 @@ async fn a_host_reads_their_booking_with_the_invitees_answers(pool: PgPool) {
         json!([{ "question": "urgency_level", "answer": "7-8 (High priority)" }]),
         "only asked questions keep an answer"
     );
-
-    let (status, detail) = get(
-        &app,
-        &format!(
-            "/api/bookings/{}",
-            without_lead["unid"].as_str().expect("id")
-        ),
-        Some(&host.cookie),
-    )
-    .await;
-    assert_eq!(status, StatusCode::OK);
-    assert_eq!(detail["lead"], Value::Null);
 
     let (status, _) = get(&app, &detail_path, None).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
@@ -825,7 +881,7 @@ async fn a_cancelled_call_frees_its_time_and_tells_the_invitee(pool: PgPool) {
         Method::POST,
         &book_path,
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -880,7 +936,7 @@ async fn a_cancelled_call_frees_its_time_and_tells_the_invitee(pool: PgPool) {
         Method::POST,
         &book_path,
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED, "the freed time can be booked");
@@ -889,7 +945,7 @@ async fn a_cancelled_call_frees_its_time_and_tells_the_invitee(pool: PgPool) {
         Method::POST,
         &book_path,
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT, "but only once");
@@ -1872,8 +1928,9 @@ async fn a_booking_with_bad_details_is_refused_and_takes_no_time(pool: PgPool) {
     let open = slots(&app, &slug).await;
     let start = open[0];
     let bookings_path = format!("/api/hosts/{slug}/types/call/bookings");
+    let lead_unid = lead_with_phone(&app, &slug).await;
     let try_booking = |field: &'static str, value: Value| {
-        let mut body = booking(start, None);
+        let mut body = booking(start, lead_unid);
         body[field] = value;
         send(&app, Method::POST, &bookings_path, None, Some(body))
     };
@@ -2109,7 +2166,7 @@ async fn try_to_book(app: &Router, slug: &str, start: DateTime<Utc>) -> StatusCo
         Method::POST,
         &format!("/api/hosts/{slug}/types/call/bookings"),
         None,
-        Some(booking(start, None)),
+        Some(booking(start, lead_with_phone(app, slug).await)),
     )
     .await
     .0
@@ -2600,7 +2657,14 @@ async fn a_free_page_keeps_taking_calls_past_the_included_month(pool: PgPool) {
     let (status, _) = get(&app, &format!("/api/hosts/{slug}/types/call/slots"), None).await;
     assert_eq!(status, StatusCode::OK);
     let path = format!("/api/hosts/{slug}/types/call/bookings");
-    let (status, _) = send(&app, Method::POST, &path, None, Some(booking(second, None))).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(second, lead_with_phone(&app, &slug).await)),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     assert_eq!(
         account_notices(&pool, "host_booking_limit").await,
@@ -2722,7 +2786,10 @@ async fn a_type_with_its_own_length_steps_through_the_same_hours(pool: PgPool) {
         Method::POST,
         &path,
         None,
-        Some(booking(tbilisi(3, 10, 0), None)),
+        Some(booking(
+            tbilisi(3, 10, 0),
+            lead_with_phone(&app, &slug).await,
+        )),
     )
     .await;
     assert_eq!(status, StatusCode::CREATED);
@@ -2810,7 +2877,14 @@ async fn a_call_outlives_its_type_and_the_last_type_stays(pool: PgPool) {
     let intro = types[1]["unid"].as_str().expect("the new type").to_owned();
     let start = type_slots(&app, &slug, "intro").await[0].0;
     let path = format!("/api/hosts/{slug}/types/intro/bookings");
-    let (status, booked) = send(&app, Method::POST, &path, None, Some(booking(start, None))).await;
+    let (status, booked) = send(
+        &app,
+        Method::POST,
+        &path,
+        None,
+        Some(booking(start, lead_with_phone(&app, &slug).await)),
+    )
+    .await;
     assert_eq!(status, StatusCode::CREATED);
     let token = booked["manage_token"]
         .as_str()

@@ -77,6 +77,10 @@ dashboard uses.
 | Booking page | `get_profile`, `update_profile` (only the fields sent change) |
 | Win back | `list_unfinished_leads`, `follow_up_lead` |
 
+`create_booking` books for the host without a lead, so it asks for no
+phone. The public booking endpoint refuses a call unless its lead has a
+phone, which the booking form saves before it books.
+
 Some areas have no tools:
 - billing, Google and Calendly connect, and webhooks, which need a browser or
   a secret

@@ -154,8 +154,18 @@ async fn book_first_slot(app: &Router, slug: &str) {
     )
     .await;
     let start = slots[0]["start"].clone();
+    let lead_unid = Uuid::new_v4();
+    let (status, _) = send(
+        app,
+        Method::POST,
+        &format!("/api/hosts/{slug}/types/call/leads/{lead_unid}"),
+        None,
+        Some(json!({ "phone": "555 0100", "country_code": "+995" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
     let booking = json!({
-        "lead_unid": null, "slot_start": start,
+        "lead_unid": lead_unid, "slot_start": start,
         "timezone": "Europe/Paris", "invitee_name": "Ada Lovelace", "invitee_email": "ada@example.com",
     });
     let path = format!("/api/hosts/{slug}/types/call/bookings");

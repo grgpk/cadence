@@ -44,6 +44,26 @@ pub async fn public_slots(
     slots::open_slots(pool, calendar, page, Utc::now(), None).await
 }
 
+/// A visitor books through the form, which saves their phone on the lead
+/// first. The host's own tools book with `create`, without one.
+pub async fn create_public(
+    pool: &PgPool,
+    calendar: &HostCalendar,
+    page: &BookingPage,
+    request: CreateBookingRequest,
+) -> AppResult<CreatedBooking> {
+    let Some(lead_unid) = request.lead_unid else {
+        return Err(AppError::BadRequest("lead_unid is required".to_owned()));
+    };
+    let Some(lead) = leads::get(pool, page.host_unid, lead_unid).await? else {
+        return Err(AppError::BadRequest("lead is unknown".to_owned()));
+    };
+    if lead.phone.is_none_or(|phone| phone.trim().is_empty()) {
+        return Err(AppError::BadRequest("phone is required".to_owned()));
+    }
+    create(pool, calendar, page, request).await
+}
+
 pub async fn create(
     pool: &PgPool,
     calendar: &HostCalendar,
