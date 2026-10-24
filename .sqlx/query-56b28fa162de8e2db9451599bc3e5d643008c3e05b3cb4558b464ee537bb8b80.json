@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT user_unid, provider AS \"provider: CryptoProvider\", provider_invoice_id,\n                  plan AS \"plan: Plan\", billing_interval AS \"billing_interval: BillingInterval\"\n           FROM crypto_payments WHERE unid = $1",
+  "query": "SELECT user_unid, provider AS \"provider: CryptoProvider\", kind AS \"kind: PaymentKind\",\n                  provider_invoice_id,\n                  plan AS \"plan: Plan\", billing_interval AS \"billing_interval: BillingInterval\"\n           FROM crypto_payments WHERE unid = $1",
   "describe": {
     "columns": [
       {
@@ -27,6 +27,17 @@
       },
       {
         "ordinal": 2,
+        "name": "kind: PaymentKind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
         "name": "provider_invoice_id",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,7 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
         "name": "plan: Plan",
         "type_info": "Text",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "billing_interval: BillingInterval",
         "type_info": "Text",
         "origin": {
@@ -67,10 +78,11 @@
     "nullable": [
       false,
       false,
+      false,
       true,
       false,
       false
     ]
   },
-  "hash": "87f22a49c4e6478923fccc08635d178cc0d9291b36fe53b3e15266ab3205e1f9"
+  "hash": "56b28fa162de8e2db9451599bc3e5d643008c3e05b3cb4558b464ee537bb8b80"
 }

@@ -25,6 +25,17 @@ pub struct CryptoSummary {
     pub active: Option<CryptoPlan>,
     /// A payment was seen and the network has not confirmed it yet.
     pub confirming: bool,
+    /// Moving the running period to a higher plan, and what it costs now.
+    pub upgrade: Option<CryptoUpgrade>,
+}
+
+/// The rest of a running period on a higher plan: the price difference for
+/// the time left.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/CryptoUpgrade.ts")]
+pub struct CryptoUpgrade {
+    pub plan: Plan,
+    pub amount_cents: u32,
 }
 
 /// A plan paid for in crypto, until `period_end`. It does not renew itself.

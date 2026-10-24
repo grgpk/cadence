@@ -25,8 +25,8 @@ const INTERVAL_OPTIONS: readonly { value: BillingInterval; label: string }[] = [
 
 /**
  * The opt-in to pay in crypto: a month or a year up front, next to Stripe's
- * plans and apart from them. A running period can only be renewed, not
- * switched to another plan.
+ * plans and apart from them. A running period can be renewed, or moved to a
+ * higher plan for the difference; never to a lower one.
  */
 export function CryptoCard({
   crypto,
@@ -44,6 +44,14 @@ export function CryptoCard({
   const plan: Plan = crypto.active?.plan ?? picked;
   const offer = offers.find((candidate) => candidate.plan === plan);
   const price = offer ? priceFor(offer, interval) : undefined;
+  // An upgrade keeps the running period's interval and end.
+  const upgrade =
+    crypto.active && crypto.upgrade
+      ? {
+          choice: { plan: crypto.upgrade.plan, interval: crypto.active.interval },
+          cents: crypto.upgrade.amount_cents,
+        }
+      : null;
   return (
     <PanelCard
       title="Pay with crypto"
@@ -84,15 +92,31 @@ export function CryptoCard({
             </span>
           ) : null}
         </div>
-        <Button
-          variant="outline"
-          onClick={() => onCheckout({ plan, interval })}
-          disabled={pending}
-        >
-          {pending ? <Loader2 className="animate-spin" /> : <Bitcoin />}
-          {crypto.active ? `Renew ${PLAN_NAMES[plan]} with crypto` : "Pay with crypto"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {upgrade ? (
+            <Button
+              variant="ghost"
+              onClick={() => onCheckout(upgrade.choice)}
+              disabled={pending}
+            >
+              Move to {PLAN_NAMES[upgrade.choice.plan]} for {formatCents(upgrade.cents)}
+            </Button>
+          ) : null}
+          <Button
+            variant="outline"
+            onClick={() => onCheckout({ plan, interval })}
+            disabled={pending}
+          >
+            {pending ? <Loader2 className="animate-spin" /> : <Bitcoin />}
+            {crypto.active ? `Renew ${PLAN_NAMES[plan]} with crypto` : "Pay with crypto"}
+          </Button>
+        </div>
       </div>
+      {upgrade ? (
+        <p className="text-sm text-muted-foreground">
+          Moving up keeps the end date: you pay only the difference for the time left.
+        </p>
+      ) : null}
     </PanelCard>
   );
 }

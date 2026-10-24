@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT plan AS \"plan: Plan\", billing_interval AS \"billing_interval: BillingInterval\",\n                  period_end AS \"period_end!\"\n           FROM crypto_payments\n           WHERE user_unid = $1 AND status = 'paid' AND period_end > $2\n           ORDER BY period_end DESC LIMIT 1",
+  "query": "SELECT plan AS \"plan: Plan\", billing_interval AS \"billing_interval: BillingInterval\",\n                  period_end AS \"period_end!\"\n           FROM crypto_payments\n           WHERE user_unid = $1 AND status = 'paid' AND period_end > $2\n           ORDER BY period_end DESC, plan = 'business' DESC LIMIT 1",
   "describe": {
     "columns": [
       {
@@ -49,5 +49,5 @@
       true
     ]
   },
-  "hash": "239b79f6b46082228435402c14ca121f985cccfce3bc0fabd69ce8f3dff4c8ab"
+  "hash": "ea63a80528dc894b2b57f7658d242cda15cf57dfca4ba49ba075f736740add01"
 }

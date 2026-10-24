@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT DISTINCT ON (user_unid) user_unid, plan AS \"plan: Plan\",\n                  period_end AS \"period_end!\"\n           FROM crypto_payments\n           WHERE status = 'paid' AND period_end > $1\n           ORDER BY user_unid, period_end DESC",
+  "query": "SELECT DISTINCT ON (user_unid) user_unid, plan AS \"plan: Plan\",\n                  period_end AS \"period_end!\"\n           FROM crypto_payments\n           WHERE status = 'paid' AND period_end > $1\n           ORDER BY user_unid, period_end DESC, plan = 'business' DESC",
   "describe": {
     "columns": [
       {
@@ -48,5 +48,5 @@
       true
     ]
   },
-  "hash": "af8ddfdd852a23ea214cb79ce7dbb384d7472f4f90fe56a7ef47946f74ca3df4"
+  "hash": "62ef5f0c787ce5868b74fada970cfcf774b9a080b5f1a518419cca685ab54a79"
 }

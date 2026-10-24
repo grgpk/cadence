@@ -72,7 +72,7 @@ const PORTAL_ERRORS = {
   503: PAYMENTS_OFF,
 };
 const CRYPTO_ERRORS = {
-  409: "You pay by card, or a crypto plan is running. Renew that plan, or pick another once it ends.",
+  409: "You pay by card, or a higher crypto plan is running. Reload to see your plan as it is now.",
   503: "Crypto payments are not set up yet. Try again later.",
 };
 const YEARLY_ERRORS = {

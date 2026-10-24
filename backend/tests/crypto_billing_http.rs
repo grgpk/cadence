@@ -319,7 +319,7 @@ async fn an_event_with_a_wrong_secret_or_for_another_invoice_changes_nothing(poo
 }
 
 #[sqlx::test(migrations = "../migrations")]
-async fn checkout_is_refused_while_stripe_bills_or_for_another_plan(pool: PgPool) {
+async fn checkout_is_refused_for_free_or_while_stripe_bills(pool: PgPool) {
     let app = app(&pool);
     let (unid, cookie) = register(&app, "ada@example.com").await;
     let pick = |plan: &str| json!({ "plan": plan, "interval": "month" });
@@ -336,15 +336,6 @@ async fn checkout_is_refused_while_stripe_bills_or_for_another_plan(pool: PgPool
 
     let order = checkout(&app, &cookie, "pro", "month").await;
     event(&app, &pool, order, "paid", SECRET).await;
-    let (status, _) = send(
-        &app,
-        Method::POST,
-        CHECKOUT,
-        Some(&cookie),
-        Some(pick("business")),
-    )
-    .await;
-    assert_eq!(status, StatusCode::CONFLICT);
     let (status, _) = send(
         &app,
         Method::POST,
@@ -554,4 +545,76 @@ async fn the_pricing_page_learns_whether_crypto_is_on_without_a_session(pool: Pg
     )
     .await;
     assert_eq!(options, json!({ "available": false, "coins": null }));
+}
+
+struct PaymentShape {
+    kind: String,
+    amount_cents: i32,
+    billing_interval: String,
+}
+
+async fn shape_of(pool: &PgPool, order: Uuid) -> PaymentShape {
+    sqlx::query_as!(
+        PaymentShape,
+        "SELECT kind, amount_cents, billing_interval FROM crypto_payments WHERE unid = $1",
+        order,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the payment exists")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_running_pro_period_moves_to_business_for_the_difference(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["upgrade"]["plan"], "business");
+    let quoted = crypto["upgrade"]["amount_cents"].as_i64().expect("a price");
+    // $6 a month more, for about a month left.
+    assert!((590..=625).contains(&quoted), "{quoted}");
+
+    // The interval asked for does not matter: an upgrade keeps the running one.
+    let upgrade = checkout(&app, &cookie, "business", "year").await;
+    let shape = shape_of(&pool, upgrade).await;
+    assert_eq!(shape.kind, "upgrade");
+    assert_eq!(shape.billing_interval, "month");
+    assert!((i64::from(shape.amount_cents) - quoted).abs() <= 1);
+    event(&app, &pool, upgrade, "paid", SECRET).await;
+
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "business"
+    );
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["active"]["plan"], "business");
+    assert_eq!(crypto["upgrade"], Value::Null);
+    assert_eq!(period_end(&app, &cookie).await, Some(end));
+
+    // Lower is refused; renewing renews Business after the same end.
+    let pick = |plan: &str| json!({ "plan": plan, "interval": "month" });
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(pick("pro")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let renewal = checkout(&app, &cookie, "business", "month").await;
+    assert_eq!(shape_of(&pool, renewal).await.amount_cents, 1600);
+    event(&app, &pool, renewal, "paid", SECRET).await;
+    let renewed = period_end(&app, &cookie).await.expect("a crypto period");
+    assert!(near(
+        renewed,
+        end.checked_add_months(Months::new(1)).expect("in range")
+    ));
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["active"]["plan"], "business");
 }

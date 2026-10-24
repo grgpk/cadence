@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO crypto_payments (user_unid, provider, plan, billing_interval, amount_cents)\n         VALUES ($1, $2, $3, $4, $5) RETURNING unid",
+  "query": "INSERT INTO crypto_payments (user_unid, provider, kind, plan, billing_interval, amount_cents)\n         VALUES ($1, $2, $3, $4, $5, $6) RETURNING unid",
   "describe": {
     "columns": [
       {
@@ -21,6 +21,7 @@
         "Text",
         "Text",
         "Text",
+        "Text",
         "Int4"
       ]
     },
@@ -28,5 +29,5 @@
       false
     ]
   },
-  "hash": "49fd55f7bf5d5f60b553d838f86d8408b8b26e0eadeb309e0f8cfca3ef32aabd"
+  "hash": "974cf7b43dc6d951978aad12da26362b9cbd526d6486a01b7afbe2642a8d1c29"
 }

@@ -3,18 +3,43 @@ use sqlx::{PgConnection, PgExecutor, PgPool};
 use uuid::Uuid;
 
 use super::gateway::{CryptoProvider, PaymentStatus};
-use crate::domain::billing::plans::{BillingInterval, Plan};
+use crate::{
+    domain::billing::plans::{BillingInterval, Plan},
+    text_column::text_column,
+};
+
+/// What a payment buys, as `crypto_payments.kind` stores it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PaymentKind {
+    /// One interval of a plan, after whatever is already paid.
+    Period,
+    /// The time already paid, moved to a higher plan. Adds no time.
+    Upgrade,
+}
+
+impl PaymentKind {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Period => "period",
+            Self::Upgrade => "upgrade",
+        }
+    }
+}
+
+text_column!(PaymentKind: Period, Upgrade);
 
 /// A payment as an event about it needs it.
 pub struct PaymentRow {
     pub user_unid: Uuid,
     pub provider: CryptoProvider,
+    pub kind: PaymentKind,
     pub provider_invoice_id: Option<String>,
     pub plan: Plan,
     pub billing_interval: BillingInterval,
 }
 
-/// The paid period that runs longest.
+/// The paid period that runs longest. At the same end, the higher plan: an
+/// upgrade ends with the period it upgrades.
 pub struct ActivePeriod {
     pub plan: Plan,
     pub billing_interval: BillingInterval,
@@ -24,6 +49,7 @@ pub struct ActivePeriod {
 pub struct NewPayment {
     pub user_unid: Uuid,
     pub provider: CryptoProvider,
+    pub kind: PaymentKind,
     pub plan: Plan,
     pub interval: BillingInterval,
     pub amount_cents: i32,
@@ -31,10 +57,11 @@ pub struct NewPayment {
 
 pub async fn insert_pending(pool: &PgPool, payment: &NewPayment) -> Result<Uuid, sqlx::Error> {
     sqlx::query_scalar!(
-        "INSERT INTO crypto_payments (user_unid, provider, plan, billing_interval, amount_cents)
-         VALUES ($1, $2, $3, $4, $5) RETURNING unid",
+        "INSERT INTO crypto_payments (user_unid, provider, kind, plan, billing_interval, amount_cents)
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING unid",
         payment.user_unid,
         payment.provider.as_str(),
+        payment.kind.as_str(),
         payment.plan.as_str(),
         payment.interval.as_str(),
         payment.amount_cents,
@@ -77,7 +104,8 @@ pub async fn find(
 ) -> Result<Option<PaymentRow>, sqlx::Error> {
     sqlx::query_as!(
         PaymentRow,
-        r#"SELECT user_unid, provider AS "provider: CryptoProvider", provider_invoice_id,
+        r#"SELECT user_unid, provider AS "provider: CryptoProvider", kind AS "kind: PaymentKind",
+                  provider_invoice_id,
                   plan AS "plan: Plan", billing_interval AS "billing_interval: BillingInterval"
            FROM crypto_payments WHERE unid = $1"#,
         unid,
@@ -141,7 +169,7 @@ pub async fn active<'e, E: PgExecutor<'e>>(
                   period_end AS "period_end!"
            FROM crypto_payments
            WHERE user_unid = $1 AND status = 'paid' AND period_end > $2
-           ORDER BY period_end DESC LIMIT 1"#,
+           ORDER BY period_end DESC, plan = 'business' DESC LIMIT 1"#,
         user_unid,
         now,
     )
@@ -167,7 +195,7 @@ pub async fn active_by_host(
                   period_end AS "period_end!"
            FROM crypto_payments
            WHERE status = 'paid' AND period_end > $1
-           ORDER BY user_unid, period_end DESC"#,
+           ORDER BY user_unid, period_end DESC, plan = 'business' DESC"#,
         now,
     )
     .fetch_all(pool)
