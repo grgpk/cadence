@@ -42,6 +42,14 @@ impl CryptoProvider {
             Self::Fake => "fake",
         }
     }
+
+    /// What a host can pay with, as the pricing and billing pages name it.
+    pub const fn coins(self) -> &'static str {
+        match self {
+            Self::BtcPay => "Bitcoin",
+            Self::Fake => "test coins",
+        }
+    }
 }
 
 text_column!(CryptoProvider: BtcPay, Fake);
@@ -60,6 +68,8 @@ pub enum PaymentStatus {
     Underpaid,
     Expired,
     Failed,
+    /// Paid, then given back by an admin. Its time no longer counts.
+    Refunded,
 }
 
 impl PaymentStatus {
@@ -71,11 +81,12 @@ impl PaymentStatus {
             Self::Underpaid => "underpaid",
             Self::Expired => "expired",
             Self::Failed => "failed",
+            Self::Refunded => "refunded",
         }
     }
 }
 
-text_column!(PaymentStatus: Pending, Processing, Paid, Underpaid, Expired, Failed);
+text_column!(PaymentStatus: Pending, Processing, Paid, Underpaid, Expired, Failed, Refunded);
 
 /// One invoice to make: a plan's price in US cents.
 pub struct InvoiceRequest<'a> {

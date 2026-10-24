@@ -12,6 +12,9 @@ CREATE TABLE crypto_payments (
     provider            TEXT NOT NULL,
     -- NULL until the provider has made the invoice.
     provider_invoice_id TEXT,
+    -- Plan 49: `period` buys an interval; `upgrade` moves the time already
+    -- paid to a higher plan and ends with it.
+    kind                TEXT NOT NULL DEFAULT 'period',
     plan                TEXT NOT NULL,
     billing_interval    TEXT NOT NULL,
     amount_cents        INTEGER NOT NULL,
@@ -19,17 +22,20 @@ CREATE TABLE crypto_payments (
     paid_at             TIMESTAMPTZ,
     -- Set when paid: the plan applies until then.
     period_end          TIMESTAMPTZ,
+    refunded_at         TIMESTAMPTZ,
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT crypto_payments_kind CHECK (kind IN ('period', 'upgrade')),
     CONSTRAINT crypto_payments_plan CHECK (plan IN ('pro', 'business')),
     CONSTRAINT crypto_payments_billing_interval CHECK (billing_interval IN ('month', 'year')),
     CONSTRAINT crypto_payments_amount CHECK (amount_cents > 0),
     CONSTRAINT crypto_payments_status CHECK (
-        status IN ('pending', 'processing', 'paid', 'underpaid', 'expired', 'failed')
+        status IN ('pending', 'processing', 'paid', 'underpaid', 'expired', 'failed', 'refunded')
     ),
     CONSTRAINT crypto_payments_paid CHECK (
-        status <> 'paid' OR (paid_at IS NOT NULL AND period_end IS NOT NULL)
+        status NOT IN ('paid', 'refunded') OR (paid_at IS NOT NULL AND period_end IS NOT NULL)
     ),
+    CONSTRAINT crypto_payments_refunded CHECK ((status = 'refunded') = (refunded_at IS NOT NULL)),
     CONSTRAINT crypto_payments_invoice UNIQUE (provider, provider_invoice_id)
 );
 

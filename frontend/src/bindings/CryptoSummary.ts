@@ -10,6 +10,10 @@ export type CryptoSummary = {
  */
 available: boolean, 
 /**
+ * What the provider takes, such as "Bitcoin". `None` when off.
+ */
+coins: string | null, 
+/**
  * The prepaid period running now, if any.
  */
 active: CryptoPlan | null, 

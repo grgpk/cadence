@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{
     db::{self, NewPayment},
     gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus},
-    models::{CryptoPlan, CryptoSummary},
+    models::{CryptoOptions, CryptoPlan, CryptoSummary},
 };
 use crate::{
     domain::{
@@ -58,6 +58,13 @@ pub async fn active_by_host(
         .collect())
 }
 
+pub fn options(crypto: Option<&CryptoPayments>) -> CryptoOptions {
+    CryptoOptions {
+        available: crypto.is_some(),
+        coins: crypto.map(|crypto| crypto.provider().coins()),
+    }
+}
+
 pub async fn summary(
     pool: &PgPool,
     crypto: Option<&CryptoPayments>,
@@ -67,6 +74,7 @@ pub async fn summary(
     let active = db::active(pool, user_unid, now).await?;
     Ok(CryptoSummary {
         available: crypto.is_some(),
+        coins: crypto.map(|crypto| crypto.provider().coins()),
         active: active.map(|period| CryptoPlan {
             plan: period.plan,
             interval: period.billing_interval,
@@ -173,7 +181,8 @@ pub async fn apply_event(
         return Ok(());
     }
     match event.status {
-        PaymentStatus::Pending => {}
+        // A refund is Cadence's own act, never a provider's event.
+        PaymentStatus::Pending | PaymentStatus::Refunded => {}
         PaymentStatus::Processing => {
             db::advance(
                 &mut transaction,

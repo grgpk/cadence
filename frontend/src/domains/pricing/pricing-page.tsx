@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check } from "lucide-react";
+import { Bitcoin, Check } from "lucide-react";
 import { useState } from "react";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
@@ -58,11 +58,14 @@ function StartButton({
 
 export function PricingPage({
   offers,
+  cryptoCoins,
   interval,
   needs,
   onChange,
 }: {
   offers: readonly PlanOffer[];
+  /** What a host can pay with in crypto, such as "Bitcoin". `null` when crypto is off. */
+  cryptoCoins: string | null;
   interval: BillingInterval;
   needs: WeekNeeds;
   onChange: (interval: BillingInterval, needs: WeekNeeds) => void;
@@ -143,6 +146,16 @@ export function PricingPage({
               ))}
             </PlanRow>
           </div>
+          {cryptoCoins ? (
+            <p className="mt-6 flex items-start gap-2.5 text-muted-foreground">
+              <Bitcoin className="mt-0.5 size-5 shrink-0 text-dusk" aria-hidden />
+              <span>
+                <span className="font-semibold text-foreground">Prefer crypto?</span> Pay
+                for a month or a year up front in {cryptoCoins} from Billing once you have
+                signed up. It does not renew by itself.
+              </span>
+            </p>
+          ) : null}
         </div>
       </section>
 
@@ -188,7 +201,7 @@ export function PricingPage({
           <h2 className="font-display font-wide text-3xl font-bold tracking-tight sm:text-4xl lg:sticky lg:top-20">
             Questions
           </h2>
-          <PricingFaq />
+          <PricingFaq cryptoCoins={cryptoCoins} />
         </div>
       </section>
 

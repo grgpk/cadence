@@ -50,7 +50,7 @@ export function CryptoCard({
       description={
         crypto.active
           ? cryptoStatusLine(crypto.active)
-          : "Pay for a month or a year up front in Bitcoin. Nothing renews by itself, and we email you 3 days before it ends."
+          : `Pay for a month or a year up front in ${crypto.coins ?? "crypto"}. Nothing renews by itself, and we email you 3 days before it ends.`
       }
     >
       {crypto.confirming ? (

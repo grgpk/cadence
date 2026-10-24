@@ -6,7 +6,10 @@ use axum::{
 };
 use chrono::Utc;
 
-use super::{models::CryptoSummary, service};
+use super::{
+    models::{CryptoOptions, CryptoSummary},
+    service,
+};
 use crate::{
     app_state::AppState,
     domain::{
@@ -15,6 +18,10 @@ use crate::{
     },
     error::{AppError, AppResult},
 };
+
+pub async fn options(State(state): State<AppState>) -> Json<CryptoOptions> {
+    Json(service::options(state.crypto.as_ref()))
+}
 
 pub async fn summary(
     State(state): State<AppState>,

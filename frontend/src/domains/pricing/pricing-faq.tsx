@@ -53,10 +53,19 @@ const QUESTIONS = [
   },
 ];
 
-export function PricingFaq() {
+/** Asked only where the server takes crypto. */
+function cryptoQuestion(coins: string) {
+  return {
+    question: "Can I pay with crypto?",
+    answer: `Yes, in ${coins}. After you sign up, pick a plan under Pay with crypto in Billing and pay for a month or a year up front. Crypto never renews by itself: we email you 3 days before the period ends, and you can move up to Business at any time for the difference.`,
+  };
+}
+
+export function PricingFaq({ cryptoCoins }: { cryptoCoins: string | null }) {
+  const questions = cryptoCoins ? [...QUESTIONS, cryptoQuestion(cryptoCoins)] : QUESTIONS;
   return (
     <Accordion type="single" collapsible>
-      {QUESTIONS.map(({ question, answer }) => (
+      {questions.map(({ question, answer }) => (
         <AccordionItem key={question} value={question}>
           <AccordionTrigger className="text-base">{question}</AccordionTrigger>
           <AccordionContent className="max-w-2xl text-muted-foreground">

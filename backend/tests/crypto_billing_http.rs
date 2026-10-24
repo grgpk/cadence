@@ -531,3 +531,27 @@ async fn the_admin_sees_a_plan_paid_in_crypto_and_until_when(pool: PgPool) {
         .expect("the admin is listed");
     assert_eq!(other["crypto_until"], Value::Null);
 }
+
+#[sqlx::test(migrations = "../migrations")]
+async fn the_pricing_page_learns_whether_crypto_is_on_without_a_session(pool: PgPool) {
+    let (status, options) = send(
+        &app(&pool),
+        Method::GET,
+        "/api/billing/crypto/options",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(options, json!({ "available": true, "coins": "test coins" }));
+
+    let (_, options) = send(
+        &app_with(&pool, None),
+        Method::GET,
+        "/api/billing/crypto/options",
+        None,
+        None,
+    )
+    .await;
+    assert_eq!(options, json!({ "available": false, "coins": null }));
+}

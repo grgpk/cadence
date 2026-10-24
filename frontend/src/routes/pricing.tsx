@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { getPlans } from "../domains/pricing/pricing-api";
+import { getCryptoOptions, getPlans } from "../domains/pricing/pricing-api";
 import {
   DEFAULT_INTERVAL,
   needsFrom,
@@ -18,7 +18,10 @@ const DESCRIPTION =
 export const Route = createFileRoute("/pricing")({
   // `?interval=&calls=&kinds=`: the answers survive the back button and a shared link.
   validateSearch: pricingSearch,
-  loader: () => getPlans(),
+  loader: async () => {
+    const [offers, crypto] = await Promise.all([getPlans(), getCryptoOptions()]);
+    return { offers, crypto };
+  },
   // The plans change with a deploy; moving the slider must not fetch them again.
   staleTime: Number.POSITIVE_INFINITY,
   head: () => ({
@@ -36,9 +39,11 @@ export const Route = createFileRoute("/pricing")({
 function PricingRoute() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
+  const { offers, crypto } = Route.useLoaderData();
   return (
     <PricingPage
-      offers={Route.useLoaderData()}
+      offers={offers}
+      cryptoCoins={crypto.coins}
       interval={search.interval ?? DEFAULT_INTERVAL}
       needs={needsFrom(search)}
       onChange={(interval, needs) =>

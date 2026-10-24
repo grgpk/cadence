@@ -7,7 +7,9 @@ use super::handlers;
 use crate::app_state::AppState;
 
 pub fn public_routes() -> Router<AppState> {
-    Router::new().route("/api/billing/crypto/webhook", post(handlers::webhook))
+    Router::new()
+        .route("/api/billing/crypto/options", get(handlers::options))
+        .route("/api/billing/crypto/webhook", post(handlers::webhook))
 }
 
 pub fn protected_routes() -> Router<AppState> {
