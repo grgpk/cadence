@@ -1,7 +1,7 @@
 import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
 import { cn } from "cn";
 import { ChevronRight, type LucideIcon } from "lucide-react";
-import { type ReactNode, useEffect, useState } from "react";
+import { type PointerEvent, type ReactNode, useEffect, useRef, useState } from "react";
 
 import type { SessionUser } from "../../bindings/SessionUser";
 import {
@@ -9,6 +9,13 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../../components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "../../components/ui/dropdown-menu";
 import {
   Sidebar,
   SidebarContent,
@@ -91,11 +98,87 @@ function activeLink<T extends NavLink>(pathname: string, links: T[]): T | undefi
     .sort((a, b) => b.to.length - a.to.length)[0];
 }
 
-/** A nav item with pages under it. Collapsed to icons, it opens its first page. */
 /** The page you are on lifts off the sidebar like a card, its icon in dusk. */
 const ACTIVE_NAV =
   "data-[active=true]:bg-card data-[active=true]:shadow-card data-[active=true]:[&>svg]:text-dusk";
 
+/** How long the pointer may be off a hover menu, crossing the gap, before it closes. */
+const HOVER_CLOSE_MS = 150;
+
+/**
+ * A group in the icon-only sidebar: its pages open beside it on hover, or on
+ * a tap or the keyboard.
+ */
+function CollapsedNavGroup({
+  item,
+  items,
+  active,
+  current,
+}: {
+  item: NavItem;
+  items: NavLink[];
+  active: boolean;
+  current: NavLink | undefined;
+}) {
+  const [open, setOpen] = useState(false);
+  const closing = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(closing.current), []);
+  const Icon = item.icon;
+  // A mouse opens and closes the menu by hovering; touch and keys keep the default.
+  const hover = {
+    onPointerEnter: (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      window.clearTimeout(closing.current);
+      setOpen(true);
+    },
+    onPointerLeave: (event: PointerEvent) => {
+      if (event.pointerType !== "mouse") return;
+      closing.current = window.setTimeout(() => setOpen(false), HOVER_CLOSE_MS);
+    },
+  };
+
+  return (
+    <SidebarMenuItem>
+      <DropdownMenu open={open} onOpenChange={setOpen} modal={false}>
+        <DropdownMenuTrigger
+          asChild
+          {...hover}
+          // Hover already opened it, so a click must not toggle it shut.
+          onPointerDown={(event) => {
+            if (event.pointerType === "mouse") event.preventDefault();
+          }}
+        >
+          <SidebarMenuButton isActive={active} className={ACTIVE_NAV}>
+            <Icon />
+            <span>{item.title}</span>
+          </SidebarMenuButton>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          side="right"
+          align="start"
+          sideOffset={4}
+          className="min-w-44"
+          {...hover}
+        >
+          <DropdownMenuLabel>{item.title}</DropdownMenuLabel>
+          {items.map((sub) => (
+            <DropdownMenuItem key={sub.to} asChild>
+              <Link
+                to={sub.to}
+                aria-current={sub === current ? "page" : undefined}
+                className={cn(sub === current && "bg-accent font-medium")}
+              >
+                {sub.title}
+              </Link>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </SidebarMenuItem>
+  );
+}
+
+/** A nav item with pages under it. Collapsed to icons, it opens a menu of them. */
 function NavGroup({
   item,
   items,
@@ -117,19 +200,7 @@ function NavGroup({
 
   if (state === "collapsed" && !isMobile) {
     return (
-      <SidebarMenuItem>
-        <SidebarMenuButton
-          asChild
-          isActive={active}
-          tooltip={item.title}
-          className={ACTIVE_NAV}
-        >
-          <Link to={items[0]?.to ?? item.to}>
-            <Icon />
-            <span>{item.title}</span>
-          </Link>
-        </SidebarMenuButton>
-      </SidebarMenuItem>
+      <CollapsedNavGroup item={item} items={items} active={active} current={current} />
     );
   }
 
