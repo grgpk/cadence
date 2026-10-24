@@ -9,7 +9,7 @@ use tokio::{sync::watch, task::JoinHandle};
 
 use super::{
     db,
-    gateway::{CryptoPayments, PaymentEvent},
+    gateway::{CryptoPayments, PaymentEvent, PaymentStatus},
     service,
 };
 use crate::error::AppResult;
@@ -75,7 +75,9 @@ pub async fn reconcile(
                 continue;
             }
         };
-        if status == payment.status {
+        // Pending says nothing new, and is all a provider without a lookup
+        // can answer.
+        if status == payment.status || status == PaymentStatus::Pending {
             continue;
         }
         let event = PaymentEvent {

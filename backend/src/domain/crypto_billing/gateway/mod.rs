@@ -3,10 +3,12 @@
 //! A provider does two things for Cadence: it makes an invoice for an amount
 //! in dollars, and it signs the events that say how that invoice went.
 //! Periods, renewals and reminders stay in Cadence, so nothing past this
-//! module knows which provider took a payment. `BTCPay` Server in
-//! production; a fake that answers with made-up invoices in tests.
+//! module knows which provider took a payment. `BTCPay` Server or
+//! `NOWPayments` in production; a fake that answers with made-up invoices in
+//! tests.
 
 mod btcpay;
+mod nowpayments;
 
 use std::{
     collections::HashMap,
@@ -31,6 +33,7 @@ pub const FAKE_SECRET_HEADER: &str = "x-fake-crypto-secret";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CryptoProvider {
     BtcPay,
+    NowPayments,
     /// Tests only. Never configured from the environment.
     Fake,
 }
@@ -39,6 +42,7 @@ impl CryptoProvider {
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::BtcPay => "btcpay",
+            Self::NowPayments => "nowpayments",
             Self::Fake => "fake",
         }
     }
@@ -47,12 +51,13 @@ impl CryptoProvider {
     pub const fn coins(self) -> &'static str {
         match self {
             Self::BtcPay => "Bitcoin",
+            Self::NowPayments => "Bitcoin, USDT, USDC and more",
             Self::Fake => "test coins",
         }
     }
 }
 
-text_column!(CryptoProvider: BtcPay, Fake);
+text_column!(CryptoProvider: BtcPay, NowPayments, Fake);
 
 /// Where an invoice is, in Cadence's words. Every provider maps its own
 /// statuses to these, and nothing past this module sees the provider's.
@@ -130,6 +135,7 @@ pub enum WebhookError {
 #[derive(Clone)]
 enum Gateway {
     BtcPay(btcpay::BtcPay),
+    NowPayments(nowpayments::NowPayments),
     Fake(Arc<Fake>),
 }
 
@@ -162,6 +168,7 @@ impl CryptoPayments {
         let gateway = match provider.trim() {
             "" => return None,
             "btcpay" => Gateway::BtcPay(btcpay::BtcPay::from_env()?),
+            "nowpayments" => Gateway::NowPayments(nowpayments::NowPayments::from_env()?),
             other => {
                 tracing::warn!(provider = other, "unknown CRYPTO_PROVIDER: crypto is off");
                 return None;
@@ -185,6 +192,7 @@ impl CryptoPayments {
     pub const fn provider(&self) -> CryptoProvider {
         match self.gateway {
             Gateway::BtcPay(_) => CryptoProvider::BtcPay,
+            Gateway::NowPayments(_) => CryptoProvider::NowPayments,
             Gateway::Fake(_) => CryptoProvider::Fake,
         }
     }
@@ -195,6 +203,7 @@ impl CryptoPayments {
     ) -> Result<Invoice, GatewayError> {
         match &self.gateway {
             Gateway::BtcPay(btcpay) => btcpay.create_invoice(request).await,
+            Gateway::NowPayments(nowpayments) => nowpayments.create_invoice(request).await,
             Gateway::Fake(fake) => {
                 let number = fake.invoices.fetch_add(1, Ordering::Relaxed) + 1;
                 Ok(Invoice {
@@ -213,6 +222,8 @@ impl CryptoPayments {
     ) -> Result<PaymentStatus, GatewayError> {
         match &self.gateway {
             Gateway::BtcPay(btcpay) => btcpay.invoice_status(provider_invoice_id).await,
+            // No invoice lookup with an API key: its IPNs are the only word.
+            Gateway::NowPayments(_) => Ok(PaymentStatus::Pending),
             Gateway::Fake(fake) => Ok(fake
                 .statuses
                 .lock()
@@ -228,6 +239,8 @@ impl CryptoPayments {
     pub async fn refund(&self, provider_invoice_id: &str) -> Result<Option<String>, GatewayError> {
         match &self.gateway {
             Gateway::BtcPay(btcpay) => btcpay.refund(provider_invoice_id).await.map(Some),
+            // Invoices are refunded from the NOWPayments dashboard.
+            Gateway::NowPayments(_) => Ok(None),
             Gateway::Fake(_) => Ok(Some(format!(
                 "https://crypto.test/refund/{provider_invoice_id}"
             ))),
@@ -254,6 +267,7 @@ impl CryptoPayments {
     ) -> Result<Option<PaymentEvent>, WebhookError> {
         match &self.gateway {
             Gateway::BtcPay(btcpay) => btcpay.parse_webhook(headers, body),
+            Gateway::NowPayments(nowpayments) => nowpayments.parse_webhook(headers, body),
             Gateway::Fake(fake) => {
                 let secret = headers
                     .get(FAKE_SECRET_HEADER)
