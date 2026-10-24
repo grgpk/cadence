@@ -46,6 +46,8 @@ pub const CALENDLY_IMPORT_PER_HOST: Limit = Limit::new("calendly_import_host", 1
 /// One agent token. An agent makes several calls for one request of the
 /// host's; this stops a runaway loop, not a busy host.
 pub const MCP_PER_TOKEN: Limit = Limit::new("mcp_token", 300, 10);
+/// A client registers once per install; more is someone filling the table.
+pub const OAUTH_REGISTER_PER_ADDRESS: Limit = Limit::new("oauth_register_address", 20, 60);
 
 /// Longer subjects are cut, so a made-up header cannot outgrow the index.
 const SUBJECT_MAX: usize = 254;

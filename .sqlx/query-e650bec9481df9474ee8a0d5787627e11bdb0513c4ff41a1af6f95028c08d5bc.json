@@ -1,0 +1,36 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH gone AS (\n             DELETE FROM access_tokens WHERE user_unid = $1 AND oauth_client_unid = $2 RETURNING 1\n         )\n         INSERT INTO access_tokens (user_unid, oauth_client_unid, name, token_hash, last_four, scope, expires_at, refresh_hash)\n         SELECT $1, $2, $3, $4, $5, $6, $7, $8\n         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) - (SELECT count(*) FROM gone) < $9\n         RETURNING unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "access_tokens",
+            "name": "unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e650bec9481df9474ee8a0d5787627e11bdb0513c4ff41a1af6f95028c08d5bc"
+}

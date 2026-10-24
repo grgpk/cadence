@@ -43,7 +43,8 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::calling_visits::routes::public_routes())
         .merge(domain::leads::routes::public_routes())
         .merge(domain::bookings::routes::public_routes())
-        .merge(domain::host_settings::routes::public_routes());
+        .merge(domain::host_settings::routes::public_routes())
+        .merge(domain::mcp::routes::public_routes());
 
     Router::new()
         .merge(protected)

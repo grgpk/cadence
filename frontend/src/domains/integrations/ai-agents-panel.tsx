@@ -107,6 +107,7 @@ function TokenRow({ token }: { token: AccessToken }) {
       <Badge variant={token.scope === "read" ? "secondary" : "outline"}>
         {SCOPE_LABELS[token.scope]}
       </Badge>
+      {token.connector ? <Badge variant="secondary">Connected app</Badge> : null}
       <span className="text-muted-foreground">
         {token.last_used_at ? `Used ${formatDateTime(token.last_used_at)}` : "Never used"}
       </span>

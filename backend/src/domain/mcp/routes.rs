@@ -1,12 +1,16 @@
 use axum::{
     Router, middleware,
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
 use rmcp::transport::streamable_http_server::{
     StreamableHttpServerConfig, StreamableHttpService, session::local::LocalSessionManager,
 };
 
-use super::{handlers, server::CadenceMcp};
+use super::{
+    handlers,
+    server::CadenceMcp,
+    service::{AUTHORIZATION_SERVER_PATH, PROTECTED_RESOURCE_PATH, REGISTER_PATH, TOKEN_PATH},
+};
 use crate::app_state::AppState;
 
 /// Where agents connect. Under `/api/`, so it is served wherever the API is.
@@ -19,6 +23,26 @@ pub fn protected_routes() -> Router<AppState> {
             get(handlers::list).post(handlers::create),
         )
         .route("/api/host/access-tokens/{unid}", delete(handlers::revoke))
+        .route("/api/oauth/clients/{client_id}", get(handlers::client))
+        .route("/api/oauth/authorize", post(handlers::authorize))
+}
+
+/// OAuth discovery, registration and tokens: what a client reaches before it
+/// has a token or the host a session in it.
+pub fn public_routes() -> Router<AppState> {
+    let protected_resource = get(handlers::protected_resource);
+    Router::new()
+        .route(PROTECTED_RESOURCE_PATH, protected_resource.clone())
+        .route(
+            &format!("{PROTECTED_RESOURCE_PATH}{MCP_PATH}"),
+            protected_resource,
+        )
+        .route(
+            AUTHORIZATION_SERVER_PATH,
+            get(handlers::authorization_server),
+        )
+        .route(REGISTER_PATH, post(handlers::register_client))
+        .route(TOKEN_PATH, post(handlers::token))
 }
 
 /// The MCP server. It checks its own tokens, not sessions, so it sits apart

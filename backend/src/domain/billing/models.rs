@@ -80,7 +80,7 @@ pub struct StartCheckout {
     pub interval: BillingInterval,
 }
 
-/// A Stripe page to send the browser to.
+/// A page to send the browser to: Stripe, or an OAuth client after consent.
 #[derive(Debug, Serialize, TS)]
 #[ts(export, export_to = "../../frontend/src/bindings/RedirectUrl.ts")]
 pub struct RedirectUrl {

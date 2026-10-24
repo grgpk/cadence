@@ -129,6 +129,7 @@ cadence/
 | 42 | `PLAN_42_SCHEMA_NORMALIZATION.md` | one place for each fact in the schema | ✅ done |
 | 43 | `PLAN_43_MCP.md` | an MCP server at `/api/mcp`: AI agents manage a host's calls, hours and page with revocable access tokens; hosts move their own calls | ✅ done |
 | 44 | `PLAN_44_MCP_POLISH.md` | MCP agents see each call's kind and local time, filter calls in SQL, patch kinds of call, set conferencing; read-only tokens and a per-token rate limit | ✅ done |
+| 45 | `PLAN_45_MCP_OAUTH.md` | OAuth 2.1 for the MCP server: discovery, client registration, a consent page and refreshable tokens, so claude.ai and ChatGPT connect by URL | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

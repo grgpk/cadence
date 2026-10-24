@@ -8,6 +8,7 @@ describe("isProtectedPath", () => {
     expect(isProtectedPath("/dashboard/settings")).toBe(true);
     expect(isProtectedPath("/admin/leads")).toBe(true);
     expect(isProtectedPath(ROUTES.dashboardBilling)).toBe(true);
+    expect(isProtectedPath(ROUTES.oauthAuthorize)).toBe(true);
   });
 
   it("leaves public and unknown pages open", () => {

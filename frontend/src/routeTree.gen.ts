@@ -36,6 +36,7 @@ import { Route as DashboardAvailabilityRouteImport } from './routes/dashboard/av
 import { Route as DashboardBillingRouteImport } from './routes/dashboard/billing'
 import { Route as DashboardBookingsRouteImport } from './routes/dashboard/bookings'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth/authorize'
 import { Route as BookSlugTypeRouteImport } from './routes/book/$slug_.$type'
 import { Route as DashboardAppsIndexRouteImport } from './routes/dashboard/apps/index'
 import { Route as DashboardAppsSlugRouteImport } from './routes/dashboard/apps/$slug'
@@ -180,6 +181,11 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookSlugTypeRoute = BookSlugTypeRouteImport.update({
   id: '/book/$slug_/$type',
   path: '/book/$slug/$type',
@@ -250,6 +256,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/book/$slug/$type': typeof BookSlugTypeRoute
@@ -285,6 +292,7 @@ export interface FileRoutesByTo {
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/book/$slug/$type': typeof BookSlugTypeRoute
@@ -323,6 +331,7 @@ export interface FileRoutesById {
   '/dashboard/billing': typeof DashboardBillingRoute
   '/dashboard/bookings': typeof DashboardBookingsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/book/$slug_/$type': typeof BookSlugTypeRoute
@@ -362,6 +371,7 @@ export interface FileRouteTypes {
     | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
+    | '/oauth/authorize'
     | '/admin/'
     | '/dashboard/'
     | '/book/$slug/$type'
@@ -397,6 +407,7 @@ export interface FileRouteTypes {
     | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
+    | '/oauth/authorize'
     | '/admin'
     | '/dashboard'
     | '/book/$slug/$type'
@@ -434,6 +445,7 @@ export interface FileRouteTypes {
     | '/dashboard/billing'
     | '/dashboard/bookings'
     | '/dashboard/settings'
+    | '/oauth/authorize'
     | '/admin/'
     | '/dashboard/'
     | '/book/$slug_/$type'
@@ -460,6 +472,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   BookSlugRoute: typeof BookSlugRoute
   BookingTokenRoute: typeof BookingTokenRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
   BookSlugTypeRoute: typeof BookSlugTypeRoute
 }
 
@@ -654,6 +667,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/book/$slug_/$type': {
       id: '/book/$slug_/$type'
       path: '/book/$slug/$type'
@@ -789,6 +809,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   BookSlugRoute: BookSlugRoute,
   BookingTokenRoute: BookingTokenRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
   BookSlugTypeRoute: BookSlugTypeRoute,
 }
 export const routeTree = rootRouteImport

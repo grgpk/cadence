@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, name, last_four, scope AS \"scope: AccessTokenScope\", last_used_at, created_at FROM access_tokens\n         WHERE user_unid = $1 ORDER BY created_at DESC, unid",
+  "query": "INSERT INTO access_tokens (user_unid, name, token_hash, last_four, scope)\n         SELECT $1, $2, $3, $4, $5\n         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) < $6\n         RETURNING unid, name, last_four, scope AS \"scope: AccessTokenScope\", last_used_at, created_at, false AS \"connector!\"",
   "describe": {
     "columns": [
       {
@@ -68,11 +68,22 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "connector!",
+        "type_info": "Bool",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int8"
       ]
     },
     "nullable": [
@@ -81,8 +92,9 @@
       false,
       false,
       true,
-      false
+      false,
+      null
     ]
   },
-  "hash": "1680f0bbb908d0e6b36c455ae015ecfeeb318cac0cf31ee0c7f0bc300d212b29"
+  "hash": "22cef0f6e45523f982481f20f65cc9d00205e5b9f4ea84209bb9b9eca7f9d0f4"
 }

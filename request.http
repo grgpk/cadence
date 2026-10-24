@@ -302,3 +302,27 @@ Content-Type: application/json
 Accept: application/json, text/event-stream
 
 {"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_bookings","arguments":{"limit":10}}}
+
+### MCP OAuth: where a client starts (no auth)
+GET {{baseUrl}}/.well-known/oauth-protected-resource/api/mcp
+
+### MCP OAuth: the authorization server
+GET {{baseUrl}}/.well-known/oauth-authorization-server
+
+### MCP OAuth: a client registers (no auth)
+POST {{baseUrl}}/api/oauth/register
+Content-Type: application/json
+
+{"client_name":"Smoke test","redirect_uris":["http://localhost:9999/cb"]}
+
+### MCP OAuth: the host consents (session). Challenge is base64url(sha256(verifier)).
+POST {{baseUrl}}/api/oauth/authorize
+Content-Type: application/json
+
+{"client_id":"00000000-0000-0000-0000-000000000000","redirect_uri":"http://localhost:9999/cb","code_challenge":"replace-with-the-s256-challenge-of-your-verifier-xx","code_challenge_method":"S256","state":"s1","scope":"full","approve":true}
+
+### MCP OAuth: trade the code from the redirect for tokens
+POST {{baseUrl}}/api/oauth/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=cadc_replace&redirect_uri=http://localhost:9999/cb&client_id=00000000-0000-0000-0000-000000000000&code_verifier=replace-with-your-verifier

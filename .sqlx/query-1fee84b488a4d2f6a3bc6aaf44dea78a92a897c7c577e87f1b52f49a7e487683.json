@@ -1,0 +1,33 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE access_tokens\n         SET token_hash = $3, last_four = $4, expires_at = $5, refresh_hash = $6\n         WHERE refresh_hash = $1 AND ($2::uuid IS NULL OR oauth_client_unid = $2)\n         RETURNING scope AS \"scope: AccessTokenScope\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "scope: AccessTokenScope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "access_tokens",
+            "name": "scope"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "1fee84b488a4d2f6a3bc6aaf44dea78a92a897c7c577e87f1b52f49a7e487683"
+}

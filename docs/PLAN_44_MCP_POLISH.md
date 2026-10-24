@@ -25,7 +25,7 @@ Plan 43's tools worked, but:
 
 ## Data model
 
-`migrations/0022_create_access_tokens.sql` gains, in its CREATE statement:
+`migrations/0023_create_access_tokens.sql` gains, in its CREATE statement:
 
 ```
 scope  TEXT NOT NULL DEFAULT 'full'  CHECK (scope IN ('full', 'read'))

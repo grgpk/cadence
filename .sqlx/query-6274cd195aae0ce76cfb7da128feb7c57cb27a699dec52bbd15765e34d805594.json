@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, user_unid, scope AS \"scope: AccessTokenScope\", last_used_at FROM access_tokens WHERE token_hash = $1",
+  "query": "INSERT INTO oauth_clients (client_name, redirect_uris) VALUES ($1, $2)\n         RETURNING unid, client_name, redirect_uris, created_at",
   "describe": {
     "columns": [
       {
@@ -9,56 +9,57 @@
         "type_info": "Uuid",
         "origin": {
           "Table": {
-            "table": "access_tokens",
+            "table": "oauth_clients",
             "name": "unid"
           }
         }
       },
       {
         "ordinal": 1,
-        "name": "user_unid",
-        "type_info": "Uuid",
+        "name": "client_name",
+        "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "access_tokens",
-            "name": "user_unid"
+            "table": "oauth_clients",
+            "name": "client_name"
           }
         }
       },
       {
         "ordinal": 2,
-        "name": "scope: AccessTokenScope",
-        "type_info": "Text",
+        "name": "redirect_uris",
+        "type_info": "TextArray",
         "origin": {
           "Table": {
-            "table": "access_tokens",
-            "name": "scope"
+            "table": "oauth_clients",
+            "name": "redirect_uris"
           }
         }
       },
       {
         "ordinal": 3,
-        "name": "last_used_at",
+        "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
-            "table": "access_tokens",
-            "name": "last_used_at"
+            "table": "oauth_clients",
+            "name": "created_at"
           }
         }
       }
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Text",
+        "TextArray"
       ]
     },
     "nullable": [
       false,
       false,
       false,
-      true
+      false
     ]
   },
-  "hash": "77b08ccdc97981927829437d02ce44bc35aecd43cce057eec5690df40973c161"
+  "hash": "6274cd195aae0ce76cfb7da128feb7c57cb27a699dec52bbd15765e34d805594"
 }

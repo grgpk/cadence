@@ -24,6 +24,7 @@ export const ROUTES = {
   dashboardImportCalendly: "/dashboard/event-types/import",
   dashboardBilling: "/dashboard/billing",
   admin: "/admin",
+  oauthAuthorize: "/oauth/authorize",
 } as const;
 
 const BOOKING_PAGE_PREFIX = ROUTES.bookingPage.replace("$slug", "");
@@ -33,7 +34,11 @@ export function bookingPath(slug: string): string {
   return `${BOOKING_PAGE_PREFIX}${slug}`;
 }
 
-const PROTECTED_ROOTS: readonly string[] = [ROUTES.dashboard, ROUTES.admin];
+const PROTECTED_ROOTS: readonly string[] = [
+  ROUTES.dashboard,
+  ROUTES.admin,
+  ROUTES.oauthAuthorize,
+];
 
 /** Pages that need an account. Every other path is open to a visitor. */
 export function isProtectedPath(pathname: string): boolean {

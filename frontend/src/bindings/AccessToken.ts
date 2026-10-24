@@ -9,4 +9,8 @@ export type AccessToken = { unid: string, name: string,
 /**
  * The token's end, to tell tokens apart.
  */
-last_four: string, scope: AccessTokenScope, last_used_at: string | null, created_at: string, };
+last_four: string, scope: AccessTokenScope, last_used_at: string | null, created_at: string, 
+/**
+ * Made by connecting an app through OAuth, not by hand.
+ */
+connector: boolean, };

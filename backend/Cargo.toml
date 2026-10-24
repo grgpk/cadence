@@ -13,6 +13,8 @@ anyhow = "1"
 argon2 = { version = "0.5", features = ["std"] }
 axum = "0.8"
 axum-extra = { version = "0.12", features = ["cookie"] }
+# Plan 45: OAuth PKCE compares base64url(sha256(verifier)) with the challenge.
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 dotenvy = "0.15"
 # Stripe webhook signatures: HMAC-SHA256, hex encoded.

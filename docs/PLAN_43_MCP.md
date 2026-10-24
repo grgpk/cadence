@@ -28,7 +28,7 @@ only the invitee could, through the manage link.
 
 ## Data model
 
-`migrations/0022_create_access_tokens.sql`, a new table:
+`migrations/0023_create_access_tokens.sql`, a new table:
 
 ```
 access_tokens  unid, user_unid, name (1–80), token_hash (sha256, unique),
@@ -154,6 +154,4 @@ The server URL is `VITE_API_URL` + `/api/mcp`.
 
 ## Later
 
-OAuth 2.1 (discovery, dynamic client registration, PKCE, a consent screen),
-so the claude.ai and ChatGPT "add connector by URL" flows work without
-pasting a token.
+OAuth, so connectors can be added by URL, is done in Plan 45.

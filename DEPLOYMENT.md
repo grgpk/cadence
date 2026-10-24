@@ -64,6 +64,14 @@ Script checks quality, tags the commit, and starts `.github/workflows/deploy.yml
 Workflow builds and pushes Docker images, SSHes to server, pulls tagged images,
 starts Postgres/backend/frontend, configures Nginx/TLS, then smoke-tests.
 
+Nginx sends `/api/` and `/.well-known/oauth-*` to the backend. The second is
+MCP OAuth discovery (Plan 45): claude.ai and ChatGPT look for it at the site
+root, so the backend answers there and not under `/api/`.
+
+Plans 44 and 45 changed the access tokens CREATE migration in place and
+renumbered `0022`–`0024`. A database migrated before them needs the reset
+below before this deploy.
+
 Skip local checks only when intentional:
 
 ```sh
