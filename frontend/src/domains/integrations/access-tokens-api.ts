@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 
 import type { AccessToken } from "../../bindings/AccessToken";
+import type { CreateAccessTokenRequest } from "../../bindings/CreateAccessTokenRequest";
 import type { CreatedAccessToken } from "../../bindings/CreatedAccessToken";
 import { api } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
@@ -12,10 +13,12 @@ export const accessTokensQuery = queryOptions({
   queryFn: () => api<AccessToken[]>(ACCESS_TOKENS_PATH),
 });
 
-export function createAccessToken(name: string): Promise<CreatedAccessToken> {
+export function createAccessToken(
+  request: CreateAccessTokenRequest,
+): Promise<CreatedAccessToken> {
   return api<CreatedAccessToken>(ACCESS_TOKENS_PATH, {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(request),
   });
 }
 

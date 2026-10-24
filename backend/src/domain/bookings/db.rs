@@ -50,7 +50,7 @@ pub async fn create(
     .await?;
     sqlx::query_as!(
         Booking,
-        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at
+        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
          FROM bookings b JOIN contacts c ON c.unid = b.contact_unid WHERE b.unid = $1",
         unid,
     )
@@ -70,7 +70,7 @@ pub async fn set_calendar_event(
         Booking,
         "UPDATE bookings b SET google_event_id = $2, google_meet_url = COALESCE($3, b.google_meet_url), updated_at = now()
          FROM contacts c WHERE c.unid = b.contact_unid AND b.unid = $1
-         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title",
         unid,
         google_event_id,
         meet_link,
@@ -111,11 +111,40 @@ pub async fn booked_between(
 pub async fn list_for_host(pool: &PgPool, host_unid: Uuid) -> Result<Vec<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at
+        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
          FROM bookings b JOIN contacts c ON c.unid = b.contact_unid
          WHERE b.host_unid = $1 ORDER BY b.slot_start DESC LIMIT $2",
         host_unid,
         LIST_MAX,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// A host's calls, latest first, filtered before the cut so an old span
+/// is still reached.
+pub async fn list_for_host_filtered(
+    pool: &PgPool,
+    host_unid: Uuid,
+    status: Option<BookingStatus>,
+    from: Option<DateTime<Utc>>,
+    to: Option<DateTime<Utc>>,
+    limit: i64,
+) -> Result<Vec<Booking>, sqlx::Error> {
+    sqlx::query_as!(
+        Booking,
+        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
+         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid
+         WHERE b.host_unid = $1
+           AND ($2::text IS NULL OR b.status = $2)
+           AND ($3::timestamptz IS NULL OR b.slot_start >= $3)
+           AND ($4::timestamptz IS NULL OR b.slot_start < $4)
+         ORDER BY b.slot_start DESC LIMIT $5",
+        host_unid,
+        status.map(BookingStatus::as_str),
+        from,
+        to,
+        limit.min(LIST_MAX),
     )
     .fetch_all(pool)
     .await
@@ -128,7 +157,7 @@ pub async fn find(
 ) -> Result<Option<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at
+        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
          FROM bookings b JOIN contacts c ON c.unid = b.contact_unid
          WHERE b.host_unid = $1 AND b.unid = $2",
         host_unid,
@@ -144,7 +173,7 @@ pub async fn find_by_token(
 ) -> Result<Option<Booking>, sqlx::Error> {
     sqlx::query_as!(
         Booking,
-        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at
+        "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
          FROM bookings b JOIN contacts c ON c.unid = b.contact_unid
          WHERE b.manage_token = $1",
         manage_token,
@@ -159,7 +188,7 @@ pub async fn confirm_attendance(pool: &PgPool, unid: Uuid) -> Result<Option<Book
         Booking,
         "UPDATE bookings b SET attendance_confirmed_at = COALESCE(b.attendance_confirmed_at, now()), updated_at = now()
          FROM contacts c WHERE c.unid = b.contact_unid AND b.unid = $1 AND b.status <> $2
-         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title",
         unid,
         BookingStatus::Cancelled.as_str(),
     )
@@ -180,7 +209,7 @@ pub async fn set_no_show(
         "UPDATE bookings b SET no_show_at = CASE WHEN $3 THEN COALESCE(b.no_show_at, now()) END, updated_at = now()
          FROM contacts c
          WHERE c.unid = b.contact_unid AND b.host_unid = $1 AND b.unid = $2 AND b.status <> $4 AND b.slot_end <= now()
-         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title",
         host_unid,
         unid,
         no_show,
@@ -201,7 +230,7 @@ pub async fn reschedule(
         Booking,
         "UPDATE bookings b SET slot_start = $2, slot_end = $3, attendance_confirmed_at = NULL, updated_at = now()
          FROM contacts c WHERE c.unid = b.contact_unid AND b.unid = $1 AND b.status <> $4
-         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title",
         unid,
         slot_start,
         slot_end,
@@ -222,7 +251,7 @@ pub async fn cancel(
         "UPDATE bookings b SET status = $3, updated_at = now()
          FROM contacts c
          WHERE c.unid = b.contact_unid AND b.host_unid = $1 AND b.unid = $2 AND b.status <> $3
-         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title",
         host_unid,
         unid,
         BookingStatus::Cancelled.as_str(),
@@ -235,7 +264,7 @@ impl BookingsDb {
     pub async fn list_all(pool: &PgPool) -> Result<Vec<Booking>, sqlx::Error> {
         sqlx::query_as!(
             Booking,
-            "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at
+            "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title
              FROM bookings b JOIN contacts c ON c.unid = b.contact_unid
              ORDER BY b.slot_start DESC LIMIT $1",
             LIST_MAX,

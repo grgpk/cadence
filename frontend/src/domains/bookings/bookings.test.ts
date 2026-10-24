@@ -30,6 +30,8 @@ function booking(unid: string, slotStart: string, status: Booking["status"]): Bo
     created_at: "2026-10-01T00:00:00Z",
     attendance_confirmed_at: null,
     no_show_at: null,
+    event_type_unid: null,
+    event_type_title: null,
   };
 }
 

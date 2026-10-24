@@ -454,3 +454,144 @@ async fn a_feature_past_the_plan_answers_with_an_upgrade_hint(pool: PgPool) {
         "{message}"
     );
 }
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_call_says_its_kind_and_the_hosts_clock(pool: PgPool) {
+    let app = app(&pool);
+    let (_, token) = host_with_token(&app, "clock@example.com").await;
+    let kind = event_type(&app, &token).await;
+    let slots = open_slots(&app, &token, &kind).await;
+    assert!(slots[0]["start_local"].is_string(), "{}", slots[0]);
+    book(&app, &token, &kind, &slots[0]["start"]).await;
+    book(&app, &token, &kind, &slots[1]["start"]).await;
+
+    let (status, reply) = rpc(
+        &app,
+        Some(&token),
+        "tools/call",
+        json!({ "name": "list_bookings", "arguments": { "from": slots[1]["start"] } }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let calls = reply["result"]["structuredContent"]["items"]
+        .as_array()
+        .expect("structured calls");
+    assert_eq!(calls.len(), 1, "from leaves out the earlier call");
+    let call = &calls[0];
+    assert_eq!(call["slot_start"], slots[1]["start"]);
+    assert_eq!(call["event_type_unid"], kind);
+    assert!(call["event_type_title"].is_string());
+    assert_eq!(call["slot_start_local"], slots[1]["start_local"]);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_kind_of_call_changes_only_what_is_sent(pool: PgPool) {
+    let app = app(&pool);
+    let (_, token) = host_with_token(&app, "patch@example.com").await;
+    let (_, types) = call(&app, &token, "list_event_types", json!({})).await;
+    let before = types[0].clone();
+
+    let (is_error, after) = call(
+        &app,
+        &token,
+        "update_event_type",
+        json!({ "event_type_unid": before["unid"], "title": "Intro call" }),
+    )
+    .await;
+    assert!(!is_error, "{after}");
+    assert_eq!(after["title"], "Intro call");
+    for kept in [
+        "slug",
+        "description",
+        "buffer_minutes",
+        "questions",
+        "is_active",
+    ] {
+        assert_eq!(after[kept], before[kept], "{kept}");
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_agent_sets_where_calls_happen(pool: PgPool) {
+    let app = app(&pool);
+    let (_, token) = host_with_token(&app, "meet@example.com").await;
+
+    let (is_error, message) = call(
+        &app,
+        &token,
+        "set_conferencing",
+        json!({ "app": "custom_link" }),
+    )
+    .await;
+    assert!(is_error, "a custom link needs the link: {message}");
+
+    let link = "https://zoom.us/j/123";
+    let (is_error, settings) = call(
+        &app,
+        &token,
+        "set_conferencing",
+        json!({ "app": "custom_link", "meeting_link": link }),
+    )
+    .await;
+    assert!(!is_error, "{settings}");
+    assert_eq!(settings["conferencing_app"], "custom_link");
+    assert_eq!(settings["meeting_link"], link);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_read_only_token_looks_but_does_not_change(pool: PgPool) {
+    let app = app(&pool);
+    let (host, full) = host_with_token(&app, "reader@example.com").await;
+    let kind = event_type(&app, &full).await;
+    let slots = open_slots(&app, &full, &kind).await;
+    let booking = book(&app, &full, &kind, &slots[0]["start"]).await;
+
+    let (status, created) = send(
+        &app,
+        Method::POST,
+        TOKENS,
+        Some(&host.cookie),
+        Some(json!({ "name": "Summaries", "scope": "read" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_eq!(created["access_token"]["scope"], "read");
+    let read = created["token"].as_str().expect("a token");
+
+    let (is_error, listed) = call(&app, read, "list_bookings", json!({})).await;
+    assert!(!is_error);
+    assert_eq!(listed.as_array().expect("a list").len(), 1);
+
+    let (is_error, message) = call(
+        &app,
+        read,
+        "cancel_booking",
+        json!({ "booking_unid": booking["unid"] }),
+    )
+    .await;
+    assert!(is_error);
+    assert!(
+        message.as_str().expect("a message").contains("read-only"),
+        "{message}"
+    );
+    let (_, after) = call(
+        &app,
+        read,
+        "get_booking",
+        json!({ "booking_unid": booking["unid"] }),
+    )
+    .await;
+    assert_eq!(after["booking"]["status"], "confirmed");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_runaway_agent_is_slowed_down(pool: PgPool) {
+    let app = app(&pool);
+    let (_, token) = host_with_token(&app, "loop@example.com").await;
+    for _ in 0..300 {
+        let (status, _) = rpc(&app, Some(&token), "tools/list", json!({})).await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let (status, _) = rpc(&app, Some(&token), "tools/list", json!({})).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+}

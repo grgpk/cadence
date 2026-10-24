@@ -1,5 +1,13 @@
+import type { AccessTokenScope } from "../../bindings/AccessTokenScope";
+
 /** The name agents list the server under. */
 const SERVER_NAME = "cadence";
+
+/** What each token scope is called in the Apps page. */
+export const SCOPE_LABELS: Record<AccessTokenScope, string> = {
+  full: "Full access",
+  read: "Read only",
+};
 
 /** Where agents connect: the MCP server under the API. */
 export function mcpUrl(apiUrl: string): string {

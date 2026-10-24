@@ -21,4 +21,8 @@ attendance_confirmed_at: string | null,
 /**
  * The host marked that the invitee did not come.
  */
-no_show_at: string | null, };
+no_show_at: string | null, 
+/**
+ * The kind of call it was booked as. `None` once that kind is deleted.
+ */
+event_type_unid: string | null, event_type_title: string | null, };

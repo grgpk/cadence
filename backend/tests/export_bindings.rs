@@ -31,7 +31,7 @@ use cadence_backend::domain::{
         HostSettings,
     },
     leads::models::{Lead, LeadAnswer, LeadQualification, LeadUpdate},
-    mcp::models::{AccessToken, CreateAccessTokenRequest, CreatedAccessToken},
+    mcp::models::{AccessToken, AccessTokenScope, CreateAccessTokenRequest, CreatedAccessToken},
     roleaccesses::models::{AdminRoleAccess, RoleAccess},
     webhooks::models::{
         WebhookDelivery, WebhookEndpoint, WebhookEndpointInput, WebhookEndpointUpdate, WebhookEvent,
@@ -113,6 +113,7 @@ fn export_bindings() {
         ("AdminPlan", AdminPlan::export()),
         ("WebhookEvent", WebhookEvent::export()),
         ("AccessToken", AccessToken::export()),
+        ("AccessTokenScope", AccessTokenScope::export()),
         (
             "CreateAccessTokenRequest",
             CreateAccessTokenRequest::export(),

@@ -265,6 +265,12 @@ Content-Type: application/json
 
 {"name":"Claude Code"}
 
+### Agent access tokens: a read-only one, for agents that only look
+POST {{baseUrl}}/api/host/access-tokens
+Content-Type: application/json
+
+{"name":"Weekly summary","scope":"read"}
+
 ### A host moves their own call
 POST {{baseUrl}}/api/bookings/00000000-0000-0000-0000-000000000000/reschedule
 Content-Type: application/json

@@ -1,12 +1,12 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{AccessToken, TokenOwner};
+use super::models::{AccessToken, AccessTokenScope, TokenOwner};
 
 pub async fn list(pool: &PgPool, user_unid: Uuid) -> Result<Vec<AccessToken>, sqlx::Error> {
     sqlx::query_as!(
         AccessToken,
-        "SELECT unid, name, last_four, last_used_at, created_at FROM access_tokens
+        "SELECT unid, name, last_four, scope AS \"scope: AccessTokenScope\", last_used_at, created_at FROM access_tokens
          WHERE user_unid = $1 ORDER BY created_at DESC, unid",
         user_unid,
     )
@@ -21,18 +21,20 @@ pub async fn insert(
     name: &str,
     token_hash: &str,
     last_four: &str,
+    scope: AccessTokenScope,
     max: i64,
 ) -> Result<Option<AccessToken>, sqlx::Error> {
     sqlx::query_as!(
         AccessToken,
-        "INSERT INTO access_tokens (user_unid, name, token_hash, last_four)
-         SELECT $1, $2, $3, $4
-         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) < $5
-         RETURNING unid, name, last_four, last_used_at, created_at",
+        "INSERT INTO access_tokens (user_unid, name, token_hash, last_four, scope)
+         SELECT $1, $2, $3, $4, $5
+         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) < $6
+         RETURNING unid, name, last_four, scope AS \"scope: AccessTokenScope\", last_used_at, created_at",
         user_unid,
         name,
         token_hash,
         last_four,
+        scope.as_str(),
         max,
     )
     .fetch_optional(pool)
@@ -57,7 +59,7 @@ pub async fn find_by_hash(
 ) -> Result<Option<TokenOwner>, sqlx::Error> {
     sqlx::query_as!(
         TokenOwner,
-        "SELECT unid, user_unid, last_used_at FROM access_tokens WHERE token_hash = $1",
+        "SELECT unid, user_unid, scope AS \"scope: AccessTokenScope\", last_used_at FROM access_tokens WHERE token_hash = $1",
         token_hash,
     )
     .fetch_optional(pool)

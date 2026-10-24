@@ -72,6 +72,9 @@ pub struct Booking {
     pub attendance_confirmed_at: Option<DateTime<Utc>>,
     /// The host marked that the invitee did not come.
     pub no_show_at: Option<DateTime<Utc>>,
+    /// The kind of call it was booked as. `None` once that kind is deleted.
+    pub event_type_unid: Option<Uuid>,
+    pub event_type_title: Option<String>,
 }
 
 /// What the invitee gets back after booking: the call and the secret that

@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -9,7 +10,7 @@ use crate::text_column::text_column;
 
 /// The values of the `widget_conferencing_app` check: where every call of a
 /// host happens.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[ts(export, export_to = "../../frontend/src/bindings/ConferencingApp.ts")]
 pub enum ConferencingApp {

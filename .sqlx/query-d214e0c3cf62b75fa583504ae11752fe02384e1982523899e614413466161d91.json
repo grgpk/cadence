@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at\n         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid WHERE b.unid = $1",
+  "query": "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title\n         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid WHERE b.unid = $1",
   "describe": {
     "columns": [
       {
@@ -157,6 +157,23 @@
             "name": "no_show_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "event_type_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "event_type_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "event_type_title",
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -179,8 +196,10 @@
       false,
       false,
       true,
-      true
+      true,
+      true,
+      null
     ]
   },
-  "hash": "6f8d01e3402ab18b459cd050a7e3f47e9667a77510c18587e7f466eb8a0d9c2c"
+  "hash": "d214e0c3cf62b75fa583504ae11752fe02384e1982523899e614413466161d91"
 }

@@ -4,9 +4,18 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import type { AccessToken } from "../../bindings/AccessToken";
+import type { AccessTokenScope } from "../../bindings/AccessTokenScope";
 import type { CreatedAccessToken } from "../../bindings/CreatedAccessToken";
+import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../../components/ui/select";
 import { API_URL } from "../../lib/config";
 import { errorMessage } from "../../lib/error-message";
 import { formatDate, formatDateTime } from "../../lib/format";
@@ -19,7 +28,7 @@ import {
   createAccessToken,
   revokeAccessToken,
 } from "./access-tokens-api";
-import { claudeCodeCommand, mcpServersJson, mcpUrl } from "./ai-agents";
+import { claudeCodeCommand, mcpServersJson, mcpUrl, SCOPE_LABELS } from "./ai-agents";
 
 const ID = "access-token";
 const CREATE_ERRORS = {
@@ -95,6 +104,9 @@ function TokenRow({ token }: { token: AccessToken }) {
       <KeyRound className="size-4 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate font-medium">{token.name}</span>
       <code className="text-xs text-muted-foreground">…{token.last_four}</code>
+      <Badge variant={token.scope === "read" ? "secondary" : "outline"}>
+        {SCOPE_LABELS[token.scope]}
+      </Badge>
       <span className="text-muted-foreground">
         {token.last_used_at ? `Used ${formatDateTime(token.last_used_at)}` : "Never used"}
       </span>
@@ -127,6 +139,7 @@ export function AiAgentsPanel() {
   const queryClient = useQueryClient();
   const tokens = useQuery(accessTokensQuery);
   const [name, setName] = useState("");
+  const [scope, setScope] = useState<AccessTokenScope>("full");
   const [created, setCreated] = useState<CreatedAccessToken | null>(null);
 
   const create = useMutation({
@@ -151,13 +164,13 @@ export function AiAgentsPanel() {
           className="grid gap-2"
           onSubmit={(event) => {
             event.preventDefault();
-            create.mutate(name);
+            create.mutate({ name, scope });
           }}
         >
           <Field
             id={`${ID}-name`}
             label="Token name"
-            help="Where it goes, so you can tell your tokens apart."
+            help="Where it goes, so you can tell your tokens apart. A read-only token can look at your calls and hours but not change them."
           >
             <div className="flex flex-wrap gap-2">
               <Input
@@ -170,6 +183,21 @@ export function AiAgentsPanel() {
                 onChange={(event) => setName(event.target.value)}
                 className="min-w-0 flex-1 bg-card"
               />
+              <Select
+                value={scope}
+                onValueChange={(value) => setScope(value as AccessTokenScope)}
+              >
+                <SelectTrigger className="w-36 bg-card" aria-label="Access">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SCOPE_LABELS) as AccessTokenScope[]).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {SCOPE_LABELS[option]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <Button type="submit" disabled={create.isPending}>
                 {create.isPending ? <Loader2 className="animate-spin" /> : null}
                 Create token

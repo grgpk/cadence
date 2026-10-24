@@ -219,6 +219,20 @@ pub async fn list(pool: &PgPool, host_unid: Uuid) -> AppResult<Vec<Booking>> {
     db::list_for_host(pool, host_unid).await.map_err(Into::into)
 }
 
+/// A host's calls with this status, starting in `[from, to)`, latest first.
+pub async fn list_filtered(
+    pool: &PgPool,
+    host_unid: Uuid,
+    status: Option<BookingStatus>,
+    from: Option<DateTime<Utc>>,
+    to: Option<DateTime<Utc>>,
+    limit: i64,
+) -> AppResult<Vec<Booking>> {
+    db::list_for_host_filtered(pool, host_unid, status, from, to, limit)
+        .await
+        .map_err(Into::into)
+}
+
 /// A host's own call with the invitee's form answers. Someone else's call
 /// looks unknown.
 pub async fn detail(pool: &PgPool, host_unid: Uuid, unid: Uuid) -> AppResult<BookingDetail> {

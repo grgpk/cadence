@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at\n         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid\n         WHERE b.host_unid = $1 AND b.unid = $2",
+  "query": "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title\n         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid\n         WHERE b.host_unid = $1\n           AND ($2::text IS NULL OR b.status = $2)\n           AND ($3::timestamptz IS NULL OR b.slot_start >= $3)\n           AND ($4::timestamptz IS NULL OR b.slot_start < $4)\n         ORDER BY b.slot_start DESC LIMIT $5",
   "describe": {
     "columns": [
       {
@@ -157,12 +157,32 @@
             "name": "no_show_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "event_type_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "event_type_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "event_type_title",
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Uuid"
+        "Text",
+        "Timestamptz",
+        "Timestamptz",
+        "Int8"
       ]
     },
     "nullable": [
@@ -180,8 +200,10 @@
       false,
       false,
       true,
-      true
+      true,
+      true,
+      null
     ]
   },
-  "hash": "22ab1a41925ffb263a0018bae766145cd9413ea3751a538137cfa9af555d0d9a"
+  "hash": "2c4c4303ef4757017e017d2c663d10272d37641e17d586786fe1671f919afce0"
 }

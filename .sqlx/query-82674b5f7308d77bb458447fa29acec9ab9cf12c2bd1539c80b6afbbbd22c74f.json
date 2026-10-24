@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE bookings b SET attendance_confirmed_at = COALESCE(b.attendance_confirmed_at, now()), updated_at = now()\n         FROM contacts c WHERE c.unid = b.contact_unid AND b.unid = $1 AND b.status <> $2\n         RETURNING b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at",
+  "query": "SELECT b.unid, b.host_unid, b.lead_unid, b.slot_start, (EXTRACT(EPOCH FROM b.slot_end - b.slot_start) / 60)::int AS \"minutes!\", b.timezone, concat_ws(' ', c.first_name, c.last_name) AS \"invitee_name!\", c.email AS \"invitee_email!\", b.status AS \"status: BookingStatus\", b.google_meet_url AS meeting_url, b.google_event_id, b.manage_token, b.created_at, b.attendance_confirmed_at, b.no_show_at, b.event_type_unid, (SELECT e.title FROM event_types e WHERE e.unid = b.event_type_unid) AS event_type_title\n         FROM bookings b JOIN contacts c ON c.unid = b.contact_unid\n         WHERE b.host_unid = $1 AND b.unid = $2",
   "describe": {
     "columns": [
       {
@@ -157,12 +157,29 @@
             "name": "no_show_at"
           }
         }
+      },
+      {
+        "ordinal": 15,
+        "name": "event_type_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "bookings",
+            "name": "event_type_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "event_type_title",
+        "type_info": "Text",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Left": [
         "Uuid",
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -180,8 +197,10 @@
       false,
       false,
       true,
-      true
+      true,
+      true,
+      null
     ]
   },
-  "hash": "ec72b0428be97f10ce2e68b566f35cc8290870d48f189d8d588729ab025d992d"
+  "hash": "82674b5f7308d77bb458447fa29acec9ab9cf12c2bd1539c80b6afbbbd22c74f"
 }

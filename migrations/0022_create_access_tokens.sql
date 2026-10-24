@@ -8,9 +8,12 @@ CREATE TABLE access_tokens (
     token_hash   TEXT NOT NULL UNIQUE,
     -- The token's end, so the host can tell their tokens apart.
     last_four    TEXT NOT NULL,
+    -- 'full' does everything the host can; 'read' only looks.
+    scope        TEXT NOT NULL DEFAULT 'full',
     last_used_at TIMESTAMPTZ,
     created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CONSTRAINT access_tokens_name CHECK (char_length(name) BETWEEN 1 AND 80)
+    CONSTRAINT access_tokens_name CHECK (char_length(name) BETWEEN 1 AND 80),
+    CONSTRAINT access_tokens_scope CHECK (scope IN ('full', 'read'))
 );
 
 CREATE INDEX access_tokens_user_idx ON access_tokens (user_unid, created_at);

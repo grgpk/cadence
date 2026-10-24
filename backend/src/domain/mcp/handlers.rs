@@ -30,7 +30,13 @@ pub async fn create(
     user: AuthUser,
     Json(request): Json<CreateAccessTokenRequest>,
 ) -> AppResult<(StatusCode, Json<CreatedAccessToken>)> {
-    let created = service::create(&state.pool, user.user.unid, &request.name).await?;
+    let created = service::create(
+        &state.pool,
+        user.user.unid,
+        &request.name,
+        request.scope.unwrap_or_default(),
+    )
+    .await?;
     Ok((StatusCode::CREATED, Json(created)))
 }
 
@@ -61,8 +67,8 @@ pub async fn require_token(
         None => Err(AppError::Unauthorized),
     };
     match user {
-        Ok(user) => {
-            request.extensions_mut().insert(McpHost(user));
+        Ok((user, scope)) => {
+            request.extensions_mut().insert(McpHost { user, scope });
             next.run(request).await
         }
         Err(error) => {

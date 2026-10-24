@@ -1,7 +1,7 @@
 use chrono::{DateTime, Datelike, Duration, NaiveDate, NaiveDateTime, NaiveTime, Timelike, Utc};
 use sqlx::{PgConnection, PgPool};
-use time::{Date, Month, PrimitiveDateTime, Time};
-use time_tz::{PrimitiveDateTimeExt, timezones};
+use time::{Date, Month, OffsetDateTime, PrimitiveDateTime, Time};
+use time_tz::{OffsetDateTimeExt, PrimitiveDateTimeExt, timezones};
 use uuid::Uuid;
 
 use super::{
@@ -277,6 +277,17 @@ pub fn local_to_utc(local: NaiveDateTime, timezone: &str) -> Option<DateTime<Utc
         .assume_timezone(tz)
         .take_first()?;
     DateTime::from_timestamp(instant.unix_timestamp(), 0)
+}
+
+/// The wall-clock time an instant shows in an IANA timezone.
+pub fn utc_to_local(instant: DateTime<Utc>, timezone: &str) -> Option<NaiveDateTime> {
+    let tz = timezones::get_by_name(timezone)?;
+    let offset = OffsetDateTime::from_unix_timestamp(instant.timestamp())
+        .ok()?
+        .to_timezone(tz)
+        .offset()
+        .whole_seconds();
+    Some(instant.naive_utc() + Duration::seconds(offset.into()))
 }
 
 fn validate(input: &AvailabilityRuleInput) -> AppResult<()> {

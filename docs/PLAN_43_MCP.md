@@ -1,6 +1,6 @@
 # Plan 43: hosts run Cadence from their AI agent (MCP)
 
-Status: implemented.
+Status: implemented. Later work: Plan 44 (polish), Plan 45 (OAuth).
 - Backend: fmt, clippy, every test passes (MCP 7 HTTP; booking 57 with the
   host move).
 - Frontend: build, typecheck, lint, knip and tests pass.

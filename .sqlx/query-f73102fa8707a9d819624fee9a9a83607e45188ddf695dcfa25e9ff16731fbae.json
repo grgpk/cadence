@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO access_tokens (user_unid, name, token_hash, last_four)\n         SELECT $1, $2, $3, $4\n         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) < $5\n         RETURNING unid, name, last_four, last_used_at, created_at",
+  "query": "INSERT INTO access_tokens (user_unid, name, token_hash, last_four, scope)\n         SELECT $1, $2, $3, $4, $5\n         WHERE (SELECT count(*) FROM access_tokens WHERE user_unid = $1) < $6\n         RETURNING unid, name, last_four, scope AS \"scope: AccessTokenScope\", last_used_at, created_at",
   "describe": {
     "columns": [
       {
@@ -38,6 +38,17 @@
       },
       {
         "ordinal": 3,
+        "name": "scope: AccessTokenScope",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "access_tokens",
+            "name": "scope"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
         "name": "last_used_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -48,7 +59,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "created_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -65,6 +76,7 @@
         "Text",
         "Text",
         "Text",
+        "Text",
         "Int8"
       ]
     },
@@ -72,9 +84,10 @@
       false,
       false,
       false,
+      false,
       true,
       false
     ]
   },
-  "hash": "f04a6c578c2a4d71372b6531c0ab44092bfe9f5db7e0a71704bfa9b179afae09"
+  "hash": "f73102fa8707a9d819624fee9a9a83607e45188ddf695dcfa25e9ff16731fbae"
 }

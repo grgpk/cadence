@@ -5,12 +5,15 @@ use uuid::Uuid;
 
 use super::{
     db,
-    models::{AccessToken, CreatedAccessToken},
+    models::{AccessToken, AccessTokenScope, CreatedAccessToken},
 };
 use crate::{
-    domain::auth::{
-        db as users,
-        models::{UserRecord, UserStatus},
+    domain::{
+        auth::{
+            db as users,
+            models::{UserRecord, UserStatus},
+        },
+        rate_limits::service::{self as rate_limits, MCP_PER_TOKEN},
     },
     error::{AppError, AppResult},
 };
@@ -27,7 +30,12 @@ pub async fn list(pool: &PgPool, user_unid: Uuid) -> AppResult<Vec<AccessToken>>
 }
 
 /// Makes a token. The secret is returned here once and only its hash is kept.
-pub async fn create(pool: &PgPool, user_unid: Uuid, name: &str) -> AppResult<CreatedAccessToken> {
+pub async fn create(
+    pool: &PgPool,
+    user_unid: Uuid,
+    name: &str,
+    scope: AccessTokenScope,
+) -> AppResult<CreatedAccessToken> {
     let name = name.trim();
     if name.is_empty() || name.chars().count() > NAME_MAX {
         return Err(AppError::BadRequest(format!(
@@ -39,9 +47,17 @@ pub async fn create(pool: &PgPool, user_unid: Uuid, name: &str) -> AppResult<Cre
         .get(token.len().saturating_sub(4)..)
         .unwrap_or_default()
         .to_owned();
-    let access_token = db::insert(pool, user_unid, name, &hash(&token), &last_four, TOKENS_MAX)
-        .await?
-        .ok_or_else(|| AppError::Conflict(format!("at most {TOKENS_MAX} tokens")))?;
+    let access_token = db::insert(
+        pool,
+        user_unid,
+        name,
+        &hash(&token),
+        &last_four,
+        scope,
+        TOKENS_MAX,
+    )
+    .await?
+    .ok_or_else(|| AppError::Conflict(format!("at most {TOKENS_MAX} tokens")))?;
     Ok(CreatedAccessToken {
         access_token,
         token,
@@ -56,9 +72,10 @@ pub async fn revoke(pool: &PgPool, user_unid: Uuid, unid: Uuid) -> AppResult<()>
     }
 }
 
-/// The active user a token belongs to. A wrong or revoked token, or one of a
-/// banned user, is refused alike.
-pub async fn authenticate(pool: &PgPool, token: &str) -> AppResult<UserRecord> {
+/// The active user a token belongs to, and what the token may do. A wrong or
+/// revoked token, or one of a banned user, is refused alike. Each call counts
+/// against the token's rate limit.
+pub async fn authenticate(pool: &PgPool, token: &str) -> AppResult<(UserRecord, AccessTokenScope)> {
     if !token.starts_with(TOKEN_PREFIX) {
         return Err(AppError::Unauthorized);
     }
@@ -69,13 +86,14 @@ pub async fn authenticate(pool: &PgPool, token: &str) -> AppResult<UserRecord> {
         .await?
         .filter(|user| user.status == UserStatus::Active)
         .ok_or(AppError::Unauthorized)?;
+    rate_limits::check(pool, &MCP_PER_TOKEN, &owner.unid.to_string()).await?;
     if owner
         .last_used_at
         .is_none_or(|used| used + TOUCH_EVERY < Utc::now())
     {
         db::touch(pool, owner.unid).await?;
     }
-    Ok(user)
+    Ok((user, owner.scope))
 }
 
 /// 244 random bits from two v4 UUIDs, as webhook secrets are made.
