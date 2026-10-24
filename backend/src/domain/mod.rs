@@ -10,6 +10,7 @@ pub mod event_types;
 pub mod google_calendar;
 pub mod host_settings;
 pub mod leads;
+pub mod mcp;
 pub mod rate_limits;
 pub mod roleaccesses;
 pub mod webhooks;

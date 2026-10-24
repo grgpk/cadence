@@ -7,6 +7,7 @@ import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
 import { CallFlow } from "../../../domains/integrations/call-flow";
 import { APP_CATEGORY, type AppCategory } from "../../../domains/integrations/catalog";
 import { WebhooksPanel } from "../../../domains/integrations/webhooks-panel";
+import { AiAgentsPanel } from "../../../domains/integrations/ai-agents-panel";
 import { callPlace } from "../../../domains/integrations/conferencing";
 import { ConferencingForm } from "../../../domains/integrations/conferencing-form";
 import { GoogleCalendarConnection } from "../../../domains/integrations/google-calendar-connection";
@@ -93,6 +94,14 @@ function InstalledAppsPage() {
             footer={<MoreApps category={APP_CATEGORY.automation} />}
           >
             <WebhooksPanel />
+          </PanelCard>
+
+          <PanelCard
+            title="AI agents"
+            description="Let Claude or any MCP client read and book your calls, move or cancel them, and change your hours."
+            footer={<MoreApps category={APP_CATEGORY.automation} />}
+          >
+            <AiAgentsPanel />
           </PanelCard>
         </div>
       )}

@@ -83,6 +83,18 @@ pub async fn cancel(
     ))
 }
 
+pub async fn reschedule_by_host(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(unid): Path<Uuid>,
+    Json(request): Json<RescheduleRequest>,
+) -> AppResult<Json<Booking>> {
+    Ok(Json(
+        service::reschedule_by_host(&state.pool, &state.calendar, user.user.unid, unid, request)
+            .await?,
+    ))
+}
+
 pub async fn managed(
     State(state): State<AppState>,
     Path(token): Path<String>,

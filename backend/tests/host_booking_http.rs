@@ -1284,6 +1284,42 @@ async fn an_invitee_moves_their_call_to_another_open_time(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "../migrations")]
+async fn a_host_moves_their_own_call(pool: PgPool) {
+    let app = app(&pool);
+    let (host, slug) = host_with_hours(&app, "nino@example.com").await;
+    let other = register(&app, "Other Host", "other@example.com").await;
+    let open = slots(&app, &slug).await;
+    let [.., taken, new, old] = open[..] else {
+        panic!("the host has at least three open times");
+    };
+    let (unid, _) = book(&app, &slug, old).await;
+    book(&app, &slug, taken).await;
+    let path = format!("/api/bookings/{unid}/reschedule");
+    let to = |start: DateTime<Utc>| Some(json!({ "slot_start": start }));
+
+    let (status, _) = send(&app, Method::POST, &path, Some(&other.cookie), to(new)).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "someone else's call");
+    let (status, _) = send(&app, Method::POST, &path, Some(&host.cookie), to(taken)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "a taken time");
+
+    let (status, moved) = send(&app, Method::POST, &path, Some(&host.cookie), to(new)).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(moved["slot_start"], json!(new));
+    assert!(moved.get("manage_token").is_none());
+    let waiting = waiting_emails(&pool, unid).await;
+    for email in [
+        "booking_rescheduled -> ada@example.com",
+        "host_booking_rescheduled -> nino@example.com",
+    ] {
+        assert!(waiting.iter().any(|line| line == email), "{email}");
+    }
+    assert!(
+        slots(&app, &slug).await.contains(&old),
+        "the old time is open again"
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
 async fn calendar_and_old_public_routes_are_closed(pool: PgPool) {
     let app = app(&pool);
 

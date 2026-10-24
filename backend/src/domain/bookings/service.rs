@@ -445,7 +445,36 @@ pub async fn reschedule(
     request: RescheduleRequest,
 ) -> AppResult<ManagedBooking> {
     let (booking, page) = find_managed(pool, token).await?;
-    ensure_can_change(&booking)?;
+    let booking = move_call(pool, calendar, &booking, &page, &request).await?;
+    Ok(managed_booking(booking, page))
+}
+
+/// A host moves their own call to another open time. Both sides are told,
+/// as when the invitee moves it.
+pub async fn reschedule_by_host(
+    pool: &PgPool,
+    calendar: &HostCalendar,
+    host_unid: Uuid,
+    unid: Uuid,
+    request: RescheduleRequest,
+) -> AppResult<Booking> {
+    let booking = db::find(pool, host_unid, unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let page = host_settings::page_of_booking(pool, booking.unid).await?;
+    move_call(pool, calendar, &booking, &page, &request).await
+}
+
+/// Moves a call that has not started: its waiting emails are replaced and
+/// both sides are told.
+async fn move_call(
+    pool: &PgPool,
+    calendar: &HostCalendar,
+    booking: &Booking,
+    page: &BookingPage,
+    request: &RescheduleRequest,
+) -> AppResult<Booking> {
+    ensure_can_change(booking)?;
     let now = Utc::now();
     // The call does not close the times next to it, but its own time is not
     // another time.
@@ -458,7 +487,7 @@ pub async fn reschedule(
     } = slots::reserve(
         pool,
         calendar,
-        &page,
+        page,
         request.slot_start,
         now,
         Some(booking.unid),
@@ -484,7 +513,7 @@ pub async fn reschedule(
     emails::rescheduled(
         &mut transaction,
         &booking,
-        &page,
+        page,
         entitlements.reminders,
         entitlements.attendance,
         now,
@@ -495,7 +524,7 @@ pub async fn reschedule(
             &mut transaction,
             WebhookEvent::BookingRescheduled,
             &booking,
-            &page,
+            page,
         )
         .await?;
     }
@@ -514,7 +543,7 @@ pub async fn reschedule(
     {
         tracing::warn!(?error, booking_unid = %booking.unid, "calendar event was not moved");
     }
-    Ok(managed_booking(booking, page))
+    Ok(booking)
 }
 
 async fn find_managed(pool: &PgPool, token: &str) -> AppResult<(Booking, BookingPage)> {

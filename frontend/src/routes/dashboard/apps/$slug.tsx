@@ -8,10 +8,13 @@ import type { HostSettings } from "../../../bindings/HostSettings";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
 import { hostSettingsQuery } from "../../../domains/dashboard/host-api";
+import { accessTokensQuery } from "../../../domains/integrations/access-tokens-api";
+import { AiAgentsPanel } from "../../../domains/integrations/ai-agents-panel";
 import { AppLogo, AppStatus } from "../../../domains/integrations/app-card";
 import { CallFlow } from "../../../domains/integrations/call-flow";
 import {
   APP_CATEGORY,
+  APP_SLUG,
   type AppEntry,
   CATEGORY_INFO,
   findApp,
@@ -45,6 +48,7 @@ function AppDetailsPage() {
   const slug = settings.data?.public_slug;
   const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
   const webhooks = useQuery(webhooksQuery);
+  const accessTokens = useQuery(accessTokensQuery);
   if (!app) return null;
   const calendarConnected = page.data?.calendar_connected ?? false;
   const loading = settings.isPending || Boolean(slug && page.isPending);
@@ -74,6 +78,7 @@ function AppDetailsPage() {
                   settings.data,
                   calendarConnected,
                   webhooks.data?.length,
+                  accessTokens.data?.length,
                 )}
               />
             ) : null}
@@ -105,6 +110,13 @@ function AppDetailsPage() {
               error={settings.error}
               onRetry={() => void settings.refetch()}
             />
+          ) : app.slug === APP_SLUG.aiAgents ? (
+            <PanelCard
+              title="Your agent tokens"
+              description="Each token lets one AI agent manage your calls. Revoke it to shut that agent out."
+            >
+              <AiAgentsPanel />
+            </PanelCard>
           ) : app.category === APP_CATEGORY.automation ? (
             <PanelCard
               title="Your webhooks"

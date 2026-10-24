@@ -36,6 +36,9 @@ ts-rs = { version = "10", features = ["serde-compat", "uuid-impl", "chrono-impl"
 tower-http = { version = "0.6", features = ["cors", "request-id", "trace"] }
 urlencoding = "2"
 uuid = { version = "1", features = ["serde", "v4"] }
+# Plan 43: the MCP server agents connect to, and the schemas of its tools.
+rmcp = { version = "3.7", default-features = false, features = ["server", "macros", "transport-streamable-http-server"] }
+schemars = { version = "1", features = ["chrono04", "uuid1"] }
 resvg = { version = "0.48", default-features = false, features = ["text"] }
 
 [dev-dependencies]

@@ -25,6 +25,7 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::bug_reports::routes::protected_routes())
         .merge(domain::calendly::routes::protected_routes())
         .merge(domain::leads::routes::protected_routes())
+        .merge(domain::mcp::routes::protected_routes())
         .merge(domain::calling_visits::routes::protected_routes())
         .merge(domain::emails::routes::protected_routes())
         .merge(domain::event_types::routes::protected_routes())
@@ -47,6 +48,7 @@ pub fn build_app(state: AppState) -> Router {
     Router::new()
         .merge(protected)
         .merge(public)
+        .merge(domain::mcp::routes::mcp_routes(state.clone()))
         .layer(DefaultBodyLimit::max(BODY_MAX_BYTES))
         .with_state(state)
 }

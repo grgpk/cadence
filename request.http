@@ -255,3 +255,44 @@ PUT {{baseUrl}}/api/admin/billing/00000000-0000-4000-8000-100000000003
 Content-Type: application/json
 
 {"plan":"business"}
+
+### Agent access tokens (Plan 43): list
+GET {{baseUrl}}/api/host/access-tokens
+
+### Agent access tokens: create; the token is in this response only
+POST {{baseUrl}}/api/host/access-tokens
+Content-Type: application/json
+
+{"name":"Claude Code"}
+
+### A host moves their own call
+POST {{baseUrl}}/api/bookings/00000000-0000-0000-0000-000000000000/reschedule
+Content-Type: application/json
+
+{"slot_start":"2026-11-02T09:00:00Z"}
+
+@agentToken = cad_replace-with-a-token-from-create
+
+### MCP: initialize
+POST {{baseUrl}}/api/mcp
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"request.http","version":"1"}}}
+
+### MCP: list tools
+POST {{baseUrl}}/api/mcp
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}
+
+### MCP: call a tool
+POST {{baseUrl}}/api/mcp
+Authorization: Bearer {{agentToken}}
+Content-Type: application/json
+Accept: application/json, text/event-stream
+
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_bookings","arguments":{"limit":10}}}

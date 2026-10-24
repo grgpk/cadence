@@ -1,3 +1,4 @@
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
@@ -6,7 +7,7 @@ use crate::text_column::text_column;
 
 /// A booking form question a host can turn on for a kind of call. Values
 /// follow the `event_type_questions` and `lead_answers` checks.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash, TS)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Hash, TS, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 #[ts(export, export_to = "../../frontend/src/bindings/Question.ts")]
 pub enum Question {
@@ -59,7 +60,7 @@ pub struct EventType {
 }
 
 /// A kind of call as the host saves it.
-#[derive(Debug, Deserialize, TS)]
+#[derive(Debug, Deserialize, TS, JsonSchema)]
 #[ts(export, export_to = "../../frontend/src/bindings/EventTypeInput.ts")]
 pub struct EventTypeInput {
     pub slug: String,

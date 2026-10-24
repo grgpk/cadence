@@ -1,17 +1,22 @@
 use chrono::{DateTime, NaiveDate, NaiveTime, Utc};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Debug, Deserialize, Serialize, TS)]
+#[derive(Debug, Deserialize, Serialize, TS, JsonSchema)]
 #[ts(
     export,
     export_to = "../../frontend/src/bindings/AvailabilityRuleInput.ts"
 )]
 pub struct AvailabilityRuleInput {
+    /// 0 is Monday, 6 is Sunday.
     pub weekday: i32,
+    /// In the host's timezone.
     pub start_time: NaiveTime,
+    /// In the host's timezone, after `start_time`.
     pub end_time: NaiveTime,
+    /// Length of each bookable slot, 5 to 240.
     pub slot_minutes: i32,
 }
 
@@ -35,7 +40,7 @@ pub struct TimeSlot {
 }
 
 /// One stretch of open hours on a date that has its own hours.
-#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, TS, JsonSchema)]
 #[ts(export, export_to = "../../frontend/src/bindings/HoursRange.ts")]
 pub struct HoursRange {
     pub start_time: NaiveTime,

@@ -22,6 +22,7 @@ import {
   filterApps,
 } from "../../../domains/integrations/catalog";
 import { webhooksQuery } from "../../../domains/integrations/webhooks-api";
+import { accessTokensQuery } from "../../../domains/integrations/access-tokens-api";
 import { EmptyState } from "../../../domains/shared/empty-state";
 import { PageHeader } from "../../../domains/shared/page-header";
 import { CONFERENCING_APP } from "../../../domains/integrations/conferencing";
@@ -109,6 +110,7 @@ function AppStorePage() {
   const slug = settings.data?.public_slug;
   const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
   const webhooks = useQuery(webhooksQuery);
+  const accessTokens = useQuery(accessTokensQuery);
 
   const apps = filterApps(APPS, search, category);
   const stateOf = (app: AppEntry) =>
@@ -120,6 +122,7 @@ function AppStorePage() {
       },
       page.data?.calendar_connected ?? false,
       webhooks.data?.length,
+      accessTokens.data?.length,
     );
 
   return (

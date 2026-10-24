@@ -28,6 +28,10 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/bookings/{unid}", get(handlers::detail))
         .route("/api/bookings/{unid}/cancel", post(handlers::cancel))
         .route("/api/bookings/{unid}/no-show", post(handlers::no_show))
+        .route(
+            "/api/bookings/{unid}/reschedule",
+            post(handlers::reschedule_by_host),
+        )
         .route("/api/host/insights", get(handlers::insights))
         .route("/api/admin/bookings", get(handlers::list_all))
 }

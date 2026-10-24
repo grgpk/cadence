@@ -123,6 +123,11 @@ cadence/
 | 36 | `PLAN_36_REFERRALS.md` | invite links: a month of Pro as Stripe credit to both hosts once the invited one pays; Free booking pages carry the invite | ✅ done |
 | 37 | `PLAN_37_REVIEW_FIXES.md` | fixes from the branch review: existing hosts start a trial, safer referral credits, honest attendance, follow-ups once per person, billing page states, one Checkout at a time, all-or-nothing import | ✅ done |
 | 38 | `PLAN_38_PREVIEWS_AND_RETENTION.md` | personal link previews, a cancel flow that asks why and offers yearly or a free pause, refunds take back referral credits | ✅ done |
+| 39 | `PLAN_39_PRICING_DESIGN.md` | pricing and billing design | ✅ done |
+| 40 | `PLAN_40_FRIENDLY_DASHBOARD.md` | a friendlier host dashboard | ✅ done |
+| 41 | `PLAN_41_PICK_AND_FEEL.md` | a pick-a-call page that leads into booking, and one feel for touch | ✅ done |
+| 42 | `PLAN_42_SCHEMA_NORMALIZATION.md` | one place for each fact in the schema | ✅ done |
+| 43 | `PLAN_43_MCP.md` | an MCP server at `/api/mcp`: AI agents manage a host's calls, hours and page with revocable access tokens; hosts move their own calls | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

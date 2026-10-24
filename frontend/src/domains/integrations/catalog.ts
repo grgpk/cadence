@@ -1,4 +1,4 @@
-import { CalendarDays, Link as LinkIcon, Video, Webhook } from "lucide-react";
+import { Bot, CalendarDays, Link as LinkIcon, Video, Webhook } from "lucide-react";
 import type { ComponentType } from "react";
 
 import type { HostSettings } from "../../bindings/HostSettings";
@@ -45,6 +45,7 @@ export const APP_SLUG = {
   zoom: "zoom",
   teams: "teams",
   webhooks: "webhooks",
+  aiAgents: "ai-agents",
 } as const;
 
 export type AppSlug = (typeof APP_SLUG)[keyof typeof APP_SLUG];
@@ -112,6 +113,16 @@ export const APPS: readonly AppEntry[] = [
     plan: "business",
   },
   {
+    slug: APP_SLUG.aiAgents,
+    name: "AI agents (MCP)",
+    category: APP_CATEGORY.automation,
+    summary: "Claude and other AI agents manage your calls, hours and booking page.",
+    description:
+      "Give an AI agent such as Claude Code a token, and it can read and book your calls, move or cancel them, and change your hours and kinds of call, through the Model Context Protocol. Revoke a token to shut it out.",
+    icon: Bot,
+    available: true,
+  },
+  {
     slug: APP_SLUG.outlook,
     name: "Outlook Calendar",
     category: APP_CATEGORY.calendar,
@@ -161,12 +172,15 @@ export function isInstalled(
   settings: Pick<HostSettings, "conferencing_app" | "meeting_link">,
   calendarConnected: boolean,
   webhookCount = 0,
+  accessTokenCount = 0,
 ): boolean {
   switch (slug) {
     case APP_SLUG.googleCalendar:
       return calendarConnected;
     case APP_SLUG.webhooks:
       return webhookCount > 0;
+    case APP_SLUG.aiAgents:
+      return accessTokenCount > 0;
     case APP_SLUG.googleMeet:
       return settings.conferencing_app === CONFERENCING_APP.googleMeet;
     case APP_SLUG.customLink:
@@ -193,11 +207,17 @@ export function appState(
   settings: Pick<HostSettings, "conferencing_app" | "meeting_link">,
   calendarConnected: boolean,
   webhookCount = 0,
+  accessTokenCount = 0,
 ): { tone: AppTone; text: string } {
-  if (!isInstalled(slug, settings, calendarConnected, webhookCount)) {
+  if (!isInstalled(slug, settings, calendarConnected, webhookCount, accessTokenCount)) {
     return { tone: APP_TONE.off, text: "Not set up" };
   }
   switch (slug) {
+    case APP_SLUG.aiAgents:
+      return {
+        tone: APP_TONE.on,
+        text: accessTokenCount === 1 ? "1 token" : `${accessTokenCount} tokens`,
+      };
     case APP_SLUG.webhooks:
       return {
         tone: APP_TONE.on,

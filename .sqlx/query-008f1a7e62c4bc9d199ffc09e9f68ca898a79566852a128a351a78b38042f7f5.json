@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT template FROM email_queue WHERE booking_unid = $1 AND sent_at IS NULL ORDER BY template",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "template",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "email_queue",
+            "name": "template"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "008f1a7e62c4bc9d199ffc09e9f68ca898a79566852a128a351a78b38042f7f5"
+}
