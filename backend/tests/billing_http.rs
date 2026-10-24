@@ -46,6 +46,7 @@ fn app_with(pool: &PgPool, payments: Option<Payments>) -> Router {
         pool: pool.clone(),
         calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
         payments,
+        crypto: None,
         calendly: Calendly::fake(CalendlyAccount::default()),
     })
 }

@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM crypto_payments\n               WHERE user_unid = $1 AND status = 'processing' AND created_at > $2\n           ) AS \"confirming!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "confirming!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "0d34beeb8d714f06112b1d51936cc633c0c68f4ced41aaea4666d5c6aa785bc5"
+}

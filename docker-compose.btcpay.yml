@@ -1,0 +1,84 @@
+# Plan 48: a local BTCPay Server on Bitcoin regtest (fake coins), so crypto
+# checkout works in development with no account anywhere. Never deployed.
+#
+#   docker compose -f docker-compose.btcpay.yml up -d
+#   scripts/btcpay-setup.sh
+#
+# BTCPay is on http://localhost:49392. It calls the backend's webhook on the
+# host through host.docker.internal.
+name: cadence-btcpay
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - btcpay_postgres:/var/lib/postgresql/data
+
+  bitcoind:
+    image: btcpayserver/bitcoin:31.1-1
+    restart: unless-stopped
+    environment:
+      BITCOIN_NETWORK: regtest
+      BITCOIN_WALLETDIR: /walletdata
+      BITCOIN_EXTRA_ARGS: |
+        rpcuser=cadence
+        rpcpassword=cadence
+        rpcport=43782
+        rpcbind=0.0.0.0:43782
+        rpcallowip=0.0.0.0/0
+        port=39388
+        whitelist=0.0.0.0/0
+        fallbackfee=0.0002
+    volumes:
+      - btcpay_bitcoin:/data
+      - btcpay_bitcoin_wallet:/walletdata
+
+  nbxplorer:
+    image: nicolasdorier/nbxplorer:2.6.19
+    restart: unless-stopped
+    environment:
+      NBXPLORER_NETWORK: regtest
+      NBXPLORER_CHAINS: btc
+      NBXPLORER_BIND: 0.0.0.0:32838
+      NBXPLORER_BTCRPCURL: http://bitcoind:43782/
+      NBXPLORER_BTCRPCUSER: cadence
+      NBXPLORER_BTCRPCPASSWORD: cadence
+      NBXPLORER_BTCNODEENDPOINT: bitcoind:39388
+      NBXPLORER_NOAUTH: 1
+      NBXPLORER_POSTGRES: "User ID=postgres;Host=postgres;Port=5432;Application Name=nbxplorer;Database=nbxplorer"
+    depends_on:
+      - bitcoind
+      - postgres
+
+  btcpayserver:
+    image: btcpayserver/btcpayserver:2.4.5
+    restart: unless-stopped
+    environment:
+      BTCPAY_NETWORK: regtest
+      BTCPAY_BIND: 0.0.0.0:49392
+      BTCPAY_ROOTPATH: /
+      BTCPAY_CHAINS: btc
+      BTCPAY_BTCEXPLORERURL: http://nbxplorer:32838/
+      BTCPAY_POSTGRES: "User ID=postgres;Host=postgres;Port=5432;Application Name=btcpayserver;Database=btcpayserver"
+      BTCPAY_EXPLORERPOSTGRES: "User ID=postgres;Host=postgres;Port=5432;Application Name=btcpayserver;Database=nbxplorer"
+      # Webhooks to private addresses are refused; the backend on the host is
+      # the one exception.
+      BTCPAY_SSRFEXCEPTIONS: host.docker.internal:3001
+    ports:
+      - "127.0.0.1:49392:49392"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - btcpay_data:/datadir
+    depends_on:
+      - nbxplorer
+      - postgres
+
+volumes:
+  btcpay_postgres:
+  btcpay_bitcoin:
+  btcpay_bitcoin_wallet:
+  btcpay_data:

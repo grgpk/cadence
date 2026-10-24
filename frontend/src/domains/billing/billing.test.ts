@@ -6,6 +6,7 @@ import { PLAN } from "../pricing/pricing";
 import {
   bookingUsage,
   checkoutIntent,
+  cryptoStatusLine,
   trialFreeLimit,
   hasPortal,
   leaveOffer,
@@ -293,5 +294,18 @@ describe("leaveOffer", () => {
     expect(leaveOffer("missing_feature", monthly, offers)).toBeNull();
     expect(leaveOffer("switching", monthly, offers)).toBeNull();
     expect(leaveOffer(null, monthly, offers)).toBeNull();
+  });
+});
+
+describe("cryptoStatusLine", () => {
+  it("says until when the plan is paid and that it does not renew", () => {
+    const line = cryptoStatusLine({
+      plan: PLAN.BUSINESS,
+      interval: "year",
+      period_end: "2027-10-25T12:00:00Z",
+    });
+    expect(line).toContain("Business is paid with crypto until");
+    expect(line).toContain("2027");
+    expect(line).toContain("does not renew by itself");
   });
 });

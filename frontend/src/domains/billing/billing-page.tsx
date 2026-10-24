@@ -1,4 +1,4 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
+import type { CryptoPlan } from "../../bindings/CryptoPlan";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Button } from "../../components/ui/button";
@@ -28,13 +29,16 @@ import { StatusBadge, SUBSCRIPTION_STATUS } from "../shared/status-badge";
 import {
   billingPlansQuery,
   billingQuery,
+  cryptoQuery,
   goToCheckout,
+  goToCryptoCheckout,
   goToPortal,
   goToYearly,
 } from "./billing-api";
 import {
   bookingUsage,
   type CheckoutIntent,
+  cryptoStatusLine,
   hasPortal,
   isBilled,
   planAction,
@@ -48,11 +52,14 @@ import {
   yearlySwitch,
 } from "./billing";
 import { CancelPlan, KeepPlan } from "./cancel-dialog";
+import { CryptoCard } from "./crypto-card";
 import { InviteCard } from "./invite-card";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
 const CONFIRM_POLL_MS = 2000;
 const CONFIRM_WAIT_MS = 30_000;
+/** A crypto payment takes a block or more to confirm. */
+const CRYPTO_POLL_MS = 15_000;
 
 const PAYMENTS_OFF = "Payments are not set up yet. Try again later.";
 /** Each Stripe trip says its own 409: the reasons differ. */
@@ -63,6 +70,10 @@ const CHECKOUT_ERRORS = {
 const PORTAL_ERRORS = {
   409: "There is no billing account yet. Subscribe to a plan first.",
   503: PAYMENTS_OFF,
+};
+const CRYPTO_ERRORS = {
+  409: "You pay by card, or a crypto plan is running. Renew that plan, or pick another once it ends.",
+  503: "Crypto payments are not set up yet. Try again later.",
 };
 const YEARLY_ERRORS = {
   409: "Only a monthly plan that is not being cancelled can switch to yearly. Reload to see your plan as it is now.",
@@ -99,22 +110,28 @@ function TrialDays({ left }: { left: number }) {
 function CurrentPlan({
   summary,
   offers,
+  crypto,
 }: {
   summary: BillingSummary;
   offers: readonly PlanOffer[];
+  /** A prepaid crypto period, shown instead of Stripe's status unless Stripe bills. */
+  crypto: CryptoPlan | null;
 }) {
+  const paidInCrypto = crypto !== null && !isBilled(summary);
   // A trial has no limit of its own: show the month against Free's.
-  const freeLimit = trialFreeLimit(summary, offers);
+  const freeLimit = paidInCrypto ? null : trialFreeLimit(summary, offers);
   const limit = summary.entitlements.included_bookings_per_month ?? freeLimit;
   const usage = freeLimit
     ? Math.min(1, summary.bookings_this_month / freeLimit)
     : bookingUsage(summary);
-  const daysLeft = trialDaysLeft(summary, Date.now());
+  const daysLeft = paidInCrypto ? null : trialDaysLeft(summary, Date.now());
   const billed = summary.status === STATUS.ACTIVE;
   return (
     <PanelCard
       title="Current plan"
-      description={statusLine(summary, Date.now())}
+      description={
+        paidInCrypto ? cryptoStatusLine(crypto) : statusLine(summary, Date.now())
+      }
       footer={
         billed ? (
           <div className="flex justify-end">
@@ -134,7 +151,7 @@ function CurrentPlan({
               {PLAN_NAMES[summary.plan]}
             </span>
             {/* An ended trial is stored as trialing but is Free now: no badge. */}
-            {summary.status && !trialEnded(summary) ? (
+            {summary.status && !trialEnded(summary) && !paidInCrypto ? (
               <StatusBadge value={summary.status} statuses={SUBSCRIPTION_STATUS} />
             ) : null}
           </div>
@@ -366,6 +383,17 @@ export function BillingPage({
     },
   });
   const plans = useQuery(billingPlansQuery);
+  const crypto = useQuery({
+    ...cryptoQuery,
+    refetchInterval: (query) => (query.state.data?.confirming ? CRYPTO_POLL_MS : false),
+  });
+  // A confirmed crypto payment changes the plan: read it again.
+  const queryClient = useQueryClient();
+  const cryptoEnd = crypto.data?.active?.period_end;
+  useEffect(() => {
+    if (cryptoEnd)
+      void queryClient.invalidateQueries({ queryKey: billingQuery.queryKey });
+  }, [cryptoEnd, queryClient]);
   const [interval, setInterval] = useState<BillingInterval>(
     intent.interval ?? INTERVAL.YEAR,
   );
@@ -377,8 +405,13 @@ export function BillingPage({
   });
   const portal = useMutation({ mutationFn: goToPortal, onError: failed(PORTAL_ERRORS) });
   const yearly = useMutation({ mutationFn: goToYearly, onError: failed(YEARLY_ERRORS) });
-  // The browser is leaving for Stripe: keep the buttons off until it has.
-  const leaving = [checkout, portal, yearly].some(
+  const cryptoCheckout = useMutation({
+    mutationFn: goToCryptoCheckout,
+    onError: failed(CRYPTO_ERRORS),
+  });
+  // The browser is leaving for Stripe or the crypto provider: keep the
+  // buttons off until it has.
+  const leaving = [checkout, portal, yearly, cryptoCheckout].some(
     (mutation) => mutation.isPending || mutation.isSuccess,
   );
   // Back from Stripe, the browser may show this page as it was left, with
@@ -386,16 +419,18 @@ export function BillingPage({
   const { reset: resetCheckout } = checkout;
   const { reset: resetPortal } = portal;
   const { reset: resetYearly } = yearly;
+  const { reset: resetCrypto } = cryptoCheckout;
   useEffect(() => {
     const restored = (event: PageTransitionEvent) => {
       if (!event.persisted) return;
       resetCheckout();
       resetPortal();
       resetYearly();
+      resetCrypto();
     };
     window.addEventListener("pageshow", restored);
     return () => window.removeEventListener("pageshow", restored);
-  }, [resetCheckout, resetPortal, resetYearly]);
+  }, [resetCheckout, resetPortal, resetYearly, resetCrypto]);
   // Stripe's event can be late, or the payment can need another step.
   const [gaveUpWaiting, setGaveUpWaiting] = useState(false);
   useEffect(() => {
@@ -456,11 +491,23 @@ export function BillingPage({
               pending={leaving}
             />
           ) : null}
-          <CurrentPlan summary={summary} offers={plans.data ?? []} />
+          <CurrentPlan
+            summary={summary}
+            offers={plans.data ?? []}
+            crypto={crypto.data?.active ?? null}
+          />
           {toYearly ? (
             <PayYearly
               offer={toYearly}
               onSwitch={() => yearly.mutate()}
+              pending={leaving}
+            />
+          ) : null}
+          {crypto.data?.available && !isBilled(summary) ? (
+            <CryptoCard
+              crypto={crypto.data}
+              offers={plans.data ?? []}
+              onCheckout={(choice) => cryptoCheckout.mutate(choice)}
               pending={leaving}
             />
           ) : null}

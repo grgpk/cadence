@@ -17,6 +17,7 @@ use super::{
 use crate::{
     domain::{
         auth::models::UserRecord,
+        crypto_billing::service as crypto_billing,
         emails::service::{self as emails, AccountNotice, app_url},
         host_settings::models::DEFAULT_ACCENT,
     },
@@ -96,7 +97,22 @@ pub async fn entitlements_for(
     now: DateTime<Utc>,
 ) -> Result<Entitlements, sqlx::Error> {
     let subscription = db::find(pool, user_unid).await?;
-    Ok(effective_plan(subscription.as_ref(), now).entitlements())
+    let plan = effective_plan(subscription.as_ref(), now);
+    Ok(with_crypto(pool, user_unid, plan, now)
+        .await?
+        .entitlements())
+}
+
+/// The higher of the stored plan and a plan paid for in crypto, which Plan
+/// 48 keeps apart from Stripe's row.
+async fn with_crypto(
+    pool: &PgPool,
+    user_unid: Uuid,
+    plan: Plan,
+    now: DateTime<Utc>,
+) -> Result<Plan, sqlx::Error> {
+    let crypto = crypto_billing::active_plan(pool, user_unid, now).await?;
+    Ok(crypto.map_or(plan, |crypto| crypto.max(plan)))
 }
 
 pub async fn summary(
@@ -105,12 +121,16 @@ pub async fn summary(
     now: DateTime<Utc>,
 ) -> Result<BillingSummary, sqlx::Error> {
     let subscription = db::find(pool, user_unid).await?;
-    let plan = effective_plan(subscription.as_ref(), now);
+    let stored = effective_plan(subscription.as_ref(), now);
+    let crypto = crypto_billing::active_plan(pool, user_unid, now).await?;
+    let plan = crypto.map_or(stored, |crypto| crypto.max(stored));
     let bookings = db::bookings_this_month(pool, user_unid).await?;
+    // A host who paid in crypto loses nothing when the trial ends.
     let trial_running = subscription
         .as_ref()
         .is_some_and(|row| row.status == SubscriptionStatus::Trialing)
-        && plan != Plan::Free;
+        && stored != Plan::Free
+        && crypto.is_none();
     let trial_losses = if trial_running {
         trial_losses_of(&mut *pool.acquire().await?, user_unid).await?
     } else {

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE crypto_payments SET status = 'failed', updated_at = now()\n         WHERE unid = $1 AND status = 'pending' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "44a024045cc9eaea8ef92fcec547672b3f090d26982e28b7b0dfed0cbd6b50ff"
+}

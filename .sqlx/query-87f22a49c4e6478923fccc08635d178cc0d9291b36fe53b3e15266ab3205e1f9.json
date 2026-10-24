@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_unid, provider AS \"provider: CryptoProvider\", provider_invoice_id,\n                  plan AS \"plan: Plan\", billing_interval AS \"billing_interval: BillingInterval\"\n           FROM crypto_payments WHERE unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "user_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "provider: CryptoProvider",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "provider_invoice_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider_invoice_id"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "plan: Plan",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "plan"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "billing_interval: BillingInterval",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "billing_interval"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "87f22a49c4e6478923fccc08635d178cc0d9291b36fe53b3e15266ab3205e1f9"
+}

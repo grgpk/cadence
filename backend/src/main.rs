@@ -5,6 +5,7 @@ use axum::http::HeaderValue;
 use cadence_backend::app_state::AppState;
 use cadence_backend::domain::billing::stripe::Payments;
 use cadence_backend::domain::calendly::client::Calendly;
+use cadence_backend::domain::crypto_billing::gateway::CryptoPayments;
 use cadence_backend::domain::google_calendar::calendar::{GoogleCalendar, HostCalendar};
 use cadence_backend::tracing_setup::setup_tracing;
 use sqlx::postgres::PgPoolOptions;
@@ -48,10 +49,15 @@ async fn main() -> anyhow::Result<()> {
     if payments.is_none() {
         info!("Stripe keys or prices are not set: payments are off");
     }
+    let crypto = CryptoPayments::from_env();
+    if crypto.is_none() {
+        info!("CRYPTO_PROVIDER or its settings are not set: crypto payments are off");
+    }
     let app = cadence_backend::build_app(AppState {
         pool,
         calendar,
         payments,
+        crypto,
         calendly: Calendly::live(),
     })
     .layer(TraceLayer::new_for_http())

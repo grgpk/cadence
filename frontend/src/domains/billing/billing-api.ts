@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CompPlan } from "../../bindings/CompPlan";
+import type { CryptoSummary } from "../../bindings/CryptoSummary";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { RedirectUrl } from "../../bindings/RedirectUrl";
 import type { AdminCancellation } from "../../bindings/AdminCancellation";
@@ -21,6 +22,12 @@ export const referralsQuery = queryOptions({
   queryFn: () => api<Referrals>("/api/billing/referrals"),
 });
 
+/** Paying with crypto: whether it is on, and the prepaid period running. */
+export const cryptoQuery = queryOptions({
+  queryKey: QUERY_KEYS.cryptoBilling,
+  queryFn: () => api<CryptoSummary>("/api/billing/crypto"),
+});
+
 /** The plans change with a deploy, not while a page is open. */
 export const billingPlansQuery = queryOptions({
   queryKey: QUERY_KEYS.billingPlans,
@@ -31,6 +38,15 @@ export const billingPlansQuery = queryOptions({
 /** Leaves the app for Stripe's Checkout page. */
 export async function goToCheckout(choice: StartCheckout): Promise<void> {
   const { url } = await api<RedirectUrl>("/api/billing/checkout", {
+    method: "POST",
+    body: JSON.stringify(choice),
+  });
+  window.location.assign(url);
+}
+
+/** Leaves the app for the crypto provider's checkout page. */
+export async function goToCryptoCheckout(choice: StartCheckout): Promise<void> {
+  const { url } = await api<RedirectUrl>("/api/billing/crypto/checkout", {
     method: "POST",
     body: JSON.stringify(choice),
   });

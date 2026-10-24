@@ -36,6 +36,8 @@ pub const PASSWORD_RESET_TEMPLATE: &str = "password_reset";
 pub const TRIAL_ENDING_TEMPLATE: &str = "trial_ending";
 pub const HOST_BOOKING_LIMIT_TEMPLATE: &str = "host_booking_limit";
 pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
+/// A plan paid for in crypto ends in a few days; it never renews itself.
+pub const CRYPTO_RENEWAL_TEMPLATE: &str = "crypto_renewal";
 /// Business: the invitee has not said they are coming, 2 hours before.
 pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
 /// Business: a host's one "here are my times" to someone who left a booking.
@@ -170,6 +172,8 @@ pub enum AccountNotice {
     BookingLimit,
     /// A renewal failed; Stripe is retrying it.
     PaymentFailed,
+    /// A few days before a plan paid for in crypto ends.
+    CryptoRenewal,
 }
 
 impl AccountNotice {
@@ -178,6 +182,7 @@ impl AccountNotice {
             Self::TrialEnding => TRIAL_ENDING_TEMPLATE,
             Self::BookingLimit => HOST_BOOKING_LIMIT_TEMPLATE,
             Self::PaymentFailed => PAYMENT_FAILED_TEMPLATE,
+            Self::CryptoRenewal => CRYPTO_RENEWAL_TEMPLATE,
         }
     }
 }
@@ -714,9 +719,10 @@ struct Content {
 pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> {
     let content = match template {
         PASSWORD_RESET_TEMPLATE => reset_content(&read(payload)),
-        TRIAL_ENDING_TEMPLATE | HOST_BOOKING_LIMIT_TEMPLATE | PAYMENT_FAILED_TEMPLATE => {
-            account_content(template, &read(payload))
-        }
+        TRIAL_ENDING_TEMPLATE
+        | HOST_BOOKING_LIMIT_TEMPLATE
+        | PAYMENT_FAILED_TEMPLATE
+        | CRYPTO_RENEWAL_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -799,6 +805,13 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
              Pro adds reminders 2 hours and 30 minutes before, your own form questions \
              and no Cadence logo, from $8 a month.",
             "See plans",
+        ),
+        CRYPTO_RENEWAL_TEMPLATE => (
+            "Your crypto plan ends in 3 days",
+            "A plan paid for in crypto does not renew by itself. Pay for another month \
+             or year to keep it. Otherwise your page moves to Free, and your settings \
+             stay saved.",
+            "Renew with crypto",
         ),
         _ => (
             "Your Cadence payment failed",
@@ -1327,6 +1340,7 @@ mod tests {
                 "You've had 25 bookings this month",
             ),
             (PAYMENT_FAILED_TEMPLATE, "Your Cadence payment failed"),
+            (CRYPTO_RENEWAL_TEMPLATE, "Your crypto plan ends in 3 days"),
         ] {
             let email = email(template, &payload);
             assert_eq!(email.subject, subject);

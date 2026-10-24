@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO crypto_payments (user_unid, provider, plan, billing_interval, amount_cents)\n         VALUES ($1, $2, $3, $4, $5) RETURNING unid",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "49fd55f7bf5d5f60b553d838f86d8408b8b26e0eadeb309e0f8cfca3ef32aabd"
+}

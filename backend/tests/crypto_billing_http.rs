@@ -1,0 +1,397 @@
+//! Plans paid for in crypto over HTTP, against a fake provider: the opt-in
+//! checkout, the provider's events, and how a prepaid period sits next to
+//! Stripe's plan without touching it.
+
+// Clippy's test escapes cover `#[test]` functions only; the helpers here are test code too.
+#![allow(clippy::expect_used, clippy::indexing_slicing)]
+
+use axum::{
+    Router,
+    body::{Body, to_bytes},
+    http::{Method, Request, StatusCode, header},
+};
+use cadence_backend::{
+    app_state::AppState,
+    build_app,
+    domain::{
+        auth::service::make_token,
+        calendly::{client::Calendly, models::CalendlyAccount},
+        crypto_billing::gateway::{CryptoPayments, FAKE_SECRET_HEADER},
+        google_calendar::calendar::{HostCalendar, InMemoryCalendar},
+    },
+};
+use chrono::{DateTime, Duration, Months, Utc};
+use serde_json::{Value, json};
+use sqlx::PgPool;
+use tower::ServiceExt;
+use uuid::Uuid;
+
+const ME: &str = "/api/billing/me";
+const CRYPTO: &str = "/api/billing/crypto";
+const CHECKOUT: &str = "/api/billing/crypto/checkout";
+const WEBHOOK: &str = "/api/billing/crypto/webhook";
+const SECRET: &str = "crypto_test_secret";
+
+fn app_with(pool: &PgPool, crypto: Option<CryptoPayments>) -> Router {
+    dotenvy::dotenv().ok();
+    build_app(AppState {
+        pool: pool.clone(),
+        calendar: HostCalendar::InMemory(InMemoryCalendar::new()),
+        payments: None,
+        crypto,
+        calendly: Calendly::fake(CalendlyAccount::default()),
+    })
+}
+
+fn app(pool: &PgPool) -> Router {
+    app_with(pool, Some(CryptoPayments::fake(SECRET)))
+}
+
+async fn send(
+    app: &Router,
+    method: Method,
+    path: &str,
+    cookie: Option<&str>,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
+    let mut request = Request::builder().method(method).uri(path);
+    if let Some(cookie) = cookie {
+        request = request.header(header::COOKIE, cookie);
+    }
+    let request = match body {
+        Some(body) => request
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body.to_string())),
+        None => request.body(Body::empty()),
+    }
+    .expect("request is well formed");
+    let response = app.clone().oneshot(request).await.expect("router responds");
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), usize::MAX)
+        .await
+        .expect("body is readable");
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+async fn register(app: &Router, email: &str) -> (Uuid, String) {
+    let (status, user) = send(
+        app,
+        Method::POST,
+        "/api/auth/register",
+        None,
+        Some(json!({ "email": email, "password": "password123", "full_name": "Ada Lovelace" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let unid: Uuid = serde_json::from_value(user["unid"].clone()).expect("user has an id");
+    let token = make_token(unid, 0).expect("JWT_SECRET is set for tests");
+    (unid, format!("session={token}"))
+}
+
+/// Ends the host's trial, so the plan they have is only what they pay for.
+async fn end_trial(pool: &PgPool, user: Uuid) {
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET trial_ends_at = now() - interval '1 day' WHERE user_unid = $1 RETURNING 1",
+        user,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("the trial row exists");
+}
+
+/// Opens a crypto checkout and answers the order id the provider was given.
+async fn checkout(app: &Router, cookie: &str, plan: &str, interval: &str) -> Uuid {
+    let (status, body) = send(
+        app,
+        Method::POST,
+        CHECKOUT,
+        Some(cookie),
+        Some(json!({ "plan": plan, "interval": interval })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let url = body["url"].as_str().expect("a checkout url");
+    url.rsplit('/')
+        .next()
+        .and_then(|order| order.parse().ok())
+        .expect("the fake's url ends with the order id")
+}
+
+/// The provider's event about `order`'s invoice.
+async fn event(app: &Router, pool: &PgPool, order: Uuid, status: &str, secret: &str) -> StatusCode {
+    let invoice = sqlx::query_scalar!(
+        "SELECT provider_invoice_id FROM crypto_payments WHERE unid = $1",
+        order,
+    )
+    .fetch_optional(pool)
+    .await
+    .expect("payments are readable")
+    .flatten()
+    .unwrap_or_default();
+    event_for(app, order, &invoice, status, secret).await
+}
+
+async fn event_for(
+    app: &Router,
+    order: Uuid,
+    invoice: &str,
+    status: &str,
+    secret: &str,
+) -> StatusCode {
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri(WEBHOOK)
+        .header(FAKE_SECRET_HEADER, secret)
+        .body(Body::from(
+            json!({ "order_id": order, "invoice_id": invoice, "status": status }).to_string(),
+        ))
+        .expect("request is well formed");
+    app.clone()
+        .oneshot(request)
+        .await
+        .expect("router responds")
+        .status()
+}
+
+async fn period_end(app: &Router, cookie: &str) -> Option<DateTime<Utc>> {
+    let (_, crypto) = send(app, Method::GET, CRYPTO, Some(cookie), None).await;
+    serde_json::from_value(crypto["active"]["period_end"].clone()).ok()
+}
+
+/// A notice still to go out to the host.
+struct Notice {
+    template: String,
+    send_at: DateTime<Utc>,
+}
+
+async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<(String, DateTime<Utc>)> {
+    sqlx::query_as!(
+        Notice,
+        r#"SELECT e.template AS "template!", e.send_at AS "send_at!"
+           FROM email_queue e JOIN users u ON u.email = e.email
+           WHERE u.unid = $1 AND e.booking_unid IS NULL AND e.sent_at IS NULL
+           ORDER BY e.template"#,
+        user,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("queue is readable")
+    .into_iter()
+    .map(|notice| (notice.template, notice.send_at))
+    .collect()
+}
+
+fn near(left: DateTime<Utc>, right: DateTime<Utc>) -> bool {
+    (left - right).abs() < Duration::minutes(1)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn without_a_provider_crypto_is_off(pool: PgPool) {
+    let app = app_with(&pool, None);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+
+    let (status, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(crypto["available"], false);
+    assert_eq!(crypto["active"], Value::Null);
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(json!({ "plan": "pro", "interval": "month" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_paid_invoice_gives_the_plan_for_its_interval(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "free"
+    );
+
+    let order = checkout(&app, &cookie, "business", "month").await;
+    assert_eq!(
+        event(&app, &pool, order, "paid", SECRET).await,
+        StatusCode::OK
+    );
+
+    let (_, summary) = send(&app, Method::GET, ME, Some(&cookie), None).await;
+    assert_eq!(summary["plan"], "business");
+    assert_eq!(summary["entitlements"]["webhooks"], true);
+    // Stripe's row is untouched: still the ended trial.
+    assert_eq!(summary["status"], "trialing");
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+    let expected = Utc::now()
+        .checked_add_months(Months::new(1))
+        .expect("in range");
+    assert!(near(end, expected));
+    let notices = waiting_notices(&pool, unid).await;
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].0, "crypto_renewal");
+    assert!(near(notices[0].1, end - Duration::days(3)));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_repeated_event_counts_once_and_renewing_adds_to_the_period(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+
+    let first = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, first, "paid", SECRET).await;
+    let after_first = period_end(&app, &cookie).await.expect("a crypto period");
+    event(&app, &pool, first, "paid", SECRET).await;
+    assert_eq!(period_end(&app, &cookie).await, Some(after_first));
+
+    let second = checkout(&app, &cookie, "pro", "year").await;
+    event(&app, &pool, second, "paid", SECRET).await;
+    let after_second = period_end(&app, &cookie).await.expect("a crypto period");
+    let expected = after_first
+        .checked_add_months(Months::new(12))
+        .expect("in range");
+    assert!(near(after_second, expected));
+    // One reminder, for the new end; the trial notice is gone.
+    let notices = waiting_notices(&pool, unid).await;
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].0, "crypto_renewal");
+    assert!(near(notices[0].1, after_second - Duration::days(3)));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_unpaid_invoice_gives_nothing_and_a_seen_payment_is_confirming(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+
+    for status in ["expired", "underpaid", "failed"] {
+        let order = checkout(&app, &cookie, "pro", "month").await;
+        assert_eq!(
+            event(&app, &pool, order, status, SECRET).await,
+            StatusCode::OK
+        );
+        // An ended invoice never goes back to confirming.
+        event(&app, &pool, order, "processing", SECRET).await;
+    }
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "free"
+    );
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["confirming"], false);
+
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "processing", SECRET).await;
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["confirming"], true);
+    assert_eq!(crypto["active"], Value::Null);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_event_with_a_wrong_secret_or_for_another_invoice_changes_nothing(pool: PgPool) {
+    let app = app(&pool);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    assert_eq!(
+        event(&app, &pool, order, "paid", "wrong").await,
+        StatusCode::BAD_REQUEST
+    );
+    assert_eq!(
+        event_for(&app, order, "inv_other", "paid", SECRET).await,
+        StatusCode::OK
+    );
+    assert_eq!(
+        event(&app, &pool, Uuid::new_v4(), "paid", SECRET).await,
+        StatusCode::OK
+    );
+    assert_eq!(period_end(&app, &cookie).await, None);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn checkout_is_refused_while_stripe_bills_or_for_another_plan(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    let pick = |plan: &str| json!({ "plan": plan, "interval": "month" });
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(pick("free")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(pick("business")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(pick("pro")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET status = 'active', stripe_subscription_id = 'sub_1' WHERE user_unid = $1 RETURNING 1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the trial row exists");
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        CHECKOUT,
+        Some(&cookie),
+        Some(pick("pro")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_ended_period_leaves_the_stripe_plan_or_free(pool: PgPool) {
+    let app = app(&pool);
+    let (unid, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, unid).await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "pro"
+    );
+
+    sqlx::query_scalar!(
+        "UPDATE crypto_payments SET period_end = now() - interval '1 minute' WHERE user_unid = $1 RETURNING 1",
+        unid,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the payment exists");
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "free"
+    );
+    assert_eq!(period_end(&app, &cookie).await, None);
+}

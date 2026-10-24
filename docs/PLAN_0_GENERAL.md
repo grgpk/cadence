@@ -132,6 +132,7 @@ cadence/
 | 45 | `PLAN_45_MCP_OAUTH.md` | OAuth 2.1 for the MCP server: discovery, client registration, a consent page and refreshable tokens, so claude.ai and ChatGPT connect by URL | ✅ done |
 | 46 | `PLAN_46_MCP_OAUTH_CLIENTS.md` | MCP OAuth for desktop editors (their own redirect schemes) and browser clients (CORS on the agent paths); old OAuth clients and codes are swept | ✅ done |
 | 47 | `PLAN_47_MCP_HARDENING.md` | read-only tokens list only read tools; sign-up returns to the consent page; tokens are bound to this server (RFC 8707); clients revoke their own grant (RFC 7009) | ✅ done |
+| 48 | `PLAN_48_CRYPTO_PAYMENTS.md` | hosts opt in to pay a month or a year in crypto, apart from Stripe; providers swap behind one seam, BTCPay Server first | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

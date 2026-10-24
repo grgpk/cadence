@@ -2,6 +2,7 @@ import type { AdminPlan } from "../../bindings/AdminPlan";
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CancelReason } from "../../bindings/CancelReason";
+import type { CryptoPlan } from "../../bindings/CryptoPlan";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
@@ -155,6 +156,11 @@ export function statusLine(summary: BillingSummary, now: number): string {
     default:
       return "Free for as long as you like. Upgrade any time.";
   }
+}
+
+/** Where a plan paid for in crypto stands. It never renews itself. */
+export function cryptoStatusLine(crypto: CryptoPlan): string {
+  return `${PLAN_NAMES[crypto.plan]} is paid with crypto until ${formatDate(crypto.period_end)}. It does not renew by itself, so pay again before then to keep it.`;
 }
 
 /** How many hosts each plan has now. */

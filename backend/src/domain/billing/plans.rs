@@ -10,7 +10,8 @@ use crate::text_column::text_column;
 /// How long a new host has Pro before they pick a plan.
 pub const TRIAL_DAYS: i64 = 14;
 
-#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, TS)]
+/// Ordered cheapest first, so the higher of two plans is their `max`.
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, PartialOrd, Ord, TS)]
 #[serde(rename_all = "snake_case")]
 #[ts(export, export_to = "../../frontend/src/bindings/Plan.ts")]
 pub enum Plan {
@@ -112,7 +113,7 @@ impl BillingInterval {
         }
     }
 
-    const fn months(self) -> u32 {
+    pub const fn months(self) -> u32 {
         match self {
             Self::Month => 1,
             Self::Year => 12,

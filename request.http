@@ -42,6 +42,15 @@ Content-Type: application/json
 ### Stripe Customer Portal (409 before the first payment)
 POST {{baseUrl}}/api/billing/portal
 
+### Paying with crypto: whether it is on, and the prepaid period running
+GET {{baseUrl}}/api/billing/crypto
+
+### Crypto checkout for a month or a year (503 without CRYPTO_PROVIDER, 409 while Stripe bills or for another plan mid-period)
+POST {{baseUrl}}/api/billing/crypto/checkout
+Content-Type: application/json
+
+{"plan":"pro","interval":"month"}
+
 ### Change my name
 PUT {{baseUrl}}/api/auth/me
 Content-Type: application/json
