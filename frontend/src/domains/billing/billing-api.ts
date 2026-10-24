@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CompPlan } from "../../bindings/CompPlan";
+import type { CryptoRefund } from "../../bindings/CryptoRefund";
 import type { CryptoSummary } from "../../bindings/CryptoSummary";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { RedirectUrl } from "../../bindings/RedirectUrl";
@@ -94,5 +95,12 @@ export function compPlan(userUnid: string, body: CompPlan): Promise<void> {
   return api<void>(`/api/admin/billing/${userUnid}`, {
     method: "PUT",
     body: JSON.stringify(body),
+  });
+}
+
+/** An admin refunds `userUnid`'s latest crypto payment and takes back its time. */
+export function refundCrypto(userUnid: string): Promise<CryptoRefund> {
+  return api<CryptoRefund>(`/api/admin/billing/${userUnid}/crypto-refund`, {
+    method: "POST",
   });
 }

@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{
     db::{self, ActivePeriod, NewPayment, PaymentKind},
     gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus},
-    models::{CryptoOptions, CryptoPlan, CryptoSummary, CryptoUpgrade},
+    models::{CryptoOptions, CryptoPlan, CryptoRefund, CryptoSummary, CryptoUpgrade},
 };
 use crate::{
     domain::{
@@ -290,6 +290,70 @@ async fn paid(
     // A trial's "you move to Free" would no longer be true.
     emails::drop_account_notice(connection, AccountNotice::TrialEnding, &contact.email).await?;
     remind_before(connection, payment.user_unid, &contact, now).await
+}
+
+/// Refunds the host's latest paid crypto payment in full and takes back the
+/// time it bought: a period's interval comes off every later end; an
+/// upgrade only goes back to the lower plan.
+///
+/// The provider is asked inside the transaction, with the host's row held,
+/// so two admins clicking at once cannot refund one payment twice.
+pub async fn refund(
+    pool: &PgPool,
+    crypto: Option<&CryptoPayments>,
+    user_unid: Uuid,
+    now: DateTime<Utc>,
+) -> AppResult<CryptoRefund> {
+    let crypto = crypto.ok_or_else(|| AppError::Unavailable(CRYPTO_OFF.to_owned()))?;
+    let mut transaction = pool.begin().await?;
+    db::lock_user(&mut transaction, user_unid).await?;
+    let payment = db::latest_paid(&mut transaction, user_unid)
+        .await?
+        .ok_or_else(|| AppError::Conflict("no paid crypto payment to refund".to_owned()))?;
+    if payment.provider != crypto.provider() {
+        return Err(AppError::Conflict(
+            "paid through another crypto provider: refund it there".to_owned(),
+        ));
+    }
+    let invoice = payment
+        .provider_invoice_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("a paid payment has no invoice")))?;
+    if payment.kind == PaymentKind::Period {
+        let months = i32::try_from(payment.billing_interval.months())
+            .map_err(|error| AppError::Internal(error.into()))?;
+        db::shift_back(
+            &mut transaction,
+            user_unid,
+            payment.unid,
+            payment.period_end,
+            months,
+        )
+        .await?;
+    }
+    db::mark_refunded(&mut transaction, payment.unid, now).await?;
+    let claim_url = crypto
+        .refund(invoice)
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+    if let Some(contact) = billing_db::contact(&mut transaction, user_unid).await? {
+        remind_before(&mut transaction, user_unid, &contact, now).await?;
+        if let Some(claim_url) = &claim_url {
+            emails::queue_crypto_refund(
+                &mut transaction,
+                &contact.email,
+                &contact.full_name,
+                claim_url,
+                now,
+            )
+            .await?;
+        }
+    }
+    transaction.commit().await?;
+    Ok(CryptoRefund {
+        amount_cents: payment.amount_cents,
+        claim_url,
+    })
 }
 
 /// Moves the renewal reminder to 3 days before the running period ends, or

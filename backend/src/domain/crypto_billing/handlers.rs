@@ -1,19 +1,20 @@
 use axum::{
     Json,
     body::Bytes,
-    extract::State,
+    extract::{Path, State},
     http::{HeaderMap, StatusCode},
 };
 use chrono::Utc;
+use uuid::Uuid;
 
 use super::{
-    models::{CryptoOptions, CryptoSummary},
+    models::{CryptoOptions, CryptoRefund, CryptoSummary},
     service,
 };
 use crate::{
     app_state::AppState,
     domain::{
-        auth::middleware::AuthUser,
+        auth::middleware::{AdminUser, AuthUser},
         billing::models::{RedirectUrl, StartCheckout},
     },
     error::{AppError, AppResult},
@@ -71,4 +72,15 @@ pub async fn webhook(
         service::apply_event(&state.pool, crypto, &event, Utc::now()).await?;
     }
     Ok(StatusCode::OK)
+}
+
+/// An admin refunds a host's latest crypto payment.
+pub async fn admin_refund(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+    Path(user_unid): Path<Uuid>,
+) -> AppResult<Json<CryptoRefund>> {
+    Ok(Json(
+        service::refund(&state.pool, state.crypto.as_ref(), user_unid, Utc::now()).await?,
+    ))
 }

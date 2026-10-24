@@ -41,6 +41,13 @@ struct CreatedInvoice {
     checkout_link: String,
 }
 
+/// The refund `BTCPay` makes: a pull payment the host claims to a wallet.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PullPayment {
+    view_link: String,
+}
+
 /// An invoice as the API answers it, with only the fields read here.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -148,6 +155,30 @@ impl BtcPay {
             .await
             .map_err(|error| GatewayError::Request(error.into()))?;
         Ok(status_of(&invoice))
+    }
+
+    /// The invoice's dollar amount back, at the rate when it is claimed, in
+    /// the coin it was paid with.
+    pub(super) async fn refund(&self, provider_invoice_id: &str) -> Result<String, GatewayError> {
+        let refund: PullPayment = self
+            .client
+            .post(format!(
+                "{}/api/v1/stores/{}/invoices/{provider_invoice_id}/refund",
+                self.url, self.store_id
+            ))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("token {}", self.api_key),
+            )
+            .json(&json!({ "refundVariant": "Fiat", "description": "Cadence refund" }))
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|error| GatewayError::Request(error.into()))?
+            .json()
+            .await
+            .map_err(|error| GatewayError::Request(error.into()))?;
+        Ok(refund.view_link)
     }
 
     pub(super) fn parse_webhook(

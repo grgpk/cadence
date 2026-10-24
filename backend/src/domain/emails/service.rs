@@ -38,6 +38,8 @@ pub const HOST_BOOKING_LIMIT_TEMPLATE: &str = "host_booking_limit";
 pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
 /// A plan paid for in crypto ends in a few days; it never renews itself.
 pub const CRYPTO_RENEWAL_TEMPLATE: &str = "crypto_renewal";
+/// An admin refunded a crypto payment; the button claims it to a wallet.
+pub const CRYPTO_REFUND_TEMPLATE: &str = "crypto_refund";
 /// Business: the invitee has not said they are coming, 2 hours before.
 pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
 /// Business: a host's one "here are my times" to someone who left a booking.
@@ -199,8 +201,34 @@ pub async fn queue_account_notice(
         name: Some(full_name.to_owned()),
         billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
         losing: None,
+        claim_url: None,
     })?;
     db::queue(connection, None, email, notice.template(), send_at, payload).await
+}
+
+/// Tells the host a crypto payment was refunded, with where to claim it.
+pub async fn queue_crypto_refund(
+    connection: &mut PgConnection,
+    email: &str,
+    full_name: &str,
+    claim_url: &str,
+    send_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&AccountEmail {
+        name: Some(full_name.to_owned()),
+        billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
+        losing: None,
+        claim_url: Some(claim_url.to_owned()),
+    })?;
+    db::queue(
+        connection,
+        None,
+        email,
+        CRYPTO_REFUND_TEMPLATE,
+        send_at,
+        payload,
+    )
+    .await
 }
 
 /// Takes back a notice that has not gone out, such as the trial ending for
@@ -602,6 +630,9 @@ struct AccountEmail {
     /// is sent. Rows without it say it in general.
     #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
     losing: Option<Vec<String>>,
+    /// The refund email: where the host claims the money, instead of Billing.
+    #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
+    claim_url: Option<String>,
 }
 
 /// The trial email's payload with what the host would lose, read when it
@@ -722,7 +753,8 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         TRIAL_ENDING_TEMPLATE
         | HOST_BOOKING_LIMIT_TEMPLATE
         | PAYMENT_FAILED_TEMPLATE
-        | CRYPTO_RENEWAL_TEMPLATE => account_content(template, &read(payload)),
+        | CRYPTO_RENEWAL_TEMPLATE
+        | CRYPTO_REFUND_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -813,6 +845,13 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
              stay saved.",
             "Renew with crypto",
         ),
+        CRYPTO_REFUND_TEMPLATE => (
+            "Your crypto payment was refunded",
+            "We have refunded your crypto payment. Claim it with the button below: \
+             enter the address of your wallet, and it is sent there. The time it paid \
+             for has been taken off your plan.",
+            "Claim your refund",
+        ),
         _ => (
             "Your Cadence payment failed",
             "We could not charge your card for your plan. Stripe will try again over the \
@@ -840,7 +879,7 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         greeting: greeting(text(email.name.as_ref())),
         when: None,
         details,
-        buttons: link(email.billing_url.as_ref())
+        buttons: link(email.claim_url.as_ref().or(email.billing_url.as_ref()))
             .map(|url| (button, url.to_owned()))
             .into_iter()
             .collect(),
@@ -1341,6 +1380,7 @@ mod tests {
             ),
             (PAYMENT_FAILED_TEMPLATE, "Your Cadence payment failed"),
             (CRYPTO_RENEWAL_TEMPLATE, "Your crypto plan ends in 3 days"),
+            (CRYPTO_REFUND_TEMPLATE, "Your crypto payment was refunded"),
         ] {
             let email = email(template, &payload);
             assert_eq!(email.subject, subject);
@@ -1356,6 +1396,24 @@ mod tests {
             );
             assert!(!email.html.contains("<b>"), "{template}");
         }
+    }
+
+    #[test]
+    fn the_refund_email_sends_the_host_to_claim_it() {
+        let email = email(
+            CRYPTO_REFUND_TEMPLATE,
+            &json!({
+                "name": "Nino",
+                "billing_url": "https://cadence.example/dashboard/billing",
+                "claim_url": "https://btcpay.example/pull-payments/pp1",
+            }),
+        );
+        assert!(
+            email
+                .text
+                .contains("Claim your refund: https://btcpay.example/pull-payments/pp1")
+        );
+        assert!(!email.text.contains("/dashboard/billing"));
     }
 
     #[test]

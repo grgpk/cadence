@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE crypto_payments\n         SET period_end = period_end - make_interval(months => $4), updated_at = now()\n         WHERE user_unid = $1 AND unid <> $2 AND status = 'paid' AND period_end >= $3\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Timestamptz",
+        "Int4"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a489faf753cad55f8eade608fb3e7fe44f1df8ca056d06457f17962729387351"
+}

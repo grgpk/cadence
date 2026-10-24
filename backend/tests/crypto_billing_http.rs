@@ -618,3 +618,115 @@ async fn a_running_pro_period_moves_to_business_for_the_difference(pool: PgPool)
     let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
     assert_eq!(crypto["active"]["plan"], "business");
 }
+
+fn refund_path(user: Uuid) -> String {
+    format!("/api/admin/billing/{user}/crypto-refund")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let first = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, first, "paid", SECRET).await;
+    let one_month = period_end(&app, &cookie).await.expect("a crypto period");
+    let second = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, second, "paid", SECRET).await;
+
+    let (status, refund) = send(
+        &app,
+        Method::POST,
+        &refund_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{refund}");
+    assert_eq!(refund["amount_cents"], 1000);
+    assert!(
+        refund["claim_url"]
+            .as_str()
+            .is_some_and(|url| url.starts_with("https://crypto.test/refund/"))
+    );
+    assert_eq!(period_end(&app, &cookie).await, Some(one_month));
+    let notices = waiting_notices(&pool, host).await;
+    let templates: Vec<&str> = notices
+        .iter()
+        .map(|(template, _)| template.as_str())
+        .collect();
+    assert_eq!(templates, ["crypto_refund", "crypto_renewal"]);
+    assert!(near(notices[1].1, one_month - Duration::days(3)));
+
+    // The first payment goes too: no period is left, nor its reminder.
+    send(
+        &app,
+        Method::POST,
+        &refund_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(period_end(&app, &cookie).await, None);
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "free"
+    );
+    let templates: Vec<String> = waiting_notices(&pool, host)
+        .await
+        .into_iter()
+        .map(|(template, _)| template)
+        .collect();
+    assert_eq!(templates, ["crypto_refund", "crypto_refund"]);
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &refund_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn refunding_an_upgrade_goes_back_to_the_lower_plan_until_the_same_end(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+    let upgrade = checkout(&app, &cookie, "business", "month").await;
+    event(&app, &pool, upgrade, "paid", SECRET).await;
+
+    let (status, _) = send(
+        &app,
+        Method::POST,
+        &refund_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["active"]["plan"], "pro");
+    assert_eq!(period_end(&app, &cookie).await, Some(end));
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn only_an_admin_refunds(pool: PgPool) {
+    let app = app(&pool);
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+
+    let (status, _) = send(&app, Method::POST, &refund_path(host), Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(period_end(&app, &cookie).await.is_some());
+}

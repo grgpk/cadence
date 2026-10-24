@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid, provider AS \"provider: CryptoProvider\", kind AS \"kind: PaymentKind\",\n                  provider_invoice_id,\n                  billing_interval AS \"billing_interval: BillingInterval\",\n                  period_end AS \"period_end!\", amount_cents\n           FROM crypto_payments\n           WHERE user_unid = $1 AND status = 'paid'\n           ORDER BY paid_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "provider: CryptoProvider",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: PaymentKind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "provider_invoice_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider_invoice_id"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "billing_interval: BillingInterval",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "billing_interval"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "period_end!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "period_end"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "amount_cents",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "amount_cents"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "3bc508a52591243b69478467f70989689936690f4706edfb80c345b358e471bb"
+}

@@ -46,3 +46,12 @@ pub struct CryptoPlan {
     pub interval: BillingInterval,
     pub period_end: DateTime<Utc>,
 }
+
+/// A refund an admin made: how much, and where the host claims it. `None`
+/// when the provider refunds only from its own dashboard.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/CryptoRefund.ts")]
+pub struct CryptoRefund {
+    pub amount_cents: i32,
+    pub claim_url: Option<String>,
+}

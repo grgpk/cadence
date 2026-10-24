@@ -223,6 +223,17 @@ impl CryptoPayments {
         }
     }
 
+    /// Gives a paid invoice's amount back. Answers where the host claims it,
+    /// or `None` for a provider that refunds only from its own dashboard.
+    pub async fn refund(&self, provider_invoice_id: &str) -> Result<Option<String>, GatewayError> {
+        match &self.gateway {
+            Gateway::BtcPay(btcpay) => btcpay.refund(provider_invoice_id).await.map(Some),
+            Gateway::Fake(_) => Ok(Some(format!(
+                "https://crypto.test/refund/{provider_invoice_id}"
+            ))),
+        }
+    }
+
     /// For tests: the fake's invoice is in `status` from now on, as its
     /// provider would answer when asked. Does nothing on a real gateway.
     pub fn set_fake_status(&self, provider_invoice_id: &str, status: PaymentStatus) {

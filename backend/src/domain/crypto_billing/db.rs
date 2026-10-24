@@ -263,3 +263,73 @@ pub async fn unsettled(
     .fetch_all(pool)
     .await
 }
+
+/// The payment a refund gives back: the host's latest paid one.
+pub struct RefundRow {
+    pub unid: Uuid,
+    pub provider: CryptoProvider,
+    pub kind: PaymentKind,
+    pub provider_invoice_id: Option<String>,
+    pub billing_interval: BillingInterval,
+    pub period_end: DateTime<Utc>,
+    pub amount_cents: i32,
+}
+
+pub async fn latest_paid(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+) -> Result<Option<RefundRow>, sqlx::Error> {
+    sqlx::query_as!(
+        RefundRow,
+        r#"SELECT unid, provider AS "provider: CryptoProvider", kind AS "kind: PaymentKind",
+                  provider_invoice_id,
+                  billing_interval AS "billing_interval: BillingInterval",
+                  period_end AS "period_end!", amount_cents
+           FROM crypto_payments
+           WHERE user_unid = $1 AND status = 'paid'
+           ORDER BY paid_at DESC LIMIT 1"#,
+        user_unid,
+    )
+    .fetch_optional(connection)
+    .await
+}
+
+pub async fn mark_refunded(
+    connection: &mut PgConnection,
+    unid: Uuid,
+    now: DateTime<Utc>,
+) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE crypto_payments SET status = 'refunded', refunded_at = $2, updated_at = now()
+         WHERE unid = $1 AND status = 'paid' RETURNING 1",
+        unid,
+        now,
+    )
+    .fetch_optional(connection)
+    .await
+    .map(|row| row.is_some())
+}
+
+/// Takes a refunded interval out of the host's paid time: every other paid
+/// payment ending at or after it ends `months` earlier.
+pub async fn shift_back(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    refunded: Uuid,
+    from_end: DateTime<Utc>,
+    months: i32,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "UPDATE crypto_payments
+         SET period_end = period_end - make_interval(months => $4), updated_at = now()
+         WHERE user_unid = $1 AND unid <> $2 AND status = 'paid' AND period_end >= $3
+         RETURNING 1",
+        user_unid,
+        refunded,
+        from_end,
+        months,
+    )
+    .fetch_all(connection)
+    .await
+    .map(|_| ())
+}

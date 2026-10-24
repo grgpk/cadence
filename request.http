@@ -45,6 +45,12 @@ POST {{baseUrl}}/api/billing/portal
 ### Paying with crypto: whether it is on, and the prepaid period running
 GET {{baseUrl}}/api/billing/crypto
 
+### Whether crypto is on, for the public pricing page (no session)
+GET {{baseUrl}}/api/billing/crypto/options
+
+### Admin: refund a host's latest crypto payment and take back its time (409 without one)
+POST {{baseUrl}}/api/admin/billing/00000000-0000-4000-8000-100000000003/crypto-refund
+
 ### Crypto checkout for a month or a year (503 without CRYPTO_PROVIDER, 409 while Stripe bills or for another plan mid-period)
 POST {{baseUrl}}/api/billing/crypto/checkout
 Content-Type: application/json

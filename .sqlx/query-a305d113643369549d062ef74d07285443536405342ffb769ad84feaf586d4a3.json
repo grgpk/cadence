@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE crypto_payments SET status = 'refunded', refunded_at = $2, updated_at = now()\n         WHERE unid = $1 AND status = 'paid' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "a305d113643369549d062ef74d07285443536405342ffb769ad84feaf586d4a3"
+}

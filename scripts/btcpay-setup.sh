@@ -11,6 +11,11 @@
 #
 # The BTCPay dashboard is http://localhost:49392, signed in with the
 # ADMIN_EMAIL and ADMIN_PASSWORD below.
+#
+# BTCPay takes the password over its API only in an account's first 5
+# minutes, so the first run saves an API key as BTCPAY_DEV_ADMIN_KEY and later
+# runs use that. Lost it? Start over with
+#   docker compose -f docker-compose.btcpay.yml down -v
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -54,6 +59,10 @@ if [[ ! -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
+# How the admin signs in: the password until the setup key exists. BTCPay
+# rate-limits password sign-ins, so the rest goes through the key.
+AUTH=(-u "$ADMIN_EMAIL:$ADMIN_PASSWORD")
+
 # Calls the Greenfield API as the admin and prints the JSON. Stops on an
 # error BTCPay reports, unless `--allow-fail` comes first.
 btcpay_api() {
@@ -63,7 +72,7 @@ btcpay_api() {
         shift
     fi
     local method=$1 path=$2 body=${3:-}
-    local args=(-sS -X "$method" "$URL$path" -u "$ADMIN_EMAIL:$ADMIN_PASSWORD"
+    local args=(-sS -X "$method" "$URL$path" "${AUTH[@]}"
         -H "Content-Type: application/json" -w '\n%{http_code}')
     [[ -n "$body" ]] && args+=(-d "$body")
     local answer status
@@ -112,6 +121,19 @@ curl -sf --retry 40 --retry-delay 3 --retry-all-errors --max-time 5 "$URL/api/v1
 btcpay_api --allow-fail POST /api/v1/users \
     "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\",\"isAdministrator\":true}" >/dev/null
 
+# An unrestricted key for this script only, kept in the env file between
+# runs. The backend never reads it.
+SETUP_KEY=$(grep -E '^BTCPAY_DEV_ADMIN_KEY=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)
+if [[ -z "$SETUP_KEY" ]] || ! curl -sf -o /dev/null -H "Authorization: token $SETUP_KEY" \
+    "$URL/api/v1/api-keys/current"; then
+    SETUP_KEY=$(json_field "$(btcpay_api POST /api/v1/api-keys \
+        '{"label":"cadence dev setup","permissions":["unrestricted"]}')" apiKey)
+    # A failure inside $(...) does not stop the script by itself.
+    [[ -n "$SETUP_KEY" ]] || { echo "Could not make the setup key. Try again in a few minutes."; exit 1; }
+    set_env BTCPAY_DEV_ADMIN_KEY "$SETUP_KEY"
+fi
+AUTH=(-H "Authorization: token $SETUP_KEY")
+
 STORES=$(btcpay_api GET /api/v1/stores)
 STORE_ID=$(python3 -c '
 import json, sys
@@ -122,6 +144,22 @@ if [[ -z "$STORE_ID" ]]; then
         "{\"name\":\"$STORE_NAME\",\"defaultCurrency\":\"USD\"}")" id)
     echo "Made store $STORE_ID."
 fi
+
+# A wallet in bitcoind with mined coins to pay invoices from. Coinbase coins
+# can be spent after 100 blocks.
+bitcoin_cli createwallet "$WALLET" >/dev/null 2>&1 || bitcoin_cli loadwallet "$WALLET" >/dev/null 2>&1 || true
+# The image may start with blocks of its own, so mine until coins are spendable.
+for _ in 1 2 3; do
+    [[ $(bitcoin_cli -rpcwallet="$WALLET" getbalance | cut -d. -f1) -ge 1 ]] && break
+    mine 101
+    echo "Mined 101 blocks for test coins."
+done
+
+# BTCPay takes Bitcoin once its explorer has caught up with those blocks.
+for _ in $(seq 1 40); do
+    btcpay_api GET /api/v1/server/info | grep -q '"available":true' && break
+    read -rt 3 < <(tail -f /dev/null) || true
+done
 
 # A hot wallet whose keys BTCPay keeps: fine for fake coins only.
 if ! btcpay_api --allow-fail GET "/api/v1/stores/$STORE_ID/payment-methods/$PAYMENT_METHOD" |
@@ -143,17 +181,11 @@ WEBHOOK_SECRET=$(openssl rand -hex 24)
 btcpay_api POST "/api/v1/stores/$STORE_ID/webhooks" \
     "{\"url\":\"$WEBHOOK_URL\",\"secret\":\"$WEBHOOK_SECRET\",\"authorizedEvents\":{\"everything\":true}}" >/dev/null
 
-# The backend's key can make and read this store's invoices, nothing else.
+# The backend's key can make and read this store's invoices and refund them
+# (a refund is a pull payment), nothing else.
 API_KEY=$(json_field "$(btcpay_api POST /api/v1/api-keys \
-    "{\"label\":\"cadence backend\",\"permissions\":[\"btcpay.store.cancreateinvoice:$STORE_ID\",\"btcpay.store.canviewinvoices:$STORE_ID\"]}")" apiKey)
+    "{\"label\":\"cadence backend\",\"permissions\":[\"btcpay.store.cancreateinvoice:$STORE_ID\",\"btcpay.store.canviewinvoices:$STORE_ID\",\"btcpay.store.cancreatepullpayments:$STORE_ID\"]}")" apiKey)
 
-# A wallet in bitcoind with mined coins to pay invoices from. Coinbase coins
-# can be spent after 100 blocks.
-bitcoin_cli createwallet "$WALLET" >/dev/null 2>&1 || bitcoin_cli loadwallet "$WALLET" >/dev/null 2>&1 || true
-if [[ $(bitcoin_cli -rpcwallet="$WALLET" getbalance | cut -d. -f1) -lt 1 ]]; then
-    mine 101
-    echo "Mined 101 blocks for test coins."
-fi
 
 set_env CRYPTO_PROVIDER btcpay
 set_env BTCPAY_URL "$URL"

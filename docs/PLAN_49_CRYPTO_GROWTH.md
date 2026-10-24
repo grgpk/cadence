@@ -1,6 +1,17 @@
 # Plan 49: Crypto upgrades, refunds, NOWPayments, production BTCPay, pricing page
 
 Status: in progress.
+- Milestones 1 to 3 are done and checked live against the local BTCPay on
+  regtest. A paid Pro month moved to Business for $6.20 with the same end;
+  refunding the upgrade went back to Pro, and refunding the month left
+  nothing. Both refunds gave real BTCPay claim links.
+- Found while checking: BTCPay 2.x takes the admin password over its API only
+  in the account's first 5 minutes. `scripts/btcpay-setup.sh` now saves an
+  API key (`BTCPAY_DEV_ADMIN_KEY`) on the first run and uses it afterwards.
+  It also waits for BTCPay to be ready and mines until the test coins can be
+  spent.
+- Known edge: a full refund during a trial does not bring back the
+  trial-ending email that the crypto payment took away.
 
 ## Goal
 
