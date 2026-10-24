@@ -1,5 +1,11 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+  useRouter,
+} from "@tanstack/react-router";
 import { Gift, Loader2 } from "lucide-react";
 
 import type { RegisterRequest } from "../bindings/RegisterRequest";
@@ -15,7 +21,7 @@ import { RouteError } from "../domains/shared/not-found";
 import { api } from "../lib/api";
 import { getSessionUser } from "../lib/auth";
 import { APP_NAME, NOINDEX_META } from "../lib/config";
-import { ROUTES } from "../lib/routes";
+import { ROUTES, safeReturnPath } from "../lib/routes";
 
 const REGISTER_ERRORS = {
   400: "Check your name and email, and use a password of at least 8 characters.",
@@ -24,8 +30,12 @@ const REGISTER_ERRORS = {
 
 export const Route = createFileRoute("/register")({
   // `?plan=&interval=` from the pricing page: after sign-up, billing offers
-  // it. `?ref=` from a host's invite link.
-  validateSearch: signupSearch,
+  // it. `?ref=` from a host's invite link. `?redirect=` from login: the
+  // page to go back to, such as connecting an app.
+  validateSearch: (search) => {
+    const redirect = safeReturnPath(search.redirect);
+    return { ...signupSearch(search), ...(redirect ? { redirect } : {}) };
+  },
   beforeLoad: async ({ search }) => {
     if (await getSessionUser()) {
       throw search.plan
@@ -42,9 +52,10 @@ export const Route = createFileRoute("/register")({
 });
 
 function RegisterPage() {
-  const { ref: invitedBy, ...intent } = Route.useSearch();
+  const { ref: invitedBy, redirect: returnPath, ...intent } = Route.useSearch();
   const offers = Route.useLoaderData();
   const navigate = useNavigate();
+  const router = useRouter();
   const queryClient = useQueryClient();
   const registerMutation = useMutation({
     mutationFn: (request: RegisterRequest) =>
@@ -55,6 +66,10 @@ function RegisterPage() {
     onSuccess: () => {
       // Anything cached belongs to whoever used this tab before.
       queryClient.clear();
+      if (returnPath) {
+        router.history.push(returnPath);
+        return;
+      }
       void navigate(
         intent.plan
           ? { to: ROUTES.dashboardBilling, search: intent }
@@ -86,6 +101,7 @@ function RegisterPage() {
           Already have an account?{" "}
           <Link
             to={ROUTES.login}
+            search={returnPath ? { redirect: returnPath } : {}}
             className="font-medium text-foreground underline underline-offset-4"
           >
             Log in

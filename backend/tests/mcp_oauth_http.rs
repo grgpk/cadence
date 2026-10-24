@@ -593,3 +593,161 @@ async fn old_codes_and_unused_clients_are_swept(pool: PgPool) {
         .expect("clients are readable");
     assert!(!left.contains(&ids(&[&waiting])[0]));
 }
+
+/// The MCP server's address, as discovery names it.
+async fn resource(app: &Router) -> String {
+    let (_, metadata) = send(
+        app,
+        Method::GET,
+        "/.well-known/oauth-protected-resource/api/mcp",
+        None,
+        None,
+    )
+    .await;
+    metadata["resource"]
+        .as_str()
+        .expect("a resource")
+        .to_owned()
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_token_is_only_for_this_server(pool: PgPool) {
+    let app = app(&pool);
+    let cookie = host(&app, "resource@example.com").await;
+    let client_id = register_client(&app).await;
+    let ours = resource(&app).await;
+
+    let ask = |resource: &str| {
+        json!({
+            "client_id": client_id, "redirect_uri": REDIRECT, "code_challenge": challenge(VERIFIER),
+            "code_challenge_method": "S256", "state": "xyz", "scope": "full", "approve": true,
+            "resource": resource,
+        })
+    };
+    let (_, answer) = send(
+        &app,
+        Method::POST,
+        "/api/oauth/authorize",
+        Some(&cookie),
+        Some(ask("https://other.example/mcp")),
+    )
+    .await;
+    let back = Url::parse(answer["url"].as_str().expect("an address")).expect("a valid address");
+    assert_eq!(query(&back, "error").as_deref(), Some("invalid_target"));
+    assert!(query(&back, "code").is_none());
+
+    let (_, answer) = send(
+        &app,
+        Method::POST,
+        "/api/oauth/authorize",
+        Some(&cookie),
+        Some(ask(&ours)),
+    )
+    .await;
+    let back = Url::parse(answer["url"].as_str().expect("an address")).expect("a valid address");
+    let code = query(&back, "code").expect("a code");
+    let fields = |resource: &str| {
+        vec![
+            ("grant_type", "authorization_code".to_owned()),
+            ("code", code.clone()),
+            ("redirect_uri", REDIRECT.to_owned()),
+            ("client_id", client_id.clone()),
+            ("code_verifier", VERIFIER.to_owned()),
+            ("resource", resource.to_owned()),
+        ]
+    };
+    let wrong = fields("https://other.example/mcp");
+    let wrong: Vec<(&str, &str)> = wrong
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect();
+    let (status, refused) = token(&app, &wrong).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(refused["error"], "invalid_target");
+
+    let right = fields(&ours);
+    let right: Vec<(&str, &str)> = right
+        .iter()
+        .map(|(key, value)| (*key, value.as_str()))
+        .collect();
+    let (status, granted) = token(&app, &right).await;
+    assert_eq!(status, StatusCode::OK, "{granted}");
+}
+
+async fn revoke(app: &Router, fields: &[(&str, &str)]) -> StatusCode {
+    let body = fields
+        .iter()
+        .map(|(key, value)| format!("{key}={}", urlencoding::encode(value)))
+        .collect::<Vec<_>>()
+        .join("&");
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri("/api/oauth/revoke")
+        .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+        .body(Body::from(body))
+        .expect("request is well formed");
+    respond(app, request).await.0
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_client_can_disconnect_itself(pool: PgPool) {
+    let app = app(&pool);
+    let cookie = host(&app, "revoke@example.com").await;
+    let (client_id, granted) = connect(&app, &cookie).await;
+    let access = granted["access_token"].as_str().expect("an access token");
+    let refresh = granted["refresh_token"].as_str().expect("a refresh token");
+
+    // Another client's id leaves the grant alone.
+    let other = register_client(&app).await;
+    assert_eq!(
+        revoke(&app, &[("token", refresh), ("client_id", &other)]).await,
+        StatusCode::OK
+    );
+    assert_eq!(tools_list(&app, access).await.0, StatusCode::OK);
+
+    assert_eq!(
+        revoke(&app, &[("token", refresh), ("client_id", &client_id)]).await,
+        StatusCode::OK
+    );
+    assert_eq!(tools_list(&app, access).await.0, StatusCode::UNAUTHORIZED);
+    let (status, _) = token(
+        &app,
+        &[("grant_type", "refresh_token"), ("refresh_token", refresh)],
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // Unknown tokens answer the same, and a token made by hand is not an
+    // OAuth grant to revoke.
+    assert_eq!(
+        revoke(&app, &[("token", "cad_unknown")]).await,
+        StatusCode::OK
+    );
+    let (status, created) = send(
+        &app,
+        Method::POST,
+        "/api/host/access-tokens",
+        Some(&cookie),
+        Some(json!({ "name": "Claude Code" })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let manual = created["token"].as_str().expect("a token");
+    assert_eq!(revoke(&app, &[("token", manual)]).await, StatusCode::OK);
+    assert_eq!(tools_list(&app, manual).await.0, StatusCode::OK);
+
+    let (_, server) = send(
+        &app,
+        Method::GET,
+        "/.well-known/oauth-authorization-server",
+        None,
+        None,
+    )
+    .await;
+    assert!(
+        server["revocation_endpoint"]
+            .as_str()
+            .expect("a revocation endpoint")
+            .ends_with("/api/oauth/revoke")
+    );
+}

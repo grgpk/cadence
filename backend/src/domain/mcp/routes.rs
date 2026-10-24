@@ -9,7 +9,9 @@ use rmcp::transport::streamable_http_server::{
 use super::{
     handlers,
     server::CadenceMcp,
-    service::{AUTHORIZATION_SERVER_PATH, PROTECTED_RESOURCE_PATH, REGISTER_PATH, TOKEN_PATH},
+    service::{
+        AUTHORIZATION_SERVER_PATH, PROTECTED_RESOURCE_PATH, REGISTER_PATH, REVOKE_PATH, TOKEN_PATH,
+    },
 };
 use crate::app_state::AppState;
 
@@ -33,6 +35,7 @@ pub fn is_agent_path(path: &str) -> bool {
     path == MCP_PATH
         || path == REGISTER_PATH
         || path == TOKEN_PATH
+        || path == REVOKE_PATH
         || path.starts_with("/.well-known/oauth-")
 }
 
@@ -52,6 +55,7 @@ pub fn public_routes() -> Router<AppState> {
         )
         .route(REGISTER_PATH, post(handlers::register_client))
         .route(TOKEN_PATH, post(handlers::token))
+        .route(REVOKE_PATH, post(handlers::revoke_grant))
 }
 
 /// The MCP server. It checks its own tokens, not sessions, so it sits apart

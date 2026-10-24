@@ -10,8 +10,8 @@ use super::{
     db,
     models::{
         AccessToken, AccessTokenScope, AuthorizeRequest, CreatedAccessToken, OAuthClient,
-        OAuthClientRecord, RegisterClientRequest, RegisteredClient, TokenError, TokenRequest,
-        TokenResponse,
+        OAuthClientRecord, RegisterClientRequest, RegisteredClient, RevokeRequest, TokenError,
+        TokenRequest, TokenResponse,
     },
     routes::MCP_PATH,
 };
@@ -139,12 +139,24 @@ pub const PROTECTED_RESOURCE_PATH: &str = "/.well-known/oauth-protected-resource
 pub const AUTHORIZATION_SERVER_PATH: &str = "/.well-known/oauth-authorization-server";
 pub const REGISTER_PATH: &str = "/api/oauth/register";
 pub const TOKEN_PATH: &str = "/api/oauth/token";
+pub const REVOKE_PATH: &str = "/api/oauth/revoke";
 /// The consent screen, on the site.
 const AUTHORIZE_PAGE: &str = "/oauth/authorize";
 
+/// The MCP server's address, as tokens name it.
+fn resource() -> String {
+    format!("{}{MCP_PATH}", api_url())
+}
+
+/// Whether a client's `resource` names this server. Leaving it out is
+/// allowed, for clients older than RFC 8707.
+fn is_this_resource(asked: Option<&str>) -> bool {
+    asked.is_none_or(|asked| asked.trim_end_matches('/') == resource())
+}
+
 pub fn protected_resource() -> Value {
     json!({
-        "resource": format!("{}{MCP_PATH}", api_url()),
+        "resource": resource(),
         "authorization_servers": [api_url()],
         "scopes_supported": scopes(),
         "bearer_methods_supported": ["header"],
@@ -159,6 +171,8 @@ pub fn authorization_server() -> Value {
         "authorization_endpoint": format!("{}{AUTHORIZE_PAGE}", app_url()),
         "token_endpoint": format!("{api}{TOKEN_PATH}"),
         "registration_endpoint": format!("{api}{REGISTER_PATH}"),
+        "revocation_endpoint": format!("{api}{REVOKE_PATH}"),
+        "revocation_endpoint_auth_methods_supported": ["none"],
         "scopes_supported": scopes(),
         "response_types_supported": ["code"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
@@ -269,6 +283,15 @@ pub async fn authorize(
         );
         return Ok(back.into());
     }
+    if !is_this_resource(request.resource.as_deref()) {
+        with_answer(
+            &mut back,
+            "error",
+            "invalid_target",
+            request.state.as_deref(),
+        );
+        return Ok(back.into());
+    }
     if request.code_challenge_method != S256
         || !CHALLENGE_LEN.contains(&request.code_challenge.len())
     {
@@ -319,6 +342,9 @@ fn with_answer(url: &mut Url, key: &str, value: &str, state: Option<&str>) {
 
 /// The token endpoint: a code or a refresh token in, a fresh pair out.
 pub async fn token(pool: &PgPool, request: TokenRequest) -> Result<TokenResponse, TokenError> {
+    if !is_this_resource(request.resource.as_deref()) {
+        return Err(TokenError::InvalidTarget);
+    }
     match request.grant_type.as_str() {
         "authorization_code" => exchange_code(pool, request).await,
         "refresh_token" => refresh(pool, request).await,
@@ -409,6 +435,15 @@ const fn granted(
         refresh_token,
         scope,
     }
+}
+
+/// A client gives up an access or refresh token of its grant; the whole
+/// grant goes. Unknown tokens are no error (RFC 7009), so nothing is learned
+/// by guessing. Tokens a host made by hand are not touched.
+pub async fn revoke_grant(pool: &PgPool, request: RevokeRequest) -> AppResult<()> {
+    db::delete_grant(pool, &hash(&request.token), request.client_id)
+        .await
+        .map_err(Into::into)
 }
 
 /// Drops codes past their time and registrations nobody connected.

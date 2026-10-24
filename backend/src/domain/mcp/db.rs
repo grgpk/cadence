@@ -227,3 +227,23 @@ pub async fn forget_old(pool: &PgPool, before: DateTime<Utc>) -> Result<(), sqlx
     .await
     .map(|_| ())
 }
+
+/// Removes the OAuth grant whose access or refresh token has this hash.
+pub async fn delete_grant(
+    pool: &PgPool,
+    secret_hash: &str,
+    oauth_client_unid: Option<Uuid>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "DELETE FROM access_tokens
+         WHERE (token_hash = $1 OR refresh_hash = $1)
+           AND oauth_client_unid IS NOT NULL
+           AND ($2::uuid IS NULL OR oauth_client_unid = $2)
+         RETURNING 1",
+        secret_hash,
+        oauth_client_unid,
+    )
+    .fetch_all(pool)
+    .await
+    .map(|_| ())
+}

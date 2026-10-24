@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM access_tokens\n         WHERE (token_hash = $1 OR refresh_hash = $1)\n           AND oauth_client_unid IS NOT NULL\n           AND ($2::uuid IS NULL OR oauth_client_unid = $2)\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "ec76d1cb0498d23fc001f2e98dd763181f65b1c3bd35146dee509bf4268ddb26"
+}

@@ -33,6 +33,7 @@ export const Route = createFileRoute("/oauth/authorize")({
     code_challenge_method: oauthParam(search.code_challenge_method),
     state: oauthParam(search.state),
     scope: oauthParam(search.scope),
+    resource: oauthParam(search.resource),
   }),
   head: () => ({
     meta: [{ title: `Connect an app | ${APP_NAME}` }, NOINDEX_META],
@@ -75,6 +76,7 @@ function AuthorizePage() {
       code_challenge,
       code_challenge_method,
       state: search.state,
+      resource: search.resource,
       scope,
       approve,
     });

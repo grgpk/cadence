@@ -68,6 +68,7 @@ function LoginPage() {
           New to {APP_NAME}?{" "}
           <Link
             to={ROUTES.register}
+            search={returnPath ? { redirect: returnPath } : {}}
             className="font-medium text-foreground underline underline-offset-4"
           >
             Create an account

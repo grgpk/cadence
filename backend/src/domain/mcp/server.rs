@@ -1,9 +1,13 @@
 use axum::http::request::Parts;
 use chrono::{DateTime, NaiveDate, Utc};
 use rmcp::{
-    ErrorData, ServerHandler,
+    ErrorData, RoleServer, ServerHandler,
     handler::server::{router::tool::ToolRouter, tool::Extension, wrapper::Parameters},
-    model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig},
+    model::{
+        CallToolResult, ContentBlock, Implementation, ListToolsResult, PaginatedRequestParams,
+        ServerCapabilities, ServerConfig, Tool,
+    },
+    service::RequestContext,
     tool, tool_handler, tool_router,
 };
 use schemars::JsonSchema;
@@ -688,6 +692,35 @@ impl ServerHandler for CadenceMcp {
             .with_server_info(Implementation::new("cadence", env!("CARGO_PKG_VERSION")))
             .with_instructions(INSTRUCTIONS)
     }
+
+    /// A read-only token sees only the tools that look, so its agent never
+    /// plans a change it would be refused. The list differs per token, so it
+    /// carries no shared cache hint.
+    async fn list_tools(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<ListToolsResult, ErrorData> {
+        let read_only = context
+            .extensions
+            .get::<Parts>()
+            .and_then(|parts| parts.extensions.get::<McpHost>())
+            .is_some_and(|host| host.scope == AccessTokenScope::Read);
+        let tools = self
+            .tool_router
+            .list_all()
+            .into_iter()
+            .filter(|tool| !read_only || only_looks(tool))
+            .collect();
+        Ok(ListToolsResult::with_all_items(tools))
+    }
+}
+
+fn only_looks(tool: &Tool) -> bool {
+    tool.annotations
+        .as_ref()
+        .and_then(|annotations| annotations.read_only_hint)
+        .unwrap_or(false)
 }
 
 fn host(parts: &Parts) -> Result<&UserRecord, ErrorData> {

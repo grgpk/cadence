@@ -130,6 +130,10 @@ pub struct AuthorizeRequest {
     #[ts(optional)]
     pub state: Option<String>,
     pub scope: AccessTokenScope,
+    /// The server the client asks a token for (RFC 8707). Only this one is
+    /// served.
+    #[ts(optional)]
+    pub resource: Option<String>,
     /// `false`: the host said no, and the client is told so.
     pub approve: bool,
 }
@@ -154,6 +158,14 @@ pub struct TokenRequest {
     pub code_verifier: Option<String>,
     pub client_id: Option<Uuid>,
     pub refresh_token: Option<String>,
+    pub resource: Option<String>,
+}
+
+/// A client giving up a token it holds (RFC 7009).
+#[derive(Debug, Deserialize)]
+pub struct RevokeRequest {
+    pub token: String,
+    pub client_id: Option<Uuid>,
 }
 
 #[derive(Debug, Serialize)]
@@ -171,6 +183,8 @@ pub enum TokenError {
     InvalidRequest(&'static str),
     InvalidGrant,
     UnsupportedGrantType,
+    /// A token asked for a server other than this one (RFC 8707).
+    InvalidTarget,
     Server(crate::error::AppError),
 }
 

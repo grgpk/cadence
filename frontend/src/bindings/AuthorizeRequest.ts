@@ -6,6 +6,11 @@ import type { AccessTokenScope } from "./AccessTokenScope";
  */
 export type AuthorizeRequest = { client_id: string, redirect_uri: string, code_challenge: string, code_challenge_method: string, state?: string, scope: AccessTokenScope, 
 /**
+ * The server the client asks a token for (RFC 8707). Only this one is
+ * served.
+ */
+resource?: string, 
+/**
  * `false`: the host said no, and the client is told so.
  */
 approve: boolean, };

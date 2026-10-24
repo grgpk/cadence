@@ -558,6 +558,19 @@ async fn a_read_only_token_looks_but_does_not_change(pool: PgPool) {
     assert_eq!(created["access_token"]["scope"], "read");
     let read = created["token"].as_str().expect("a token");
 
+    // Its agent is only shown the tools that look.
+    let (_, tools) = rpc(&app, Some(read), "tools/list", json!({})).await;
+    let names: Vec<&str> = tools["result"]["tools"]
+        .as_array()
+        .expect("tools")
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    assert!(names.contains(&"list_bookings"), "{names:?}");
+    assert!(!names.contains(&"cancel_booking"), "{names:?}");
+    let (_, tools) = rpc(&app, Some(&full), "tools/list", json!({})).await;
+    assert!(tools.to_string().contains("cancel_booking"));
+
     let (is_error, listed) = call(&app, read, "list_bookings", json!({})).await;
     assert!(!is_error);
     assert_eq!(listed.as_array().expect("a list").len(), 1);

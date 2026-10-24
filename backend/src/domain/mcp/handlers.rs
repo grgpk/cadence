@@ -11,7 +11,7 @@ use uuid::Uuid;
 use super::{
     models::{
         AccessToken, AuthorizeRequest, CreateAccessTokenRequest, CreatedAccessToken, OAuthClient,
-        RegisterClientRequest, RegisteredClient, TokenError, TokenRequest,
+        RegisterClientRequest, RegisteredClient, RevokeRequest, TokenError, TokenRequest,
     },
     server::McpHost,
     service,
@@ -155,10 +155,23 @@ pub async fn token(State(state): State<AppState>, Form(request): Form<TokenReque
             StatusCode::BAD_REQUEST,
             json!({ "error": "unsupported_grant_type" }),
         ),
+        Err(TokenError::InvalidTarget) => (
+            StatusCode::BAD_REQUEST,
+            json!({ "error": "invalid_target" }),
+        ),
     };
     let mut response = (status, Json(body)).into_response();
     response
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
+}
+
+/// RFC 7009: 200 whether or not the token was known.
+pub async fn revoke_grant(
+    State(state): State<AppState>,
+    Form(request): Form<RevokeRequest>,
+) -> AppResult<StatusCode> {
+    service::revoke_grant(&state.pool, request).await?;
+    Ok(StatusCode::OK)
 }

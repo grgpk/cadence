@@ -326,3 +326,9 @@ POST {{baseUrl}}/api/oauth/token
 Content-Type: application/x-www-form-urlencoded
 
 grant_type=authorization_code&code=cadc_replace&redirect_uri=http://localhost:9999/cb&client_id=00000000-0000-0000-0000-000000000000&code_verifier=replace-with-your-verifier
+
+### MCP OAuth: a client gives up its grant (always 200)
+POST {{baseUrl}}/api/oauth/revoke
+Content-Type: application/x-www-form-urlencoded
+
+token=cadr_replace-with-a-refresh-or-access-token
