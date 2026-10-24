@@ -41,6 +41,8 @@ const CODE_PREFIX: &str = "cadc_";
 const OAUTH_TOKEN_LIFE: Duration = Duration::hours(1);
 /// How long a host's consent waits for the client to trade its code.
 const CODE_LIFE: Duration = Duration::minutes(10);
+/// Registration is open, so a client nobody connects within a day is dropped.
+const UNUSED_CLIENT_LIFE: Duration = Duration::days(1);
 const CLIENT_NAME_DEFAULT: &str = "MCP client";
 const REDIRECT_URIS_MAX: usize = 10;
 const REDIRECT_URI_MAX: usize = 2000;
@@ -198,7 +200,7 @@ pub async fn register_client(
         .find(|uri| !allowed_redirect(uri))
     {
         return Err(AppError::BadRequest(format!(
-            "{bad} is not https, or http on this computer"
+            "{bad} is not https, http on this computer, or an app's own scheme"
         )));
     }
     let client = db::insert_client(pool, &name, &request.redirect_uris).await?;
@@ -213,7 +215,12 @@ pub async fn register_client(
     })
 }
 
-/// An https address, or http to the user's own computer, with no fragment.
+/// Schemes that run or read something in the browser instead of handing
+/// the answer to an app.
+const UNSAFE_SCHEMES: [&str; 6] = ["javascript", "data", "file", "blob", "vbscript", "about"];
+
+/// An https address, http to the user's own computer, or a desktop app's own
+/// scheme such as `cursor://` (RFC 8252), with no fragment.
 fn allowed_redirect(uri: &str) -> bool {
     if uri.len() > REDIRECT_URI_MAX {
         return false;
@@ -222,7 +229,12 @@ fn allowed_redirect(uri: &str) -> bool {
         return false;
     };
     let local = matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]"));
-    url.fragment().is_none() && (url.scheme() == "https" || (url.scheme() == "http" && local))
+    let allowed = match url.scheme() {
+        "https" => true,
+        "http" => local,
+        scheme => !UNSAFE_SCHEMES.contains(&scheme),
+    };
+    url.fragment().is_none() && allowed
 }
 
 pub async fn client(pool: &PgPool, client_id: Uuid) -> AppResult<OAuthClient> {
@@ -397,6 +409,13 @@ const fn granted(
         refresh_token,
         scope,
     }
+}
+
+/// Drops codes past their time and registrations nobody connected.
+pub async fn forget_old(pool: &PgPool) -> AppResult<()> {
+    db::forget_old(pool, Utc::now() - UNUSED_CLIENT_LIFE)
+        .await
+        .map_err(Into::into)
 }
 
 /// 244 random bits from two v4 UUIDs, as webhook secrets are made.

@@ -21,16 +21,22 @@ export function authorize(request: AuthorizeRequest): Promise<RedirectUrl> {
   });
 }
 
+const WEB_SCHEMES: ReadonlySet<string> = new Set(["http:", "https:"]);
+
 /** Search values arrive parsed: a numeric `state` comes back as a number. */
 export function oauthParam(value: unknown): string | undefined {
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return typeof value === "string" && value ? value : undefined;
 }
 
-/** Where the host goes back to, as they would recognise it. */
+/**
+ * Where the host goes back to, as they would recognise it: the site, or the
+ * desktop app whose own scheme it is, such as `cursor`.
+ */
 export function redirectHost(redirectUri: string): string {
   try {
-    return new URL(redirectUri).host;
+    const url = new URL(redirectUri);
+    return WEB_SCHEMES.has(url.protocol) ? url.host : url.protocol.replace(/:$/, "");
   } catch {
     return redirectUri;
   }

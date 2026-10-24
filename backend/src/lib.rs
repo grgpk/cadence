@@ -8,7 +8,14 @@ pub mod tracing_setup;
 pub mod tracking;
 pub mod validation;
 
-use axum::{Router, extract::DefaultBodyLimit, middleware, routing::get};
+use axum::{
+    Router,
+    extract::DefaultBodyLimit,
+    http::{HeaderName, HeaderValue, Method, header},
+    middleware,
+    routing::get,
+};
+use tower_http::cors::{AllowCredentials, AllowOrigin, CorsLayer};
 
 use crate::app_state::AppState;
 use crate::domain::auth::middleware::require_auth;
@@ -52,6 +59,38 @@ pub fn build_app(state: AppState) -> Router {
         .merge(domain::mcp::routes::mcp_routes(state.clone()))
         .layer(DefaultBodyLimit::max(BODY_MAX_BYTES))
         .with_state(state)
+}
+
+/// Request and response headers of MCP Streamable HTTP.
+const MCP_PROTOCOL_VERSION: HeaderName = HeaderName::from_static("mcp-protocol-version");
+const MCP_SESSION_ID: HeaderName = HeaderName::from_static("mcp-session-id");
+
+/// The site's origins may call everything with the session cookie. Any
+/// origin may call the agent paths: those read only a Bearer token or a form,
+/// so the cookie a browser sends along gets a page nothing.
+pub fn cors(origins: Vec<HeaderValue>) -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(move |origin, parts| {
+            origins.contains(origin) || domain::mcp::routes::is_agent_path(parts.uri.path())
+        }))
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            header::COOKIE,
+            header::ACCEPT,
+            MCP_PROTOCOL_VERSION,
+            MCP_SESSION_ID,
+        ])
+        .expose_headers([header::WWW_AUTHENTICATE, MCP_SESSION_ID])
+        .allow_credentials(AllowCredentials::yes())
 }
 
 async fn health() -> axum::http::StatusCode {

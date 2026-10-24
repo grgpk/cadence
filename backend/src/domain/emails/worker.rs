@@ -15,8 +15,8 @@ use super::{
 };
 use crate::domain::{
     auth::service as auth, billing::service as billing, bookings::service as bookings,
-    google_calendar::service as google_calendar, rate_limits::service as rate_limits,
-    webhooks::service as webhooks,
+    google_calendar::service as google_calendar, mcp::service as mcp,
+    rate_limits::service as rate_limits, webhooks::service as webhooks,
 };
 
 /// The most emails one pass sends, so the sweep after it is never starved.
@@ -151,6 +151,7 @@ pub async fn sweep(pool: &PgPool) {
         "OAuth states",
         google_calendar::forget_old_states(pool).await,
     );
+    unswept("OAuth clients and codes", mcp::forget_old(pool).await);
     unswept("webhook deliveries", webhooks::forget_old(pool).await);
     unswept(
         "weekly insights",

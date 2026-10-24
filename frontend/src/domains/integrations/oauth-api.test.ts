@@ -21,4 +21,10 @@ describe("redirectHost", () => {
     expect(redirectHost("https://claude.ai/api/mcp/auth_callback")).toBe("claude.ai");
     expect(redirectHost("http://localhost:6274/callback")).toBe("localhost:6274");
   });
+
+  it("names a desktop app by its own scheme", () => {
+    expect(redirectHost("cursor://anysphere.cursor-retrieval/oauth/callback")).toBe(
+      "cursor",
+    );
+  });
 });

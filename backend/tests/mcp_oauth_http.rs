@@ -27,6 +27,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 const REDIRECT: &str = "https://claude.ai/api/mcp/auth_callback";
+const APP_REDIRECT: &str = "cursor://anysphere.cursor-retrieval/oauth/callback";
 const VERIFIER: &str = "a-long-random-verifier-that-is-at-least-43-characters";
 
 fn app(pool: &PgPool) -> Router {
@@ -431,4 +432,164 @@ async fn a_refresh_token_works_once(pool: PgPool) {
         tools_list(&app, new_access).await.0,
         StatusCode::UNAUTHORIZED
     );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_desktop_app_gets_its_code_on_its_own_scheme(pool: PgPool) {
+    let app = app(&pool);
+    let cookie = host(&app, "editor@example.com").await;
+    let (status, client) = send(
+        &app,
+        Method::POST,
+        "/api/oauth/register",
+        None,
+        Some(json!({ "client_name": "Cursor", "redirect_uris": [APP_REDIRECT] })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "{client}");
+
+    let (status, answer) = send(
+        &app,
+        Method::POST,
+        "/api/oauth/authorize",
+        Some(&cookie),
+        Some(json!({
+            "client_id": client["client_id"], "redirect_uri": APP_REDIRECT,
+            "code_challenge": challenge(VERIFIER), "code_challenge_method": "S256",
+            "state": "xyz", "scope": "read", "approve": true,
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let back = Url::parse(answer["url"].as_str().expect("an address")).expect("a valid address");
+    assert_eq!(back.scheme(), "cursor");
+    assert!(query(&back, "code").is_some());
+
+    for unsafe_uri in [
+        "javascript:alert(1)",
+        "data:text/html,hi",
+        "file:///etc/passwd",
+    ] {
+        let (status, _) = send(
+            &app,
+            Method::POST,
+            "/api/oauth/register",
+            None,
+            Some(json!({ "client_name": "Bad", "redirect_uris": [unsafe_uri] })),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{unsafe_uri}");
+    }
+}
+
+/// A browser's preflight from `origin`: the origin it is allowed, if any.
+async fn preflight(app: &Router, path: &str, origin: &str) -> Option<String> {
+    let request = Request::builder()
+        .method(Method::OPTIONS)
+        .uri(path)
+        .header(header::ORIGIN, origin)
+        .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        .header(
+            header::ACCESS_CONTROL_REQUEST_HEADERS,
+            "authorization, mcp-protocol-version",
+        )
+        .body(Body::empty())
+        .expect("request is well formed");
+    let response = app.clone().oneshot(request).await.expect("router responds");
+    response
+        .headers()
+        .get(header::ACCESS_CONTROL_ALLOW_ORIGIN)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned)
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn browser_clients_reach_only_the_agent_paths(pool: PgPool) {
+    let site = "https://bookcadence.app";
+    let app = app(&pool).layer(cadence_backend::cors(vec![
+        site.parse().expect("an origin"),
+    ]));
+    let inspector = "https://inspector.example";
+
+    for path in [
+        "/api/mcp",
+        "/api/oauth/token",
+        "/api/oauth/register",
+        "/.well-known/oauth-authorization-server",
+    ] {
+        assert_eq!(
+            preflight(&app, path, inspector).await.as_deref(),
+            Some(inspector),
+            "{path}"
+        );
+    }
+    // What the session reaches stays with the site.
+    for path in [
+        "/api/oauth/authorize",
+        "/api/auth/me",
+        "/api/host/access-tokens",
+    ] {
+        assert_eq!(preflight(&app, path, inspector).await, None, "{path}");
+        assert_eq!(
+            preflight(&app, path, site).await.as_deref(),
+            Some(site),
+            "{path}"
+        );
+    }
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn old_codes_and_unused_clients_are_swept(pool: PgPool) {
+    let app = app(&pool);
+    let cookie = host(&app, "sweep@example.com").await;
+    let (connected, _) = connect(&app, &cookie).await;
+    let fresh = register_client(&app).await;
+    let stale = register_client(&app).await;
+    let waiting = register_client(&app).await;
+    consent(&app, &cookie, &waiting, true).await;
+    let ids = |ids: &[&str]| {
+        ids.iter()
+            .map(|id| id.parse::<Uuid>().expect("a client id"))
+            .collect::<Vec<_>>()
+    };
+    sqlx::query_scalar!(
+        "UPDATE oauth_clients SET created_at = now() - interval '2 days' WHERE unid = ANY($1) RETURNING 1",
+        &ids(&[&connected, &stale, &waiting]),
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("clients are writable");
+
+    cadence_backend::domain::mcp::service::forget_old(&pool)
+        .await
+        .expect("the sweep runs");
+    let left = sqlx::query_scalar!("SELECT unid FROM oauth_clients")
+        .fetch_all(&pool)
+        .await
+        .expect("clients are readable");
+    for kept in ids(&[&connected, &fresh, &waiting]) {
+        assert!(left.contains(&kept));
+    }
+    assert!(!left.contains(&ids(&[&stale])[0]));
+
+    // Once the waiting code runs out, its client goes with the next sweep.
+    sqlx::query_scalar!(
+        "UPDATE oauth_codes SET expires_at = now() - interval '1 second' RETURNING 1"
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("codes are writable");
+    cadence_backend::domain::mcp::service::forget_old(&pool)
+        .await
+        .expect("the sweep runs");
+    let codes = sqlx::query_scalar!("SELECT count(*) FROM oauth_codes")
+        .fetch_one(&pool)
+        .await
+        .expect("codes are readable");
+    assert_eq!(codes, Some(0));
+    let left = sqlx::query_scalar!("SELECT unid FROM oauth_clients")
+        .fetch_all(&pool)
+        .await
+        .expect("clients are readable");
+    assert!(!left.contains(&ids(&[&waiting])[0]));
 }

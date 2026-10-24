@@ -209,3 +209,21 @@ pub async fn rotate(
     .fetch_optional(pool)
     .await
 }
+
+/// Removes expired codes, and clients made before `before` that no token or
+/// code points at.
+pub async fn forget_old(pool: &PgPool, before: DateTime<Utc>) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!("DELETE FROM oauth_codes WHERE expires_at < now() RETURNING 1")
+        .fetch_all(pool)
+        .await?;
+    sqlx::query_scalar!(
+        "DELETE FROM oauth_clients c WHERE c.created_at < $1
+           AND NOT EXISTS (SELECT 1 FROM access_tokens t WHERE t.oauth_client_unid = c.unid)
+           AND NOT EXISTS (SELECT 1 FROM oauth_codes o WHERE o.oauth_client_unid = c.unid)
+         RETURNING 1",
+        before,
+    )
+    .fetch_all(pool)
+    .await
+    .map(|_| ())
+}

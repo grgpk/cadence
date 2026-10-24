@@ -122,7 +122,5 @@ Frontend: `oauth-api.test.ts` (search values, the redirect host), and
 
 ## Later
 
-- CORS on the discovery, register and token endpoints, for clients that run
-  in a browser such as the MCP Inspector. claude.ai and ChatGPT call them from
-  their servers.
-- Clean up unused clients and expired codes on a schedule.
+CORS for browser clients, desktop apps' own redirect schemes, and sweeping old
+clients and codes are done in Plan 46.

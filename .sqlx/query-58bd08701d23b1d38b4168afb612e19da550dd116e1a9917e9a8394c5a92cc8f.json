@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oauth_clients c WHERE c.created_at < $1\n           AND NOT EXISTS (SELECT 1 FROM access_tokens t WHERE t.oauth_client_unid = c.unid)\n           AND NOT EXISTS (SELECT 1 FROM oauth_codes o WHERE o.oauth_client_unid = c.unid)\n         RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "58bd08701d23b1d38b4168afb612e19da550dd116e1a9917e9a8394c5a92cc8f"
+}

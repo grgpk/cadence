@@ -1,0 +1,21 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM oauth_codes WHERE expires_at < now() RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "666d2cc82f7fca3171e246af3ebcad8452f8c958fa82d7d5fae6192d2aaa9191"
+}

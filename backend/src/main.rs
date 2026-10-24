@@ -1,14 +1,13 @@
 use std::env;
 
 use anyhow::Context;
-use axum::http::{HeaderValue, Method, header};
+use axum::http::HeaderValue;
 use cadence_backend::app_state::AppState;
 use cadence_backend::domain::billing::stripe::Payments;
 use cadence_backend::domain::calendly::client::Calendly;
 use cadence_backend::domain::google_calendar::calendar::{GoogleCalendar, HostCalendar};
 use cadence_backend::tracing_setup::setup_tracing;
 use sqlx::postgres::PgPoolOptions;
-use tower_http::cors::{AllowCredentials, CorsLayer};
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -56,25 +55,7 @@ async fn main() -> anyhow::Result<()> {
         calendly: Calendly::live(),
     })
     .layer(TraceLayer::new_for_http())
-    .layer(
-        CorsLayer::new()
-            .allow_origin(cors_origins)
-            .allow_methods([
-                Method::GET,
-                Method::POST,
-                Method::PUT,
-                Method::PATCH,
-                Method::DELETE,
-                Method::OPTIONS,
-            ])
-            .allow_headers([
-                header::CONTENT_TYPE,
-                header::AUTHORIZATION,
-                header::COOKIE,
-                header::ACCEPT,
-            ])
-            .allow_credentials(AllowCredentials::yes()),
-    )
+    .layer(cadence_backend::cors(cors_origins))
     .layer(PropagateRequestIdLayer::x_request_id())
     .layer(SetRequestIdLayer::x_request_id(MakeRequestUuid));
 

@@ -27,6 +27,15 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/oauth/authorize", post(handlers::authorize))
 }
 
+/// Paths an agent reaches from any site: they read a Bearer token or a form,
+/// never the session cookie, so a browser-based client may call them.
+pub fn is_agent_path(path: &str) -> bool {
+    path == MCP_PATH
+        || path == REGISTER_PATH
+        || path == TOKEN_PATH
+        || path.starts_with("/.well-known/oauth-")
+}
+
 /// OAuth discovery, registration and tokens: what a client reaches before it
 /// has a token or the host a session in it.
 pub fn public_routes() -> Router<AppState> {
