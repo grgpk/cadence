@@ -80,7 +80,10 @@ function useBookingPageState() {
   const settings = useQuery(hostSettingsQuery);
   const availability = useQuery(availabilityQuery);
   const slug = settings.data?.public_slug;
-  const page = useQuery({ ...hostPageQuery(slug ?? ""), enabled: Boolean(slug) });
+  const page = useQuery({
+    ...hostPageQuery(slug ?? ""),
+    enabled: Boolean(slug),
+  });
   const rules = availability.data ?? [];
   const place = settings.data
     ? callPlace({
@@ -136,7 +139,7 @@ export function SetupProblems() {
   if (problems.length === 0) return null;
   const blocked = problems.some((problem) => problem.blocksBooking);
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card className={cn("gap-0 overflow-hidden py-0", blocked && "border-warning/40")}>
       <div className="flex items-start justify-between gap-4 px-4 py-4 sm:px-5">
         <div className="min-w-0">
           <h2 className="font-semibold">Next steps</h2>
@@ -146,7 +149,13 @@ export function SetupProblems() {
               : "People can book you. This makes their calls run smoothly."}
           </p>
         </div>
-        <Badge variant="secondary" className="shrink-0">
+        <Badge
+          variant={blocked ? "outline" : "secondary"}
+          className={cn(
+            "shrink-0",
+            blocked && "border-warning/30 bg-warning/10 text-warning",
+          )}
+        >
           {problems.length} to do
         </Badge>
       </div>
@@ -158,20 +167,33 @@ export function SetupProblems() {
               <Link
                 to={problem.fix.to}
                 hash={problem.fix.hash}
-                className="group flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 active:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5"
+                className={cn(
+                  "group flex items-center gap-3 px-4 py-3 outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset sm:px-5",
+                  // The left edge marks a step left to do; a full one stops booking.
+                  problem.blocksBooking
+                    ? "bg-warning/5 shadow-[inset_3px_0_0_var(--warning)] hover:bg-warning/10 focus-visible:bg-warning/10 active:bg-warning/15"
+                    : "shadow-[inset_3px_0_0_color-mix(in_oklab,var(--warning)_45%,transparent)] hover:bg-muted/50 focus-visible:bg-muted/50 active:bg-muted",
+                )}
               >
                 <span
                   className={cn(
-                    "grid size-9 shrink-0 place-items-center rounded-lg border",
+                    "grid size-9 shrink-0 place-items-center rounded-lg border text-warning",
                     problem.blocksBooking
-                      ? "border-warning/40 bg-warning/10 text-warning"
-                      : "bg-muted text-muted-foreground",
+                      ? "border-warning/60 bg-warning/15"
+                      : "border-warning/30 bg-warning/5",
                   )}
                 >
                   <Icon className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium">{problem.fix.label}</span>
+                  <span
+                    className={cn(
+                      "block font-medium",
+                      problem.blocksBooking && "text-warning",
+                    )}
+                  >
+                    {problem.fix.label}
+                  </span>
                   <span className="block text-sm text-muted-foreground">
                     {problem.detail}
                   </span>
