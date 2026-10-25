@@ -63,6 +63,16 @@ struct InvoiceState {
     paid_amount: Option<String>,
 }
 
+/// One coin an invoice could be paid with, and the payments made in it.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PaymentMethodState {
+    /// Such as `BTC-CHAIN` or `LTC-CHAIN`.
+    payment_method_id: String,
+    #[serde(default)]
+    payments: Vec<serde::de::IgnoredAny>,
+}
+
 /// A store webhook event, with only the fields read here.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -193,6 +203,23 @@ impl BtcPay {
         provider_invoice_id: &str,
         amount: RefundAmount,
     ) -> Result<String, GatewayError> {
+        let methods: Vec<PaymentMethodState> = self
+            .client
+            .get(format!(
+                "{}/api/v1/stores/{}/invoices/{provider_invoice_id}/payment-methods",
+                self.url, self.store_id
+            ))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("token {}", self.api_key),
+            )
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|error| GatewayError::Request(error.into()))?
+            .json()
+            .await
+            .map_err(|error| GatewayError::Request(error.into()))?;
         let refund: PullPayment = self
             .client
             .post(format!(
@@ -203,7 +230,7 @@ impl BtcPay {
                 reqwest::header::AUTHORIZATION,
                 format!("token {}", self.api_key),
             )
-            .json(&refund_body(amount))
+            .json(&refund_body(amount, paid_with(&methods)))
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)
@@ -269,10 +296,18 @@ fn read(body: &[u8]) -> Result<Option<PaymentEvent>, WebhookError> {
     }))
 }
 
+/// The coin the buyer paid in. `BTCPay` refunds in Bitcoin unless told.
+fn paid_with(methods: &[PaymentMethodState]) -> Option<&str> {
+    methods
+        .iter()
+        .find(|method| !method.payments.is_empty())
+        .map(|method| method.payment_method_id.as_str())
+}
+
 /// A refund of a dollar amount, all of an invoice or part of it; or of what
 /// arrived on a short one, in its coin at the rate it was paid.
-fn refund_body(amount: RefundAmount) -> serde_json::Value {
-    match amount {
+fn refund_body(amount: RefundAmount, payout_method: Option<&str>) -> serde_json::Value {
+    let mut body = match amount {
         RefundAmount::Dollars(cents) => json!({
             "refundVariant": "Custom",
             "customAmount": dollars(cents),
@@ -283,7 +318,11 @@ fn refund_body(amount: RefundAmount) -> serde_json::Value {
             "refundVariant": "RateThen",
             "description": "Cadence refund",
         }),
+    };
+    if let (Some(method), Some(fields)) = (payout_method, body.as_object_mut()) {
+        fields.insert("payoutMethodId".to_owned(), method.into());
     }
+    body
 }
 
 /// `"5.00"` or `"5.5"` as cents; `None` for anything that is not a price.
@@ -340,7 +379,7 @@ mod tests {
     #[test]
     fn a_short_invoice_is_refunded_at_the_rate_it_was_paid() {
         assert_eq!(
-            refund_body(RefundAmount::WhatArrived),
+            refund_body(RefundAmount::WhatArrived, None),
             json!({ "refundVariant": "RateThen", "description": "Cadence refund" })
         );
     }
@@ -348,12 +387,29 @@ mod tests {
     #[test]
     fn a_refund_asks_for_its_dollar_amount() {
         assert_eq!(
-            refund_body(RefundAmount::Dollars(620)),
+            refund_body(RefundAmount::Dollars(620), None),
             json!({
                 "refundVariant": "Custom",
                 "customAmount": "6.20",
                 "customCurrency": "USD",
                 "description": "Cadence refund",
+            })
+        );
+    }
+
+    #[test]
+    fn a_refund_goes_back_in_the_coin_that_was_paid() {
+        let methods: Vec<PaymentMethodState> = serde_json::from_str(
+            r#"[{"paymentMethodId":"BTC-CHAIN","payments":[]},{"paymentMethodId":"LTC-CHAIN","payments":[{"id":"p1"}]}]"#,
+        )
+        .unwrap_or_default();
+        assert_eq!(paid_with(&methods), Some("LTC-CHAIN"));
+        assert_eq!(
+            refund_body(RefundAmount::WhatArrived, paid_with(&methods)),
+            json!({
+                "refundVariant": "RateThen",
+                "description": "Cadence refund",
+                "payoutMethodId": "LTC-CHAIN",
             })
         );
     }

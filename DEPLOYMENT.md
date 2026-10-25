@@ -122,7 +122,7 @@ Verify with `curl -fsS https://bookcadence.app/health`.
 
 ## Crypto payments
 
-Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 to 52).
+Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 to 53).
 It stays off until `CRYPTO_PROVIDER` is set in `/root/cadence/.env`. Pick one
 provider; switching later is a change to `.env` and a redeploy.
 
@@ -235,13 +235,18 @@ adds USDT on TRON, Ethereum or Polygon. It needs BTCPay 2.3.7 or newer.
    For production, set a private TRON node's JSON-RPC endpoint in the plugin's
    TRON settings, or a provider such as TronGrid with its `TRON-PRO-API-KEY`
    header.
-4. **Coins label.** Set `BTCPAY_COINS=Bitcoin or USDT` in `/root/cadence/.env`
+4. **Coins label.** Set `BTCPAY_COINS="Bitcoin or USDT"` in `/root/cadence/.env`
    and redeploy, so the pricing page and Billing say what the store takes.
 5. **Check it** with a small USDT payment, as in step 9 above.
 
 Refunds of a USDT payment need the plugin's payout support. If BTCPay can't
 make the refund link, the admin refund fails with an error and nothing changes
 in Cadence. Send the money from BTCPay by hand in that case.
+
+Any other coin BTCPay supports works the same way: add it to the store, then
+list it in `BTCPAY_COINS`. A refund goes back in the coin the buyer paid in
+(Plan 53). The local BTCPay runs Bitcoin and Litecoin so this can be tried
+with test coins.
 
 ### NOWPayments (hosted, many coins and stablecoins)
 

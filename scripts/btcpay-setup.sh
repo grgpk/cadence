@@ -1,15 +1,16 @@
 #!/usr/bin/env bash
 # Sets up the local BTCPay Server from docker-compose.btcpay.yml for crypto
 # checkout (Plan 48) and writes CRYPTO_PROVIDER and BTCPAY_* into .env.
+# The store takes Bitcoin and Litecoin (Plan 53); a `coin` is btc or ltc.
 # Regtest only: the coins are fake and no account is made anywhere. Safe to
-# run again: the user, store and wallet are reused; the webhook and API key
+# run again: the user, store and wallets are reused; the webhook and API key
 # are made fresh, since BTCPay shows their secrets only once.
 #
 #   docker compose -f docker-compose.btcpay.yml up -d
-#   scripts/btcpay-setup.sh                      set up, then restart the backend
-#   scripts/btcpay-setup.sh pay <address> <btc>  pay an invoice and confirm it
-#   scripts/btcpay-setup.sh pay-invoice <link>   pay a checkout page's invoice in full
-#   scripts/btcpay-setup.sh pay-invoice <link> short   pay half of it, to test a short payment
+#   scripts/btcpay-setup.sh                                  set up, then restart the backend
+#   scripts/btcpay-setup.sh pay <address> <amount> [coin]    pay an address and confirm it
+#   scripts/btcpay-setup.sh pay-invoice <link> [coin]        pay a checkout page's invoice in full
+#   scripts/btcpay-setup.sh pay-invoice <link> short [coin]  pay half of it, to test a short payment
 #
 # The BTCPay dashboard is http://localhost:49392, signed in with the
 # ADMIN_EMAIL and ADMIN_PASSWORD below.
@@ -31,25 +32,53 @@ ADMIN_PASSWORD=cadence-dev-only
 STORE_NAME="Cadence (dev)"
 # The backend on the host, as the BTCPay container reaches it.
 WEBHOOK_URL=http://host.docker.internal:3001/api/billing/crypto/webhook
-PAYMENT_METHOD=BTC-CHAIN
+COINS=(btc ltc)
 WALLET=dev
 # A payment counts once its block is this deep; BTCPay asks for fewer.
 CONFIRM_BLOCKS=6
 
-bitcoin_cli() {
-    "${COMPOSE[@]}" exec -T bitcoind bitcoin-cli -regtest -rpcport=43782 \
+# Runs a coin's node cli: `node_cli ltc getbalance`.
+node_cli() {
+    local service=bitcoind cli=bitcoin-cli
+    if [[ "$1" == ltc ]]; then
+        service=litecoind
+        cli=litecoin-cli
+    fi
+    shift
+    "${COMPOSE[@]}" exec -T "$service" "$cli" -regtest -rpcport=43782 \
         -rpcuser=cadence -rpcpassword=cadence "$@"
 }
 
-# Mines `count` blocks to the dev wallet, which is where test coins come from.
+# BTCPay's payment method for a coin: BTC-CHAIN or LTC-CHAIN.
+payment_method() {
+    echo "${1^^}-CHAIN"
+}
+
+# The coin an optional argument names, btc when there is none.
+coin_arg() {
+    case "${1:-btc}" in
+        btc | ltc) echo "${1:-btc}" ;;
+        *) echo "Unknown coin $1: use btc or ltc." >&2; exit 1 ;;
+    esac
+}
+
+# Mines `count` blocks of a coin to the dev wallet, which is where test coins
+# come from: `mine ltc 6`.
 mine() {
     local address
-    address=$(bitcoin_cli -rpcwallet="$WALLET" getnewaddress)
-    bitcoin_cli generatetoaddress "$1" "$address" >/dev/null
+    address=$(node_cli "$1" -rpcwallet="$WALLET" getnewaddress)
+    node_cli "$1" generatetoaddress "$2" "$address" >/dev/null
 }
 
 if [[ "${1:-}" == "pay-invoice" ]]; then
-    [[ $# -ge 2 ]] || { echo "Usage: scripts/btcpay-setup.sh pay-invoice <checkout link or invoice id> [short]"; exit 1; }
+    [[ $# -ge 2 ]] || { echo "Usage: scripts/btcpay-setup.sh pay-invoice <checkout link or invoice id> [short] [btc|ltc]"; exit 1; }
+    amount=full
+    if [[ "${3:-}" == short || "${3:-}" == full ]]; then
+        amount=$3
+        coin=$(coin_arg "${4:-}")
+    else
+        coin=$(coin_arg "${3:-}")
+    fi
     key=$(grep -E '^BTCPAY_DEV_ADMIN_KEY=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
     store=$(grep -E '^BTCPAY_STORE_ID=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
     [[ -n "$key" && -n "$store" ]] || { echo "Run scripts/btcpay-setup.sh first."; exit 1; }
@@ -59,20 +88,21 @@ if [[ "${1:-}" == "pay-invoice" ]]; then
         { echo "No invoice $invoice in the local BTCPay."; exit 1; }
     read -r address due < <(python3 -c '
 import json, sys
-method = next(m for m in json.loads(sys.argv[1]) if m["paymentMethodId"] == "BTC-CHAIN")
+method = next(m for m in json.loads(sys.argv[1]) if m["paymentMethodId"] == sys.argv[3])
 due = float(method["due"]) / (2 if sys.argv[2] == "short" else 1)
-print(method["destination"], f"{due:.8f}")' "$methods" "${3:-full}")
-    bitcoin_cli -rpcwallet="$WALLET" sendtoaddress "$address" "$due" >/dev/null
-    mine "$CONFIRM_BLOCKS"
-    echo "Paid $due BTC on invoice $invoice and mined $CONFIRM_BLOCKS blocks."
+print(method["destination"], f"{due:.8f}")' "$methods" "$amount" "$(payment_method "$coin")")
+    node_cli "$coin" -rpcwallet="$WALLET" sendtoaddress "$address" "$due" >/dev/null
+    mine "$coin" "$CONFIRM_BLOCKS"
+    echo "Paid $due ${coin^^} on invoice $invoice and mined $CONFIRM_BLOCKS blocks."
     exit 0
 fi
 
 if [[ "${1:-}" == "pay" ]]; then
-    [[ $# -eq 3 ]] || { echo "Usage: scripts/btcpay-setup.sh pay <address> <btc>"; exit 1; }
-    bitcoin_cli -rpcwallet="$WALLET" sendtoaddress "$2" "$3"
-    mine "$CONFIRM_BLOCKS"
-    echo "Paid $3 BTC to $2 and mined $CONFIRM_BLOCKS blocks."
+    [[ $# -ge 3 ]] || { echo "Usage: scripts/btcpay-setup.sh pay <address> <amount> [btc|ltc]"; exit 1; }
+    coin=$(coin_arg "${4:-}")
+    node_cli "$coin" -rpcwallet="$WALLET" sendtoaddress "$2" "$3"
+    mine "$coin" "$CONFIRM_BLOCKS"
+    echo "Paid $3 ${coin^^} to $2 and mined $CONFIRM_BLOCKS blocks."
     exit 0
 fi
 
@@ -167,29 +197,35 @@ if [[ -z "$STORE_ID" ]]; then
     echo "Made store $STORE_ID."
 fi
 
-# A wallet in bitcoind with mined coins to pay invoices from. Coinbase coins
-# can be spent after 100 blocks.
-bitcoin_cli createwallet "$WALLET" >/dev/null 2>&1 || bitcoin_cli loadwallet "$WALLET" >/dev/null 2>&1 || true
-# The image may start with blocks of its own, so mine until coins are spendable.
-for _ in 1 2 3; do
-    [[ $(bitcoin_cli -rpcwallet="$WALLET" getbalance | cut -d. -f1) -ge 1 ]] && break
-    mine 101
-    echo "Mined 101 blocks for test coins."
+# A wallet in each node with mined coins to pay invoices from. Coinbase
+# coins can be spent after 100 blocks.
+for coin in "${COINS[@]}"; do
+    node_cli "$coin" createwallet "$WALLET" >/dev/null 2>&1 ||
+        node_cli "$coin" loadwallet "$WALLET" >/dev/null 2>&1 || true
+    # The image may start with blocks of its own, so mine until coins are spendable.
+    for _ in 1 2 3; do
+        [[ $(node_cli "$coin" -rpcwallet="$WALLET" getbalance | cut -d. -f1) -ge 1 ]] && break
+        mine "$coin" 101
+        echo "Mined 101 ${coin^^} blocks for test coins."
+    done
 done
 
-# BTCPay takes Bitcoin once its explorer has caught up with those blocks.
+# BTCPay takes each coin once its explorer has caught up with those blocks.
 for _ in $(seq 1 40); do
-    btcpay_api GET /api/v1/server/info | grep -q '"available":true' && break
+    [[ $(btcpay_api GET /api/v1/server/info | grep -o '"available":true' | wc -l) -ge ${#COINS[@]} ]] && break
     read -rt 3 < <(tail -f /dev/null) || true
 done
 
-# A hot wallet whose keys BTCPay keeps: fine for fake coins only.
-if ! btcpay_api --allow-fail GET "/api/v1/stores/$STORE_ID/payment-methods/$PAYMENT_METHOD" |
-    grep -q '"enabled":true'; then
-    btcpay_api POST "/api/v1/stores/$STORE_ID/payment-methods/$PAYMENT_METHOD/wallet/generate" \
-        '{"savePrivateKeys":true,"scriptPubKeyType":"Segwit"}' >/dev/null
-    echo "Made the store's wallet."
-fi
+# A hot wallet per coin whose keys BTCPay keeps: fine for fake coins only.
+for coin in "${COINS[@]}"; do
+    method=$(payment_method "$coin")
+    if ! btcpay_api --allow-fail GET "/api/v1/stores/$STORE_ID/payment-methods/$method" |
+        grep -q '"enabled":true'; then
+        btcpay_api POST "/api/v1/stores/$STORE_ID/payment-methods/$method/wallet/generate" \
+            '{"savePrivateKeys":true,"scriptPubKeyType":"Segwit"}' >/dev/null
+        echo "Made the store's ${coin^^} wallet."
+    fi
+done
 
 # One webhook to the backend, made again so its secret is known.
 WEBHOOKS=$(btcpay_api GET "/api/v1/stores/$STORE_ID/webhooks")
@@ -214,7 +250,9 @@ set_env BTCPAY_URL "$URL"
 set_env BTCPAY_STORE_ID "$STORE_ID"
 set_env BTCPAY_API_KEY "$API_KEY"
 set_env BTCPAY_WEBHOOK_SECRET "$WEBHOOK_SECRET"
+# Quoted: dotenv refuses a bare value with spaces.
+set_env BTCPAY_COINS "\"Bitcoin or Litecoin\""
 
 echo "Done: wrote CRYPTO_PROVIDER and BTCPAY_* to $ENV_FILE. Restart the backend."
-echo "To pay an invoice, copy its address and amount from the checkout page:"
-echo "  scripts/btcpay-setup.sh pay <address> <btc>"
+echo "To pay a checkout page's invoice in BTC or LTC:"
+echo "  scripts/btcpay-setup.sh pay-invoice <link> [short] [btc|ltc]"
