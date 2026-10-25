@@ -16,7 +16,8 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 use super::{
-    GatewayError, Invoice, InvoiceRequest, PaymentEvent, PaymentStatus, WebhookError, dollars,
+    CryptoProvider, GatewayError, Invoice, InvoiceRequest, PaymentEvent, PaymentStatus,
+    WebhookError, dollars,
 };
 
 const SIGNATURE_HEADER: &str = "btcpay-sig";
@@ -32,6 +33,8 @@ pub(super) struct BtcPay {
     store_id: Arc<str>,
     api_key: Arc<str>,
     webhook_secret: Arc<str>,
+    /// What the store takes: Bitcoin, plus whatever its plugins add.
+    coins: Arc<str>,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +93,9 @@ impl BtcPay {
             store_id: var("BTCPAY_STORE_ID")?.into(),
             api_key: var("BTCPAY_API_KEY")?.into(),
             webhook_secret: var("BTCPAY_WEBHOOK_SECRET")?.into(),
+            coins: var("BTCPAY_COINS")
+                .unwrap_or_else(|| CryptoProvider::BtcPay.coins().to_owned())
+                .into(),
         })
     }
 
@@ -157,9 +163,17 @@ impl BtcPay {
         Ok(status_of(&invoice))
     }
 
-    /// The invoice's dollar amount back, at the rate when it is claimed, in
-    /// the coin it was paid with.
-    pub(super) async fn refund(&self, provider_invoice_id: &str) -> Result<String, GatewayError> {
+    pub(super) fn coins(&self) -> &str {
+        &self.coins
+    }
+
+    /// `amount_cents` back in dollars, at the rate when it is claimed, in the
+    /// coin it was paid with.
+    pub(super) async fn refund(
+        &self,
+        provider_invoice_id: &str,
+        amount_cents: u32,
+    ) -> Result<String, GatewayError> {
         let refund: PullPayment = self
             .client
             .post(format!(
@@ -170,7 +184,7 @@ impl BtcPay {
                 reqwest::header::AUTHORIZATION,
                 format!("token {}", self.api_key),
             )
-            .json(&json!({ "refundVariant": "Fiat", "description": "Cadence refund" }))
+            .json(&refund_body(amount_cents))
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)
@@ -236,6 +250,16 @@ fn read(body: &[u8]) -> Result<Option<PaymentEvent>, WebhookError> {
     }))
 }
 
+/// A refund of a dollar amount: all of an invoice, or part of it.
+fn refund_body(amount_cents: u32) -> serde_json::Value {
+    json!({
+        "refundVariant": "Custom",
+        "customAmount": dollars(amount_cents),
+        "customCurrency": CURRENCY,
+        "description": "Cadence refund",
+    })
+}
+
 /// An invoice's status from the API, in Cadence's words, as its events say it.
 fn status_of(invoice: &InvoiceState) -> PaymentStatus {
     match (invoice.status.as_str(), invoice.additional_status.as_str()) {
@@ -264,7 +288,21 @@ mod tests {
             store_id: "store".into(),
             api_key: "key".into(),
             webhook_secret: SECRET.into(),
+            coins: "Bitcoin".into(),
         }
+    }
+
+    #[test]
+    fn a_refund_asks_for_its_dollar_amount() {
+        assert_eq!(
+            refund_body(620),
+            json!({
+                "refundVariant": "Custom",
+                "customAmount": "6.20",
+                "customCurrency": "USD",
+                "description": "Cadence refund",
+            })
+        );
     }
 
     fn signed(secret: &str, body: &str) -> HeaderMap {

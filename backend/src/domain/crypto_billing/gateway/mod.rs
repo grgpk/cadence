@@ -47,7 +47,8 @@ impl CryptoProvider {
         }
     }
 
-    /// What a host can pay with, as the pricing and billing pages name it.
+    /// What a host can pay with by default, as the pricing and billing
+    /// pages name it. `BTCPAY_COINS` changes it for a `BTCPay` store with plugins.
     pub const fn coins(self) -> &'static str {
         match self {
             Self::BtcPay => "Bitcoin",
@@ -189,6 +190,14 @@ impl CryptoPayments {
         }
     }
 
+    /// What this store takes, such as "Bitcoin or USDT".
+    pub fn coins(&self) -> &str {
+        match &self.gateway {
+            Gateway::BtcPay(btcpay) => btcpay.coins(),
+            _ => self.provider().coins(),
+        }
+    }
+
     pub const fn provider(&self) -> CryptoProvider {
         match self.gateway {
             Gateway::BtcPay(_) => CryptoProvider::BtcPay,
@@ -234,15 +243,23 @@ impl CryptoPayments {
         }
     }
 
-    /// Gives a paid invoice's amount back. Answers where the host claims it,
-    /// or `None` for a provider that refunds only from its own dashboard.
-    pub async fn refund(&self, provider_invoice_id: &str) -> Result<Option<String>, GatewayError> {
+    /// Gives `amount_cents` of a paid invoice back, in dollars. Answers where
+    /// the host claims it, or `None` for a provider that refunds only from
+    /// its own dashboard.
+    pub async fn refund(
+        &self,
+        provider_invoice_id: &str,
+        amount_cents: u32,
+    ) -> Result<Option<String>, GatewayError> {
         match &self.gateway {
-            Gateway::BtcPay(btcpay) => btcpay.refund(provider_invoice_id).await.map(Some),
+            Gateway::BtcPay(btcpay) => btcpay
+                .refund(provider_invoice_id, amount_cents)
+                .await
+                .map(Some),
             // Invoices are refunded from the NOWPayments dashboard.
             Gateway::NowPayments(_) => Ok(None),
             Gateway::Fake(_) => Ok(Some(format!(
-                "https://crypto.test/refund/{provider_invoice_id}"
+                "https://crypto.test/refund/{provider_invoice_id}/{amount_cents}"
             ))),
         }
     }

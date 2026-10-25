@@ -2,6 +2,7 @@ import { queryOptions } from "@tanstack/react-query";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CompPlan } from "../../bindings/CompPlan";
+import type { AdminCryptoPayment } from "../../bindings/AdminCryptoPayment";
 import type { CryptoRefund } from "../../bindings/CryptoRefund";
 import type { CryptoSummary } from "../../bindings/CryptoSummary";
 import type { PlanOffer } from "../../bindings/PlanOffer";
@@ -9,6 +10,7 @@ import type { RedirectUrl } from "../../bindings/RedirectUrl";
 import type { AdminCancellation } from "../../bindings/AdminCancellation";
 import type { LeaveFeedback } from "../../bindings/LeaveFeedback";
 import type { Referrals } from "../../bindings/Referrals";
+import type { RefundCrypto } from "../../bindings/RefundCrypto";
 import type { StartCheckout } from "../../bindings/StartCheckout";
 import { api } from "../../lib/api";
 import { QUERY_KEYS } from "../../lib/query-keys";
@@ -98,9 +100,24 @@ export function compPlan(userUnid: string, body: CompPlan): Promise<void> {
   });
 }
 
-/** An admin refunds `userUnid`'s latest crypto payment and takes back its time. */
-export function refundCrypto(userUnid: string): Promise<CryptoRefund> {
-  return api<CryptoRefund>(`/api/admin/billing/${userUnid}/crypto-refund`, {
+/** A host's crypto payments that took money, newest first, for an admin. */
+export const adminCryptoPaymentsQuery = (userUnid: string) =>
+  queryOptions({
+    queryKey: QUERY_KEYS.adminCryptoPayments(userUnid),
+    queryFn: () =>
+      api<AdminCryptoPayment[]>(`/api/admin/billing/${userUnid}/crypto-payments`),
+  });
+
+/**
+ * An admin gives back part of one crypto payment, or with no amount all that
+ * is left of it, which also takes back the time it bought.
+ */
+export function refundCryptoPayment(
+  paymentUnid: string,
+  body: RefundCrypto,
+): Promise<CryptoRefund> {
+  return api<CryptoRefund>(`/api/admin/billing/crypto-payments/${paymentUnid}/refund`, {
     method: "POST",
+    body: JSON.stringify(body),
   });
 }

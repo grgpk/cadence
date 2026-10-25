@@ -4,7 +4,10 @@ use uuid::Uuid;
 
 use super::gateway::{CryptoProvider, PaymentStatus};
 use crate::{
-    domain::billing::plans::{BillingInterval, Plan},
+    domain::billing::{
+        db as billing_db,
+        plans::{BillingInterval, Plan},
+    },
     text_column::text_column,
 };
 
@@ -265,33 +268,118 @@ pub async fn unsettled(
     .await
 }
 
-/// The payment a refund gives back: the host's latest paid one.
+/// A payment an admin refunds, held until the refund is recorded.
 pub struct RefundRow {
     pub unid: Uuid,
+    pub user_unid: Uuid,
     pub provider: CryptoProvider,
     pub kind: PaymentKind,
+    pub status: PaymentStatus,
     pub provider_invoice_id: Option<String>,
     pub billing_interval: BillingInterval,
-    pub period_end: DateTime<Utc>,
+    pub period_end: Option<DateTime<Utc>>,
     pub amount_cents: i32,
+    /// What its refunds so far gave back.
+    pub refunded_cents: i32,
 }
 
-pub async fn latest_paid(
+/// The payment, without a lock: which host to lock first.
+pub async fn owner_of(pool: &PgPool, unid: Uuid) -> Result<Option<Uuid>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT user_unid FROM crypto_payments WHERE unid = $1",
+        unid
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+pub async fn for_refund(
     connection: &mut PgConnection,
-    user_unid: Uuid,
+    unid: Uuid,
 ) -> Result<Option<RefundRow>, sqlx::Error> {
     sqlx::query_as!(
         RefundRow,
-        r#"SELECT unid, provider AS "provider: CryptoProvider", kind AS "kind: PaymentKind",
-                  provider_invoice_id,
-                  billing_interval AS "billing_interval: BillingInterval",
-                  period_end AS "period_end!", amount_cents
-           FROM crypto_payments
-           WHERE user_unid = $1 AND status = 'paid'
-           ORDER BY paid_at DESC LIMIT 1"#,
-        user_unid,
+        r#"SELECT p.unid, p.user_unid, p.provider AS "provider: CryptoProvider",
+                  p.kind AS "kind: PaymentKind", p.status AS "status: PaymentStatus",
+                  p.provider_invoice_id,
+                  p.billing_interval AS "billing_interval: BillingInterval",
+                  p.period_end, p.amount_cents,
+                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r
+                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS "refunded_cents!"
+           FROM crypto_payments p WHERE p.unid = $1"#,
+        unid,
     )
     .fetch_optional(connection)
+    .await
+}
+
+pub async fn insert_refund(
+    connection: &mut PgConnection,
+    payment_unid: Uuid,
+    amount_cents: i32,
+    claim_url: Option<&str>,
+) -> Result<(), sqlx::Error> {
+    sqlx::query_scalar!(
+        "INSERT INTO crypto_refunds (payment_unid, amount_cents, claim_url)
+         VALUES ($1, $2, $3) RETURNING 1",
+        payment_unid,
+        amount_cents,
+        claim_url,
+    )
+    .fetch_one(connection)
+    .await
+    .map(|_| ())
+}
+
+/// One of a host's crypto payments, as the admin's list shows it.
+pub struct PaymentListed {
+    pub unid: Uuid,
+    pub provider: CryptoProvider,
+    pub kind: PaymentKind,
+    pub plan: Plan,
+    pub billing_interval: BillingInterval,
+    pub amount_cents: i32,
+    pub refunded_cents: i32,
+    pub status: PaymentStatus,
+    pub created_at: DateTime<Utc>,
+    pub paid_at: Option<DateTime<Utc>>,
+    pub period_end: Option<DateTime<Utc>>,
+}
+
+pub async fn payments_of(
+    pool: &PgPool,
+    user_unid: Uuid,
+) -> Result<Vec<PaymentListed>, sqlx::Error> {
+    sqlx::query_as!(
+        PaymentListed,
+        r#"SELECT p.unid, p.provider AS "provider: CryptoProvider", p.kind AS "kind: PaymentKind",
+                  p.plan AS "plan: Plan", p.billing_interval AS "billing_interval: BillingInterval",
+                  p.amount_cents,
+                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r
+                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS "refunded_cents!",
+                  p.status AS "status: PaymentStatus", p.created_at, p.paid_at, p.period_end
+           FROM crypto_payments p
+           WHERE p.user_unid = $1 AND p.status IN ('paid', 'refunded', 'underpaid')
+           ORDER BY p.created_at DESC"#,
+        user_unid,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+/// Root and Admin accounts, to hear about money that needs a person.
+pub async fn admins(
+    connection: &mut PgConnection,
+    roles: &[String],
+) -> Result<Vec<billing_db::Contact>, sqlx::Error> {
+    sqlx::query_as!(
+        billing_db::Contact,
+        "SELECT DISTINCT u.email, u.full_name FROM users u
+         JOIN roleaccesses r ON r.grantedto_unid = u.unid
+         WHERE r.role = ANY($1)",
+        roles,
+    )
+    .fetch_all(connection)
     .await
 }
 

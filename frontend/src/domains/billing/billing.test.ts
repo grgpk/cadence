@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import type { BillingSummary } from "../../bindings/BillingSummary";
+import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { PLAN } from "../pricing/pricing";
 import {
   bookingUsage,
+  centsFrom,
   checkoutIntent,
+  cryptoAction,
   cryptoAlongsideCard,
   cryptoBeforeCard,
   cryptoPriceCents,
@@ -374,5 +377,76 @@ describe("cryptoPriceCents", () => {
     expect(
       cryptoPriceCents({ active: null, renewal: [] }, undefined, "month"),
     ).toBeNull();
+  });
+});
+
+describe("cryptoAction", () => {
+  const offer = (plan: Plan): PlanOffer => ({
+    plan,
+    prices: [
+      {
+        interval: "month",
+        amount_cents: plan === PLAN.BUSINESS ? 1600 : 1000,
+        monthly_cents: 0,
+      },
+      {
+        interval: "year",
+        amount_cents: plan === PLAN.BUSINESS ? 15600 : 9600,
+        monthly_cents: 0,
+      },
+    ],
+    entitlements: summary().entitlements,
+  });
+  const none = { active: null, renewal: [], upgrade: null };
+  const pro = {
+    active: {
+      plan: PLAN.PRO,
+      interval: "month" as const,
+      period_end: "2026-11-24T12:00:00Z",
+    },
+    renewal: [{ interval: "month" as const, amount_cents: 800 }],
+    upgrade: { plan: PLAN.BUSINESS, amount_cents: 620 },
+  };
+
+  it("pays today's price with no period running, and Free needs nothing", () => {
+    expect(cryptoAction(none, offer(PLAN.PRO), "year")).toEqual({
+      kind: "pay",
+      cents: 9600,
+    });
+    expect(cryptoAction(none, offer(PLAN.FREE), "month")).toEqual({ kind: "free" });
+  });
+
+  it("renews the plan being paid at its locked price, and moves up for the difference", () => {
+    expect(cryptoAction(pro, offer(PLAN.PRO), "month")).toEqual({
+      kind: "renew",
+      cents: 800,
+    });
+    expect(cryptoAction(pro, offer(PLAN.BUSINESS), "year")).toEqual({
+      kind: "upgrade",
+      cents: 620,
+    });
+  });
+
+  it("keeps a lower plan for after the period", () => {
+    const business = {
+      ...pro,
+      active: { ...pro.active, plan: PLAN.BUSINESS },
+      upgrade: null,
+    };
+    expect(cryptoAction(business, offer(PLAN.PRO), "month")).toEqual({
+      kind: "later",
+      until: "2026-11-24T12:00:00Z",
+    });
+  });
+});
+
+describe("centsFrom", () => {
+  it("reads typed dollars as cents and refuses anything else", () => {
+    expect(centsFrom("6.20")).toBe(620);
+    expect(centsFrom(" 10 ")).toBe(1000);
+    expect(centsFrom("0.005")).toBe(1);
+    expect(centsFrom("0")).toBeNull();
+    expect(centsFrom("-3")).toBeNull();
+    expect(centsFrom("ten")).toBeNull();
   });
 });

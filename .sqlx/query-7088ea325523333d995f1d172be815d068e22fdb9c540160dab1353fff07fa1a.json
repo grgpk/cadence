@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT user_unid FROM crypto_payments WHERE unid = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "user_unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "7088ea325523333d995f1d172be815d068e22fdb9c540160dab1353fff07fa1a"
+}

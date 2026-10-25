@@ -1,0 +1,143 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT p.unid, p.provider AS \"provider: CryptoProvider\", p.kind AS \"kind: PaymentKind\",\n                  p.plan AS \"plan: Plan\", p.billing_interval AS \"billing_interval: BillingInterval\",\n                  p.amount_cents,\n                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r\n                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS \"refunded_cents!\",\n                  p.status AS \"status: PaymentStatus\", p.created_at, p.paid_at, p.period_end\n           FROM crypto_payments p\n           WHERE p.user_unid = $1 AND p.status IN ('paid', 'refunded', 'underpaid')\n           ORDER BY p.created_at DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "unid"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "provider: CryptoProvider",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "provider"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "kind: PaymentKind",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "kind"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "plan: Plan",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "plan"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "billing_interval: BillingInterval",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "billing_interval"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "amount_cents",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "amount_cents"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "refunded_cents!",
+        "type_info": "Int4",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 7,
+        "name": "status: PaymentStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "paid_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "paid_at"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "period_end",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "period_end"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      null,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "f389cd38bb1d9543db5c103144d12794ca8a162926d3299bdc2a65568b063566"
+}

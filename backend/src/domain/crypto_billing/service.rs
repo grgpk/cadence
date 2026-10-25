@@ -12,11 +12,14 @@ use uuid::Uuid;
 use super::{
     db::{self, ActivePeriod, NewPayment, PaymentKind},
     gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus},
-    models::{CryptoOptions, CryptoPlan, CryptoPrice, CryptoRefund, CryptoSummary, CryptoUpgrade},
+    models::{
+        AdminCryptoPayment, CryptoOptions, CryptoPlan, CryptoPrice, CryptoRefund, CryptoSummary,
+        CryptoUpgrade,
+    },
 };
 use crate::{
     domain::{
-        auth::models::UserRecord,
+        auth::models::{Role, UserRecord},
         billing::{
             db as billing_db,
             models::StartCheckout,
@@ -67,7 +70,7 @@ pub async fn active_by_host(
 pub fn options(crypto: Option<&CryptoPayments>) -> CryptoOptions {
     CryptoOptions {
         available: crypto.is_some(),
-        coins: crypto.map(|crypto| crypto.provider().coins()),
+        coins: crypto.map(|crypto| crypto.coins().to_owned()),
     }
 }
 
@@ -102,7 +105,7 @@ pub async fn summary(
         upgrade,
         renewal,
         available: crypto.is_some(),
-        coins: crypto.map(|crypto| crypto.provider().coins()),
+        coins: crypto.map(|crypto| crypto.coins().to_owned()),
         active: active.map(|period| CryptoPlan {
             plan: period.plan,
             interval: period.billing_interval,
@@ -301,20 +304,10 @@ pub async fn apply_event(
                 event.status,
             )
             .await?;
-            // Short money is the host's to hear about; a plain expiry is not.
-            if ended
-                && event.status == PaymentStatus::Underpaid
-                && let Some(contact) =
-                    billing_db::contact(&mut transaction, payment.user_unid).await?
-            {
-                emails::queue_account_notice(
-                    &mut transaction,
-                    AccountNotice::CryptoUnderpaid,
-                    &contact.email,
-                    &contact.full_name,
-                    now,
-                )
-                .await?;
+            // Short money is the host's and the admins' to hear about; a plain
+            // expiry is nobody's.
+            if ended && event.status == PaymentStatus::Underpaid {
+                underpaid(&mut transaction, &payment, now).await?;
             }
         }
         PaymentStatus::Paid => {
@@ -322,6 +315,47 @@ pub async fn apply_event(
         }
     }
     Ok(transaction.commit().await?)
+}
+
+/// Tells the host their payment came in short, and every admin who has to
+/// refund what arrived.
+async fn underpaid(
+    connection: &mut PgConnection,
+    payment: &db::PaymentRow,
+    now: DateTime<Utc>,
+) -> AppResult<()> {
+    let Some(host) = billing_db::contact(connection, payment.user_unid).await? else {
+        return Ok(());
+    };
+    emails::queue_account_notice(
+        connection,
+        AccountNotice::CryptoUnderpaid,
+        &host.email,
+        &host.full_name,
+        now,
+    )
+    .await?;
+    let lines = vec![
+        format!("{} ({})", host.full_name, host.email),
+        format!(
+            "{} for 1 {}, invoiced {}",
+            payment.plan.display_name(),
+            payment.billing_interval.as_str(),
+            dollars(payment.amount_cents)
+        ),
+    ];
+    let roles = [Role::Root.to_string(), Role::Admin.to_string()];
+    for admin in db::admins(connection, &roles).await? {
+        emails::queue_admin_crypto_underpaid(
+            connection,
+            &admin.email,
+            &admin.full_name,
+            lines.clone(),
+            now,
+        )
+        .await?;
+    }
+    Ok(())
 }
 
 /// Credits a paid payment, gives the host a receipt, and moves the reminder
@@ -398,66 +432,100 @@ fn dollars(cents: i32) -> String {
     format!("${}.{:02}", cents / 100, cents % 100)
 }
 
-/// Refunds the host's latest paid crypto payment in full and takes back the
-/// time it bought: a period's interval comes off every later end; an
-/// upgrade only goes back to the lower plan.
+/// A host's crypto payments that took money, newest first, for the admin.
+pub async fn payments(pool: &PgPool, user_unid: Uuid) -> AppResult<Vec<AdminCryptoPayment>> {
+    Ok(db::payments_of(pool, user_unid)
+        .await?
+        .into_iter()
+        .map(|row| AdminCryptoPayment {
+            unid: row.unid,
+            provider: row.provider.as_str().to_owned(),
+            kind: row.kind.as_str().to_owned(),
+            plan: row.plan,
+            interval: row.billing_interval,
+            amount_cents: row.amount_cents,
+            refunded_cents: row.refunded_cents,
+            status: row.status.as_str().to_owned(),
+            created_at: row.created_at,
+            paid_at: row.paid_at,
+            period_end: row.period_end,
+        })
+        .collect())
+}
+
+/// Gives back `amount_cents` of a paid crypto payment, or all that is left.
+///
+/// Once its refunds cover all of it, the time it bought is taken
+/// back too: a period's interval comes off every later end; an upgrade only
+/// goes back to the lower plan. A partial refund leaves the time.
 ///
 /// The provider is asked inside the transaction, with the host's row held,
-/// so two admins clicking at once cannot refund one payment twice.
+/// so two admins clicking at once cannot give one payment back twice.
 pub async fn refund(
     pool: &PgPool,
     crypto: Option<&CryptoPayments>,
-    user_unid: Uuid,
+    payment_unid: Uuid,
+    amount_cents: Option<u32>,
     now: DateTime<Utc>,
 ) -> AppResult<CryptoRefund> {
     let crypto = crypto.ok_or_else(|| AppError::Unavailable(CRYPTO_OFF.to_owned()))?;
+    let user_unid = db::owner_of(pool, payment_unid)
+        .await?
+        .ok_or(AppError::NotFound)?;
     let mut transaction = pool.begin().await?;
     db::lock_user(&mut transaction, user_unid).await?;
-    let payment = db::latest_paid(&mut transaction, user_unid)
+    let payment = db::for_refund(&mut transaction, payment_unid)
         .await?
-        .ok_or_else(|| AppError::Conflict("no paid crypto payment to refund".to_owned()))?;
+        .ok_or(AppError::NotFound)?;
+    if payment.status != PaymentStatus::Paid {
+        return Err(AppError::Conflict(
+            "only a paid crypto payment can be refunded".to_owned(),
+        ));
+    }
     if payment.provider != crypto.provider() {
         return Err(AppError::Conflict(
             "paid through another crypto provider: refund it there".to_owned(),
         ));
     }
+    let left = u32::try_from(payment.amount_cents - payment.refunded_cents).unwrap_or(0);
+    let amount = amount_cents.unwrap_or(left);
+    if amount == 0 || amount > left {
+        return Err(AppError::BadRequest(format!(
+            "refund between 1 and {left} cents of this payment"
+        )));
+    }
     let invoice = payment
         .provider_invoice_id
         .as_deref()
         .ok_or_else(|| AppError::Internal(anyhow::anyhow!("a paid payment has no invoice")))?;
-    if payment.kind == PaymentKind::Period {
-        let months = i32::try_from(payment.billing_interval.months())
-            .map_err(|error| AppError::Internal(error.into()))?;
-        db::shift_back(
-            &mut transaction,
-            user_unid,
-            payment.unid,
-            payment.period_end,
-            months,
-        )
-        .await?;
+    let full = amount == left;
+    if full {
+        take_back_time(&mut transaction, &payment, now).await?;
     }
-    db::mark_refunded(&mut transaction, payment.unid, now).await?;
     let claim_url = crypto
-        .refund(invoice)
+        .refund(invoice, amount)
         .await
         .map_err(|error| AppError::Internal(error.into()))?;
+    let cents = i32::try_from(amount).map_err(|error| AppError::Internal(error.into()))?;
+    db::insert_refund(&mut transaction, payment.unid, cents, claim_url.as_deref()).await?;
     if let Some(contact) = billing_db::contact(&mut transaction, user_unid).await? {
-        remind_before(&mut transaction, user_unid, &contact, now).await?;
-        // The payment took the trial's "you move to Free" away; with no crypto
-        // time left it is true again.
-        if db::active(&mut *transaction, user_unid, now)
-            .await?
-            .is_none()
-        {
-            billing::restore_trial_notice(
-                &mut transaction,
-                user_unid,
-                &contact.email,
-                &contact.full_name,
-                now,
-            )
-            .await?;
+        if full {
+            remind_before(&mut transaction, user_unid, &contact, now).await?;
+            // The payment took the trial's "you move to Free" away; with no
+            // crypto time left it is true again.
+            if db::active(&mut *transaction, user_unid, now)
+                .await?
+                .is_none()
+            {
+                billing::restore_trial_notice(
+                    &mut transaction,
+                    user_unid,
+                    &contact.email,
+                    &contact.full_name,
+                    now,
+                )
+                .await?;
+            }
         }
         if let Some(claim_url) = &claim_url {
             emails::queue_crypto_refund(
@@ -472,9 +540,31 @@ pub async fn refund(
     }
     transaction.commit().await?;
     Ok(CryptoRefund {
-        amount_cents: payment.amount_cents,
+        amount_cents: cents,
         claim_url,
     })
+}
+
+/// A fully refunded payment's time no longer counts.
+async fn take_back_time(
+    connection: &mut PgConnection,
+    payment: &db::RefundRow,
+    now: DateTime<Utc>,
+) -> AppResult<()> {
+    if let (PaymentKind::Period, Some(period_end)) = (payment.kind, payment.period_end) {
+        let months = i32::try_from(payment.billing_interval.months())
+            .map_err(|error| AppError::Internal(error.into()))?;
+        db::shift_back(
+            connection,
+            payment.user_unid,
+            payment.unid,
+            period_end,
+            months,
+        )
+        .await?;
+    }
+    db::mark_refunded(connection, payment.unid, now).await?;
+    Ok(())
 }
 
 /// Moves the renewal reminder to 3 days before the running period ends and

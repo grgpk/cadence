@@ -8,7 +8,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use super::{
-    models::{CryptoOptions, CryptoRefund, CryptoSummary},
+    models::{AdminCryptoPayment, CryptoOptions, CryptoRefund, CryptoSummary, RefundCrypto},
     service,
 };
 use crate::{
@@ -82,13 +82,30 @@ pub async fn webhook(
     Ok(StatusCode::OK)
 }
 
-/// An admin refunds a host's latest crypto payment.
-pub async fn admin_refund(
+/// A host's crypto payments, for an admin.
+pub async fn admin_payments(
     State(state): State<AppState>,
     _admin: AdminUser,
     Path(user_unid): Path<Uuid>,
+) -> AppResult<Json<Vec<AdminCryptoPayment>>> {
+    Ok(Json(service::payments(&state.pool, user_unid).await?))
+}
+
+/// An admin gives back all or part of one crypto payment.
+pub async fn admin_refund(
+    State(state): State<AppState>,
+    _admin: AdminUser,
+    Path(payment_unid): Path<Uuid>,
+    Json(body): Json<RefundCrypto>,
 ) -> AppResult<Json<CryptoRefund>> {
     Ok(Json(
-        service::refund(&state.pool, state.crypto.as_ref(), user_unid, Utc::now()).await?,
+        service::refund(
+            &state.pool,
+            state.crypto.as_ref(),
+            payment_unid,
+            body.amount_cents,
+            Utc::now(),
+        )
+        .await?,
     ))
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT unid, provider AS \"provider: CryptoProvider\", kind AS \"kind: PaymentKind\",\n                  provider_invoice_id,\n                  billing_interval AS \"billing_interval: BillingInterval\",\n                  period_end AS \"period_end!\", amount_cents\n           FROM crypto_payments\n           WHERE user_unid = $1 AND status = 'paid'\n           ORDER BY paid_at DESC LIMIT 1",
+  "query": "SELECT p.unid, p.user_unid, p.provider AS \"provider: CryptoProvider\",\n                  p.kind AS \"kind: PaymentKind\", p.status AS \"status: PaymentStatus\",\n                  p.provider_invoice_id,\n                  p.billing_interval AS \"billing_interval: BillingInterval\",\n                  p.period_end, p.amount_cents,\n                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r\n                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS \"refunded_cents!\"\n           FROM crypto_payments p WHERE p.unid = $1",
   "describe": {
     "columns": [
       {
@@ -16,6 +16,17 @@
       },
       {
         "ordinal": 1,
+        "name": "user_unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "user_unid"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
         "name": "provider: CryptoProvider",
         "type_info": "Text",
         "origin": {
@@ -26,7 +37,7 @@
         }
       },
       {
-        "ordinal": 2,
+        "ordinal": 3,
         "name": "kind: PaymentKind",
         "type_info": "Text",
         "origin": {
@@ -37,7 +48,18 @@
         }
       },
       {
-        "ordinal": 3,
+        "ordinal": 4,
+        "name": "status: PaymentStatus",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
         "name": "provider_invoice_id",
         "type_info": "Text",
         "origin": {
@@ -48,7 +70,7 @@
         }
       },
       {
-        "ordinal": 4,
+        "ordinal": 6,
         "name": "billing_interval: BillingInterval",
         "type_info": "Text",
         "origin": {
@@ -59,8 +81,8 @@
         }
       },
       {
-        "ordinal": 5,
-        "name": "period_end!",
+        "ordinal": 7,
+        "name": "period_end",
         "type_info": "Timestamptz",
         "origin": {
           "Table": {
@@ -70,7 +92,7 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 8,
         "name": "amount_cents",
         "type_info": "Int4",
         "origin": {
@@ -79,6 +101,12 @@
             "name": "amount_cents"
           }
         }
+      },
+      {
+        "ordinal": 9,
+        "name": "refunded_cents!",
+        "type_info": "Int4",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -90,11 +118,14 @@
       false,
       false,
       false,
+      false,
+      false,
       true,
       false,
       true,
-      false
+      false,
+      null
     ]
   },
-  "hash": "3bc508a52591243b69478467f70989689936690f4706edfb80c345b358e471bb"
+  "hash": "97c5c25e89592f3dabc65afca81913b210c0dccd5dc973ec054790293e334a13"
 }

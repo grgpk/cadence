@@ -10,18 +10,24 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 import { errorMessage } from "../../lib/error-message";
 import { QUERY_KEYS } from "../../lib/query-keys";
-import { formatCents, PLAN, PLAN_NAMES } from "../pricing/pricing";
-import { ConfirmDialog } from "../shared/confirm-dialog";
-import { compPlan, refundCrypto } from "./billing-api";
+import { PLAN, PLAN_NAMES } from "../pricing/pricing";
+import { compPlan } from "./billing-api";
 import { isBilled, STATUS } from "./billing";
+import { CryptoPaymentsSheet } from "./crypto-payments-sheet";
 
-/** An admin's plan actions for one host. A plan Stripe bills is changed in Stripe. */
+/**
+ * An admin's plan actions for one host. A plan Stripe bills is changed in
+ * Stripe; crypto payments are listed and refunded either way.
+ */
 export function CompMenu({ row, endpoint }: { row: AdminPlan; endpoint: string }) {
   const queryClient = useQueryClient();
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
   const change = useMutation({
     mutationFn: (plan: Plan | null) => compPlan(row.user_unid, { plan }),
     onSuccess: async (_, plan) => {
@@ -37,25 +43,8 @@ export function CompMenu({ row, endpoint }: { row: AdminPlan; endpoint: string }
         errorMessage(error, { 409: "This host pays through Stripe. Change it there." }),
       ),
   });
+  const billed = isBilled(row);
 
-  const [confirmRefund, setConfirmRefund] = useState(false);
-  const refund = useMutation({
-    mutationFn: () => refundCrypto(row.user_unid),
-    onSuccess: async (made) => {
-      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.adminData(endpoint) });
-      toast.success(
-        made.claim_url
-          ? `Refunded ${formatCents(made.amount_cents)}. ${row.full_name} was emailed a link to claim it.`
-          : `Marked ${formatCents(made.amount_cents)} as refunded. Send it from the crypto provider's dashboard.`,
-      );
-    },
-    onError: (error) =>
-      toast.error(errorMessage(error, { 409: "There is no crypto payment to refund." })),
-  });
-
-  if (isBilled(row)) {
-    return <span className="text-sm text-muted-foreground">In Stripe</span>;
-  }
   return (
     <>
       <DropdownMenu>
@@ -64,45 +53,46 @@ export function CompMenu({ row, endpoint }: { row: AdminPlan; endpoint: string }
             variant="ghost"
             size="icon"
             aria-label={`Plan actions for ${row.full_name}`}
-            disabled={change.isPending || refund.isPending}
+            disabled={change.isPending}
           >
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {[PLAN.PRO, PLAN.BUSINESS].map((plan) => (
-            <DropdownMenuItem
-              key={plan}
-              disabled={row.status === STATUS.COMPED && row.plan === plan}
-              onSelect={() => change.mutate(plan)}
-            >
-              Give {PLAN_NAMES[plan]} for free
-            </DropdownMenuItem>
-          ))}
-          {row.status === STATUS.COMPED ? (
-            <DropdownMenuItem onSelect={() => change.mutate(null)}>
-              Take back the free plan
-            </DropdownMenuItem>
-          ) : null}
-          {row.crypto_until ? (
-            <DropdownMenuItem
-              variant="destructive"
-              onSelect={() => setConfirmRefund(true)}
-            >
-              Refund last crypto payment
-            </DropdownMenuItem>
-          ) : null}
+          {billed ? (
+            <DropdownMenuLabel className="font-normal text-muted-foreground">
+              Plan changes happen in Stripe
+            </DropdownMenuLabel>
+          ) : (
+            <>
+              {[PLAN.PRO, PLAN.BUSINESS].map((plan) => (
+                <DropdownMenuItem
+                  key={plan}
+                  disabled={row.status === STATUS.COMPED && row.plan === plan}
+                  onSelect={() => change.mutate(plan)}
+                >
+                  Give {PLAN_NAMES[plan]} for free
+                </DropdownMenuItem>
+              ))}
+              {row.status === STATUS.COMPED ? (
+                <DropdownMenuItem onSelect={() => change.mutate(null)}>
+                  Take back the free plan
+                </DropdownMenuItem>
+              ) : null}
+            </>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setPaymentsOpen(true)}>
+            Crypto payments and refunds
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-      <ConfirmDialog
-        open={confirmRefund}
-        onOpenChange={setConfirmRefund}
-        title={`Refund ${row.full_name}'s last crypto payment?`}
-        description="The full amount goes back, and the time it paid for comes off their plan now. This cannot be undone."
-        confirmLabel="Refund"
-        dismissLabel="Keep the payment"
-        destructive
-        onConfirm={() => refund.mutate()}
+      <CryptoPaymentsSheet
+        open={paymentsOpen}
+        onOpenChange={setPaymentsOpen}
+        userUnid={row.user_unid}
+        name={row.full_name}
+        endpoint={endpoint}
       />
     </>
   );

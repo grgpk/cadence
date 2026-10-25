@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT unid FROM crypto_payments WHERE user_unid = $1 AND paid_at IS NOT NULL\n         ORDER BY status = 'paid' DESC, paid_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "unid",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "unid"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "36992215e74504914e6c32923bc951c52550cd18e2668d580b2975760676546b"
+}

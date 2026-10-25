@@ -17,7 +17,11 @@ pub fn protected_routes() -> Router<AppState> {
         .route("/api/billing/crypto", get(handlers::summary))
         .route("/api/billing/crypto/checkout", post(handlers::checkout))
         .route(
-            "/api/admin/billing/{user_unid}/crypto-refund",
+            "/api/admin/billing/{user_unid}/crypto-payments",
+            get(handlers::admin_payments),
+        )
+        .route(
+            "/api/admin/billing/crypto-payments/{payment_unid}/refund",
             post(handlers::admin_refund),
         )
 }

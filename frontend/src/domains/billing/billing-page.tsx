@@ -1,22 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { Bitcoin, ExternalLink, Loader2 } from "lucide-react";
+import { Bitcoin, CreditCard, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CryptoPlan } from "../../bindings/CryptoPlan";
+import type { CryptoSummary } from "../../bindings/CryptoSummary";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Button } from "../../components/ui/button";
 import { Skeleton } from "../../components/ui/skeleton";
 import { errorMessage } from "../../lib/error-message";
+import { formatDate } from "../../lib/format";
 import { PlanCard, PlanRow } from "../pricing/plan-card";
 import {
   formatCents,
   INTERVAL,
   PAY,
+  type PayMethod,
   PLAN,
   PLAN_NAMES,
   priceFor,
@@ -39,6 +42,7 @@ import {
 import {
   bookingUsage,
   type CheckoutIntent,
+  cryptoAction,
   cryptoAlongsideCard,
   cryptoBeforeCard,
   cryptoStatusLine,
@@ -55,7 +59,6 @@ import {
   yearlySwitch,
 } from "./billing";
 import { CancelPlan, KeepPlan } from "./cancel-dialog";
-import { CryptoCard } from "./crypto-card";
 import { InviteCard } from "./invite-card";
 
 /** After Checkout, Stripe's event can land a moment after the host does. */
@@ -384,6 +387,75 @@ function PlanButton({
   }
 }
 
+/** A plan card's button while Billing is switched to crypto. */
+function CryptoPlanButton({
+  crypto,
+  offer,
+  interval,
+  featured,
+  onCheckout,
+  pending,
+}: {
+  crypto: CryptoSummary;
+  offer: PlanOffer;
+  interval: BillingInterval;
+  featured: boolean;
+  onCheckout: (plan: Plan, interval: BillingInterval) => void;
+  pending: boolean;
+}) {
+  const action = cryptoAction(crypto, offer, interval);
+  const price = (cents: number | null) =>
+    cents === null ? "" : ` · ${formatCents(cents)}`;
+  const spinner = pending ? (
+    <Loader2 className="animate-spin" />
+  ) : (
+    <Bitcoin className="text-crypto" />
+  );
+  switch (action.kind) {
+    case "free":
+      return (
+        <Button variant="outline" disabled>
+          Nothing to pay
+        </Button>
+      );
+    case "later":
+      return (
+        <Button variant="outline" disabled>
+          After {formatDate(action.until)}
+        </Button>
+      );
+    case "upgrade":
+      return (
+        <Button onClick={() => onCheckout(offer.plan, interval)} disabled={pending}>
+          {spinner}
+          Move up{price(action.cents)}
+        </Button>
+      );
+    case "renew":
+      return (
+        <Button
+          variant={featured ? "default" : "outline"}
+          onClick={() => onCheckout(offer.plan, interval)}
+          disabled={pending}
+        >
+          {spinner}
+          Renew{price(action.cents)}
+        </Button>
+      );
+    case "pay":
+      return (
+        <Button
+          variant={featured ? "default" : "outline"}
+          onClick={() => onCheckout(offer.plan, interval)}
+          disabled={pending}
+        >
+          {spinner}
+          Pay with crypto{price(action.cents)}
+        </Button>
+      );
+  }
+}
+
 export function BillingPage({
   intent,
   checkoutDone,
@@ -421,6 +493,16 @@ export function BillingPage({
     if (cryptoEnd)
       void queryClient.invalidateQueries({ queryKey: billingQuery.queryKey });
   }, [cryptoEnd, queryClient]);
+  // Card unless the host pays in crypto already or picked it on the pricing page.
+  const [payChosen, setPayChosen] = useState<PayMethod | null>(null);
+  const canPayCrypto =
+    crypto.data?.available === true &&
+    billing.data !== undefined &&
+    !isBilled(billing.data);
+  const pay: PayMethod = canPayCrypto
+    ? (payChosen ??
+      (intent.pay === PAY.CRYPTO || crypto.data?.active ? PAY.CRYPTO : PAY.CARD))
+    : PAY.CARD;
   const [interval, setInterval] = useState<BillingInterval>(
     intent.interval ?? INTERVAL.YEAR,
   );
@@ -547,14 +629,6 @@ export function BillingPage({
               pending={leaving}
             />
           ) : null}
-          {crypto.data?.available && !isBilled(summary) ? (
-            <CryptoCard
-              crypto={crypto.data}
-              offers={plans.data ?? []}
-              onCheckout={(choice) => cryptoCheckout.mutate(choice)}
-              pending={leaving}
-            />
-          ) : null}
         </>
       ) : (
         <Skeleton className="h-44 w-full" />
@@ -589,20 +663,54 @@ export function BillingPage({
       <section className="grid gap-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">Plans</h2>
-          <SegmentedControl
-            label="Billing period"
-            value={interval}
-            onChange={setInterval}
-            options={[
-              { value: INTERVAL.MONTH, label: "Monthly" },
-              {
-                value: INTERVAL.YEAR,
-                label: yearlyLabel(plans.data ?? []),
-              },
-            ]}
-          />
+          <div className="flex flex-wrap gap-3">
+            {canPayCrypto ? (
+              <SegmentedControl
+                label="Pay with"
+                value={pay}
+                onChange={setPayChosen}
+                allIcons
+                options={[
+                  {
+                    value: PAY.CARD,
+                    label: "Card",
+                    icon: CreditCard,
+                    iconClassName: "text-dusk",
+                  },
+                  {
+                    value: PAY.CRYPTO,
+                    label: "Crypto",
+                    icon: Bitcoin,
+                    iconClassName: "text-crypto",
+                  },
+                ]}
+              />
+            ) : null}
+            <SegmentedControl
+              label="Billing period"
+              value={interval}
+              onChange={setInterval}
+              options={[
+                { value: INTERVAL.MONTH, label: "Monthly" },
+                {
+                  value: INTERVAL.YEAR,
+                  label: yearlyLabel(plans.data ?? []),
+                },
+              ]}
+            />
+          </div>
         </div>
-        {crypto.data?.active && summary && !isBilled(summary) ? (
+        {crypto.data?.confirming ? (
+          <p
+            role="status"
+            className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
+          >
+            <Loader2 className="size-4 animate-spin" />
+            Your crypto payment is confirming on the network. This page updates when it is
+            done.
+          </p>
+        ) : null}
+        {pay === PAY.CARD && crypto.data?.active && summary && !isBilled(summary) ? (
           <p
             role="note"
             className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
@@ -626,19 +734,33 @@ export function BillingPage({
                 interval={interval}
                 featured={offer.plan === featured}
                 badge={intent.plan ? "Your pick" : "Your plan"}
+                prepaid={pay === PAY.CRYPTO}
                 action={
-                  <PlanButton
-                    summary={summary}
-                    offer={offer}
-                    interval={interval}
-                    featured={offer.plan === featured}
-                    onCheckout={(plan, chosen) =>
-                      checkout.mutate({ plan, interval: chosen })
-                    }
-                    onPortal={() => portal.mutate()}
-                    onYearly={() => yearly.mutate()}
-                    pending={leaving}
-                  />
+                  pay === PAY.CRYPTO && crypto.data ? (
+                    <CryptoPlanButton
+                      crypto={crypto.data}
+                      offer={offer}
+                      interval={interval}
+                      featured={offer.plan === featured}
+                      onCheckout={(plan, chosen) =>
+                        cryptoCheckout.mutate({ plan, interval: chosen })
+                      }
+                      pending={leaving}
+                    />
+                  ) : (
+                    <PlanButton
+                      summary={summary}
+                      offer={offer}
+                      interval={interval}
+                      featured={offer.plan === featured}
+                      onCheckout={(plan, chosen) =>
+                        checkout.mutate({ plan, interval: chosen })
+                      }
+                      onPortal={() => portal.mutate()}
+                      onYearly={() => yearly.mutate()}
+                      pending={leaving}
+                    />
+                  )
                 }
               />
             ))}
@@ -646,6 +768,19 @@ export function BillingPage({
         ) : (
           <Skeleton className="h-96 w-full" />
         )}
+        {pay === PAY.CRYPTO && crypto.data?.coins ? (
+          <p
+            className="flex items-start gap-2.5 text-sm text-muted-foreground"
+            role="note"
+          >
+            <Bitcoin className="mt-0.5 size-4 shrink-0 text-crypto" aria-hidden />
+            <span>
+              Paid in {crypto.data.coins}, a month or a year up front. Nothing renews by
+              itself: renew before the end to keep your price. Moving up keeps the end
+              date, and you pay only the difference for the time left.
+            </span>
+          </p>
+        ) : null}
       </section>
       {summary ? <InviteCard paying={summary.status === STATUS.ACTIVE} /> : null}
     </>

@@ -136,6 +136,7 @@ cadence/
 | 49 | `PLAN_49_CRYPTO_GROWTH.md` | crypto upgrades mid-period, admin refunds, NOWPayments as a second provider, production BTCPay, crypto on the pricing page | ✅ done |
 | 50 | `PLAN_50_CRYPTO_POLISH.md` | crypto: a notice before paying twice by card, trial days kept, receipts and short-payment and end emails, a checkout rate limit | ✅ done |
 | 51 | `PLAN_51_CRYPTO_PROMISES.md` | crypto renewals keep the price last paid; crypto reminders go quiet once a card keeps the plan | ✅ done |
+| 52 | `PLAN_52_CRYPTO_ADMIN_AND_SWITCH.md` | admins list and refund any crypto payment in part or in full, hear about short payments; USDT through BTCPay; Billing's Card \| Crypto switch | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

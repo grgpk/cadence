@@ -24,6 +24,7 @@ export const QUERY_KEYS = {
   cryptoBilling: ["crypto-billing"] as const,
   referrals: ["referrals"] as const,
   adminCancellations: ["admin-cancellations"] as const,
+  adminCryptoPayments: (userUnid: string) => ["admin-crypto-payments", userUnid] as const,
   unfinishedLeads: ["unfinished-leads"] as const,
   insights: ["insights"] as const,
 } as const;

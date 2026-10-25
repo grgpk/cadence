@@ -198,6 +198,46 @@ export function cryptoPriceCents(
   );
 }
 
+/** Dollars typed in a refund field as cents; `null` when they are not a price. */
+export function centsFrom(dollars: string): number | null {
+  const value = Number(dollars.trim());
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return Math.round(value * 100);
+}
+
+/** What a plan card's button does when Billing is switched to crypto. */
+type CryptoAction =
+  | { kind: "free" }
+  | { kind: "pay"; cents: number | null }
+  | { kind: "renew"; cents: number | null }
+  | { kind: "upgrade"; cents: number }
+  | { kind: "later"; until: string };
+
+const PLAN_ORDER: readonly Plan[] = [PLAN.FREE, PLAN.PRO, PLAN.BUSINESS];
+
+/**
+ * For the card of `offer`, priced for `interval`: pay with no period
+ * running, renew the plan being paid at its locked price, move up to a
+ * higher one for the difference, or wait for a lower one until the end.
+ */
+export function cryptoAction(
+  crypto: Pick<CryptoSummary, "active" | "renewal" | "upgrade">,
+  offer: PlanOffer,
+  interval: BillingInterval,
+): CryptoAction {
+  if (offer.plan === PLAN.FREE) return { kind: "free" };
+  const cents = cryptoPriceCents(crypto, offer, interval);
+  const active = crypto.active;
+  if (!active) return { kind: "pay", cents };
+  if (offer.plan === active.plan) return { kind: "renew", cents };
+  if (PLAN_ORDER.indexOf(offer.plan) > PLAN_ORDER.indexOf(active.plan)) {
+    return crypto.upgrade?.plan === offer.plan
+      ? { kind: "upgrade", cents: crypto.upgrade.amount_cents }
+      : { kind: "pay", cents };
+  }
+  return { kind: "later", until: active.period_end };
+}
+
 /** Over the card plans while crypto time runs, so nobody pays twice unawares. */
 export function cryptoBeforeCard(crypto: CryptoPlan): string {
   return `${PLAN_NAMES[crypto.plan]} is paid with crypto until ${formatDate(crypto.period_end)}. Subscribing by card starts billing today, and the crypto time is not refunded.`;

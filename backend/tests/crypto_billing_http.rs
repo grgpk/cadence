@@ -630,8 +630,34 @@ async fn a_running_pro_period_moves_to_business_for_the_difference(pool: PgPool)
     assert_eq!(crypto["active"]["plan"], "business");
 }
 
-fn refund_path(user: Uuid) -> String {
-    format!("/api/admin/billing/{user}/crypto-refund")
+/// The host's payment paid last and not refunded yet, else the one refunded last.
+async fn last_paid(pool: &PgPool, user: Uuid) -> Uuid {
+    sqlx::query_scalar!(
+        "SELECT unid FROM crypto_payments WHERE user_unid = $1 AND paid_at IS NOT NULL
+         ORDER BY status = 'paid' DESC, paid_at DESC LIMIT 1",
+        user,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("a paid payment")
+}
+
+/// Refunds one payment, all of what is left or `amount` cents of it.
+async fn refund_payment(
+    app: &Router,
+    cookie: &str,
+    payment: Uuid,
+    amount: Option<u32>,
+) -> (StatusCode, Value) {
+    let body = amount.map_or_else(|| json!({}), |cents| json!({ "amount_cents": cents }));
+    send(
+        app,
+        Method::POST,
+        &format!("/api/admin/billing/crypto-payments/{payment}/refund"),
+        Some(cookie),
+        Some(body),
+    )
+    .await
 }
 
 #[sqlx::test(migrations = "../migrations")]
@@ -647,14 +673,8 @@ async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
     let second = checkout(&app, &cookie, "pro", "month").await;
     event(&app, &pool, second, "paid", SECRET).await;
 
-    let (status, refund) = send(
-        &app,
-        Method::POST,
-        &refund_path(host),
-        Some(&admin_cookie),
-        None,
-    )
-    .await;
+    let (status, refund) =
+        refund_payment(&app, &admin_cookie, last_paid(&pool, host).await, None).await;
     assert_eq!(status, StatusCode::OK, "{refund}");
     assert_eq!(refund["amount_cents"], 1000);
     assert!(
@@ -676,14 +696,7 @@ async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
     assert!(near(notices[2].1, one_month - Duration::days(3)));
 
     // The first payment goes too: no period is left, nor its reminder.
-    send(
-        &app,
-        Method::POST,
-        &refund_path(host),
-        Some(&admin_cookie),
-        None,
-    )
-    .await;
+    refund_payment(&app, &admin_cookie, last_paid(&pool, host).await, None).await;
     assert_eq!(period_end(&app, &cookie).await, None);
     assert_eq!(
         send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
@@ -696,14 +709,7 @@ async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
         .collect();
     assert_eq!(templates, ["crypto_refund", "crypto_refund"]);
 
-    let (status, _) = send(
-        &app,
-        Method::POST,
-        &refund_path(host),
-        Some(&admin_cookie),
-        None,
-    )
-    .await;
+    let (status, _) = refund_payment(&app, &admin_cookie, last_paid(&pool, host).await, None).await;
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
@@ -720,14 +726,7 @@ async fn refunding_an_upgrade_goes_back_to_the_lower_plan_until_the_same_end(poo
     let upgrade = checkout(&app, &cookie, "business", "month").await;
     event(&app, &pool, upgrade, "paid", SECRET).await;
 
-    let (status, _) = send(
-        &app,
-        Method::POST,
-        &refund_path(host),
-        Some(&admin_cookie),
-        None,
-    )
-    .await;
+    let (status, _) = refund_payment(&app, &admin_cookie, last_paid(&pool, host).await, None).await;
     assert_eq!(status, StatusCode::OK);
     let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
     assert_eq!(crypto["active"]["plan"], "pro");
@@ -741,7 +740,7 @@ async fn only_an_admin_refunds(pool: PgPool) {
     let order = checkout(&app, &cookie, "pro", "month").await;
     event(&app, &pool, order, "paid", SECRET).await;
 
-    let (status, _) = send(&app, Method::POST, &refund_path(host), Some(&cookie), None).await;
+    let (status, _) = refund_payment(&app, &cookie, last_paid(&pool, host).await, None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert!(period_end(&app, &cookie).await.is_some());
 }
@@ -765,14 +764,7 @@ async fn a_full_refund_during_the_trial_brings_its_ending_notice_back(pool: PgPo
         .collect();
     assert_eq!(paid, ["crypto_ended", "crypto_renewal"]);
 
-    send(
-        &app,
-        Method::POST,
-        &refund_path(host),
-        Some(&admin_cookie),
-        None,
-    )
-    .await;
+    refund_payment(&app, &admin_cookie, last_paid(&pool, host).await, None).await;
     let refunded = waiting_notices(&pool, host).await;
     let templates: Vec<&str> = refunded
         .iter()
@@ -1013,5 +1005,115 @@ async fn crypto_reminders_stay_quiet_once_a_card_keeps_the_plan(pool: PgPool) {
         card_notices,
         ["crypto_ended"],
         "the dropped reminder is gone"
+    );
+}
+
+fn payments_path(user: Uuid) -> String {
+    format!("/api/admin/billing/{user}/crypto-payments")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn an_admin_lists_a_hosts_payments_and_refunds_part_then_the_rest(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let first = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, first, "paid", SECRET).await;
+    let one_month = period_end(&app, &cookie).await.expect("a crypto period");
+    let second = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, second, "paid", SECRET).await;
+    let two_months = period_end(&app, &cookie).await.expect("a crypto period");
+    // An invoice nobody paid is not a payment.
+    checkout(&app, &cookie, "pro", "month").await;
+
+    let (status, _) = send(&app, Method::GET, &payments_path(host), Some(&cookie), None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let (status, listed) = send(
+        &app,
+        Method::GET,
+        &payments_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let unids: Vec<&str> = listed
+        .as_array()
+        .expect("a list")
+        .iter()
+        .filter_map(|payment| payment["unid"].as_str())
+        .collect();
+    assert_eq!(unids, [second.to_string(), first.to_string()]);
+
+    // The older payment, in part: money back, time kept.
+    let (status, made) = refund_payment(&app, &admin_cookie, first, Some(300)).await;
+    assert_eq!(status, StatusCode::OK, "{made}");
+    assert_eq!(made["amount_cents"], 300);
+    assert!(
+        made["claim_url"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("/300"))
+    );
+    assert_eq!(period_end(&app, &cookie).await, Some(two_months));
+
+    let (status, _) = refund_payment(&app, &admin_cookie, first, Some(701)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _) = refund_payment(&app, &admin_cookie, first, Some(0)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    // The rest of it: now the month it bought comes off.
+    let (status, made) = refund_payment(&app, &admin_cookie, first, None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(made["amount_cents"], 700);
+    assert_eq!(period_end(&app, &cookie).await, Some(one_month));
+    let (_, listed) = send(
+        &app,
+        Method::GET,
+        &payments_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(listed[1]["status"], "refunded");
+    assert_eq!(listed[1]["refunded_cents"], 1000);
+    assert_eq!(listed[0]["status"], "paid");
+
+    let (status, _) = refund_payment(&app, &admin_cookie, first, None).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, _) = refund_payment(&app, &admin_cookie, Uuid::new_v4(), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn admins_hear_about_a_short_payment(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, _) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let short = checkout(&app, &cookie, "business", "year").await;
+    event(&app, &pool, short, "underpaid", SECRET).await;
+
+    let alerts = sqlx::query_scalar!(
+        r#"SELECT e.payload AS "payload!" FROM email_queue e
+           WHERE e.email = 'admin@example.com' AND e.template = 'admin_crypto_underpaid'"#,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("queue is readable");
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(
+        alerts[0]["lines"],
+        json!([
+            "Ada Lovelace (ada@example.com)",
+            "Business for 1 year, invoiced $156.00"
+        ])
+    );
+    assert!(
+        alerts[0]["billing_url"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("/admin/plans"))
     );
 }

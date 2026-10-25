@@ -46,6 +46,8 @@ pub const CRYPTO_RECEIPT_TEMPLATE: &str = "crypto_receipt";
 pub const CRYPTO_UNDERPAID_TEMPLATE: &str = "crypto_underpaid";
 /// A plan paid for in crypto ran out.
 pub const CRYPTO_ENDED_TEMPLATE: &str = "crypto_ended";
+/// Plan 52: to the admins, a host's crypto payment came in short.
+pub const ADMIN_CRYPTO_UNDERPAID_TEMPLATE: &str = "admin_crypto_underpaid";
 /// Business: the invitee has not said they are coming, 2 hours before.
 pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
 /// Business: a host's one "here are my times" to someone who left a booking.
@@ -64,6 +66,7 @@ const HOST_BOOKINGS_PATH: &str = "/dashboard/bookings";
 const RESET_PASSWORD_PATH: &str = "/reset-password";
 const BILLING_PATH: &str = "/dashboard/billing";
 const DASHBOARD_PATH: &str = "/dashboard";
+const ADMIN_PLANS_PATH: &str = "/admin/plans";
 /// The calendar entry's name when the page title and host are unknown.
 const CALENDAR_TITLE: &str = "Cadence call";
 const UTC: &str = "UTC";
@@ -239,6 +242,33 @@ pub async fn queue_crypto_refund(
         None,
         email,
         CRYPTO_REFUND_TEMPLATE,
+        send_at,
+        payload,
+    )
+    .await
+}
+
+/// Tells an admin a host's crypto payment came in short, with who and what,
+/// and where to refund what arrived.
+pub async fn queue_admin_crypto_underpaid(
+    connection: &mut PgConnection,
+    email: &str,
+    full_name: &str,
+    lines: Vec<String>,
+    send_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&AccountEmail {
+        name: Some(full_name.to_owned()),
+        billing_url: Some(format!("{}{ADMIN_PLANS_PATH}", app_url())),
+        losing: None,
+        claim_url: None,
+        lines: Some(lines),
+    })?;
+    db::queue(
+        connection,
+        None,
+        email,
+        ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
         send_at,
         payload,
     )
@@ -800,7 +830,8 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         | CRYPTO_REFUND_TEMPLATE
         | CRYPTO_RECEIPT_TEMPLATE
         | CRYPTO_UNDERPAID_TEMPLATE
-        | CRYPTO_ENDED_TEMPLATE => account_content(template, &read(payload)),
+        | CRYPTO_ENDED_TEMPLATE
+        | ADMIN_CRYPTO_UNDERPAID_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -910,6 +941,12 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
              again from Billing.",
             "Go to Billing",
         ),
+        ADMIN_CRYPTO_UNDERPAID_TEMPLATE => (
+            "A crypto payment came in short",
+            "Nothing was added to the host's plan, and they were asked to reply. Refund \
+             what arrived from their crypto payments on the admin Plans page.",
+            "Open admin Plans",
+        ),
         CRYPTO_ENDED_TEMPLATE => (
             "Your crypto plan has ended",
             "The period you paid for in crypto is over, and your page has moved to the \
@@ -929,10 +966,10 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         .as_deref()
         .filter(|lines| template == TRIAL_ENDING_TEMPLATE && !lines.is_empty());
     // The receipt lists what the payment bought, then the general line.
-    let bought = email
-        .lines
-        .as_deref()
-        .filter(|lines| template == CRYPTO_RECEIPT_TEMPLATE && !lines.is_empty());
+    let bought = email.lines.as_deref().filter(|lines| {
+        (template == CRYPTO_RECEIPT_TEMPLATE || template == ADMIN_CRYPTO_UNDERPAID_TEMPLATE)
+            && !lines.is_empty()
+    });
     let general = || {
         bought.map_or_else(
             || vec![details.to_owned()],
@@ -1466,6 +1503,10 @@ mod tests {
                 "Your crypto payment came in short",
             ),
             (CRYPTO_ENDED_TEMPLATE, "Your crypto plan has ended"),
+            (
+                ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
+                "A crypto payment came in short",
+            ),
         ] {
             let email = email(template, &payload);
             assert_eq!(email.subject, subject);
