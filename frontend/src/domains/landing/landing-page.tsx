@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 
 import { Button } from "../../components/ui/button";
+import { useSessionUser } from "../../lib/auth";
 import { ROUTES } from "../../lib/routes";
 import { PromiseList } from "../pricing/promises";
 import { PublicLayout } from "../shared/public-layout";
@@ -25,6 +26,15 @@ const STEPS = [
   },
 ];
 
+/** Sign-up for a visitor; the dashboard for someone already signed in. */
+function AccountLink() {
+  return useSessionUser() ? (
+    <Link to={ROUTES.dashboard}>Go to your dashboard</Link>
+  ) : (
+    <Link to={ROUTES.register}>Create your account</Link>
+  );
+}
+
 export function LandingPage() {
   return (
     <PublicLayout>
@@ -40,7 +50,7 @@ export function LandingPage() {
             </p>
             <div className="flex flex-wrap gap-2">
               <Button size="lg" asChild>
-                <Link to={ROUTES.register}>Create your account</Link>
+                <AccountLink />
               </Button>
               <Button size="lg" variant="ghost" asChild>
                 <Link to={ROUTES.pricing}>See pricing</Link>
@@ -97,7 +107,7 @@ export function LandingPage() {
             Open your week in a few minutes.
           </h2>
           <Button size="lg" asChild>
-            <Link to={ROUTES.register}>Create your account</Link>
+            <AccountLink />
           </Button>
         </div>
       </section>

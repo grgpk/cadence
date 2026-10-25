@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { Button } from "../../components/ui/button";
+import { useSessionUser } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
 import { Logo } from "./logo";
@@ -15,6 +16,7 @@ export function PublicLayout({
   /** Off on pages an invitee lands on: logging in is for hosts. */
   accountLinks?: boolean;
 }) {
+  const user = useSessionUser();
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur">
@@ -29,7 +31,11 @@ export function PublicLayout({
               </Button>
             ) : null}
             <ThemeToggle />
-            {accountLinks ? (
+            {!accountLinks ? null : user ? (
+              <Button size="sm" asChild>
+                <Link to={ROUTES.dashboard}>Go to dashboard</Link>
+              </Button>
+            ) : (
               <>
                 <Button variant="ghost" size="sm" asChild>
                   <Link to={ROUTES.login}>Log in</Link>
@@ -38,7 +44,7 @@ export function PublicLayout({
                   <Link to={ROUTES.register}>Sign up</Link>
                 </Button>
               </>
-            ) : null}
+            )}
           </nav>
         </div>
       </header>

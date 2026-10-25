@@ -1,3 +1,4 @@
+import { useRouteContext } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import type { Role } from "../bindings/Role";
@@ -33,4 +34,9 @@ export const getSessionUser = createServerFn({ method: "GET" }).handler(async ()
 
 export function logout() {
   return api<void>("/api/auth/logout", { method: "POST" });
+}
+
+/** Who is signed in, on any page, public ones included; `null` for a visitor. */
+export function useSessionUser(): SessionUser | null {
+  return useRouteContext({ from: "__root__", select: (context) => context.user });
 }

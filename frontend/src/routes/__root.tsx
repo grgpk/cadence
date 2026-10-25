@@ -22,7 +22,11 @@ const PREVIEW_IMAGE = "/og.png";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
-    if (!isProtectedPath(location.pathname)) return { user: null };
+    // Public pages only show whether someone is signed in; an outage there
+    // shows them signed out rather than an error page.
+    if (!isProtectedPath(location.pathname)) {
+      return { user: await getSessionUser().catch(() => null) };
+    }
     const user = await getSessionUser();
     if (!user) {
       throw redirect({ to: ROUTES.login, search: { redirect: location.href } });

@@ -6,6 +6,7 @@ import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Button } from "../../components/ui/button";
+import { useSessionUser } from "../../lib/auth";
 import { ROUTES } from "../../lib/routes";
 import { PublicLayout } from "../shared/public-layout";
 import { SegmentedControl } from "../shared/segmented-control";
@@ -30,7 +31,8 @@ import { WeekSizer } from "./week-sizer";
 const SEGMENTS_FILL =
   "w-full sm:w-auto [&>button]:flex-1 [&>button]:justify-center [&>button]:whitespace-nowrap";
 
-/** Sign-up, carrying a paid pick, and how it is paid, through to checkout. */
+/** Sign-up, carrying a paid pick, and how it is paid, through to checkout.
+ * Someone signed in goes straight to Billing with the pick. */
 function StartButton({
   offer,
   interval,
@@ -44,21 +46,23 @@ function StartButton({
   recommended: Plan;
   size?: "sm";
 }) {
+  const signedIn = useSessionUser() !== null;
+  const pick =
+    offer.plan === PLAN.FREE
+      ? {}
+      : { plan: offer.plan, interval, ...(pay === PAY.CRYPTO ? { pay } : {}) };
   return (
     <Button
       variant={offer.plan === recommended ? "default" : "outline"}
       size={size}
       asChild
     >
-      <Link
-        to={ROUTES.register}
-        search={
-          offer.plan === PLAN.FREE
-            ? {}
-            : { plan: offer.plan, interval, ...(pay === PAY.CRYPTO ? { pay } : {}) }
-        }
-      >
-        {PLAN_CTA[offer.plan]}
+      <Link to={signedIn ? ROUTES.dashboardBilling : ROUTES.register} search={pick}>
+        {signedIn
+          ? offer.plan === PLAN.FREE
+            ? "Go to Billing"
+            : `Choose ${PLAN_NAMES[offer.plan]}`
+          : PLAN_CTA[offer.plan]}
       </Link>
     </Button>
   );
@@ -82,6 +86,7 @@ export function PricingPage({
   onChange: (interval: BillingInterval, needs: WeekNeeds, pay: PayMethod) => void;
 }) {
   const pay = cryptoCoins ? asked : PAY.CARD;
+  const signedIn = useSessionUser() !== null;
   // The plan the phone-width table shows: the recommended one until picked by hand.
   const [compared, setCompared] = useState<Plan | null>(null);
   const recommended = recommendPlan(offers, needs);
@@ -256,10 +261,16 @@ export function PricingPage({
       <section className="border-t bg-card">
         <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-5 px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
-            Try every Pro feature for 14 days.
+            {signedIn
+              ? "Pick your plan in Billing."
+              : "Try every Pro feature for 14 days."}
           </h2>
           <Button size="lg" asChild>
-            <Link to={ROUTES.register}>Create your account</Link>
+            {signedIn ? (
+              <Link to={ROUTES.dashboardBilling}>Go to Billing</Link>
+            ) : (
+              <Link to={ROUTES.register}>Create your account</Link>
+            )}
           </Button>
         </div>
       </section>
