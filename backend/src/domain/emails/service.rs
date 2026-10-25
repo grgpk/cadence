@@ -228,6 +228,7 @@ pub async fn queue_crypto_refund(
     email: &str,
     full_name: &str,
     claim_url: &str,
+    lines: Vec<String>,
     send_at: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
     let payload = payload_of(&AccountEmail {
@@ -235,7 +236,7 @@ pub async fn queue_crypto_refund(
         billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
         losing: None,
         claim_url: Some(claim_url.to_owned()),
-        lines: None,
+        lines: Some(lines),
     })?;
     db::queue(
         connection,
@@ -924,9 +925,8 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         ),
         CRYPTO_REFUND_TEMPLATE => (
             "Your crypto payment was refunded",
-            "We have refunded your crypto payment. Claim it with the button below: \
-             enter the address of your wallet, and it is sent there. The time it paid \
-             for has been taken off your plan.",
+            "Claim it with the button below: enter the address of your wallet, and it \
+             is sent there.",
             "Claim your refund",
         ),
         CRYPTO_RECEIPT_TEMPLATE => (
@@ -967,7 +967,12 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         .filter(|lines| template == TRIAL_ENDING_TEMPLATE && !lines.is_empty());
     // The receipt lists what the payment bought, then the general line.
     let bought = email.lines.as_deref().filter(|lines| {
-        (template == CRYPTO_RECEIPT_TEMPLATE || template == ADMIN_CRYPTO_UNDERPAID_TEMPLATE)
+        [
+            CRYPTO_RECEIPT_TEMPLATE,
+            ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
+            CRYPTO_REFUND_TEMPLATE,
+        ]
+        .contains(&template)
             && !lines.is_empty()
     });
     let general = || {
@@ -1551,8 +1556,15 @@ mod tests {
                 "name": "Nino",
                 "billing_url": "https://cadence.example/dashboard/billing",
                 "claim_url": "https://btcpay.example/pull-payments/pp1",
+                "lines": ["We have refunded $5.00 of your $16.00 crypto payment.", "Your plan keeps the time it paid for."],
             }),
         );
+        assert!(
+            email
+                .text
+                .contains("We have refunded $5.00 of your $16.00 crypto payment.")
+        );
+        assert!(email.text.contains("Your plan keeps the time it paid for."));
         assert!(
             email
                 .text

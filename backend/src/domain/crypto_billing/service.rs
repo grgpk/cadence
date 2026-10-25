@@ -528,11 +528,25 @@ pub async fn refund(
             }
         }
         if let Some(claim_url) = &claim_url {
+            // Only a refund of all of it takes the time back; say which.
+            let lines = vec![
+                format!(
+                    "We have refunded {} of your {} crypto payment.",
+                    dollars(cents),
+                    dollars(payment.amount_cents)
+                ),
+                if full {
+                    "The time it paid for has come off your plan.".to_owned()
+                } else {
+                    "Your plan keeps the time it paid for.".to_owned()
+                },
+            ];
             emails::queue_crypto_refund(
                 &mut transaction,
                 &contact.email,
                 &contact.full_name,
                 claim_url,
+                lines,
                 now,
             )
             .await?;

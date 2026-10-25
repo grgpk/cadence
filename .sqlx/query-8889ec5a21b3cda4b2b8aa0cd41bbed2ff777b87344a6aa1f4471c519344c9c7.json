@@ -1,0 +1,26 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT e.payload AS \"payload!\" FROM email_queue e\n           WHERE e.email = 'ada@example.com' AND e.template = 'crypto_refund'",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "payload!",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "email_queue",
+            "name": "payload"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "8889ec5a21b3cda4b2b8aa0cd41bbed2ff777b87344a6aa1f4471c519344c9c7"
+}

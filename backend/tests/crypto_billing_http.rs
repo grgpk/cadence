@@ -1057,6 +1057,20 @@ async fn an_admin_lists_a_hosts_payments_and_refunds_part_then_the_rest(pool: Pg
             .is_some_and(|url| url.ends_with("/300"))
     );
     assert_eq!(period_end(&app, &cookie).await, Some(two_months));
+    let told = sqlx::query_scalar!(
+        r#"SELECT e.payload AS "payload!" FROM email_queue e
+           WHERE e.email = 'ada@example.com' AND e.template = 'crypto_refund'"#,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the refund email is queued");
+    assert_eq!(
+        told["lines"],
+        json!([
+            "We have refunded $3.00 of your $10.00 crypto payment.",
+            "Your plan keeps the time it paid for."
+        ])
+    );
 
     let (status, _) = refund_payment(&app, &admin_cookie, first, Some(701)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
