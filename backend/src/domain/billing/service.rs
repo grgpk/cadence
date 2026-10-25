@@ -63,7 +63,10 @@ pub async fn restore_trial_notice(
     full_name: &str,
     now: DateTime<Utc>,
 ) -> Result<(), sqlx::Error> {
-    let Some(ends_at) = db::trial_end(connection, user_unid).await? else {
+    let Some(ends_at) = db::trial(connection, user_unid)
+        .await?
+        .map(|trial| trial.ends_at)
+    else {
         return Ok(());
     };
     if ends_at <= now {

@@ -16,6 +16,7 @@ use crate::{
     domain::{
         auth::middleware::{AdminUser, AuthUser},
         billing::models::{RedirectUrl, StartCheckout},
+        rate_limits::service as rate_limits,
     },
     error::{AppError, AppResult},
 };
@@ -44,6 +45,13 @@ pub async fn checkout(
     user: AuthUser,
     Json(choice): Json<StartCheckout>,
 ) -> AppResult<Json<RedirectUrl>> {
+    // Each checkout makes a real invoice at the provider.
+    rate_limits::check(
+        &state.pool,
+        &rate_limits::CRYPTO_CHECKOUT_PER_HOST,
+        &user.user.unid.to_string(),
+    )
+    .await?;
     let url = service::checkout(
         &state.pool,
         state.crypto.as_ref(),

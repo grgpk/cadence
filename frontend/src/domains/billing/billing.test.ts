@@ -6,6 +6,8 @@ import { PLAN } from "../pricing/pricing";
 import {
   bookingUsage,
   checkoutIntent,
+  cryptoAlongsideCard,
+  cryptoBeforeCard,
   cryptoStatusLine,
   trialFreeLimit,
   hasPortal,
@@ -319,5 +321,25 @@ describe("cryptoStatusLine", () => {
     expect(line).toContain("Business is paid with crypto until");
     expect(line).toContain("2027");
     expect(line).toContain("does not renew by itself");
+  });
+});
+
+describe("crypto next to card", () => {
+  const crypto = {
+    plan: PLAN.PRO,
+    interval: "month" as const,
+    period_end: "2026-11-24T12:00:00Z",
+  };
+
+  it("warns before a card subscription that crypto time is not refunded", () => {
+    const line = cryptoBeforeCard(crypto);
+    expect(line).toContain("Pro is paid with crypto until");
+    expect(line).toContain("not refunded");
+  });
+
+  it("keeps the crypto time in view once the card is billed", () => {
+    expect(cryptoAlongsideCard(crypto)).toContain(
+      "You also have Pro paid with crypto until",
+    );
   });
 });

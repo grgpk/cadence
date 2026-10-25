@@ -33,6 +33,15 @@ impl Plan {
         }
     }
 
+    /// The plan as emails name it, as the pricing page does.
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Free => "Free",
+            Self::Pro => "Pro",
+            Self::Business => "Business",
+        }
+    }
+
     pub const fn entitlements(self) -> Entitlements {
         match self {
             Self::Free => Entitlements {

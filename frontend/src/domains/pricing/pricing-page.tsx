@@ -196,9 +196,10 @@ export function PricingPage({
                 <span className="font-semibold text-foreground">
                   Paid in {cryptoCoins}.
                 </span>{" "}
-                You pay for a month or a year up front right after signing up. Nothing
-                renews by itself: we email you 3 days before it ends, and you can move up
-                to Business for the difference at any time.
+                You pay for a month or a year up front right after signing up, and Pro
+                starts after your 14-day trial, so no trial day is lost. Nothing renews by
+                itself: we email you 3 days before it ends, and you can move up to
+                Business for the difference at any time.
               </span>
             </p>
           ) : null}

@@ -179,6 +179,16 @@ export function cryptoStatusLine(crypto: CryptoPlan): string {
   return `${PLAN_NAMES[crypto.plan]} is paid with crypto until ${formatDate(crypto.period_end)}. It does not renew by itself, so pay again before then to keep it.`;
 }
 
+/** Over the card plans while crypto time runs, so nobody pays twice unawares. */
+export function cryptoBeforeCard(crypto: CryptoPlan): string {
+  return `${PLAN_NAMES[crypto.plan]} is paid with crypto until ${formatDate(crypto.period_end)}. Subscribing by card starts billing today, and the crypto time is not refunded.`;
+}
+
+/** In the Current plan card once Stripe bills, so the crypto time stays in view. */
+export function cryptoAlongsideCard(crypto: CryptoPlan): string {
+  return `You also have ${PLAN_NAMES[crypto.plan]} paid with crypto until ${formatDate(crypto.period_end)}.`;
+}
+
 /** How many hosts each plan has now. */
 export function planCounts(
   rows: readonly Pick<AdminPlan, "plan">[],

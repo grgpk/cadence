@@ -170,12 +170,15 @@ struct Notice {
     send_at: DateTime<Utc>,
 }
 
+/// Notices still to go out, receipts aside: those go at once and have a test
+/// of their own.
 async fn waiting_notices(pool: &PgPool, user: Uuid) -> Vec<(String, DateTime<Utc>)> {
     sqlx::query_as!(
         Notice,
         r#"SELECT e.template AS "template!", e.send_at AS "send_at!"
            FROM email_queue e JOIN users u ON u.email = e.email
            WHERE u.unid = $1 AND e.booking_unid IS NULL AND e.sent_at IS NULL
+             AND e.template <> 'crypto_receipt'
            ORDER BY e.template"#,
         user,
     )
@@ -239,9 +242,11 @@ async fn a_paid_invoice_gives_the_plan_for_its_interval(pool: PgPool) {
         .expect("in range");
     assert!(near(end, expected));
     let notices = waiting_notices(&pool, unid).await;
-    assert_eq!(notices.len(), 1);
-    assert_eq!(notices[0].0, "crypto_renewal");
-    assert!(near(notices[0].1, end - Duration::days(3)));
+    assert_eq!(notices.len(), 2);
+    assert_eq!(notices[0].0, "crypto_ended");
+    assert!(near(notices[0].1, end));
+    assert_eq!(notices[1].0, "crypto_renewal");
+    assert!(near(notices[1].1, end - Duration::days(3)));
 }
 
 #[sqlx::test(migrations = "../migrations")]
@@ -262,11 +267,13 @@ async fn a_repeated_event_counts_once_and_renewing_adds_to_the_period(pool: PgPo
         .checked_add_months(Months::new(12))
         .expect("in range");
     assert!(near(after_second, expected));
-    // One reminder, for the new end; the trial notice is gone.
+    // One reminder and one end notice, for the new end; the trial notice is gone.
     let notices = waiting_notices(&pool, unid).await;
-    assert_eq!(notices.len(), 1);
-    assert_eq!(notices[0].0, "crypto_renewal");
-    assert!(near(notices[0].1, after_second - Duration::days(3)));
+    assert_eq!(notices.len(), 2);
+    assert_eq!(notices[0].0, "crypto_ended");
+    assert!(near(notices[0].1, after_second));
+    assert_eq!(notices[1].0, "crypto_renewal");
+    assert!(near(notices[1].1, after_second - Duration::days(3)));
 }
 
 #[sqlx::test(migrations = "../migrations")]
@@ -657,8 +664,12 @@ async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
         .iter()
         .map(|(template, _)| template.as_str())
         .collect();
-    assert_eq!(templates, ["crypto_refund", "crypto_renewal"]);
-    assert!(near(notices[1].1, one_month - Duration::days(3)));
+    assert_eq!(
+        templates,
+        ["crypto_ended", "crypto_refund", "crypto_renewal"]
+    );
+    assert!(near(notices[0].1, one_month));
+    assert!(near(notices[2].1, one_month - Duration::days(3)));
 
     // The first payment goes too: no period is left, nor its reminder.
     send(
@@ -748,7 +759,7 @@ async fn a_full_refund_during_the_trial_brings_its_ending_notice_back(pool: PgPo
         .into_iter()
         .map(|(template, _)| template)
         .collect();
-    assert_eq!(paid, ["crypto_renewal"]);
+    assert_eq!(paid, ["crypto_ended", "crypto_renewal"]);
 
     send(
         &app,
@@ -765,4 +776,123 @@ async fn a_full_refund_during_the_trial_brings_its_ending_notice_back(pool: PgPo
         .collect();
     assert_eq!(templates, ["crypto_refund", "trial_ending"]);
     assert!(near(refunded[1].1, trial_notice[0].1));
+}
+
+async fn receipts(pool: &PgPool, user: Uuid) -> Vec<Value> {
+    sqlx::query_scalar!(
+        r#"SELECT e.payload AS "payload!" FROM email_queue e JOIN users u ON u.email = e.email
+           WHERE u.unid = $1 AND e.template = 'crypto_receipt' ORDER BY e.created_at"#,
+        user,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("queue is readable")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_credited_payment_sends_a_receipt_with_what_it_bought(pool: PgPool) {
+    let app = app(&pool);
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let order = checkout(&app, &cookie, "business", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    event(&app, &pool, order, "paid", SECRET).await;
+
+    let sent = receipts(&pool, host).await;
+    assert_eq!(sent.len(), 1, "a repeated event sends no second receipt");
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+    assert_eq!(
+        sent[0]["lines"],
+        json!([
+            format!("Business until {}", end.format("%-d %B %Y")),
+            "Paid $16.00"
+        ])
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_payment_during_the_trial_waits_for_its_end(pool: PgPool) {
+    let app = app(&pool);
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    let trial_end: DateTime<Utc> = serde_json::from_value(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["trial_ends_at"].clone(),
+    )
+    .expect("a trial end");
+
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+    assert!(near(
+        end,
+        trial_end
+            .checked_add_months(Months::new(1))
+            .expect("in range")
+    ));
+    let _ = host;
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_higher_plan_than_the_trial_starts_at_once(pool: PgPool) {
+    let app = app(&pool);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+
+    let order = checkout(&app, &cookie, "business", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let end = period_end(&app, &cookie).await.expect("a crypto period");
+    assert!(near(
+        end,
+        Utc::now()
+            .checked_add_months(Months::new(1))
+            .expect("in range")
+    ));
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "business"
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_short_payment_is_told_and_a_plain_expiry_is_not(pool: PgPool) {
+    let app = app(&pool);
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+
+    let expired = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, expired, "expired", SECRET).await;
+    let templates = |notices: Vec<(String, DateTime<Utc>)>| -> Vec<String> {
+        notices.into_iter().map(|(template, _)| template).collect()
+    };
+    // Only sign-up's trial notice waits.
+    assert_eq!(
+        templates(waiting_notices(&pool, host).await),
+        ["trial_ending"]
+    );
+
+    let short = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, short, "underpaid", SECRET).await;
+    event(&app, &pool, short, "underpaid", SECRET).await;
+    assert_eq!(
+        templates(waiting_notices(&pool, host).await),
+        ["crypto_underpaid", "trial_ending"]
+    );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn checkouts_are_limited_per_host(pool: PgPool) {
+    let app = app(&pool);
+    let (_, cookie) = register(&app, "ada@example.com").await;
+    let pick = json!({ "plan": "pro", "interval": "month" });
+    for _ in 0..10 {
+        let (status, _) = send(
+            &app,
+            Method::POST,
+            CHECKOUT,
+            Some(&cookie),
+            Some(pick.clone()),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+    }
+    let (status, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(pick)).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
 }

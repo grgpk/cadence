@@ -673,16 +673,24 @@ pub async fn customer_of(pool: &PgPool, user_unid: Uuid) -> Result<Option<String
     .map(Option::flatten)
 }
 
-/// When the host's trial ends, while their row is still a trial.
-pub async fn trial_end(
+/// A trial as a crypto payment needs it: the plan it gives, and its end.
+pub struct Trial {
+    pub plan: Plan,
+    pub ends_at: DateTime<Utc>,
+}
+
+/// The host's trial, while their row is still a trial.
+pub async fn trial(
     connection: &mut PgConnection,
     user_unid: Uuid,
-) -> Result<Option<DateTime<Utc>>, sqlx::Error> {
-    sqlx::query_scalar!(
-        "SELECT trial_ends_at FROM subscriptions WHERE user_unid = $1 AND status = 'trialing'",
+) -> Result<Option<Trial>, sqlx::Error> {
+    sqlx::query_as!(
+        Trial,
+        r#"SELECT plan AS "plan: Plan", trial_ends_at AS "ends_at!"
+           FROM subscriptions
+           WHERE user_unid = $1 AND status = 'trialing' AND trial_ends_at IS NOT NULL"#,
         user_unid,
     )
     .fetch_optional(connection)
     .await
-    .map(Option::flatten)
 }

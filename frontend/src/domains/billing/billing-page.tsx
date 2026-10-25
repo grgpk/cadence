@@ -39,6 +39,8 @@ import {
 import {
   bookingUsage,
   type CheckoutIntent,
+  cryptoAlongsideCard,
+  cryptoBeforeCard,
   cryptoStatusLine,
   hasPortal,
   isBilled,
@@ -196,6 +198,12 @@ function CurrentPlan({
           )}
         </div>
       </div>
+      {crypto && !paidInCrypto ? (
+        <p className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Bitcoin className="mt-0.5 size-4 shrink-0 text-crypto" aria-hidden />
+          {cryptoAlongsideCard(crypto)}
+        </p>
+      ) : null}
       {summary.trial_losses.length > 0 ? (
         <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
           <p className="font-medium">When the trial ends, on Free:</p>
@@ -264,7 +272,12 @@ function FinishPick({
   const trial =
     days === null ? null : `Your trial runs ${days} more ${days === 1 ? "day" : "days"}.`;
   const description = crypto
-    ? `${trial ? `${trial} ` : ""}Pay for ${name} up front in crypto. Its period starts when the payment confirms, and it does not renew by itself.`
+    ? `${trial ? `${trial} ` : ""}Pay for ${name} up front in crypto. ${
+        // The trial gives Pro, so paid Pro waits for it; Business starts at once.
+        trial && offer.plan === PLAN.PRO
+          ? "It starts when the trial ends"
+          : "It starts when the payment confirms"
+      }, and it does not renew by itself.`
     : trial
       ? `${trial} Subscribing now keeps ${name} after it ends.`
       : `Subscribe to keep ${name} features on.`;
@@ -589,6 +602,15 @@ export function BillingPage({
             ]}
           />
         </div>
+        {crypto.data?.active && summary && !isBilled(summary) ? (
+          <p
+            role="note"
+            className="flex items-start gap-2.5 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"
+          >
+            <Bitcoin className="mt-0.5 size-4 shrink-0 text-crypto" aria-hidden />
+            {cryptoBeforeCard(crypto.data.active)}
+          </p>
+        ) : null}
         {plans.isError ? (
           <ErrorState
             title="The plans did not load"

@@ -43,6 +43,8 @@ pub const CALLING_VISIT_PER_ADDRESS: Limit = Limit::new("calling_visit_address",
 pub const BUG_REPORT_PER_ADDRESS: Limit = Limit::new("bug_report_address", 30, 10);
 /// Each Calendly preview reads several pages of the host's account.
 pub const CALENDLY_IMPORT_PER_HOST: Limit = Limit::new("calendly_import_host", 10, 60);
+/// Each crypto checkout makes an invoice at the provider (Plan 50).
+pub const CRYPTO_CHECKOUT_PER_HOST: Limit = Limit::new("crypto_checkout_host", 10, 60);
 /// One agent token. An agent makes several calls for one request of the
 /// host's; this stops a runaway loop, not a busy host.
 pub const MCP_PER_TOKEN: Limit = Limit::new("mcp_token", 300, 10);

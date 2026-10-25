@@ -40,6 +40,12 @@ pub const PAYMENT_FAILED_TEMPLATE: &str = "payment_failed";
 pub const CRYPTO_RENEWAL_TEMPLATE: &str = "crypto_renewal";
 /// An admin refunded a crypto payment; the button claims it to a wallet.
 pub const CRYPTO_REFUND_TEMPLATE: &str = "crypto_refund";
+/// Plan 50: a crypto payment was credited, with what it bought.
+pub const CRYPTO_RECEIPT_TEMPLATE: &str = "crypto_receipt";
+/// An invoice expired with less than its amount paid; nothing was credited.
+pub const CRYPTO_UNDERPAID_TEMPLATE: &str = "crypto_underpaid";
+/// A plan paid for in crypto ran out.
+pub const CRYPTO_ENDED_TEMPLATE: &str = "crypto_ended";
 /// Business: the invitee has not said they are coming, 2 hours before.
 pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
 /// Business: a host's one "here are my times" to someone who left a booking.
@@ -176,6 +182,10 @@ pub enum AccountNotice {
     PaymentFailed,
     /// A few days before a plan paid for in crypto ends.
     CryptoRenewal,
+    /// A crypto invoice expired part-paid.
+    CryptoUnderpaid,
+    /// When a plan paid for in crypto ends.
+    CryptoEnded,
 }
 
 impl AccountNotice {
@@ -185,6 +195,8 @@ impl AccountNotice {
             Self::BookingLimit => HOST_BOOKING_LIMIT_TEMPLATE,
             Self::PaymentFailed => PAYMENT_FAILED_TEMPLATE,
             Self::CryptoRenewal => CRYPTO_RENEWAL_TEMPLATE,
+            Self::CryptoUnderpaid => CRYPTO_UNDERPAID_TEMPLATE,
+            Self::CryptoEnded => CRYPTO_ENDED_TEMPLATE,
         }
     }
 }
@@ -202,6 +214,7 @@ pub async fn queue_account_notice(
         billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
         losing: None,
         claim_url: None,
+        lines: None,
     })?;
     db::queue(connection, None, email, notice.template(), send_at, payload).await
 }
@@ -219,12 +232,39 @@ pub async fn queue_crypto_refund(
         billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
         losing: None,
         claim_url: Some(claim_url.to_owned()),
+        lines: None,
     })?;
     db::queue(
         connection,
         None,
         email,
         CRYPTO_REFUND_TEMPLATE,
+        send_at,
+        payload,
+    )
+    .await
+}
+
+/// Thanks the host for a credited crypto payment, listing what it bought.
+pub async fn queue_crypto_receipt(
+    connection: &mut PgConnection,
+    email: &str,
+    full_name: &str,
+    lines: Vec<String>,
+    send_at: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let payload = payload_of(&AccountEmail {
+        name: Some(full_name.to_owned()),
+        billing_url: Some(format!("{}{BILLING_PATH}", app_url())),
+        losing: None,
+        claim_url: None,
+        lines: Some(lines),
+    })?;
+    db::queue(
+        connection,
+        None,
+        email,
+        CRYPTO_RECEIPT_TEMPLATE,
         send_at,
         payload,
     )
@@ -633,6 +673,9 @@ struct AccountEmail {
     /// The refund email: where the host claims the money, instead of Billing.
     #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
     claim_url: Option<String>,
+    /// The receipt: what the payment bought, one line each.
+    #[serde(deserialize_with = "lenient", skip_serializing_if = "Option::is_none")]
+    lines: Option<Vec<String>>,
 }
 
 /// The trial email's payload with what the host would lose, read when it
@@ -754,7 +797,10 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         | HOST_BOOKING_LIMIT_TEMPLATE
         | PAYMENT_FAILED_TEMPLATE
         | CRYPTO_RENEWAL_TEMPLATE
-        | CRYPTO_REFUND_TEMPLATE => account_content(template, &read(payload)),
+        | CRYPTO_REFUND_TEMPLATE
+        | CRYPTO_RECEIPT_TEMPLATE
+        | CRYPTO_UNDERPAID_TEMPLATE
+        | CRYPTO_ENDED_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -852,6 +898,25 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
              for has been taken off your plan.",
             "Claim your refund",
         ),
+        CRYPTO_RECEIPT_TEMPLATE => (
+            "Your crypto payment arrived",
+            "Thank you. It does not renew by itself: we email you 3 days before it ends.",
+            "See your plan",
+        ),
+        CRYPTO_UNDERPAID_TEMPLATE => (
+            "Your crypto payment came in short",
+            "The invoice expired before its full amount arrived, so nothing was added to \
+             your plan. Reply to this email and we will refund what arrived, then pay \
+             again from Billing.",
+            "Go to Billing",
+        ),
+        CRYPTO_ENDED_TEMPLATE => (
+            "Your crypto plan has ended",
+            "The period you paid for in crypto is over, and your page has moved to the \
+             plan you have without it. Your settings stay saved. Pay again any time to \
+             have it back.",
+            "Pay again",
+        ),
         _ => (
             "Your Cadence payment failed",
             "We could not charge your card for your plan. Stripe will try again over the \
@@ -863,17 +928,31 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         .losing
         .as_deref()
         .filter(|lines| template == TRIAL_ENDING_TEMPLATE && !lines.is_empty());
-    let details = losing.map_or_else(
-        || vec![details.to_owned()],
-        |lines| {
-            std::iter::once("After that your page moves to Free. What changes for you:".to_owned())
-                .chain(lines.iter().cloned())
-                .chain(std::iter::once(
-                    "Your settings stay saved. Pick a plan to keep everything as it is.".to_owned(),
-                ))
-                .collect()
-        },
-    );
+    // The receipt lists what the payment bought, then the general line.
+    let bought = email
+        .lines
+        .as_deref()
+        .filter(|lines| template == CRYPTO_RECEIPT_TEMPLATE && !lines.is_empty());
+    let general = || {
+        bought.map_or_else(
+            || vec![details.to_owned()],
+            |lines| {
+                lines
+                    .iter()
+                    .cloned()
+                    .chain(std::iter::once(details.to_owned()))
+                    .collect()
+            },
+        )
+    };
+    let details = losing.map_or_else(general, |lines| {
+        std::iter::once("After that your page moves to Free. What changes for you:".to_owned())
+            .chain(lines.iter().cloned())
+            .chain(std::iter::once(
+                "Your settings stay saved. Pick a plan to keep everything as it is.".to_owned(),
+            ))
+            .collect()
+    });
     Content {
         headline: headline.to_owned(),
         greeting: greeting(text(email.name.as_ref())),
@@ -1381,6 +1460,12 @@ mod tests {
             (PAYMENT_FAILED_TEMPLATE, "Your Cadence payment failed"),
             (CRYPTO_RENEWAL_TEMPLATE, "Your crypto plan ends in 3 days"),
             (CRYPTO_REFUND_TEMPLATE, "Your crypto payment was refunded"),
+            (CRYPTO_RECEIPT_TEMPLATE, "Your crypto payment arrived"),
+            (
+                CRYPTO_UNDERPAID_TEMPLATE,
+                "Your crypto payment came in short",
+            ),
+            (CRYPTO_ENDED_TEMPLATE, "Your crypto plan has ended"),
         ] {
             let email = email(template, &payload);
             assert_eq!(email.subject, subject);
@@ -1396,6 +1481,25 @@ mod tests {
             );
             assert!(!email.html.contains("<b>"), "{template}");
         }
+    }
+
+    #[test]
+    fn the_crypto_receipt_lists_what_the_payment_bought() {
+        let email = email(
+            CRYPTO_RECEIPT_TEMPLATE,
+            &json!({
+                "name": "Nino",
+                "billing_url": "https://cadence.example/dashboard/billing",
+                "lines": ["Pro until 24 November 2026", "Paid $10.00"],
+            }),
+        );
+        assert!(email.text.contains("Pro until 24 November 2026"));
+        assert!(email.text.contains("Paid $10.00"));
+        assert!(
+            email
+                .text
+                .contains("See your plan: https://cadence.example/dashboard/billing")
+        );
     }
 
     #[test]

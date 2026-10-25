@@ -35,6 +35,8 @@ const CRYPTO_OFF: &str = "crypto payments are not set up on this server";
 const RENEWAL_NOTICE_DAYS: i64 = 3;
 /// A payment still unconfirmed after this long is not shown as confirming.
 const CONFIRMING_DAYS: i64 = 2;
+/// How a receipt writes the date a plan runs to.
+const RECEIPT_DATE: &str = "%-d %B %Y";
 /// The least an upgrade costs, so a period ending in minutes is not a
 /// near-free move to a higher plan.
 const UPGRADE_MIN_CENTS: u32 = 100;
@@ -241,13 +243,28 @@ pub async fn apply_event(
             .await?;
         }
         PaymentStatus::Underpaid | PaymentStatus::Expired | PaymentStatus::Failed => {
-            db::advance(
+            let ended = db::advance(
                 &mut transaction,
                 event.order_id,
                 &[PaymentStatus::Pending, PaymentStatus::Processing],
                 event.status,
             )
             .await?;
+            // Short money is the host's to hear about; a plain expiry is not.
+            if ended
+                && event.status == PaymentStatus::Underpaid
+                && let Some(contact) =
+                    billing_db::contact(&mut transaction, payment.user_unid).await?
+            {
+                emails::queue_account_notice(
+                    &mut transaction,
+                    AccountNotice::CryptoUnderpaid,
+                    &contact.email,
+                    &contact.full_name,
+                    now,
+                )
+                .await?;
+            }
         }
         PaymentStatus::Paid => {
             paid(&mut transaction, event.order_id, &payment, now).await?;
@@ -256,9 +273,12 @@ pub async fn apply_event(
     Ok(transaction.commit().await?)
 }
 
-/// A period payment buys its interval after whatever is already paid; an
-/// upgrade ends with the period it upgrades. The renewal reminder moves to
-/// the new end.
+/// Credits a paid payment, gives the host a receipt, and moves the reminder
+/// and the end notice to the new end.
+///
+/// A period payment buys its interval after whatever is already paid, and
+/// after a running trial that already gives its plan; an upgrade ends with
+/// the period it upgrades.
 async fn paid(
     connection: &mut PgConnection,
     order_id: Uuid,
@@ -267,9 +287,15 @@ async fn paid(
 ) -> AppResult<()> {
     db::lock_user(connection, payment.user_unid).await?;
     let running = db::active(&mut *connection, payment.user_unid, now).await?;
+    // Trial days are free days; a payment for what the trial gives waits for them.
+    let trial_end = billing_db::trial(connection, payment.user_unid)
+        .await?
+        .filter(|trial| trial.ends_at > now && payment.plan <= trial.plan)
+        .map_or(now, |trial| trial.ends_at);
     let period_end = match payment.kind {
         PaymentKind::Period => running
             .map_or(now, |period| period.period_end.max(now))
+            .max(trial_end)
             .checked_add_months(Months::new(payment.billing_interval.months()))
             .ok_or_else(|| AppError::Internal(anyhow::anyhow!("period end out of range")))?,
         PaymentKind::Upgrade => running.map_or_else(
@@ -290,7 +316,35 @@ async fn paid(
     };
     // A trial's "you move to Free" would no longer be true.
     emails::drop_account_notice(connection, AccountNotice::TrialEnding, &contact.email).await?;
+    let plan_end = db::active(&mut *connection, payment.user_unid, now)
+        .await?
+        .map_or(period_end, |period| period.period_end);
+    let bought = match payment.kind {
+        PaymentKind::Period => format!(
+            "{} until {}",
+            payment.plan.display_name(),
+            plan_end.format(RECEIPT_DATE)
+        ),
+        PaymentKind::Upgrade => format!(
+            "Moved up to {} until {}",
+            payment.plan.display_name(),
+            plan_end.format(RECEIPT_DATE)
+        ),
+    };
+    emails::queue_crypto_receipt(
+        connection,
+        &contact.email,
+        &contact.full_name,
+        vec![bought, format!("Paid {}", dollars(payment.amount_cents))],
+        now,
+    )
+    .await?;
     remind_before(connection, payment.user_unid, &contact, now).await
+}
+
+/// `1050` cents as `$10.50`.
+fn dollars(cents: i32) -> String {
+    format!("${}.{:02}", cents / 100, cents % 100)
 }
 
 /// Refunds the host's latest paid crypto payment in full and takes back the
@@ -372,27 +426,34 @@ pub async fn refund(
     })
 }
 
-/// Moves the renewal reminder to 3 days before the running period ends, or
-/// drops it when no period runs.
+/// Moves the renewal reminder to 3 days before the running period ends and
+/// the end notice to its end, or drops both when no period runs.
 async fn remind_before(
     connection: &mut PgConnection,
     user_unid: Uuid,
     contact: &billing_db::Contact,
     now: DateTime<Utc>,
 ) -> AppResult<()> {
-    emails::drop_account_notice(connection, AccountNotice::CryptoRenewal, &contact.email).await?;
+    for notice in [AccountNotice::CryptoRenewal, AccountNotice::CryptoEnded] {
+        emails::drop_account_notice(connection, notice, &contact.email).await?;
+    }
     let Some(period) = db::active(&mut *connection, user_unid, now).await? else {
         return Ok(());
     };
-    let notice_at = (period.period_end - Duration::days(RENEWAL_NOTICE_DAYS)).max(now);
-    emails::queue_account_notice(
-        connection,
-        AccountNotice::CryptoRenewal,
-        &contact.email,
-        &contact.full_name,
-        notice_at,
-    )
-    .await?;
+    let reminder_at = (period.period_end - Duration::days(RENEWAL_NOTICE_DAYS)).max(now);
+    for (notice, send_at) in [
+        (AccountNotice::CryptoRenewal, reminder_at),
+        (AccountNotice::CryptoEnded, period.period_end),
+    ] {
+        emails::queue_account_notice(
+            connection,
+            notice,
+            &contact.email,
+            &contact.full_name,
+            send_at,
+        )
+        .await?;
+    }
     Ok(())
 }
 

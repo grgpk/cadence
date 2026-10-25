@@ -33,6 +33,7 @@ pub struct PaymentRow {
     pub user_unid: Uuid,
     pub provider: CryptoProvider,
     pub kind: PaymentKind,
+    pub amount_cents: i32,
     pub provider_invoice_id: Option<String>,
     pub plan: Plan,
     pub billing_interval: BillingInterval,
@@ -105,7 +106,7 @@ pub async fn find(
     sqlx::query_as!(
         PaymentRow,
         r#"SELECT user_unid, provider AS "provider: CryptoProvider", kind AS "kind: PaymentKind",
-                  provider_invoice_id,
+                  amount_cents, provider_invoice_id,
                   plan AS "plan: Plan", billing_interval AS "billing_interval: BillingInterval"
            FROM crypto_payments WHERE unid = $1"#,
         unid,
