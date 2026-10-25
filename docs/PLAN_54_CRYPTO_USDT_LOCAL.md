@@ -33,6 +33,9 @@ These come from the plugin's source (v0.7.9.0, needs BTCPay 2.3.7 or newer):
   `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, so `usdt` sets that contract in
   the plugin's server setting (`USDT_TRON_SERVER_SETTINGS` in BTCPay's
   `Settings` table). Found live: a faucet payment was not seen until then.
+- On BTCPay 2.4.5, opening the plugin's TRON server settings page
+  (`/server/tronUSDtlike`) throws `MissingMethodException`, and BTCPay
+  writes the plugin into `Plugins/disabled`. `usdt` removes it from there.
 - The listener keeps its block in `USDT_TRON_LISTENER_STATE` and saves it
   on shutdown. To pick up a payment it skipped, stop BTCPay, lower
   `LastBlockHeight`, and start it.

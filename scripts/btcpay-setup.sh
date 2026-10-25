@@ -238,6 +238,12 @@ if [[ "${1:-}" == "usdt" ]]; then
         "${COMPOSE[@]}" exec -T btcpayserver sh -c "echo install:$USDT_PLUGIN >> $PLUGIN_DIR/commands"
         echo "Installing the Tether USDt plugin..."
         restart_btcpay
+    # BTCPay disables a plugin that crashes, as this one does when its TRON
+    # server settings page is opened.
+    elif "${COMPOSE[@]}" exec -T btcpayserver grep -qx "$USDT_PLUGIN" "$PLUGIN_DIR/disabled" 2>/dev/null; then
+        "${COMPOSE[@]}" exec -T btcpayserver sed -i "/^$USDT_PLUGIN\$/d" "$PLUGIN_DIR/disabled"
+        echo "Enabling the Tether USDt plugin again..."
+        restart_btcpay
     fi
 
     # The plugin's server setting has no API, so it goes straight into

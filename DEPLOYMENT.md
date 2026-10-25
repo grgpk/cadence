@@ -261,7 +261,9 @@ test coins, and your computer needs internet.
 2. **Test coins.** Get test TRX (for fees) and test USDT from the Nile faucet
    at nileex.io, sent to the customer account. Its USDT is contract
    `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, which `usdt` tells the plugin to
-   watch; USDT from another contract is not counted.
+   watch; USDT from another contract is not counted. Don't open the
+   plugin's TRON page under Server Settings: on BTCPay 2.4.5 it crashes and
+   BTCPay disables the plugin. Running `usdt` again turns it back on.
 3. **Set it up.** With the local BTCPay running and `scripts/btcpay-setup.sh`
    already run once, run:
 
