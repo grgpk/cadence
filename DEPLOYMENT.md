@@ -122,9 +122,35 @@ Verify with `curl -fsS https://bookcadence.app/health`.
 
 ## Crypto payments
 
-Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 and 49).
+Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 to 52).
 It stays off until `CRYPTO_PROVIDER` is set in `/root/cadence/.env`. Pick one
 provider; switching later is a change to `.env` and a redeploy.
+
+### Before you deploy
+
+- **Code first, crypto later.** Without `CRYPTO_PROVIDER` nothing crypto shows
+  anywhere: the pricing switch, Billing's switch and the endpoints all stay
+  hidden or answer 503. Deploying the code changes nothing for anyone until
+  you turn it on.
+- **Stripe is untouched.** Card prices, checkout, webhooks and the
+  `subscriptions` table work as before. A host paying by card never sees crypto
+  unless they choose it.
+- **Migrations run by themselves.** `0025_create_crypto_payments` and
+  `0026_create_crypto_refunds` are new tables, created when the backend starts.
+  No reset is needed, and no existing table changes. Take a backup first
+  anyway (see [Backups](#backups)).
+- **The provider comes before the switch.** Set up BTCPay or NOWPayments
+  completely, including the webhook, before adding `CRYPTO_PROVIDER` to `.env`.
+  If the app takes payments before its webhook is reachable, BTCPay's are
+  still credited within 5 minutes by the backend's check, but NOWPayments'
+  are not.
+- **Not tried against production yet.** Every crypto flow was checked on a
+  local BTCPay with test coins (regtest), and NOWPayments only with recorded
+  webhooks. Make the first real payment a small one, refund it from
+  `/admin/plans`, and claim the refund, before you announce crypto.
+- **Turning it off** is removing `CRYPTO_PROVIDER` and redeploying. Hosts keep
+  the time they paid for, and admins can still list their payments. Refunds
+  need the provider back on.
 
 ### BTCPay Server (self-hosted, no account anywhere)
 
