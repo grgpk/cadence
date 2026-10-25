@@ -85,7 +85,8 @@ pub struct AdminCryptoPayment {
     pub amount_cents: i32,
     /// What refunds gave back so far.
     pub refunded_cents: i32,
-    /// `paid`, `refunded` or `underpaid`.
+    /// `pending` or `processing` while open, then `paid`, `refunded` or
+    /// `underpaid`.
     pub status: String,
     pub created_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,

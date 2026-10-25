@@ -19,6 +19,7 @@ kind: string, plan: Plan, interval: BillingInterval, amount_cents: number,
  */
 refunded_cents: number, 
 /**
- * `paid`, `refunded` or `underpaid`.
+ * `pending` or `processing` while open, then `paid`, `refunded` or
+ * `underpaid`.
  */
 status: string, created_at: string, paid_at: string | null, period_end: string | null, };

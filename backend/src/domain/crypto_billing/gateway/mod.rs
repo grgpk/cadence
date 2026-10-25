@@ -119,6 +119,15 @@ pub struct PaymentEvent {
     pub status: PaymentStatus,
 }
 
+/// How much of an invoice a refund gives back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RefundAmount {
+    /// This many US cents, at the rate when the host claims it.
+    Dollars(u32),
+    /// Whatever arrived on a short invoice, in its coin, at the rate it was paid.
+    WhatArrived,
+}
+
 #[derive(Debug, Error)]
 pub enum GatewayError {
     #[error("crypto provider request failed")]
@@ -146,6 +155,8 @@ struct Fake {
     secret: String,
     invoices: AtomicUsize,
     statuses: Mutex<HashMap<String, PaymentStatus>>,
+    /// What tests say arrived on an invoice, in cents.
+    arrived: Mutex<HashMap<String, u32>>,
 }
 
 /// The fake's event body: Cadence's own words, no provider's.
@@ -186,6 +197,7 @@ impl CryptoPayments {
                 secret: secret.to_owned(),
                 invoices: AtomicUsize::new(0),
                 statuses: Mutex::default(),
+                arrived: Mutex::default(),
             })),
         }
     }
@@ -249,18 +261,49 @@ impl CryptoPayments {
     pub async fn refund(
         &self,
         provider_invoice_id: &str,
-        amount_cents: u32,
+        amount: RefundAmount,
     ) -> Result<Option<String>, GatewayError> {
         match &self.gateway {
-            Gateway::BtcPay(btcpay) => btcpay
-                .refund(provider_invoice_id, amount_cents)
-                .await
-                .map(Some),
+            Gateway::BtcPay(btcpay) => btcpay.refund(provider_invoice_id, amount).await.map(Some),
             // Invoices are refunded from the NOWPayments dashboard.
             Gateway::NowPayments(_) => Ok(None),
-            Gateway::Fake(_) => Ok(Some(format!(
-                "https://crypto.test/refund/{provider_invoice_id}/{amount_cents}"
-            ))),
+            Gateway::Fake(_) => Ok(Some(match amount {
+                RefundAmount::Dollars(cents) => {
+                    format!("https://crypto.test/refund/{provider_invoice_id}/{cents}")
+                }
+                RefundAmount::WhatArrived => {
+                    format!("https://crypto.test/refund/{provider_invoice_id}/arrived")
+                }
+            })),
+        }
+    }
+
+    /// What arrived on an invoice, in US cents, such as on one that came in
+    /// short. `None` for a provider that cannot say.
+    pub async fn arrived_cents(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<Option<u32>, GatewayError> {
+        match &self.gateway {
+            Gateway::BtcPay(btcpay) => btcpay.arrived_cents(provider_invoice_id).await.map(Some),
+            Gateway::NowPayments(_) => Ok(None),
+            Gateway::Fake(fake) => Ok(Some(
+                fake.arrived
+                    .lock()
+                    .map_err(|_| GatewayError::Request(anyhow::anyhow!("fake poisoned")))?
+                    .get(provider_invoice_id)
+                    .copied()
+                    .unwrap_or(0),
+            )),
+        }
+    }
+
+    /// For tests: `cents` arrived on the fake's invoice.
+    pub fn set_fake_arrived(&self, provider_invoice_id: &str, cents: u32) {
+        if let Gateway::Fake(fake) = &self.gateway
+            && let Ok(mut arrived) = fake.arrived.lock()
+        {
+            arrived.insert(provider_invoice_id.to_owned(), cents);
         }
     }
 

@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use super::{
     CryptoProvider, GatewayError, Invoice, InvoiceRequest, PaymentEvent, PaymentStatus,
-    WebhookError, dollars,
+    RefundAmount, WebhookError, dollars,
 };
 
 const SIGNATURE_HEADER: &str = "btcpay-sig";
@@ -58,6 +58,9 @@ struct InvoiceState {
     status: String,
     #[serde(default)]
     additional_status: String,
+    /// What the buyer paid, in the invoice's currency, such as `"5.00"`.
+    #[serde(default)]
+    paid_amount: Option<String>,
 }
 
 /// A store webhook event, with only the fields read here.
@@ -143,6 +146,22 @@ impl BtcPay {
         &self,
         provider_invoice_id: &str,
     ) -> Result<PaymentStatus, GatewayError> {
+        Ok(status_of(&self.invoice(provider_invoice_id).await?))
+    }
+
+    pub(super) async fn arrived_cents(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<u32, GatewayError> {
+        let invoice = self.invoice(provider_invoice_id).await?;
+        Ok(invoice
+            .paid_amount
+            .as_deref()
+            .and_then(cents_of)
+            .unwrap_or(0))
+    }
+
+    async fn invoice(&self, provider_invoice_id: &str) -> Result<InvoiceState, GatewayError> {
         let invoice: InvoiceState = self
             .client
             .get(format!(
@@ -160,7 +179,7 @@ impl BtcPay {
             .json()
             .await
             .map_err(|error| GatewayError::Request(error.into()))?;
-        Ok(status_of(&invoice))
+        Ok(invoice)
     }
 
     pub(super) fn coins(&self) -> &str {
@@ -172,7 +191,7 @@ impl BtcPay {
     pub(super) async fn refund(
         &self,
         provider_invoice_id: &str,
-        amount_cents: u32,
+        amount: RefundAmount,
     ) -> Result<String, GatewayError> {
         let refund: PullPayment = self
             .client
@@ -184,7 +203,7 @@ impl BtcPay {
                 reqwest::header::AUTHORIZATION,
                 format!("token {}", self.api_key),
             )
-            .json(&refund_body(amount_cents))
+            .json(&refund_body(amount))
             .send()
             .await
             .and_then(reqwest::Response::error_for_status)
@@ -250,14 +269,31 @@ fn read(body: &[u8]) -> Result<Option<PaymentEvent>, WebhookError> {
     }))
 }
 
-/// A refund of a dollar amount: all of an invoice, or part of it.
-fn refund_body(amount_cents: u32) -> serde_json::Value {
-    json!({
-        "refundVariant": "Custom",
-        "customAmount": dollars(amount_cents),
-        "customCurrency": CURRENCY,
-        "description": "Cadence refund",
-    })
+/// A refund of a dollar amount, all of an invoice or part of it; or of what
+/// arrived on a short one, in its coin at the rate it was paid.
+fn refund_body(amount: RefundAmount) -> serde_json::Value {
+    match amount {
+        RefundAmount::Dollars(cents) => json!({
+            "refundVariant": "Custom",
+            "customAmount": dollars(cents),
+            "customCurrency": CURRENCY,
+            "description": "Cadence refund",
+        }),
+        RefundAmount::WhatArrived => json!({
+            "refundVariant": "RateThen",
+            "description": "Cadence refund",
+        }),
+    }
+}
+
+/// `"5.00"` or `"5.5"` as cents; `None` for anything that is not a price.
+fn cents_of(amount: &str) -> Option<u32> {
+    let amount = amount.trim();
+    let (whole, fraction) = amount.split_once('.').unwrap_or((amount, ""));
+    let whole: u32 = whole.parse().ok()?;
+    let fraction = format!("{fraction:0<2}");
+    let cents: u32 = fraction.get(..2)?.parse().ok()?;
+    whole.checked_mul(100)?.checked_add(cents)
 }
 
 /// An invoice's status from the API, in Cadence's words, as its events say it.
@@ -293,9 +329,26 @@ mod tests {
     }
 
     #[test]
+    fn a_paid_amount_reads_as_cents() {
+        assert_eq!(cents_of("5.00"), Some(500));
+        assert_eq!(cents_of("5.5"), Some(550));
+        assert_eq!(cents_of("16"), Some(1600));
+        assert_eq!(cents_of("0.011"), Some(1));
+        assert_eq!(cents_of("abc"), None);
+    }
+
+    #[test]
+    fn a_short_invoice_is_refunded_at_the_rate_it_was_paid() {
+        assert_eq!(
+            refund_body(RefundAmount::WhatArrived),
+            json!({ "refundVariant": "RateThen", "description": "Cadence refund" })
+        );
+    }
+
+    #[test]
     fn a_refund_asks_for_its_dollar_amount() {
         assert_eq!(
-            refund_body(620),
+            refund_body(RefundAmount::Dollars(620)),
             json!({
                 "refundVariant": "Custom",
                 "customAmount": "6.20",
@@ -390,6 +443,7 @@ mod tests {
             let invoice = InvoiceState {
                 status: status.to_owned(),
                 additional_status: additional.to_owned(),
+                paid_amount: None,
             };
             assert_eq!(status_of(&invoice), expected, "{status} {additional}");
         }

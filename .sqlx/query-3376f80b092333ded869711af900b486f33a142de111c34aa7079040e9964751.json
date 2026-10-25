@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT p.unid, p.provider AS \"provider: CryptoProvider\", p.kind AS \"kind: PaymentKind\",\n                  p.plan AS \"plan: Plan\", p.billing_interval AS \"billing_interval: BillingInterval\",\n                  p.amount_cents,\n                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r\n                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS \"refunded_cents!\",\n                  p.status AS \"status: PaymentStatus\", p.created_at, p.paid_at, p.period_end\n           FROM crypto_payments p\n           WHERE p.user_unid = $1 AND p.status IN ('paid', 'refunded', 'underpaid')\n           ORDER BY p.created_at DESC",
+  "query": "SELECT p.unid, p.provider AS \"provider: CryptoProvider\", p.kind AS \"kind: PaymentKind\",\n                  p.plan AS \"plan: Plan\", p.billing_interval AS \"billing_interval: BillingInterval\",\n                  p.amount_cents,\n                  COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r\n                            WHERE r.payment_unid = p.unid), 0)::INTEGER AS \"refunded_cents!\",\n                  p.status AS \"status: PaymentStatus\", p.created_at, p.paid_at, p.period_end\n           FROM crypto_payments p\n           WHERE p.user_unid = $1\n             AND p.status IN ('pending', 'processing', 'paid', 'refunded', 'underpaid')\n           ORDER BY p.created_at DESC",
   "describe": {
     "columns": [
       {
@@ -139,5 +139,5 @@
       true
     ]
   },
-  "hash": "f389cd38bb1d9543db5c103144d12794ca8a162926d3299bdc2a65568b063566"
+  "hash": "3376f80b092333ded869711af900b486f33a142de111c34aa7079040e9964751"
 }

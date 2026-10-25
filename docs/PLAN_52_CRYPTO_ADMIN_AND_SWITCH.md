@@ -8,6 +8,14 @@ Status: implemented.
   payments of 5.00 and 11.00.
 - Billing loads its data in the browser, so the switch is checked by unit
   tests and the build, not in a browser.
+- Found while testing by hand: the panel hid open invoices, and a short
+  payment could not be refunded, though the admin alert said to.
+  - Open invoices are now listed as "Waiting for payment" or "Confirming".
+  - A short payment now has "Refund what arrived". It asks the provider what
+    came in (BTCPay's `paidAmount`), refunds that once at the rate it was
+    paid (`refundVariant: RateThen`), and leaves the plan alone.
+  - Checked live: $5.00 had arrived on a half-paid $10 invoice, and BTCPay
+    made the claim link.
 
 ## Goal
 

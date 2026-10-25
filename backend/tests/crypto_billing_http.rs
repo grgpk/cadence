@@ -1025,8 +1025,8 @@ async fn an_admin_lists_a_hosts_payments_and_refunds_part_then_the_rest(pool: Pg
     let second = checkout(&app, &cookie, "pro", "month").await;
     event(&app, &pool, second, "paid", SECRET).await;
     let two_months = period_end(&app, &cookie).await.expect("a crypto period");
-    // An invoice nobody paid is not a payment.
-    checkout(&app, &cookie, "pro", "month").await;
+    // An open invoice is listed too, so the admin sees it is waiting.
+    let open = checkout(&app, &cookie, "pro", "month").await;
 
     let (status, _) = send(&app, Method::GET, &payments_path(host), Some(&cookie), None).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
@@ -1045,7 +1045,11 @@ async fn an_admin_lists_a_hosts_payments_and_refunds_part_then_the_rest(pool: Pg
         .iter()
         .filter_map(|payment| payment["unid"].as_str())
         .collect();
-    assert_eq!(unids, [second.to_string(), first.to_string()]);
+    assert_eq!(
+        unids,
+        [open.to_string(), second.to_string(), first.to_string()]
+    );
+    assert_eq!(listed[0]["status"], "pending");
 
     // The older payment, in part: money back, time kept.
     let (status, made) = refund_payment(&app, &admin_cookie, first, Some(300)).await;
@@ -1090,9 +1094,9 @@ async fn an_admin_lists_a_hosts_payments_and_refunds_part_then_the_rest(pool: Pg
         None,
     )
     .await;
-    assert_eq!(listed[1]["status"], "refunded");
-    assert_eq!(listed[1]["refunded_cents"], 1000);
-    assert_eq!(listed[0]["status"], "paid");
+    assert_eq!(listed[2]["status"], "refunded");
+    assert_eq!(listed[2]["refunded_cents"], 1000);
+    assert_eq!(listed[1]["status"], "paid");
 
     let (status, _) = refund_payment(&app, &admin_cookie, first, None).await;
     assert_eq!(status, StatusCode::CONFLICT);
@@ -1130,4 +1134,51 @@ async fn admins_hear_about_a_short_payment(pool: PgPool) {
             .as_str()
             .is_some_and(|url| url.ends_with("/admin/plans"))
     );
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_short_payment_refunds_what_arrived_once(pool: PgPool) {
+    let crypto = CryptoPayments::fake(SECRET);
+    let app = app_with(&pool, Some(crypto.clone()));
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let short = checkout(&app, &cookie, "pro", "month").await;
+    let invoice = quiet(&pool, short).await;
+    crypto.set_fake_arrived(&invoice, 500);
+
+    // Open, nothing to refund yet.
+    let (status, _) = refund_payment(&app, &admin_cookie, short, None).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    event(&app, &pool, short, "underpaid", SECRET).await;
+    let (status, _) = refund_payment(&app, &admin_cookie, short, Some(100)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "no amount: what arrived");
+    let (status, made) = refund_payment(&app, &admin_cookie, short, None).await;
+    assert_eq!(status, StatusCode::OK, "{made}");
+    assert_eq!(made["amount_cents"], 500);
+    assert!(
+        made["claim_url"]
+            .as_str()
+            .is_some_and(|url| url.ends_with("/arrived"))
+    );
+    assert_eq!(period_end(&app, &cookie).await, None);
+    assert_eq!(
+        send(&app, Method::GET, ME, Some(&cookie), None).await.1["plan"],
+        "free"
+    );
+
+    let (status, _) = refund_payment(&app, &admin_cookie, short, None).await;
+    assert_eq!(status, StatusCode::CONFLICT, "once only");
+    let (_, listed) = send(
+        &app,
+        Method::GET,
+        &payments_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(listed[0]["status"], "underpaid");
+    assert_eq!(listed[0]["refunded_cents"], 500);
 }

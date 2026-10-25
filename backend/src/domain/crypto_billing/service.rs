@@ -11,7 +11,7 @@ use uuid::Uuid;
 
 use super::{
     db::{self, ActivePeriod, NewPayment, PaymentKind},
-    gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus},
+    gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus, RefundAmount},
     models::{
         AdminCryptoPayment, CryptoOptions, CryptoPlan, CryptoPrice, CryptoRefund, CryptoSummary,
         CryptoUpgrade,
@@ -477,14 +477,17 @@ pub async fn refund(
     let payment = db::for_refund(&mut transaction, payment_unid)
         .await?
         .ok_or(AppError::NotFound)?;
-    if payment.status != PaymentStatus::Paid {
-        return Err(AppError::Conflict(
-            "only a paid crypto payment can be refunded".to_owned(),
-        ));
-    }
     if payment.provider != crypto.provider() {
         return Err(AppError::Conflict(
             "paid through another crypto provider: refund it there".to_owned(),
+        ));
+    }
+    if payment.status == PaymentStatus::Underpaid {
+        return refund_short(transaction, crypto, &payment, amount_cents, now).await;
+    }
+    if payment.status != PaymentStatus::Paid {
+        return Err(AppError::Conflict(
+            "only a paid or short crypto payment can be refunded".to_owned(),
         ));
     }
     let left = u32::try_from(payment.amount_cents - payment.refunded_cents).unwrap_or(0);
@@ -503,7 +506,7 @@ pub async fn refund(
         take_back_time(&mut transaction, &payment, now).await?;
     }
     let claim_url = crypto
-        .refund(invoice, amount)
+        .refund(invoice, RefundAmount::Dollars(amount))
         .await
         .map_err(|error| AppError::Internal(error.into()))?;
     let cents = i32::try_from(amount).map_err(|error| AppError::Internal(error.into()))?;
@@ -551,6 +554,75 @@ pub async fn refund(
             )
             .await?;
         }
+    }
+    transaction.commit().await?;
+    Ok(CryptoRefund {
+        amount_cents: cents,
+        claim_url,
+    })
+}
+
+/// Gives back what arrived on a short invoice, once, in its coin at the rate
+/// it was paid. It bought no time, so the plan is not touched.
+async fn refund_short(
+    mut transaction: sqlx::Transaction<'_, sqlx::Postgres>,
+    crypto: &CryptoPayments,
+    payment: &db::RefundRow,
+    amount_cents: Option<u32>,
+    now: DateTime<Utc>,
+) -> AppResult<CryptoRefund> {
+    if amount_cents.is_some() {
+        return Err(AppError::BadRequest(
+            "a short payment is refunded as what arrived, with no amount".to_owned(),
+        ));
+    }
+    if payment.refunded_cents > 0 {
+        return Err(AppError::Conflict(
+            "this short payment was refunded already".to_owned(),
+        ));
+    }
+    let invoice = payment
+        .provider_invoice_id
+        .as_deref()
+        .ok_or_else(|| AppError::Internal(anyhow::anyhow!("a short payment has no invoice")))?;
+    let arrived = crypto
+        .arrived_cents(invoice)
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?
+        .ok_or_else(|| {
+            AppError::Conflict("this provider refunds from its own dashboard".to_owned())
+        })?;
+    if arrived == 0 {
+        return Err(AppError::Conflict(
+            "nothing arrived on this invoice".to_owned(),
+        ));
+    }
+    let claim_url = crypto
+        .refund(invoice, RefundAmount::WhatArrived)
+        .await
+        .map_err(|error| AppError::Internal(error.into()))?;
+    let cents = i32::try_from(arrived).map_err(|error| AppError::Internal(error.into()))?;
+    db::insert_refund(&mut transaction, payment.unid, cents, claim_url.as_deref()).await?;
+    if let (Some(contact), Some(claim_url)) = (
+        billing_db::contact(&mut transaction, payment.user_unid).await?,
+        &claim_url,
+    ) {
+        let lines = vec![
+            format!(
+                "We have refunded the {} that arrived of your short crypto payment.",
+                dollars(cents)
+            ),
+            "Nothing was added to your plan for it.".to_owned(),
+        ];
+        emails::queue_crypto_refund(
+            &mut transaction,
+            &contact.email,
+            &contact.full_name,
+            claim_url,
+            lines,
+            now,
+        )
+        .await?;
     }
     transaction.commit().await?;
     Ok(CryptoRefund {

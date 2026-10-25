@@ -359,7 +359,8 @@ pub async fn payments_of(
                             WHERE r.payment_unid = p.unid), 0)::INTEGER AS "refunded_cents!",
                   p.status AS "status: PaymentStatus", p.created_at, p.paid_at, p.period_end
            FROM crypto_payments p
-           WHERE p.user_unid = $1 AND p.status IN ('paid', 'refunded', 'underpaid')
+           WHERE p.user_unid = $1
+             AND p.status IN ('pending', 'processing', 'paid', 'refunded', 'underpaid')
            ORDER BY p.created_at DESC"#,
         user_unid,
     )
