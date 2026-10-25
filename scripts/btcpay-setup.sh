@@ -102,7 +102,10 @@ if [[ "${1:-}" == "pay-invoice" ]]; then
     key=$(read_env BTCPAY_DEV_ADMIN_KEY)
     store=$(read_env BTCPAY_STORE_ID)
     [[ -n "$key" && -n "$store" ]] || { echo "Run scripts/btcpay-setup.sh first."; exit 1; }
-    invoice=${2##*/}
+    # A checkout link is .../i/<id>, or .../i/<id>/<method> once a coin is picked.
+    invoice=${2%%\?*}
+    [[ "$invoice" == */i/* ]] && invoice=${invoice#*/i/} && invoice=${invoice%%/*}
+    invoice=${invoice##*/}
     methods=$(curl -sf -H "Authorization: token $key" \
         "$URL/api/v1/stores/$store/invoices/$invoice/payment-methods") ||
         { echo "No invoice $invoice in the local BTCPay."; exit 1; }

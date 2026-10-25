@@ -48,7 +48,8 @@ These come from the plugin's source (v0.7.9.0, needs BTCPay 2.3.7 or newer):
     available.
   - Writes `BTCPAY_COINS`. Plain setup keeps the label right too.
 - **`pay-invoice <link> usdt`:** prints the address and amount to send from
-  TronLink.
+  TronLink. It also takes the link as BTCPay shows it after a coin is
+  picked, `.../i/<id>/USDT-TRON`.
 - **`pay ... usdt`:** refused, because the script holds no TRON keys.
 - **Gateway:** if a refund naming the paid coin gets `422`, it is tried once
   more without the coin, so the buyer claims the dollars in Bitcoin. Other
