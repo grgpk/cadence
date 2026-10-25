@@ -111,21 +111,34 @@ async fn filled_in(
     })
 }
 
+/// The email as it goes out, and what to do with it now: drop a crypto
+/// notice a card subscription has made untrue, else what the email itself
+/// says (a call cancelled or started drops its own).
+async fn prepared(
+    connection: &mut PgConnection,
+    email: &PendingEmail,
+) -> Result<(PendingEmail, Delivery), sqlx::Error> {
+    let email = filled_in(connection, email).await?;
+    let delivery =
+        if crypto_billing::notice_superseded(connection, &email.template, &email.email).await? {
+            Delivery::Drop
+        } else {
+            service::delivery(&email, Utc::now())
+        };
+    Ok((email, delivery))
+}
+
 /// Sends, drops or fails one claimed email and records which.
 async fn deliver<M: Mailer + Sync>(
     connection: &mut PgConnection,
     email: &PendingEmail,
     mailer: &M,
 ) -> Result<(), sqlx::Error> {
-    let email = &filled_in(connection, email).await?;
-    if crypto_billing::notice_superseded(connection, &email.template, &email.email).await? {
-        tracing::info!(email_id = %email.id, template = %email.template, "crypto notice dropped, the host pays by card now");
-        db::delete(connection, email.id).await?;
-        return Ok(());
-    }
-    match service::delivery(email, Utc::now()) {
+    let (email, delivery) = prepared(connection, email).await?;
+    let email = &email;
+    match delivery {
         Delivery::Drop => {
-            tracing::info!(email_id = %email.id, template = %email.template, "email dropped, its call is cancelled or has started");
+            tracing::info!(email_id = %email.id, template = %email.template, "email dropped, it is no longer true");
             db::delete(connection, email.id).await?;
         }
         Delivery::UnknownTemplate => {
