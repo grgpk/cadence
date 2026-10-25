@@ -253,10 +253,15 @@ The local BTCPay runs regtest, and on regtest the plugin uses TRON's Nile
 testnet (public node `nile.trongrid.io`, no key needed). The coins are free
 test coins, and your computer needs internet.
 
-1. **Wallet.** Install TronLink, switch it to *Nile Testnet*, and copy one or
-   more of its addresses.
+1. **Wallets.** Install TronLink and switch it to *Nile Testnet*. If only
+   Mainnet is listed, add a node under Settings: full and solidity node
+   `https://api.nileex.io`, event server `https://event.nileex.io`. Make one
+   or more store accounts, whose addresses receive, and a separate customer
+   account that pays.
 2. **Test coins.** Get test TRX (for fees) and test USDT from the Nile faucet
-   at nileex.io.
+   at nileex.io, sent to the customer account. Its USDT is contract
+   `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, which `usdt` tells the plugin to
+   watch; USDT from another contract is not counted.
 3. **Set it up.** With the local BTCPay running and `scripts/btcpay-setup.sh`
    already run once, run:
 
@@ -264,8 +269,8 @@ test coins, and your computer needs internet.
    scripts/btcpay-setup.sh usdt <nile address> [<nile address>...]
    ```
 
-   It downloads the pinned plugin, installs it, gives the store your
-   addresses, restarts BTCPay, and sets
+   It downloads the pinned plugin, installs it, sets the faucet's USDT
+   contract, gives the store your addresses, restarts BTCPay, and sets
    `BTCPAY_COINS="Bitcoin, Litecoin or USDT"`. Then restart the backend. Run
    it again with a new list to replace the addresses.
 4. **Pay.** Start a crypto checkout in Billing. The BTCPay page offers

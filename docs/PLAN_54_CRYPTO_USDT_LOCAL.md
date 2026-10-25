@@ -29,6 +29,13 @@ Status: implemented.
 These come from the plugin's source (v0.7.9.0, needs BTCPay 2.3.7 or newer):
 - On regtest the plugin uses TRON Nile: `https://nile.trongrid.io/jsonrpc`,
   test USDT contract `TXLAQ63Xg1NAzckPwKHvzw7CSEmLMEqcdj`, `USDt_USD = 1`.
+  The nileex.io faucet hands out a different one,
+  `TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf`, so `usdt` sets that contract in
+  the plugin's server setting (`USDT_TRON_SERVER_SETTINGS` in BTCPay's
+  `Settings` table). Found live: a faucet payment was not seen until then.
+- The listener keeps its block in `USDT_TRON_LISTENER_STATE` and saves it
+  on shutdown. To pick up a payment it skipped, stop BTCPay, lower
+  `LastBlockHeight`, and start it.
 - The payment method is `USDT-TRON`. The store sets it through the generic
   `PUT /api/v1/stores/{store}/payment-methods/USDT-TRON` with
   `{"enabled":true,"config":{"addresses":[...]}}`.

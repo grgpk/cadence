@@ -44,6 +44,9 @@ COINS=(btc ltc)
 USDT_PLUGIN=BTCPayServer.Plugins.USDt
 USDT_PLUGIN_URL=https://plugin-builder.btcpayserver.org/api/v1/plugins/tether-usdt/versions/0.7.9.0/download
 PLUGIN_DIR=/datadir/Plugins
+# The nileex.io faucet's test USDT. The plugin watches another Nile contract
+# unless told, and payments from the faucet's would never count.
+NILE_USDT=TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf
 WALLET=dev
 # A payment counts once its block is this deep; BTCPay asks for fewer.
 CONFIRM_BLOCKS=6
@@ -236,6 +239,13 @@ if [[ "${1:-}" == "usdt" ]]; then
         echo "Installing the Tether USDt plugin..."
         restart_btcpay
     fi
+
+    # The plugin's server setting has no API, so it goes straight into
+    # BTCPay's settings table; the restart below loads it.
+    "${COMPOSE[@]}" exec -T postgres psql -q -U postgres -d btcpayserver -c "
+        INSERT INTO \"Settings\" (\"Id\", \"Value\") VALUES ('USDT_TRON_SERVER_SETTINGS',
+            '{\"SmartContractAddress\": \"$NILE_USDT\", \"JsonRpcUri\": \"https://nile.trongrid.io/jsonrpc\"}')
+        ON CONFLICT (\"Id\") DO UPDATE SET \"Value\" = excluded.\"Value\""
 
     # The receiving addresses; the plugin hands one to each open invoice.
     btcpay_api PUT "/api/v1/stores/$store/payment-methods/USDT-TRON" \
