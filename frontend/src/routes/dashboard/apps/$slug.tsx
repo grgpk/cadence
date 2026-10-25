@@ -112,8 +112,8 @@ function AppDetailsPage() {
             />
           ) : app.slug === APP_SLUG.aiAgents ? (
             <PanelCard
-              title="Your agent tokens"
-              description="Each token lets one AI agent manage your calls. Revoke it to shut that agent out."
+              title="Your agents"
+              description="Apps you connected and tokens you made. Each one can manage your calls until you revoke it."
             >
               <AiAgentsPanel />
             </PanelCard>

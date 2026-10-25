@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { claudeCodeCommand, mcpServersJson, mcpUrl } from "./ai-agents";
+import type { AccessToken } from "../../bindings/AccessToken";
+import { claudeCodeCommand, mcpServersJson, mcpUrl, splitTokens } from "./ai-agents";
 
 const TOKEN = "cad_0123abcd";
 
@@ -30,5 +31,28 @@ describe("setup snippets", () => {
         },
       },
     });
+  });
+});
+
+describe("splitTokens", () => {
+  const token = (name: string, connector: boolean): AccessToken => ({
+    unid: name,
+    name,
+    last_four: "abcd",
+    scope: "full",
+    last_used_at: null,
+    created_at: "2026-10-25T12:00:00Z",
+    connector,
+  });
+
+  it("puts signed-in apps apart from hand-made tokens, keeping their order", () => {
+    const tokens = [
+      token("Script", false),
+      token("Claude", true),
+      token("Laptop", false),
+    ];
+    const { connected, personal } = splitTokens(tokens);
+    expect(connected.map((t) => t.name)).toEqual(["Claude"]);
+    expect(personal.map((t) => t.name)).toEqual(["Script", "Laptop"]);
   });
 });

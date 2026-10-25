@@ -1,3 +1,4 @@
+import type { AccessToken } from "../../bindings/AccessToken";
 import type { AccessTokenScope } from "../../bindings/AccessTokenScope";
 
 /** The name agents list the server under. */
@@ -31,4 +32,18 @@ export function mcpServersJson(url: string, token: string): string {
     },
   };
   return JSON.stringify(config, null, 2);
+}
+
+/**
+ * Apps that connected by signing in (claude.ai, ChatGPT) apart from tokens the
+ * host made by hand, each in the order the server lists them.
+ */
+export function splitTokens(tokens: readonly AccessToken[]): {
+  connected: AccessToken[];
+  personal: AccessToken[];
+} {
+  return {
+    connected: tokens.filter((token) => token.connector),
+    personal: tokens.filter((token) => !token.connector),
+  };
 }
