@@ -26,16 +26,9 @@ const STEPS = [
   },
 ];
 
-/** Sign-up for a visitor; the dashboard for someone already signed in. */
-function AccountLink() {
-  return useSessionUser() ? (
-    <Link to={ROUTES.dashboard}>Go to your dashboard</Link>
-  ) : (
-    <Link to={ROUTES.register}>Create your account</Link>
-  );
-}
-
 export function LandingPage() {
+  // Sign-up is for visitors; the header already leads a signed-in host home.
+  const signedIn = useSessionUser() !== null;
   return (
     <PublicLayout>
       <section className="pt-12 pb-16 sm:pt-20 sm:pb-24">
@@ -49,9 +42,11 @@ export function LandingPage() {
               is on your calendar.
             </p>
             <div className="flex flex-wrap gap-2">
-              <Button size="lg" asChild>
-                <AccountLink />
-              </Button>
+              {signedIn ? null : (
+                <Button size="lg" asChild>
+                  <Link to={ROUTES.register}>Create your account</Link>
+                </Button>
+              )}
               <Button size="lg" variant="ghost" asChild>
                 <Link to={ROUTES.pricing}>See pricing</Link>
               </Button>
@@ -106,9 +101,11 @@ export function LandingPage() {
           <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
             Open your week in a few minutes.
           </h2>
-          <Button size="lg" asChild>
-            <AccountLink />
-          </Button>
+          {signedIn ? null : (
+            <Button size="lg" asChild>
+              <Link to={ROUTES.register}>Create your account</Link>
+            </Button>
+          )}
         </div>
       </section>
     </PublicLayout>

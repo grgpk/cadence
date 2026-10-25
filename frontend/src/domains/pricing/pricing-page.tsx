@@ -261,17 +261,13 @@ export function PricingPage({
       <section className="border-t bg-card">
         <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-5 px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
-            {signedIn
-              ? "Pick your plan in Billing."
-              : "Try every Pro feature for 14 days."}
+            Try every Pro feature for 14 days.
           </h2>
-          <Button size="lg" asChild>
-            {signedIn ? (
-              <Link to={ROUTES.dashboardBilling}>Go to Billing</Link>
-            ) : (
+          {signedIn ? null : (
+            <Button size="lg" asChild>
               <Link to={ROUTES.register}>Create your account</Link>
-            )}
-          </Button>
+            </Button>
+          )}
         </div>
       </section>
     </PublicLayout>
