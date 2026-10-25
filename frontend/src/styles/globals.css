@@ -38,6 +38,8 @@
   --dawn: oklch(0.87 0.085 55);
   --noon: oklch(0.8 0.15 80);
   --dusk: oklch(0.48 0.21 280);
+  /* Plan 49: paying in crypto, Bitcoin's orange, dark enough on white. */
+  --crypto: oklch(0.66 0.18 52);
   --day-foreground: oklch(0.21 0.034 265);
   --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.52 0.13 152);
@@ -80,6 +82,7 @@
   --dawn: oklch(0.84 0.09 55);
   --noon: oklch(0.82 0.15 80);
   --dusk: oklch(0.55 0.2 282);
+  --crypto: oklch(0.78 0.16 60);
   --day-foreground: oklch(0.185 0.006 280);
   --dusk-foreground: oklch(1 0 0);
   --success: oklch(0.75 0.15 152);
@@ -121,6 +124,7 @@
   --color-dawn: var(--dawn);
   --color-noon: var(--noon);
   --color-dusk: var(--dusk);
+  --color-crypto: var(--crypto);
   --color-day-foreground: var(--day-foreground);
   --color-dusk-foreground: var(--dusk-foreground);
   --color-success: var(--success);

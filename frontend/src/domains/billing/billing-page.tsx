@@ -298,7 +298,11 @@ function FinishPick({
             Decide later
           </Button>
           <Button onClick={onCheckout} disabled={pending}>
-            {pending ? <Loader2 className="animate-spin" /> : crypto ? <Bitcoin /> : null}
+            {pending ? (
+              <Loader2 className="animate-spin" />
+            ) : crypto ? (
+              <Bitcoin className="text-crypto" />
+            ) : null}
             {crypto ? `Pay for ${name} in crypto` : `Subscribe to ${name}`}
           </Button>
         </div>

@@ -18,19 +18,28 @@ export function SegmentedControl<T extends string | boolean>({
   onChange,
   size = "md",
   className,
+  allIcons = false,
 }: {
   /** What is being chosen, for someone who cannot see the group. */
   label: string;
   value: T;
-  options: readonly { value: T; label: string; icon?: LucideIcon }[];
+  options: readonly {
+    value: T;
+    label: string;
+    icon?: LucideIcon;
+    /** The icon's own colour, such as `text-crypto`. */
+    iconClassName?: string;
+  }[];
   onChange: (value: T) => void;
   size?: keyof typeof SIZES;
   className?: string;
+  /** Every option shows its icon, for choices told apart by them. */
+  allIcons?: boolean;
 }) {
   return (
     // biome-ignore lint/a11y/useSemanticElements: a fieldset would need a visible legend
     <div role="group" aria-label={label} className={cn(SEGMENT_TRACK, className)}>
-      {options.map(({ value: option, label: text, icon: Icon }) => (
+      {options.map(({ value: option, label: text, icon: Icon, iconClassName }) => (
         <button
           key={String(option)}
           type="button"
@@ -38,9 +47,16 @@ export function SegmentedControl<T extends string | boolean>({
           onClick={() => onChange(option)}
           className={cn(SEGMENT, SIZES[size], value === option && SEGMENT_ON)}
         >
-          {/* Shown on the chosen option only; the others keep its space so nothing shifts. */}
+          {/* Shown on the chosen option only, unless `allIcons`; the others keep
+              its space so nothing shifts. */}
           {Icon ? (
-            <Icon className={cn("size-4", value !== option && "invisible")} />
+            <Icon
+              className={cn(
+                "size-4",
+                iconClassName,
+                !allIcons && value !== option && "invisible",
+              )}
+            />
           ) : null}
           {text}
         </button>

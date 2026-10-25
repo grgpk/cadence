@@ -107,7 +107,11 @@ export function CryptoCard({
             onClick={() => onCheckout({ plan, interval })}
             disabled={pending}
           >
-            {pending ? <Loader2 className="animate-spin" /> : <Bitcoin />}
+            {pending ? (
+              <Loader2 className="animate-spin" />
+            ) : (
+              <Bitcoin className="text-crypto" />
+            )}
             {crypto.active ? `Renew ${PLAN_NAMES[plan]} with crypto` : "Pay with crypto"}
           </Button>
         </div>

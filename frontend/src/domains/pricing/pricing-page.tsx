@@ -133,9 +133,20 @@ export function PricingPage({
                   label="Pay with"
                   value={pay}
                   onChange={(next) => onChange(interval, needs, next)}
+                  allIcons
                   options={[
-                    { value: PAY.CARD, label: "Card", icon: CreditCard },
-                    { value: PAY.CRYPTO, label: "Crypto", icon: Bitcoin },
+                    {
+                      value: PAY.CARD,
+                      label: "Card",
+                      icon: CreditCard,
+                      iconClassName: "text-dusk",
+                    },
+                    {
+                      value: PAY.CRYPTO,
+                      label: "Crypto",
+                      icon: Bitcoin,
+                      iconClassName: "text-crypto",
+                    },
                   ]}
                 />
               ) : null}
@@ -180,7 +191,7 @@ export function PricingPage({
               className="mt-6 flex items-start gap-2.5 text-muted-foreground"
               role="note"
             >
-              <Bitcoin className="mt-0.5 size-5 shrink-0 text-dusk" aria-hidden />
+              <Bitcoin className="mt-0.5 size-5 shrink-0 text-crypto" aria-hidden />
               <span>
                 <span className="font-semibold text-foreground">
                   Paid in {cryptoCoins}.
