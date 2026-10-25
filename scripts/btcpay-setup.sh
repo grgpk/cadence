@@ -8,6 +8,8 @@
 #   docker compose -f docker-compose.btcpay.yml up -d
 #   scripts/btcpay-setup.sh                      set up, then restart the backend
 #   scripts/btcpay-setup.sh pay <address> <btc>  pay an invoice and confirm it
+#   scripts/btcpay-setup.sh pay-invoice <link>   pay a checkout page's invoice in full
+#   scripts/btcpay-setup.sh pay-invoice <link> short   pay half of it, to test a short payment
 #
 # The BTCPay dashboard is http://localhost:49392, signed in with the
 # ADMIN_EMAIL and ADMIN_PASSWORD below.
@@ -45,6 +47,26 @@ mine() {
     address=$(bitcoin_cli -rpcwallet="$WALLET" getnewaddress)
     bitcoin_cli generatetoaddress "$1" "$address" >/dev/null
 }
+
+if [[ "${1:-}" == "pay-invoice" ]]; then
+    [[ $# -ge 2 ]] || { echo "Usage: scripts/btcpay-setup.sh pay-invoice <checkout link or invoice id> [short]"; exit 1; }
+    key=$(grep -E '^BTCPAY_DEV_ADMIN_KEY=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
+    store=$(grep -E '^BTCPAY_STORE_ID=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
+    [[ -n "$key" && -n "$store" ]] || { echo "Run scripts/btcpay-setup.sh first."; exit 1; }
+    invoice=${2##*/}
+    methods=$(curl -sf -H "Authorization: token $key" \
+        "$URL/api/v1/stores/$store/invoices/$invoice/payment-methods") ||
+        { echo "No invoice $invoice in the local BTCPay."; exit 1; }
+    read -r address due < <(python3 -c '
+import json, sys
+method = next(m for m in json.loads(sys.argv[1]) if m["paymentMethodId"] == "BTC-CHAIN")
+due = float(method["due"]) / (2 if sys.argv[2] == "short" else 1)
+print(method["destination"], f"{due:.8f}")' "$methods" "${3:-full}")
+    bitcoin_cli -rpcwallet="$WALLET" sendtoaddress "$address" "$due" >/dev/null
+    mine "$CONFIRM_BLOCKS"
+    echo "Paid $due BTC on invoice $invoice and mined $CONFIRM_BLOCKS blocks."
+    exit 0
+fi
 
 if [[ "${1:-}" == "pay" ]]; then
     [[ $# -eq 3 ]] || { echo "Usage: scripts/btcpay-setup.sh pay <address> <btc>"; exit 1; }
