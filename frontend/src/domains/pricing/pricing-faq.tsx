@@ -57,7 +57,7 @@ const QUESTIONS = [
 function cryptoQuestion(coins: string) {
   return {
     question: "Can I pay with crypto?",
-    answer: `Yes, in ${coins}. After you sign up, pick a plan under Pay with crypto in Billing and pay for a month or a year up front. Crypto never renews by itself: we email you 3 days before the period ends, and you can move up to Business at any time for the difference.`,
+    answer: `Yes, in ${coins}. Switch the plans above to Crypto and pick one: you pay for a month or a year up front right after signing up, or later from Billing. Crypto never renews by itself, so we email you 3 days before the period ends, and you can move up to Business at any time for the difference. Paying by card stays as it is.`,
   };
 }
 

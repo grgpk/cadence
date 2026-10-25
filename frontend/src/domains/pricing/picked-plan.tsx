@@ -4,21 +4,38 @@ import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { ROUTES } from "../../lib/routes";
-import { DEFAULT_INTERVAL, formatCents, INTERVAL, PLAN_NAMES, priceFor } from "./pricing";
+import {
+  DEFAULT_INTERVAL,
+  formatCents,
+  INTERVAL,
+  PAY,
+  type PayMethod,
+  PLAN_NAMES,
+  priceFor,
+} from "./pricing";
 
 /** The plan picked on the pricing page, shown while signing up for it. */
 export function PickedPlan({
   plan,
   interval,
+  pay = PAY.CARD,
   offers,
 }: {
   plan: Plan;
   interval: BillingInterval;
+  pay?: PayMethod;
   offers: readonly PlanOffer[];
 }) {
+  const crypto = pay === PAY.CRYPTO;
   const offer = offers.find((candidate) => candidate.plan === plan);
   const price = offer && priceFor(offer, interval);
-  const period = interval === INTERVAL.YEAR ? "yearly" : "monthly";
+  const period = crypto
+    ? interval === INTERVAL.YEAR
+      ? "a year up front in crypto"
+      : "a month up front in crypto"
+    : interval === INTERVAL.YEAR
+      ? "yearly"
+      : "monthly";
   return (
     <div className="rounded-lg border border-dusk/50 bg-dusk/5 p-4 text-sm">
       <div className="flex items-baseline justify-between gap-3">
@@ -33,15 +50,19 @@ export function PickedPlan({
         </p>
         <Link
           to={ROUTES.pricing}
-          search={interval === DEFAULT_INTERVAL ? {} : { interval }}
+          search={{
+            ...(interval === DEFAULT_INTERVAL ? {} : { interval }),
+            ...(crypto ? { pay } : {}),
+          }}
           className="font-medium underline underline-offset-4"
         >
           Change
         </Link>
       </div>
       <p className="mt-1 text-muted-foreground">
-        Your account starts with 14 days of Pro, no card needed. Subscribe to{" "}
-        {PLAN_NAMES[plan]} on the next screen, or later from Billing.
+        {crypto
+          ? `Your account starts with 14 days of Pro. Pay for ${PLAN_NAMES[plan]} in crypto on the next screen, or later from Billing. It does not renew by itself.`
+          : `Your account starts with 14 days of Pro, no card needed. Subscribe to ${PLAN_NAMES[plan]} on the next screen, or later from Billing.`}
       </p>
     </div>
   );

@@ -58,6 +58,18 @@ describe("checkoutIntent", () => {
     });
   });
 
+  it("keeps a pick to be paid in crypto, and nothing else as a way to pay", () => {
+    expect(checkoutIntent({ plan: "pro", interval: "month", pay: "crypto" })).toEqual({
+      plan: "pro",
+      interval: "month",
+      pay: "crypto",
+    });
+    expect(checkoutIntent({ plan: "pro", interval: "month", pay: "card" })).toEqual({
+      plan: "pro",
+      interval: "month",
+    });
+  });
+
   it("drops Free, unknown values and half an intent", () => {
     expect(checkoutIntent({ plan: "free", interval: "month" })).toEqual({});
     expect(checkoutIntent({ plan: "gold", interval: "month" })).toEqual({});

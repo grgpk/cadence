@@ -21,6 +21,7 @@ use crate::{
             db as billing_db,
             models::StartCheckout,
             plans::{BillingInterval, Plan, SubscriptionStatus},
+            service as billing,
         },
         emails::service::{self as emails, AccountNotice, app_url},
     },
@@ -338,6 +339,21 @@ pub async fn refund(
         .map_err(|error| AppError::Internal(error.into()))?;
     if let Some(contact) = billing_db::contact(&mut transaction, user_unid).await? {
         remind_before(&mut transaction, user_unid, &contact, now).await?;
+        // The payment took the trial's "you move to Free" away; with no crypto
+        // time left it is true again.
+        if db::active(&mut *transaction, user_unid, now)
+            .await?
+            .is_none()
+        {
+            billing::restore_trial_notice(
+                &mut transaction,
+                user_unid,
+                &contact.email,
+                &contact.full_name,
+                now,
+            )
+            .await?;
+        }
         if let Some(claim_url) = &claim_url {
             emails::queue_crypto_refund(
                 &mut transaction,

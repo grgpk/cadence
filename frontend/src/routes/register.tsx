@@ -119,7 +119,12 @@ function RegisterPage() {
         </p>
       ) : null}
       {intent.plan && intent.interval ? (
-        <PickedPlan plan={intent.plan} interval={intent.interval} offers={offers} />
+        <PickedPlan
+          plan={intent.plan}
+          interval={intent.interval}
+          pay={intent.pay}
+          offers={offers}
+        />
       ) : null}
       <div className="grid gap-2">
         <Label htmlFor="full_name">Name</Label>

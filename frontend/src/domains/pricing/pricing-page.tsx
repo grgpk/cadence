@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Bitcoin, Check } from "lucide-react";
+import { Bitcoin, Check, CreditCard } from "lucide-react";
 import { useState } from "react";
 
 import type { BillingInterval } from "../../bindings/BillingInterval";
@@ -13,6 +13,8 @@ import { CompareTable } from "./compare-table";
 import { PlanCard, PlanRow } from "./plan-card";
 import {
   INTERVAL,
+  PAY,
+  type PayMethod,
   PLAN,
   PLAN_CTA,
   PLAN_NAMES,
@@ -28,15 +30,17 @@ import { WeekSizer } from "./week-sizer";
 const SEGMENTS_FILL =
   "w-full sm:w-auto [&>button]:flex-1 [&>button]:justify-center [&>button]:whitespace-nowrap";
 
-/** Sign-up, carrying a paid pick through to checkout. */
+/** Sign-up, carrying a paid pick, and how it is paid, through to checkout. */
 function StartButton({
   offer,
   interval,
+  pay,
   recommended,
   size,
 }: {
   offer: PlanOffer;
   interval: BillingInterval;
+  pay: PayMethod;
   recommended: Plan;
   size?: "sm";
 }) {
@@ -48,7 +52,11 @@ function StartButton({
     >
       <Link
         to={ROUTES.register}
-        search={offer.plan === PLAN.FREE ? {} : { plan: offer.plan, interval }}
+        search={
+          offer.plan === PLAN.FREE
+            ? {}
+            : { plan: offer.plan, interval, ...(pay === PAY.CRYPTO ? { pay } : {}) }
+        }
       >
         {PLAN_CTA[offer.plan]}
       </Link>
@@ -60,6 +68,7 @@ export function PricingPage({
   offers,
   cryptoCoins,
   interval,
+  pay: asked,
   needs,
   onChange,
 }: {
@@ -67,9 +76,12 @@ export function PricingPage({
   /** What a host can pay with in crypto, such as "Bitcoin". `null` when crypto is off. */
   cryptoCoins: string | null;
   interval: BillingInterval;
+  /** How the visitor means to pay. Crypto is shown only while the server takes it. */
+  pay: PayMethod;
   needs: WeekNeeds;
-  onChange: (interval: BillingInterval, needs: WeekNeeds) => void;
+  onChange: (interval: BillingInterval, needs: WeekNeeds, pay: PayMethod) => void;
 }) {
+  const pay = cryptoCoins ? asked : PAY.CARD;
   // The plan the phone-width table shows: the recommended one until picked by hand.
   const [compared, setCompared] = useState<Plan | null>(null);
   const recommended = recommendPlan(offers, needs);
@@ -94,12 +106,13 @@ export function PricingPage({
               <WeekSizer
                 offers={offers}
                 needs={needs}
-                onChange={(next) => onChange(interval, next)}
+                onChange={(next) => onChange(interval, next, pay)}
                 action={
                   recommendedOffer ? (
                     <StartButton
                       offer={recommendedOffer}
                       interval={interval}
+                      pay={pay}
                       recommended={recommended}
                     />
                   ) : null
@@ -113,19 +126,33 @@ export function PricingPage({
 
           <div className="mt-12 flex flex-wrap items-center justify-between gap-4">
             <h2 className="text-lg font-semibold">Plans</h2>
-            <SegmentedControl
-              className={SEGMENTS_FILL}
-              label="Billing period"
-              value={interval}
-              onChange={(next) => onChange(next, needs)}
-              options={[
-                { value: INTERVAL.MONTH, label: "Monthly" },
-                {
-                  value: INTERVAL.YEAR,
-                  label: yearlyLabel(offers),
-                },
-              ]}
-            />
+            <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+              {cryptoCoins ? (
+                <SegmentedControl
+                  className={SEGMENTS_FILL}
+                  label="Pay with"
+                  value={pay}
+                  onChange={(next) => onChange(interval, needs, next)}
+                  options={[
+                    { value: PAY.CARD, label: "Card", icon: CreditCard },
+                    { value: PAY.CRYPTO, label: "Crypto", icon: Bitcoin },
+                  ]}
+                />
+              ) : null}
+              <SegmentedControl
+                className={SEGMENTS_FILL}
+                label="Billing period"
+                value={interval}
+                onChange={(next) => onChange(next, needs, pay)}
+                options={[
+                  { value: INTERVAL.MONTH, label: "Monthly" },
+                  {
+                    value: INTERVAL.YEAR,
+                    label: yearlyLabel(offers),
+                  },
+                ]}
+              />
+            </div>
           </div>
           <div className="mt-5">
             <PlanRow>
@@ -135,10 +162,12 @@ export function PricingPage({
                   offer={offer}
                   interval={interval}
                   fits={offer.plan === recommended}
+                  prepaid={pay === PAY.CRYPTO}
                   action={
                     <StartButton
                       offer={offer}
                       interval={interval}
+                      pay={pay}
                       recommended={recommended}
                     />
                   }
@@ -146,13 +175,19 @@ export function PricingPage({
               ))}
             </PlanRow>
           </div>
-          {cryptoCoins ? (
-            <p className="mt-6 flex items-start gap-2.5 text-muted-foreground">
+          {pay === PAY.CRYPTO && cryptoCoins ? (
+            <p
+              className="mt-6 flex items-start gap-2.5 text-muted-foreground"
+              role="note"
+            >
               <Bitcoin className="mt-0.5 size-5 shrink-0 text-dusk" aria-hidden />
               <span>
-                <span className="font-semibold text-foreground">Prefer crypto?</span> Pay
-                for a month or a year up front in {cryptoCoins} from Billing once you have
-                signed up. It does not renew by itself.
+                <span className="font-semibold text-foreground">
+                  Paid in {cryptoCoins}.
+                </span>{" "}
+                You pay for a month or a year up front right after signing up. Nothing
+                renews by itself: we email you 3 days before it ends, and you can move up
+                to Business for the difference at any time.
               </span>
             </p>
           ) : null}
@@ -187,6 +222,7 @@ export function PricingPage({
                 <StartButton
                   offer={offer}
                   interval={interval}
+                  pay={pay}
                   recommended={recommended}
                   size="sm"
                 />

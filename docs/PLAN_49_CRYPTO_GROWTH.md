@@ -15,8 +15,8 @@ Status: implemented.
   API key (`BTCPAY_DEV_ADMIN_KEY`) on the first run and uses it afterwards.
   It also waits for BTCPay to be ready and mines until the test coins can be
   spent.
-- Known edge: a full refund during a trial does not bring back the
-  trial-ending email that the crypto payment took away.
+- A full refund during a trial brings back the trial-ending email that the
+  crypto payment took away (`billing::restore_trial_notice`).
 
 ## Goal
 
@@ -111,16 +111,32 @@ yet, following the no-ALTER rule:
 - `GET /api/billing/crypto/options` (public) returns `{ available, coins }`.
   `coins` comes from the provider: "Bitcoin" for BTCPay, "Bitcoin, USDT, USDC
   and more" for NOWPayments.
-- When it's available, the pricing page shows a line under the plans and a FAQ
-  answer. Billing's crypto card names the coins the same way.
+- When crypto is available, a **Pay with: Card | Crypto** switch sits next to
+  the billing period.
+  - Card is the default and changes nothing: the same cards, buttons and
+    Stripe checkout as before.
+  - Crypto switches every paid plan at once. The prices stay the same; the
+    lines say "Paid up front for a month" or "… up front for a year". A note
+    under the plans says which coins and that nothing renews by itself.
+- The choice lives in the URL as `?pay=crypto`. It goes through sign-up
+  (`/register?plan=&interval=&pay=crypto`, where the picked-plan summary says
+  "in crypto") to Billing.
+  - There, "Finish your pick" opens the crypto checkout instead of Stripe's.
+  - If crypto has since been turned off, or Stripe already bills the host, it
+    falls back to the card pick.
+- The FAQ answer "Can I pay with crypto?" points to the switch.
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│ Plans                              [Monthly|Yearly]      │
-│ ┌ Free ┐ ┌ Pro ┐ ┌ Business ┐                            │
-│ ₿ Prefer crypto? Pay a month or a year up front in       │
-│   Bitcoin from Billing once you have signed up.          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│ Plans          [▭ Card | ₿ Crypto]  [Monthly | Yearly −20%]  │
+│ ┌ Free ──────┐ ┌ Pro ───────────┐ ┌ Business ─────────────┐  │
+│ │ $0         │ │ $8 / month     │ │ $13 / month           │  │
+│ │            │ │ $96 up front   │ │ $156 up front         │  │
+│ │            │ │ for a year     │ │ for a year            │  │
+│ └────────────┘ └────────────────┘ └───────────────────────┘  │
+│ ₿ Paid in Bitcoin. A month or a year up front; nothing       │
+│   renews by itself.                                          │
+└──────────────────────────────────────────────────────────────┘
 ```
 
 ## Production BTCPay

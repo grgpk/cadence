@@ -4,7 +4,6 @@ import type { Entitlements } from "../../bindings/Entitlements";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import {
   bestYearlySaving,
-  yearlyLabel,
   callsPerMonth,
   FEATURE_GROUPS,
   fitReason,
@@ -12,11 +11,13 @@ import {
   freeCallsPerWeek,
   INTERVAL,
   needsFrom,
+  PAY,
   PLAN,
   priceFor,
   pricingSearch,
   recommendPlan,
   searchFor,
+  yearlyLabel,
   yearlySaving,
 } from "./pricing";
 
@@ -225,5 +226,15 @@ describe("pricingSearch", () => {
       tools: "yes" as const,
     };
     expect(searchFor(INTERVAL.MONTH, needsFrom(search))).toEqual(search);
+  });
+
+  it("keeps paying in crypto and leaves card, the default, out", () => {
+    expect(pricingSearch({ pay: "crypto" })).toEqual({ pay: PAY.CRYPTO });
+    expect(pricingSearch({ pay: "card" })).toEqual({});
+    expect(pricingSearch({ pay: "cash" })).toEqual({});
+    expect(searchFor(INTERVAL.YEAR, needsFrom({}), PAY.CRYPTO)).toEqual({
+      pay: "crypto",
+    });
+    expect(searchFor(INTERVAL.YEAR, needsFrom({}), PAY.CARD)).toEqual({});
   });
 });

@@ -33,6 +33,7 @@ export function PlanCard({
   featured = false,
   badge = "Most popular",
   fits = false,
+  prepaid = false,
   action,
 }: {
   offer: PlanOffer;
@@ -41,6 +42,8 @@ export function PlanCard({
   badge?: string;
   /** Matches what the visitor told the pricing page about their week. */
   fits?: boolean;
+  /** Paid up front in crypto, so a paid plan is not "billed". */
+  prepaid?: boolean;
   /** The button: sign up on the pricing page, checkout on the billing page. */
   action: ReactNode;
 }) {
@@ -91,11 +94,14 @@ export function PlanCard({
           "Free for as long as you like"
         ) : yearly ? (
           <>
-            {formatCents(price.amount_cents)} a year,{" "}
+            {formatCents(price.amount_cents)} {prepaid ? "up front for a year" : "a year"}
+            ,{" "}
             <span className="font-medium text-success">
               save {formatCents(saving.savedCents)}
             </span>
           </>
+        ) : prepaid ? (
+          "Paid up front for a month"
         ) : (
           "Billed monthly"
         )}

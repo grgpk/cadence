@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "cn";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { Bitcoin, ExternalLink, Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import { PlanCard, PlanRow } from "../pricing/plan-card";
 import {
   formatCents,
   INTERVAL,
+  PAY,
   PLAN,
   PLAN_NAMES,
   priceFor,
@@ -238,11 +239,13 @@ function PayYearly({
   );
 }
 
-/** The plan picked on the pricing page, one click from Checkout. */
+/** The plan picked on the pricing page, one click from Checkout, or from
+ * the crypto provider's checkout when it was picked to be paid in crypto. */
 function FinishPick({
   summary,
   offer,
   interval,
+  crypto,
   onCheckout,
   onDismiss,
   pending,
@@ -250,6 +253,7 @@ function FinishPick({
   summary: BillingSummary;
   offer: PlanOffer;
   interval: BillingInterval;
+  crypto: boolean;
   onCheckout: () => void;
   onDismiss: () => void;
   pending: boolean;
@@ -257,20 +261,26 @@ function FinishPick({
   const name = PLAN_NAMES[offer.plan];
   const price = priceFor(offer, interval);
   const days = trialDaysLeft(summary, Date.now());
+  const trial =
+    days === null ? null : `Your trial runs ${days} more ${days === 1 ? "day" : "days"}.`;
+  const description = crypto
+    ? `${trial ? `${trial} ` : ""}Pay for ${name} up front in crypto. Its period starts when the payment confirms, and it does not renew by itself.`
+    : trial
+      ? `${trial} Subscribing now keeps ${name} after it ends.`
+      : `Subscribe to keep ${name} features on.`;
   return (
-    <PanelCard
-      title="Finish your pick"
-      description={
-        days === null
-          ? `Subscribe to keep ${name} features on.`
-          : `Your trial runs ${days} more ${days === 1 ? "day" : "days"}. Subscribing now keeps ${name} after it ends.`
-      }
-    >
+    <PanelCard title="Finish your pick" description={description}>
       <div className="flex flex-wrap items-center justify-between gap-4">
         <p>
           <span className="font-display font-wide text-xl font-bold">{name}</span>
           <span className="ml-2 text-muted-foreground">
-            {interval === INTERVAL.YEAR ? "yearly" : "monthly"}
+            {crypto
+              ? interval === INTERVAL.YEAR
+                ? "1 year in crypto"
+                : "1 month in crypto"
+              : interval === INTERVAL.YEAR
+                ? "yearly"
+                : "monthly"}
             {price ? (
               <span className="text-clock">
                 {" "}
@@ -288,8 +298,8 @@ function FinishPick({
             Decide later
           </Button>
           <Button onClick={onCheckout} disabled={pending}>
-            {pending ? <Loader2 className="animate-spin" /> : null}
-            Subscribe to {name}
+            {pending ? <Loader2 className="animate-spin" /> : crypto ? <Bitcoin /> : null}
+            {crypto ? `Pay for ${name} in crypto` : `Subscribe to ${name}`}
           </Button>
         </div>
       </div>
@@ -453,8 +463,19 @@ export function BillingPage({
 
   const featured: Plan = intent.plan ?? summary?.plan ?? PLAN.PRO;
   const toYearly = summary ? yearlySwitch(summary, plans.data ?? []) : null;
+  // A crypto pick is paid in crypto while the server takes it, and Stripe
+  // does not bill the host already. Otherwise it is a card pick.
+  const cryptoPick =
+    intent.pay === PAY.CRYPTO &&
+    crypto.data?.available === true &&
+    summary !== undefined &&
+    !isBilled(summary);
+  const pickable =
+    summary !== undefined &&
+    (cryptoPick ||
+      planAction(summary, intent.plan ?? PLAN.FREE, interval) === "checkout");
   const pickedOffer =
-    intent.plan && summary && planAction(summary, intent.plan, interval) === "checkout"
+    intent.plan && pickable
       ? plans.data?.find((offer) => offer.plan === intent.plan)
       : undefined;
 
@@ -486,7 +507,13 @@ export function BillingPage({
               summary={summary}
               offer={pickedOffer}
               interval={interval}
-              onCheckout={() => checkout.mutate({ plan: pickedOffer.plan, interval })}
+              crypto={cryptoPick}
+              onCheckout={() =>
+                (cryptoPick ? cryptoCheckout : checkout).mutate({
+                  plan: pickedOffer.plan,
+                  interval,
+                })
+              }
               onDismiss={onDismissPick}
               pending={leaving}
             />

@@ -9,7 +9,8 @@ import { ROUTES } from "../../lib/routes";
 type BillingSearch = Partial<CheckoutIntent> & { checkout?: "done" };
 
 export const Route = createFileRoute("/dashboard/billing")({
-  // `?plan=&interval=` marks a plan picked on the pricing page;
+  // `?plan=&interval=` marks a plan picked on the pricing page, with
+  // `&pay=crypto` when it was switched to crypto;
   // `?checkout=done` is Stripe sending the host back.
   validateSearch: (search): BillingSearch => ({
     ...checkoutIntent(search),

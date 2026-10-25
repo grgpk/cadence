@@ -4,6 +4,7 @@ import { getCryptoOptions, getPlans } from "../domains/pricing/pricing-api";
 import {
   DEFAULT_INTERVAL,
   needsFrom,
+  PAY,
   pricingSearch,
   searchFor,
 } from "../domains/pricing/pricing";
@@ -16,7 +17,7 @@ const DESCRIPTION =
   "Free for a few calls a week. Pro and Business for unlimited bookings, reminders and your own brand. Try Pro free for 14 days.";
 
 export const Route = createFileRoute("/pricing")({
-  // `?interval=&calls=&kinds=`: the answers survive the back button and a shared link.
+  // `?interval=&pay=&calls=&kinds=`: the answers survive the back button and a shared link.
   validateSearch: pricingSearch,
   loader: async () => {
     const [offers, crypto] = await Promise.all([getPlans(), getCryptoOptions()]);
@@ -45,10 +46,11 @@ function PricingRoute() {
       offers={offers}
       cryptoCoins={crypto.coins}
       interval={search.interval ?? DEFAULT_INTERVAL}
+      pay={search.pay ?? PAY.CARD}
       needs={needsFrom(search)}
-      onChange={(interval, needs) =>
+      onChange={(interval, needs, pay) =>
         void navigate({
-          search: searchFor(interval, needs),
+          search: searchFor(interval, needs, pay),
           replace: true,
           resetScroll: false,
         })

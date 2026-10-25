@@ -54,6 +54,33 @@ pub async fn start_trial(
     .await
 }
 
+/// Queues the trial-ending notice again for a host still on a running trial,
+/// once a crypto plan that took it away has been refunded (Plan 49).
+pub async fn restore_trial_notice(
+    connection: &mut PgConnection,
+    user_unid: Uuid,
+    email: &str,
+    full_name: &str,
+    now: DateTime<Utc>,
+) -> Result<(), sqlx::Error> {
+    let Some(ends_at) = db::trial_end(connection, user_unid).await? else {
+        return Ok(());
+    };
+    if ends_at <= now {
+        return Ok(());
+    }
+    emails::drop_account_notice(connection, AccountNotice::TrialEnding, email).await?;
+    let notice_at = (ends_at - Duration::days(TRIAL_NOTICE_DAYS)).max(now);
+    emails::queue_account_notice(
+        connection,
+        AccountNotice::TrialEnding,
+        email,
+        full_name,
+        notice_at,
+    )
+    .await
+}
+
 /// Tells the host once a month, when the calls booked reach what their plan
 /// includes. The page stays open after it.
 pub async fn notice_if_past_included(

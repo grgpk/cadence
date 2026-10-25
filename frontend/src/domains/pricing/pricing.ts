@@ -92,6 +92,13 @@ export const MAX_CALLS_PER_WEEK = 30;
 /** Yearly first: it is the cheaper way to pay. */
 export const DEFAULT_INTERVAL: BillingInterval = INTERVAL.YEAR;
 
+/** How a paid plan is paid: by card through Stripe, or up front in crypto. */
+export const PAY = {
+  CARD: "card",
+  CRYPTO: "crypto",
+} as const;
+export type PayMethod = (typeof PAY)[keyof typeof PAY];
+
 /** Lands on Pro: a little more than Free's monthly limit allows. */
 const DEFAULT_NEEDS: WeekNeeds = {
   callsPerWeek: 8,
@@ -102,6 +109,8 @@ const DEFAULT_NEEDS: WeekNeeds = {
 /** The pricing page's answers, as they sit in its URL. Defaults stay out. */
 type PricingSearch = {
   interval?: BillingInterval;
+  /** Card is the default and stays out of the URL. */
+  pay?: typeof PAY.CRYPTO;
   calls?: number;
   kinds?: "several";
   tools?: "yes";
@@ -109,7 +118,7 @@ type PricingSearch = {
 
 /** Keeps the answers a link can carry and drops the rest. */
 export function pricingSearch(search: Record<string, unknown>): PricingSearch {
-  const { interval, calls, kinds, tools } = search;
+  const { interval, pay, calls, kinds, tools } = search;
   const result: PricingSearch = {};
   if (interval === INTERVAL.MONTH || interval === INTERVAL.YEAR)
     result.interval = interval;
@@ -117,6 +126,7 @@ export function pricingSearch(search: Record<string, unknown>): PricingSearch {
   if (calls !== undefined && Number.isFinite(count)) {
     result.calls = Math.min(MAX_CALLS_PER_WEEK, Math.max(1, Math.round(count)));
   }
+  if (pay === PAY.CRYPTO) result.pay = pay;
   if (kinds === "several") result.kinds = kinds;
   if (tools === "yes") result.tools = tools;
   return result;
@@ -131,9 +141,14 @@ export function needsFrom(search: PricingSearch): WeekNeeds {
 }
 
 /** The URL for these answers, leaving out whatever is the default. */
-export function searchFor(interval: BillingInterval, needs: WeekNeeds): PricingSearch {
+export function searchFor(
+  interval: BillingInterval,
+  needs: WeekNeeds,
+  pay: PayMethod = PAY.CARD,
+): PricingSearch {
   return {
     ...(interval === DEFAULT_INTERVAL ? {} : { interval }),
+    ...(pay === PAY.CRYPTO ? { pay } : {}),
     ...(needs.callsPerWeek === DEFAULT_NEEDS.callsPerWeek
       ? {}
       : { calls: needs.callsPerWeek }),

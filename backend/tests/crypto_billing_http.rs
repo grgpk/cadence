@@ -730,3 +730,39 @@ async fn only_an_admin_refunds(pool: PgPool) {
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert!(period_end(&app, &cookie).await.is_some());
 }
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_full_refund_during_the_trial_brings_its_ending_notice_back(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    let trial_notice = waiting_notices(&pool, host).await;
+    assert_eq!(trial_notice.len(), 1);
+    assert_eq!(trial_notice[0].0, "trial_ending");
+
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    let paid: Vec<String> = waiting_notices(&pool, host)
+        .await
+        .into_iter()
+        .map(|(template, _)| template)
+        .collect();
+    assert_eq!(paid, ["crypto_renewal"]);
+
+    send(
+        &app,
+        Method::POST,
+        &refund_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    let refunded = waiting_notices(&pool, host).await;
+    let templates: Vec<&str> = refunded
+        .iter()
+        .map(|(template, _)| template.as_str())
+        .collect();
+    assert_eq!(templates, ["crypto_refund", "trial_ending"]);
+    assert!(near(refunded[1].1, trial_notice[0].1));
+}

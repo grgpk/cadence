@@ -7,7 +7,14 @@ import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
 import { formatDate } from "../../lib/format";
-import { INTERVAL, PLAN, PLAN_NAMES, priceFor, yearlySaving } from "../pricing/pricing";
+import {
+  INTERVAL,
+  PAY,
+  PLAN,
+  PLAN_NAMES,
+  priceFor,
+  yearlySaving,
+} from "../pricing/pricing";
 
 export const STATUS = {
   TRIALING: "trialing",
@@ -24,8 +31,13 @@ export const TRIAL_WARNING_DAYS = 5;
 /** How long every new account has Pro. The backend's `TRIAL_DAYS`. */
 export const TRIAL_DAYS = 14;
 
-/** A paid plan someone picked before signing up or checking out. */
-export type CheckoutIntent = { plan: Plan; interval: BillingInterval };
+/** A paid plan someone picked before signing up or checking out, and, when
+ * the pricing page was switched to crypto, that it is to be paid in crypto. */
+export type CheckoutIntent = {
+  plan: Plan;
+  interval: BillingInterval;
+  pay?: typeof PAY.CRYPTO;
+};
 
 const PAID_PLANS: readonly unknown[] = [PLAN.PRO, PLAN.BUSINESS];
 const INTERVALS: readonly unknown[] = Object.values(INTERVAL);
@@ -47,11 +59,15 @@ export function signupSearch(search: Record<string, unknown>): SignupSearch {
   return { ...checkoutIntent(search), ...(valid ? { ref } : {}) };
 }
 
-/** Reads `?plan=&interval=` from an address. Free and anything unknown is no intent. */
+/** Reads `?plan=&interval=&pay=` from an address. Free and anything unknown is no intent. */
 export function checkoutIntent(search: Record<string, unknown>): Partial<CheckoutIntent> {
-  const { plan, interval } = search;
+  const { plan, interval, pay } = search;
   if (!PAID_PLANS.includes(plan) || !INTERVALS.includes(interval)) return {};
-  return { plan: plan as Plan, interval: interval as BillingInterval };
+  return {
+    plan: plan as Plan,
+    interval: interval as BillingInterval,
+    ...(pay === PAY.CRYPTO ? { pay } : {}),
+  };
 }
 
 /** Stripe bills this subscription now: a plan change goes through the portal. */
