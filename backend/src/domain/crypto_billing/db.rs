@@ -334,3 +334,37 @@ pub async fn shift_back(
     .await
     .map(|_| ())
 }
+
+/// What the host last paid for one interval of a plan, for the price lock.
+pub async fn last_price(
+    pool: &PgPool,
+    user_unid: Uuid,
+    plan: Plan,
+    interval: BillingInterval,
+) -> Result<Option<i32>, sqlx::Error> {
+    sqlx::query_scalar!(
+        "SELECT amount_cents FROM crypto_payments
+         WHERE user_unid = $1 AND plan = $2 AND billing_interval = $3
+           AND kind = 'period' AND status = 'paid'
+         ORDER BY paid_at DESC LIMIT 1",
+        user_unid,
+        plan.as_str(),
+        interval.as_str(),
+    )
+    .fetch_optional(pool)
+    .await
+}
+
+/// Whether Stripe bills the host with this email now.
+pub async fn stripe_bills(connection: &mut PgConnection, email: &str) -> Result<bool, sqlx::Error> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS (
+               SELECT 1 FROM subscriptions s JOIN users u ON u.unid = s.user_unid
+               WHERE u.email = $1 AND s.stripe_subscription_id IS NOT NULL
+                 AND s.status IN ('active', 'past_due')
+           ) AS "bills!""#,
+        email,
+    )
+    .fetch_one(connection)
+    .await
+}

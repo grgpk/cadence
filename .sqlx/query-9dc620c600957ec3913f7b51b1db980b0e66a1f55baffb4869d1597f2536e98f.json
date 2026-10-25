@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE email_queue e SET send_at = now() - interval '1 minute' FROM users u\n         WHERE u.unid = $1 AND e.email = u.email AND e.template = 'crypto_renewal' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "9dc620c600957ec3913f7b51b1db980b0e66a1f55baffb4869d1597f2536e98f"
+}

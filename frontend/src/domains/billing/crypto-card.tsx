@@ -7,10 +7,10 @@ import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { StartCheckout } from "../../bindings/StartCheckout";
 import { Button } from "../../components/ui/button";
-import { formatCents, INTERVAL, PLAN, PLAN_NAMES, priceFor } from "../pricing/pricing";
+import { formatCents, INTERVAL, PLAN, PLAN_NAMES } from "../pricing/pricing";
 import { PanelCard } from "../shared/panel-card";
 import { SegmentedControl } from "../shared/segmented-control";
-import { cryptoStatusLine } from "./billing";
+import { cryptoPriceCents, cryptoStatusLine } from "./billing";
 
 type PaidPlan = typeof PLAN.PRO | typeof PLAN.BUSINESS;
 
@@ -43,7 +43,7 @@ export function CryptoCard({
   const [interval, setInterval] = useState<BillingInterval>(INTERVAL.YEAR);
   const plan: Plan = crypto.active?.plan ?? picked;
   const offer = offers.find((candidate) => candidate.plan === plan);
-  const price = offer ? priceFor(offer, interval) : undefined;
+  const cents = cryptoPriceCents(crypto, offer, interval);
   // An upgrade keeps the running period's interval and end.
   const upgrade =
     crypto.active && crypto.upgrade
@@ -86,11 +86,11 @@ export function CryptoCard({
             onChange={setInterval}
             options={INTERVAL_OPTIONS}
           />
-          {price ? (
+          {cents === null ? null : (
             <span className="text-clock text-sm text-muted-foreground">
-              {formatCents(price.amount_cents)}
+              {formatCents(cents)}
             </span>
-          ) : null}
+          )}
         </div>
         <div className="flex flex-wrap gap-2">
           {upgrade ? (

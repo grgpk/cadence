@@ -27,6 +27,17 @@ pub struct CryptoSummary {
     pub confirming: bool,
     /// Moving the running period to a higher plan, and what it costs now.
     pub upgrade: Option<CryptoUpgrade>,
+    /// What renewing the running plan costs, for each interval: the price
+    /// last paid when it is lower than today's. Empty without a period.
+    pub renewal: Vec<CryptoPrice>,
+}
+
+/// One interval's price, in US cents.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, export_to = "../../frontend/src/bindings/CryptoPrice.ts")]
+pub struct CryptoPrice {
+    pub interval: BillingInterval,
+    pub amount_cents: u32,
 }
 
 /// The rest of a running period on a higher plan: the price difference for

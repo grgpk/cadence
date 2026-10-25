@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT EXISTS (\n               SELECT 1 FROM subscriptions s JOIN users u ON u.unid = s.user_unid\n               WHERE u.email = $1 AND s.stripe_subscription_id IS NOT NULL\n                 AND s.status IN ('active', 'past_due')\n           ) AS \"bills!\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "bills!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "42dcf7bdb5e7a2316ad4f8e7b382d2b9313470b5b8d97784add4fca0a49baace"
+}

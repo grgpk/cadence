@@ -20,6 +20,10 @@ use cadence_backend::{
             gateway::{CryptoPayments, FAKE_SECRET_HEADER, PaymentStatus},
             worker::reconcile,
         },
+        emails::{
+            service::RenderedEmail,
+            worker::{Mailer, process_due},
+        },
         google_calendar::calendar::{HostCalendar, InMemoryCalendar},
     },
 };
@@ -895,4 +899,119 @@ async fn checkouts_are_limited_per_host(pool: PgPool) {
     }
     let (status, _) = send(&app, Method::POST, CHECKOUT, Some(&cookie), Some(pick)).await;
     assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn renewing_before_the_end_keeps_the_price_last_paid(pool: PgPool) {
+    let app = app(&pool);
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let first = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, first, "paid", SECRET).await;
+    // As if the host had paid $8 before today's $10.
+    sqlx::query_scalar!(
+        "UPDATE crypto_payments SET amount_cents = 800 WHERE unid = $1 RETURNING 1",
+        first,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the payment exists");
+
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(
+        crypto["renewal"],
+        json!([
+            { "interval": "month", "amount_cents": 800 },
+            { "interval": "year", "amount_cents": 9600 },
+        ])
+    );
+    let renewal = checkout(&app, &cookie, "pro", "month").await;
+    assert_eq!(shape_of(&pool, renewal).await.amount_cents, 800);
+
+    // Once the period has ended, the host pays today's price.
+    sqlx::query_scalar!(
+        "UPDATE crypto_payments SET period_end = now() - interval '1 minute'
+         WHERE user_unid = $1 AND status = 'paid' RETURNING 1",
+        host,
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("the payments exist");
+    let (_, crypto) = send(&app, Method::GET, CRYPTO, Some(&cookie), None).await;
+    assert_eq!(crypto["renewal"], json!([]));
+    let after_lapse = checkout(&app, &cookie, "pro", "month").await;
+    assert_eq!(shape_of(&pool, after_lapse).await.amount_cents, 1000);
+}
+
+/// Records the subjects the email worker sends.
+#[derive(Default)]
+struct Outbox {
+    sent: std::sync::Mutex<Vec<String>>,
+}
+
+impl Mailer for Outbox {
+    async fn send(&self, _recipient: &str, email: RenderedEmail) -> Result<(), String> {
+        self.sent
+            .lock()
+            .map_err(|_| "outbox poisoned".to_owned())?
+            .push(email.subject);
+        Ok(())
+    }
+}
+
+/// Makes the host's crypto reminder due now.
+async fn reminder_due(pool: &PgPool, user: Uuid) {
+    sqlx::query_scalar!(
+        "UPDATE email_queue e SET send_at = now() - interval '1 minute' FROM users u
+         WHERE u.unid = $1 AND e.email = u.email AND e.template = 'crypto_renewal' RETURNING 1",
+        user,
+    )
+    .fetch_one(pool)
+    .await
+    .expect("a reminder is queued");
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn crypto_reminders_stay_quiet_once_a_card_keeps_the_plan(pool: PgPool) {
+    let app = app(&pool);
+    let (card, card_cookie) = register(&app, "card@example.com").await;
+    let (crypto_only, crypto_cookie) = register(&app, "crypto@example.com").await;
+    for (user, cookie) in [(card, &card_cookie), (crypto_only, &crypto_cookie)] {
+        end_trial(&pool, user).await;
+        let order = checkout(&app, cookie, "pro", "month").await;
+        event(&app, &pool, order, "paid", SECRET).await;
+        reminder_due(&pool, user).await;
+    }
+    sqlx::query_scalar!(
+        "UPDATE subscriptions SET status = 'active', stripe_subscription_id = 'sub_1'
+         WHERE user_unid = $1 RETURNING 1",
+        card,
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("the trial row exists");
+
+    let outbox = Outbox::default();
+    process_due(&pool, &outbox).await;
+    let mut sent = outbox.sent.lock().expect("outbox is not poisoned").clone();
+    sent.sort();
+    // Both receipts, and the one reminder the card does not make untrue.
+    assert_eq!(
+        sent,
+        [
+            "Your crypto payment arrived",
+            "Your crypto payment arrived",
+            "Your crypto plan ends in 3 days",
+        ]
+    );
+    let card_notices: Vec<String> = waiting_notices(&pool, card)
+        .await
+        .into_iter()
+        .map(|(template, _)| template)
+        .collect();
+    assert_eq!(
+        card_notices,
+        ["crypto_ended"],
+        "the dropped reminder is gone"
+    );
 }

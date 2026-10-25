@@ -3,6 +3,7 @@ import type { BillingInterval } from "../../bindings/BillingInterval";
 import type { BillingSummary } from "../../bindings/BillingSummary";
 import type { CancelReason } from "../../bindings/CancelReason";
 import type { CryptoPlan } from "../../bindings/CryptoPlan";
+import type { CryptoSummary } from "../../bindings/CryptoSummary";
 import type { Plan } from "../../bindings/Plan";
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import type { SubscriptionStatus } from "../../bindings/SubscriptionStatus";
@@ -177,6 +178,24 @@ export function statusLine(summary: BillingSummary, now: number): string {
 /** Where a plan paid for in crypto stands. It never renews itself. */
 export function cryptoStatusLine(crypto: CryptoPlan): string {
   return `${PLAN_NAMES[crypto.plan]} is paid with crypto until ${formatDate(crypto.period_end)}. It does not renew by itself, so pay again before then to keep it.`;
+}
+
+/**
+ * What paying `interval` in crypto costs this host now: the locked renewal
+ * price while a period runs, today's price otherwise. `null` for Free.
+ */
+export function cryptoPriceCents(
+  crypto: Pick<CryptoSummary, "active" | "renewal">,
+  offer: PlanOffer | undefined,
+  interval: BillingInterval,
+): number | null {
+  const renewal = crypto.active
+    ? crypto.renewal.find((price) => price.interval === interval)
+    : undefined;
+  return (
+    renewal?.amount_cents ??
+    (offer ? (priceFor(offer, interval)?.amount_cents ?? null) : null)
+  );
 }
 
 /** Over the card plans while crypto time runs, so nobody pays twice unawares. */

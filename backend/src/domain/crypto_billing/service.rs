@@ -12,7 +12,7 @@ use uuid::Uuid;
 use super::{
     db::{self, ActivePeriod, NewPayment, PaymentKind},
     gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus},
-    models::{CryptoOptions, CryptoPlan, CryptoRefund, CryptoSummary, CryptoUpgrade},
+    models::{CryptoOptions, CryptoPlan, CryptoPrice, CryptoRefund, CryptoSummary, CryptoUpgrade},
 };
 use crate::{
     domain::{
@@ -85,8 +85,22 @@ pub async fn summary(
             amount_cents: upgrade_cents(period, plan, now)?,
         })
     });
+    let mut renewal = Vec::new();
+    if let Some(period) = &active {
+        for interval in [BillingInterval::Month, BillingInterval::Year] {
+            if let Some(amount_cents) =
+                renewal_cents(pool, user_unid, period.plan, interval).await?
+            {
+                renewal.push(CryptoPrice {
+                    interval,
+                    amount_cents,
+                });
+            }
+        }
+    }
     Ok(CryptoSummary {
         upgrade,
+        renewal,
         available: crypto.is_some(),
         coins: crypto.map(|crypto| crypto.provider().coins()),
         active: active.map(|period| CryptoPlan {
@@ -96,6 +110,24 @@ pub async fn summary(
         }),
         confirming: db::confirming(pool, user_unid, now - Duration::days(CONFIRMING_DAYS)).await?,
     })
+}
+
+/// What renewing a running plan costs: today's price, or the price last
+/// paid for it when that is lower. "Your price stays while you stay
+/// subscribed", and for crypto staying means renewing before the end.
+async fn renewal_cents(
+    pool: &PgPool,
+    user_unid: Uuid,
+    plan: Plan,
+    interval: BillingInterval,
+) -> Result<Option<u32>, sqlx::Error> {
+    let Some(today) = price_cents(plan, interval) else {
+        return Ok(None);
+    };
+    let last = db::last_price(pool, user_unid, plan, interval)
+        .await?
+        .and_then(|cents| u32::try_from(cents).ok());
+    Ok(Some(last.map_or(today, |last| last.min(today))))
 }
 
 /// A plan's price for one interval, in cents. `None` for Free.
@@ -161,7 +193,13 @@ pub async fn checkout(
                 .ok_or_else(|| AppError::Internal(anyhow::anyhow!("no upgrade price")))?;
             (PaymentKind::Upgrade, period.billing_interval, cents)
         }
-        _ => (PaymentKind::Period, choice.interval, full_price),
+        Some(period) => {
+            let cents = renewal_cents(pool, user.unid, period.plan, choice.interval)
+                .await?
+                .unwrap_or(full_price);
+            (PaymentKind::Period, choice.interval, cents)
+        }
+        None => (PaymentKind::Period, choice.interval, full_price),
     };
     let unid = db::insert_pending(
         pool,
@@ -194,6 +232,19 @@ pub async fn checkout(
     };
     db::set_invoice(pool, unid, &invoice.provider_invoice_id).await?;
     Ok(invoice.url)
+}
+
+/// A queued crypto reminder or end notice is no longer true once a card
+/// subscription keeps the host's plan: the email worker drops it then.
+pub async fn notice_superseded(
+    connection: &mut PgConnection,
+    template: &str,
+    email: &str,
+) -> Result<bool, sqlx::Error> {
+    let crypto_notice = [AccountNotice::CryptoRenewal, AccountNotice::CryptoEnded]
+        .iter()
+        .any(|notice| notice.template() == template);
+    Ok(crypto_notice && db::stripe_bills(connection, email).await?)
 }
 
 /// Stripe bills the host now, so paying again in crypto would pay twice.

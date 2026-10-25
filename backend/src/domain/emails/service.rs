@@ -887,8 +887,8 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         CRYPTO_RENEWAL_TEMPLATE => (
             "Your crypto plan ends in 3 days",
             "A plan paid for in crypto does not renew by itself. Pay for another month \
-             or year to keep it. Otherwise your page moves to Free, and your settings \
-             stay saved.",
+             or year before it ends to keep it, at the price you pay now. Otherwise your \
+             page moves to Free, and your settings stay saved.",
             "Renew with crypto",
         ),
         CRYPTO_REFUND_TEMPLATE => (

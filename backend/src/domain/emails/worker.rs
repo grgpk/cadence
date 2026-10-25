@@ -15,8 +15,8 @@ use super::{
 };
 use crate::domain::{
     auth::service as auth, billing::service as billing, bookings::service as bookings,
-    google_calendar::service as google_calendar, mcp::service as mcp,
-    rate_limits::service as rate_limits, webhooks::service as webhooks,
+    crypto_billing::service as crypto_billing, google_calendar::service as google_calendar,
+    mcp::service as mcp, rate_limits::service as rate_limits, webhooks::service as webhooks,
 };
 
 /// The most emails one pass sends, so the sweep after it is never starved.
@@ -118,6 +118,11 @@ async fn deliver<M: Mailer + Sync>(
     mailer: &M,
 ) -> Result<(), sqlx::Error> {
     let email = &filled_in(connection, email).await?;
+    if crypto_billing::notice_superseded(connection, &email.template, &email.email).await? {
+        tracing::info!(email_id = %email.id, template = %email.template, "crypto notice dropped, the host pays by card now");
+        db::delete(connection, email.id).await?;
+        return Ok(());
+    }
     match service::delivery(email, Utc::now()) {
         Delivery::Drop => {
             tracing::info!(email_id = %email.id, template = %email.template, "email dropped, its call is cancelled or has started");

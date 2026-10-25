@@ -1,0 +1,30 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT amount_cents FROM crypto_payments\n         WHERE user_unid = $1 AND plan = $2 AND billing_interval = $3\n           AND kind = 'period' AND status = 'paid'\n         ORDER BY paid_at DESC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "amount_cents",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "crypto_payments",
+            "name": "amount_cents"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0ff18e9aaa0fb1b20b06b608cd583860749741e34286977a970f28a7610d6008"
+}

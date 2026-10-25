@@ -8,6 +8,7 @@ import {
   checkoutIntent,
   cryptoAlongsideCard,
   cryptoBeforeCard,
+  cryptoPriceCents,
   cryptoStatusLine,
   trialFreeLimit,
   hasPortal,
@@ -341,5 +342,37 @@ describe("crypto next to card", () => {
     expect(cryptoAlongsideCard(crypto)).toContain(
       "You also have Pro paid with crypto until",
     );
+  });
+});
+
+describe("cryptoPriceCents", () => {
+  const offer: PlanOffer = {
+    plan: PLAN.PRO,
+    prices: [
+      { interval: "month", amount_cents: 1000, monthly_cents: 1000 },
+      { interval: "year", amount_cents: 9600, monthly_cents: 800 },
+    ],
+    entitlements: summary().entitlements,
+  };
+  const active = {
+    plan: PLAN.PRO,
+    interval: "month" as const,
+    period_end: "2026-11-24T12:00:00Z",
+  };
+
+  it("renews at the locked price while a period runs", () => {
+    const crypto = {
+      active,
+      renewal: [{ interval: "month" as const, amount_cents: 800 }],
+    };
+    expect(cryptoPriceCents(crypto, offer, "month")).toBe(800);
+    expect(cryptoPriceCents(crypto, offer, "year")).toBe(9600);
+  });
+
+  it("charges today's price without a period", () => {
+    expect(cryptoPriceCents({ active: null, renewal: [] }, offer, "month")).toBe(1000);
+    expect(
+      cryptoPriceCents({ active: null, renewal: [] }, undefined, "month"),
+    ).toBeNull();
   });
 });

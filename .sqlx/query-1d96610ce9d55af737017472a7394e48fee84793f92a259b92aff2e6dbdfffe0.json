@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE crypto_payments SET period_end = now() - interval '1 minute'\n         WHERE user_unid = $1 AND status = 'paid' RETURNING 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "?column?",
+        "type_info": "Int4",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1d96610ce9d55af737017472a7394e48fee84793f92a259b92aff2e6dbdfffe0"
+}
