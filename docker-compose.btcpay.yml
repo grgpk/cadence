@@ -1,6 +1,7 @@
 # Plan 48: a local BTCPay Server on Bitcoin regtest (fake coins), so crypto
 # checkout works in development with no account anywhere. Never deployed.
 # Plan 53: Litecoin regtest too, to test paying with a second coin.
+# Plan 54: `scripts/btcpay-setup.sh usdt` adds USDT on TRON Nile (testnet).
 #
 #   docker compose -f docker-compose.btcpay.yml up -d
 #   scripts/btcpay-setup.sh
@@ -88,6 +89,8 @@ services:
       BTCPAY_CHAINS: btc,ltc
       BTCPAY_BTCEXPLORERURL: http://nbxplorer:32838/
       BTCPAY_LTCEXPLORERURL: http://nbxplorer:32838/
+      # On the data volume, so the USDt plugin (Plan 54) survives a restart.
+      BTCPAY_PLUGINDIR: /datadir/Plugins
       BTCPAY_POSTGRES: "User ID=postgres;Host=postgres;Port=5432;Application Name=btcpayserver;Database=btcpayserver"
       BTCPAY_EXPLORERPOSTGRES: "User ID=postgres;Host=postgres;Port=5432;Application Name=btcpayserver;Database=nbxplorer"
       # Webhooks to private addresses are refused; the backend on the host is

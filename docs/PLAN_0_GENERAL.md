@@ -138,6 +138,7 @@ cadence/
 | 51 | `PLAN_51_CRYPTO_PROMISES.md` | crypto renewals keep the price last paid; crypto reminders go quiet once a card keeps the plan | ✅ done |
 | 52 | `PLAN_52_CRYPTO_ADMIN_AND_SWITCH.md` | admins list and refund any crypto payment in part or in full, hear about short payments; USDT through BTCPay; Billing's Card \| Crypto switch | ✅ done |
 | 53 | `PLAN_53_CRYPTO_SECOND_COIN.md` | local BTCPay takes Litecoin next to Bitcoin; refunds go back in the coin that was paid | ✅ done |
+| 54 | `PLAN_54_CRYPTO_USDT_LOCAL.md` | local BTCPay takes USDT on TRON Nile via the Tether plugin; a coin without payouts is refunded as a Bitcoin claim | ✅ done |
 
 Status: ✅ done, 🔄 in progress, 📅 planned, living.
 

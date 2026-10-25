@@ -122,7 +122,7 @@ Verify with `curl -fsS https://bookcadence.app/health`.
 
 ## Crypto payments
 
-Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 to 53).
+Hosts can pay for a plan in crypto, opting in from Billing (Plans 48 to 54).
 It stays off until `CRYPTO_PROVIDER` is set in `/root/cadence/.env`. Pick one
 provider; switching later is a change to `.env` and a redeploy.
 
@@ -229,8 +229,11 @@ adds USDT on TRON, Ethereum or Polygon. It needs BTCPay 2.3.7 or newer.
 1. **Install.** Go to Server settings → Plugins → *Available plugins*, choose
    *Tether USDt*, install it and restart BTCPay.
 2. **Chains and addresses.** In the store's wallets, turn on each chain you
-   want and give it a receiving address from a wallet you control. A watch-only
-   address is enough, so no private key goes on the server.
+   want and give it receiving addresses from a wallet you control. A watch-only
+   address is enough, so no private key goes on the server. Each open invoice
+   holds one address until it is paid or expires, so give as many addresses as
+   you expect open checkouts at once. When every address is taken, BTCPay
+   leaves USDT off the next checkout.
 3. **TRON node.** The plugin's default public TRON node is for testing only.
    For production, set a private TRON node's JSON-RPC endpoint in the plugin's
    TRON settings, or a provider such as TronGrid with its `TRON-PRO-API-KEY`
@@ -239,9 +242,44 @@ adds USDT on TRON, Ethereum or Polygon. It needs BTCPay 2.3.7 or newer.
    and redeploy, so the pricing page and Billing say what the store takes.
 5. **Check it** with a small USDT payment, as in step 9 above.
 
-Refunds of a USDT payment need the plugin's payout support. If BTCPay can't
-make the refund link, the admin refund fails with an error and nothing changes
-in Cadence. Send the money from BTCPay by hand in that case.
+The plugin has no payouts, so BTCPay can't refund in USDT. A refund of a USDT
+payment is made as a Bitcoin claim of the same dollars instead (Plan 54). If
+the buyer wants USDT back, send it from your TRON wallet by hand and refund
+nothing in Cadence.
+
+##### Trying USDT locally (TRON Nile testnet)
+
+The local BTCPay runs regtest, and on regtest the plugin uses TRON's Nile
+testnet (public node `nile.trongrid.io`, no key needed). The coins are free
+test coins, and your computer needs internet.
+
+1. **Wallet.** Install TronLink, switch it to *Nile Testnet*, and copy one or
+   more of its addresses.
+2. **Test coins.** Get test TRX (for fees) and test USDT from the Nile faucet
+   at nileex.io.
+3. **Set it up.** With the local BTCPay running and `scripts/btcpay-setup.sh`
+   already run once, run:
+
+   ```
+   scripts/btcpay-setup.sh usdt <nile address> [<nile address>...]
+   ```
+
+   It downloads the pinned plugin, installs it, gives the store your
+   addresses, restarts BTCPay, and sets
+   `BTCPAY_COINS="Bitcoin, Litecoin or USDT"`. Then restart the backend. Run
+   it again with a new list to replace the addresses.
+4. **Pay.** Start a crypto checkout in Billing. The BTCPay page offers
+   *USD₮ on TRON Testnet*. Then run
+   `scripts/btcpay-setup.sh pay-invoice <link> usdt`, which prints the
+   address and amount to send from TronLink. The script holds no TRON keys,
+   so it never sends USDT itself.
+
+The same steps by hand: sign in to http://localhost:49392 as
+`admin@cadence.local` / `cadence-dev-only`. Install *Tether USDt* from Server
+settings → Plugins, restart BTCPay (`docker compose -f
+docker-compose.btcpay.yml restart btcpayserver`), add your Nile addresses in
+the store's *USD₮ on TRON* wallet, then restart BTCPay once more, so the
+plugin starts watching the chain.
 
 Any other coin BTCPay supports works the same way: add it to the store, then
 list it in `BTCPAY_COINS`. A refund goes back in the coin the buyer paid in

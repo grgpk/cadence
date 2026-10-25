@@ -6,11 +6,18 @@
 # run again: the user, store and wallets are reused; the webhook and API key
 # are made fresh, since BTCPay shows their secrets only once.
 #
+# `usdt` adds USDT on TRON's Nile testnet through the Tether USDt plugin
+# (Plan 54). It needs internet and your own Nile addresses, from TronLink;
+# you pay from TronLink too, with faucet USDT, since this script holds no
+# TRON keys. Each open invoice holds one address, so give a few.
+#
 #   docker compose -f docker-compose.btcpay.yml up -d
 #   scripts/btcpay-setup.sh                                  set up, then restart the backend
+#   scripts/btcpay-setup.sh usdt <nile address>...           add USDT, then restart the backend
 #   scripts/btcpay-setup.sh pay <address> <amount> [coin]    pay an address and confirm it
 #   scripts/btcpay-setup.sh pay-invoice <link> [coin]        pay a checkout page's invoice in full
 #   scripts/btcpay-setup.sh pay-invoice <link> short [coin]  pay half of it, to test a short payment
+#   scripts/btcpay-setup.sh pay-invoice <link> usdt          print what to send from TronLink
 #
 # The BTCPay dashboard is http://localhost:49392, signed in with the
 # ADMIN_EMAIL and ADMIN_PASSWORD below.
@@ -33,6 +40,10 @@ STORE_NAME="Cadence (dev)"
 # The backend on the host, as the BTCPay container reaches it.
 WEBHOOK_URL=http://host.docker.internal:3001/api/billing/crypto/webhook
 COINS=(btc ltc)
+# The Tether USDt plugin, pinned; BTCPay's plugin folder is set in compose.
+USDT_PLUGIN=BTCPayServer.Plugins.USDt
+USDT_PLUGIN_URL=https://plugin-builder.btcpayserver.org/api/v1/plugins/tether-usdt/versions/0.7.9.0/download
+PLUGIN_DIR=/datadir/Plugins
 WALLET=dev
 # A payment counts once its block is this deep; BTCPay asks for fewer.
 CONFIRM_BLOCKS=6
@@ -49,17 +60,26 @@ node_cli() {
         -rpcuser=cadence -rpcpassword=cadence "$@"
 }
 
-# BTCPay's payment method for a coin: BTC-CHAIN or LTC-CHAIN.
+# BTCPay's payment method for a coin: BTC-CHAIN, LTC-CHAIN or USDT-TRON.
 payment_method() {
-    echo "${1^^}-CHAIN"
+    if [[ "$1" == usdt ]]; then
+        echo USDT-TRON
+    else
+        echo "${1^^}-CHAIN"
+    fi
 }
 
 # The coin an optional argument names, btc when there is none.
 coin_arg() {
     case "${1:-btc}" in
-        btc | ltc) echo "${1:-btc}" ;;
-        *) echo "Unknown coin $1: use btc or ltc." >&2; exit 1 ;;
+        btc | ltc | usdt) echo "${1:-btc}" ;;
+        *) echo "Unknown coin $1: use btc, ltc or usdt." >&2; exit 1 ;;
     esac
+}
+
+# Reads the setup key and store id that a first run saved: `read_env KEY`.
+read_env() {
+    grep -E "^$1=" "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-
 }
 
 # Mines `count` blocks of a coin to the dev wallet, which is where test coins
@@ -79,8 +99,8 @@ if [[ "${1:-}" == "pay-invoice" ]]; then
     else
         coin=$(coin_arg "${3:-}")
     fi
-    key=$(grep -E '^BTCPAY_DEV_ADMIN_KEY=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
-    store=$(grep -E '^BTCPAY_STORE_ID=' "${BTCPAY_SETUP_ENV_FILE:-.env}" | tail -1 | cut -d= -f2-)
+    key=$(read_env BTCPAY_DEV_ADMIN_KEY)
+    store=$(read_env BTCPAY_STORE_ID)
     [[ -n "$key" && -n "$store" ]] || { echo "Run scripts/btcpay-setup.sh first."; exit 1; }
     invoice=${2##*/}
     methods=$(curl -sf -H "Authorization: token $key" \
@@ -88,9 +108,20 @@ if [[ "${1:-}" == "pay-invoice" ]]; then
         { echo "No invoice $invoice in the local BTCPay."; exit 1; }
     read -r address due < <(python3 -c '
 import json, sys
-method = next(m for m in json.loads(sys.argv[1]) if m["paymentMethodId"] == sys.argv[3])
+method = next((m for m in json.loads(sys.argv[1]) if m["paymentMethodId"] == sys.argv[3]), None)
+if method is None:
+    print("- -")
+    sys.exit()
 due = float(method["due"]) / (2 if sys.argv[2] == "short" else 1)
-print(method["destination"], f"{due:.8f}")' "$methods" "$amount" "$(payment_method "$coin")")
+# USDT has 6 decimals, BTC and LTC 8.
+places = 6 if sys.argv[3] == "USDT-TRON" else 8
+print(method["destination"], f"{due:.{places}f}")' "$methods" "$amount" "$(payment_method "$coin")")
+    [[ "$address" != - ]] || { echo "Invoice $invoice does not take ${coin^^}."; exit 1; }
+    if [[ "$coin" == usdt ]]; then
+        echo "Send $due USDT on TRON Nile from TronLink to $address."
+        echo "BTCPay sees it within a minute or so, and the backend credits it."
+        exit 0
+    fi
     node_cli "$coin" -rpcwallet="$WALLET" sendtoaddress "$address" "$due" >/dev/null
     mine "$coin" "$CONFIRM_BLOCKS"
     echo "Paid $due ${coin^^} on invoice $invoice and mined $CONFIRM_BLOCKS blocks."
@@ -100,6 +131,7 @@ fi
 if [[ "${1:-}" == "pay" ]]; then
     [[ $# -ge 3 ]] || { echo "Usage: scripts/btcpay-setup.sh pay <address> <amount> [btc|ltc]"; exit 1; }
     coin=$(coin_arg "${4:-}")
+    [[ "$coin" != usdt ]] || { echo "Send USDT from TronLink: this script holds no TRON keys."; exit 1; }
     node_cli "$coin" -rpcwallet="$WALLET" sendtoaddress "$2" "$3"
     mine "$coin" "$CONFIRM_BLOCKS"
     echo "Paid $3 ${coin^^} to $2 and mined $CONFIRM_BLOCKS blocks."
@@ -165,6 +197,60 @@ open(path, "w").write(re.sub(rf"^{key}=.*$", f"{key}={value}", text, flags=re.M)
         printf '%s=%s\n' "$key" "$value" >>"$ENV_FILE"
     fi
 }
+
+# What the store takes, for BTCPAY_COINS. Quoted: dotenv refuses a bare value
+# with spaces.
+set_coins_label() {
+    local label="Bitcoin or Litecoin"
+    btcpay_api --allow-fail GET "/api/v1/stores/$1/payment-methods/USDT-TRON" |
+        grep -q '"enabled":true' && label="Bitcoin, Litecoin or USDT"
+    set_env BTCPAY_COINS "\"$label\""
+}
+
+# Restarts BTCPay and waits until it answers again.
+restart_btcpay() {
+    "${COMPOSE[@]}" restart btcpayserver >/dev/null 2>&1
+    curl -sf --retry 40 --retry-delay 3 --retry-all-errors --max-time 5 "$URL/api/v1/health" >/dev/null
+}
+
+if [[ "${1:-}" == "usdt" ]]; then
+    [[ $# -ge 2 ]] || { echo "Usage: scripts/btcpay-setup.sh usdt <nile address>..."; exit 1; }
+    key=$(read_env BTCPAY_DEV_ADMIN_KEY)
+    store=$(read_env BTCPAY_STORE_ID)
+    [[ -n "$key" && -n "$store" ]] || { echo "Run scripts/btcpay-setup.sh first."; exit 1; }
+    AUTH=(-H "Authorization: token $key")
+    shift
+    addresses=$(python3 -c 'import json, sys; print(json.dumps(sys.argv[1:]))' "$@")
+
+    # BTCPay installs a plugin from its folder on the next start.
+    if ! "${COMPOSE[@]}" exec -T btcpayserver test -d "$PLUGIN_DIR/$USDT_PLUGIN"; then
+        download=$(mktemp -d)
+        trap 'rm -rf "$download"' EXIT
+        curl -sfL -o "$download/$USDT_PLUGIN.btcpay" "$USDT_PLUGIN_URL"
+        "${COMPOSE[@]}" exec -T btcpayserver mkdir -p "$PLUGIN_DIR"
+        "${COMPOSE[@]}" cp "$download/$USDT_PLUGIN.btcpay" "btcpayserver:$PLUGIN_DIR/$USDT_PLUGIN.btcpay" >/dev/null 2>&1
+        "${COMPOSE[@]}" exec -T btcpayserver sh -c "echo install:$USDT_PLUGIN >> $PLUGIN_DIR/commands"
+        echo "Installing the Tether USDt plugin..."
+        restart_btcpay
+    fi
+
+    # The receiving addresses; the plugin hands one to each open invoice.
+    btcpay_api PUT "/api/v1/stores/$store/payment-methods/USDT-TRON" \
+        "{\"enabled\":true,\"config\":{\"addresses\":$addresses}}" >/dev/null
+    # The plugin starts watching a chain it was just given on its next start.
+    restart_btcpay
+    for _ in $(seq 1 40); do
+        btcpay_api GET /api/v1/server/info | python3 -c '
+import json, sys
+sys.exit(0 if any(s.get("paymentMethodId") == "USDT-TRON" and s.get("available")
+                  for s in json.load(sys.stdin).get("syncStatus", [])) else 1)' && break
+        read -rt 3 < <(tail -f /dev/null) || true
+    done
+    set_coins_label "$store"
+    echo "Done: the store takes USDT on TRON Nile at $# address(es). Restart the backend."
+    echo "To pay: scripts/btcpay-setup.sh pay-invoice <link> usdt"
+    exit 0
+fi
 
 echo "Waiting for BTCPay on $URL..."
 curl -sf --retry 40 --retry-delay 3 --retry-all-errors --max-time 5 "$URL/api/v1/health" >/dev/null
@@ -250,9 +336,9 @@ set_env BTCPAY_URL "$URL"
 set_env BTCPAY_STORE_ID "$STORE_ID"
 set_env BTCPAY_API_KEY "$API_KEY"
 set_env BTCPAY_WEBHOOK_SECRET "$WEBHOOK_SECRET"
-# Quoted: dotenv refuses a bare value with spaces.
-set_env BTCPAY_COINS "\"Bitcoin or Litecoin\""
+set_coins_label "$STORE_ID"
 
 echo "Done: wrote CRYPTO_PROVIDER and BTCPAY_* to $ENV_FILE. Restart the backend."
 echo "To pay a checkout page's invoice in BTC or LTC:"
 echo "  scripts/btcpay-setup.sh pay-invoice <link> [short] [btc|ltc]"
+echo "For USDT on TRON Nile: scripts/btcpay-setup.sh usdt <nile address>..."
