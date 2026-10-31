@@ -9,9 +9,10 @@
 # `usdt` adds USDT on TRON's Nile testnet through the Tether USDt plugin
 # (Plan 54). It needs internet and your own Nile addresses, from TronLink;
 # you pay from TronLink too, with faucet USDT, since this script holds no
-# TRON keys. Each open invoice holds one address until it expires; with all of
-# them held, checkout leaves USDT out while the pricing page still names it.
-# So give a few.
+# TRON keys. Each invoice holds one address until it is paid, or for a day
+# after it expires unpaid, while BTCPay still watches it; with all of them
+# held, checkout leaves USDT out while the pricing page still names it. So
+# give a few.
 #
 # A regtest chain whose newest block is over a day old counts as still
 # syncing, and BTCPay leaves BTC or LTC out of checkout. `wake` mines a block.

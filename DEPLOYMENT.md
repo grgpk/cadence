@@ -230,9 +230,11 @@ adds USDT on TRON, Ethereum or Polygon. It needs BTCPay 2.3.7 or newer.
    *Tether USDt*, install it and restart BTCPay.
 2. **Chains and addresses.** In the store's wallets, turn on each chain you
    want and give it receiving addresses from a wallet you control. A watch-only
-   address is enough, so no private key goes on the server. Each open invoice
-   holds one address until it is paid or expires, so give as many addresses as
-   you expect open checkouts at once. When every address is taken, BTCPay
+   address is enough, so no private key goes on the server. Each invoice
+   holds one address while BTCPay still watches it: until it is paid, or, once
+   it expires unpaid, for the store's monitoring window (24 hours by default,
+   in the store's checkout settings). Give as many addresses as you expect
+   checkouts in that time. When every address is taken, BTCPay
    leaves USDT off the next checkout, while the pricing page still names it
    from `BTCPAY_COINS`.
 3. **TRON node.** The plugin's default public TRON node is for testing only.
@@ -276,8 +278,8 @@ test coins, and your computer needs internet.
    contract, gives the store your addresses, restarts BTCPay, and sets
    `BTCPAY_COINS="Bitcoin, Litecoin or USDT"`. Then restart the backend. Run
    it again with a new list to replace the addresses. Give a few: with one,
-   the first open checkout holds it for the invoice's 15 minutes, and the
-   next checkout offers no USDT.
+   the first checkout holds it until paid, or for a day after it expires
+   unpaid, and every checkout in between offers no USDT.
 4. **Pay.** Start a crypto checkout in Billing. The BTCPay page offers
    *USD₮ on TRON Testnet*. Then run
    `scripts/btcpay-setup.sh pay-invoice <link> usdt`, which prints the

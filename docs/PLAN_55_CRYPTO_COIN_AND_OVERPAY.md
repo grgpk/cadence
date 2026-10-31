@@ -24,11 +24,15 @@ Found by running BTC, LTC and USDT checkouts against the local BTCPay:
   wallet. Its wait counted any two available coins, so USDT plus LTC passed
   while BTC was down.
 - **USDT was missing from the second checkout.** With one Nile address,
-  the first open invoice holds it for 15 minutes, while `BTCPAY_COINS` still
-  names USDT.
-- **A short USDT payment could not be refunded.** The coinless retry from
-  Plan 54 asks for a `RateThen` refund, which reads what was paid in Bitcoin:
-  nothing.
+  the first invoice holds it until paid. If it expires unpaid, BTCPay keeps
+  watching it for the store's monitoring window (24 hours by default), and
+  the plugin keeps the address held for that time. `BTCPAY_COINS` still
+  names USDT. Seen live: the invoice expired at 14:25:27, and checkouts after
+  that still offered no USDT.
+- **A short USDT payment likely could not be refunded** (not tried live). The
+  coinless retry from Plan 54 asks for a `RateThen` refund, which reads what
+  was paid in Bitcoin: nothing. A last retry now refunds the dollars that
+  arrived.
 - **Nothing recorded the coin paid**, and an overpayment went unnoticed.
 
 ## Data model
