@@ -114,6 +114,11 @@ export function LandingPage() {
             </div>
           </div>
           <div className="mt-12 motion-safe:animate-rise motion-safe:[animation-delay:240ms] sm:mt-16">
+            <p className="sr-only">
+              A guest opens Ana's booking link, picks Tuesday at 10:00 in Lisbon, and
+              confirms. The call appears in Ana's day at 11:00 Berlin time, with a Google
+              Meet link.
+            </p>
             <BookingDemo />
           </div>
         </div>

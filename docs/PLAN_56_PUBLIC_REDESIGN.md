@@ -55,6 +55,16 @@ Same tokens and type as Plan 8. No new dependencies, no backend change.
 - Auth forms sit at the top on phones instead of floating mid-screen.
 - Swept at 320 to 2560px in light and dark with no horizontal overflow.
 
+## Polish
+
+- `public/og.png` (the link preview) redrawn with the current clock logo
+  and the dusk bookings. The old one still had the bar-chart mark.
+- The demo pauses only under a mouse, because a tap on a phone used to
+  pause it for good. Touch screens see a fingertip ring instead of an arrow.
+- A screen-reader sentence describes the demo, which is `aria-hidden`.
+- Public pages have a "Skip to content" link, and the header's Pricing link
+  shows when it is the current page.
+
 ## Tests
 
 Visual change only: lint, typecheck, knip, vitest, build. Checked with

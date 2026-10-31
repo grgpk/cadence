@@ -79,6 +79,9 @@ function MobileMenu({ signedIn }: { signedIn: boolean }) {
   );
 }
 
+/** Where "Skip to content" lands. */
+const MAIN_ID = "main";
+
 const FOOTER_LINK = "text-muted-foreground hover:text-foreground";
 
 export function PublicLayout({
@@ -93,6 +96,12 @@ export function PublicLayout({
   const scrolled = useScrolled();
   return (
     <div className="flex min-h-svh flex-col">
+      <a
+        href={`#${MAIN_ID}`}
+        className="sr-only z-50 rounded-md bg-primary text-sm font-medium text-primary-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:px-3 focus:py-2"
+      >
+        Skip to content
+      </a>
       <header
         className={cn(
           "sticky top-0 z-20 border-b transition-[background-color,border-color] duration-200",
@@ -111,7 +120,13 @@ export function PublicLayout({
                     How it works
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" className="max-sm:hidden" asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  // On the pricing page, the link says so.
+                  className="max-sm:hidden data-[status=active]:bg-accent"
+                  asChild
+                >
                   <Link to={ROUTES.pricing}>Pricing</Link>
                 </Button>
               </>
@@ -138,7 +153,9 @@ export function PublicLayout({
           </nav>
         </div>
       </header>
-      <main className="flex-1">{children}</main>
+      <main id={MAIN_ID} tabIndex={-1} className="flex-1 outline-none">
+        {children}
+      </main>
       <footer className="border-t">
         <div className="mx-auto grid max-w-[82rem] grid-cols-2 gap-10 px-4 py-12 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-16 sm:px-6">
           <div className="col-span-2 sm:col-span-1">

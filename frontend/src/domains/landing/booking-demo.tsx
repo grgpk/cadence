@@ -173,11 +173,17 @@ function Cursor({ step, boxes }: { step: Step; boxes: Boxes }) {
         transitionDuration: `${GLIDE_MS}ms, 300ms`,
       }}
     >
-      {/* Remounted every beat, so the press replays once the glide ends. */}
+      {/* Remounted every beat, so the press replays once the glide ends. A
+          touch screen has no arrow, so there it is a fingertip ring. */}
+      <span
+        key={`tap-${step}`}
+        className="hidden size-7 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-foreground/60 bg-foreground/15 pointer-coarse:block motion-safe:animate-cursor-click"
+        style={{ animationDelay: `${GLIDE_MS}ms` }}
+      />
       <svg
         key={step}
         viewBox="0 0 20 20"
-        className="size-5 drop-shadow-sm motion-safe:animate-cursor-click"
+        className="size-5 drop-shadow-sm pointer-coarse:hidden motion-safe:animate-cursor-click"
         style={{ animationDelay: `${GLIDE_MS}ms` }}
       >
         <path
@@ -464,8 +470,9 @@ export function BookingDemo() {
     <div
       ref={stage}
       aria-hidden="true"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      // Only a mouse pauses it: a tap on a phone would otherwise pause it for good.
+      onPointerEnter={(event) => event.pointerType === "mouse" && setHovered(true)}
+      onPointerLeave={(event) => event.pointerType === "mouse" && setHovered(false)}
       // Stacked, the panes keep a readable width instead of stretching to the edge.
       className="relative grid max-w-2xl gap-4 select-none lg:max-w-none lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-6"
     >
