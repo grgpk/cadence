@@ -9,11 +9,17 @@
 # `usdt` adds USDT on TRON's Nile testnet through the Tether USDt plugin
 # (Plan 54). It needs internet and your own Nile addresses, from TronLink;
 # you pay from TronLink too, with faucet USDT, since this script holds no
-# TRON keys. Each open invoice holds one address, so give a few.
+# TRON keys. Each open invoice holds one address until it expires; with all of
+# them held, checkout leaves USDT out while the pricing page still names it.
+# So give a few.
+#
+# A regtest chain whose newest block is over a day old counts as still
+# syncing, and BTCPay leaves BTC or LTC out of checkout. `wake` mines a block.
 #
 #   docker compose -f docker-compose.btcpay.yml up -d
 #   scripts/btcpay-setup.sh                                  set up, then restart the backend
 #   scripts/btcpay-setup.sh usdt <nile address>...           add USDT, then restart the backend
+#   scripts/btcpay-setup.sh wake                             after a day or more away: BTC and LTC come back
 #   scripts/btcpay-setup.sh pay <address> <amount> [coin]    pay an address and confirm it
 #   scripts/btcpay-setup.sh pay-invoice <link> [coin]        pay a checkout page's invoice in full
 #   scripts/btcpay-setup.sh pay-invoice <link> short [coin]  pay half of it, to test a short payment
@@ -92,6 +98,14 @@ mine() {
     address=$(node_cli "$1" -rpcwallet="$WALLET" getnewaddress)
     node_cli "$1" generatetoaddress "$2" "$address" >/dev/null
 }
+
+if [[ "${1:-}" == "wake" ]]; then
+    for coin in "${COINS[@]}"; do
+        mine "$coin" 1
+    done
+    echo "Mined a block of each coin: BTCPay offers BTC and LTC again within a minute."
+    exit 0
+fi
 
 if [[ "${1:-}" == "pay-invoice" ]]; then
     [[ $# -ge 2 ]] || { echo "Usage: scripts/btcpay-setup.sh pay-invoice <checkout link or invoice id> [short] [btc|ltc]"; exit 1; }
@@ -313,13 +327,26 @@ for coin in "${COINS[@]}"; do
         mine "$coin" 101
         echo "Mined 101 ${coin^^} blocks for test coins."
     done
+    # A node whose newest block is over a day old thinks it is still
+    # syncing, and BTCPay leaves the coin out of checkout until a new block.
+    mine "$coin" 1
 done
 
 # BTCPay takes each coin once its explorer has caught up with those blocks.
+methods=()
+for coin in "${COINS[@]}"; do
+    methods+=("$(payment_method "$coin")")
+done
+available=false
 for _ in $(seq 1 40); do
-    [[ $(btcpay_api GET /api/v1/server/info | grep -o '"available":true' | wc -l) -ge ${#COINS[@]} ]] && break
+    btcpay_api GET /api/v1/server/info | python3 -c '
+import json, sys
+ready = {s["paymentMethodId"] for s in json.load(sys.stdin).get("syncStatus", []) if s.get("available")}
+sys.exit(0 if set(sys.argv[1:]) <= ready else 1)' "${methods[@]}" &&
+        available=true && break
     read -rt 3 < <(tail -f /dev/null) || true
 done
+[[ "$available" == true ]] || { echo "BTCPay's explorer has not caught up with BTC and LTC. Try again in a minute."; exit 1; }
 
 # A hot wallet per coin whose keys BTCPay keeps: fine for fake coins only.
 for coin in "${COINS[@]}"; do
