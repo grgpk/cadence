@@ -211,7 +211,7 @@ export function PricingPage({
         </div>
       </section>
 
-      <section className="border-t bg-card">
+      <section className="border-t">
         <div className="mx-auto max-w-[82rem] px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="font-display font-wide text-3xl font-bold tracking-tight sm:text-4xl">
             Compare plans
@@ -258,13 +258,13 @@ export function PricingPage({
         </div>
       </section>
 
-      <section className="border-t bg-card">
-        <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-5 px-4 py-16 sm:px-6 sm:py-24">
+      <section className="border-t bg-foreground text-background">
+        <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-6 px-4 py-16 sm:px-6 sm:py-24">
           <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
             Try every Pro feature for 14 days.
           </h2>
           {signedIn ? null : (
-            <Button size="lg" asChild>
+            <Button size="lg" variant="secondary" asChild>
               <Link to={ROUTES.register}>Create your account</Link>
             </Button>
           )}

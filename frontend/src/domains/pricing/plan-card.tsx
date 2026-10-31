@@ -55,13 +55,18 @@ export function PlanCard({
     <section
       aria-label={PLAN_NAMES[offer.plan]}
       className={cn(
-        "relative p-6 sm:p-7",
+        "relative p-6 transition-colors duration-300 sm:p-7",
         (featured || fits) && "bg-dusk/5 dark:bg-dusk/10",
       )}
     >
-      {featured || fits ? (
-        <span aria-hidden className="absolute inset-x-0 top-0 h-[3px] bg-dusk" />
-      ) : null}
+      {/* Grows in when the week sizer moves the recommendation here. */}
+      <span
+        aria-hidden
+        className={cn(
+          "absolute inset-x-0 top-0 h-[3px] origin-left bg-dusk transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)]",
+          featured || fits ? "scale-x-100" : "scale-x-0",
+        )}
+      />
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-display font-wide text-xl font-bold">
           {PLAN_NAMES[offer.plan]}
@@ -78,7 +83,11 @@ export function PlanCard({
       <p className="mt-1 text-sm text-muted-foreground">{PLAN_TAGLINES[offer.plan]}</p>
 
       <div className="mt-6 flex items-baseline gap-1.5">
-        <span className="text-clock text-5xl font-semibold tracking-tight">
+        {/* Keyed by period, so switching monthly and yearly rolls the new price in. */}
+        <span
+          key={interval}
+          className="text-clock text-5xl font-semibold tracking-tight motion-safe:animate-price-roll"
+        >
           {formatCents(price?.monthly_cents ?? 0)}
         </span>
         {yearly ? (

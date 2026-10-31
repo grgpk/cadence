@@ -1,6 +1,7 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 
+import { useOnScreen } from "../../hooks/use-on-screen";
 import { HourMark } from "../shared/hour-mark";
 import { dayPhase, type DayPhase } from "../../lib/zoned-time";
 
@@ -78,18 +79,7 @@ function TapeBlock({ hour, block }: { hour: number; block: Block }) {
  */
 export function DayTape() {
   const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(true);
-
-  // Off screen, the loop has nobody to watch it.
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const observer = new IntersectionObserver(([entry]) =>
-      setVisible(entry?.isIntersecting ?? true),
-    );
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
+  const visible = useOnScreen(ref);
 
   return (
     <div
