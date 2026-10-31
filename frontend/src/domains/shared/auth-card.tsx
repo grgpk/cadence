@@ -34,7 +34,7 @@ export function AuthCard({
         <Link to={ROUTES.home} aria-label={`${APP_NAME} home`} className="self-start">
           <Logo />
         </Link>
-        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
+        <div className="mx-auto flex w-full max-w-sm flex-1 flex-col sm:justify-center">
           <h1 className="font-display font-wide text-3xl font-bold tracking-tight">
             {title}
           </h1>

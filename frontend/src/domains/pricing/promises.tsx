@@ -12,7 +12,7 @@ const ICONS: Record<PricingPromise, LucideIcon> = {
 /** What every plan promises: stacked beside the week sizer, or in a row on the home page. */
 export function PromiseList({ row = false }: { row?: boolean }) {
   return (
-    <ul className={cn("grid gap-6", row && "md:grid-cols-3 md:gap-10")}>
+    <ul className={cn("grid gap-6", row && "lg:grid-cols-3 lg:gap-10")}>
       {(Object.keys(PROMISES) as PricingPromise[]).map((key) => {
         const Icon = ICONS[key];
         return (

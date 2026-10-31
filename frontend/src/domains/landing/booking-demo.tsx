@@ -197,6 +197,9 @@ function Flyer({ step, boxes }: { step: Step; boxes: Boxes }) {
 
 function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
   const days = monthWeeks(YEAR, MONTH, { rows: "fit" }).flat();
+  const pickedWeek = Math.floor(
+    days.findIndex((cell) => cell.inMonth && cell.day === PICKED_DAY) / 7,
+  );
   const dayPicked = step >= STEP.DAY;
   const timePicked = step >= STEP.TIME;
   const booked = step >= STEP.FLY;
@@ -229,10 +232,20 @@ function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
           </div>
           <div className="mt-1 grid grid-cols-7 gap-1">
             {days.map((cell, index) => {
-              if (!cell.inMonth) return <span key={`blank-${index}`} />;
+              if (!cell.inMonth)
+                return (
+                  <span
+                    key={`blank-${index}`}
+                    className={
+                      Math.floor(index / 7) !== pickedWeek ? "max-sm:hidden" : undefined
+                    }
+                  />
+                );
               const weekday = index % 7;
               const open = weekday < 5 && cell.day >= 2;
               const picked = dayPicked && cell.day === PICKED_DAY;
+              // Phones show only the picked week, as a strip.
+              const otherWeek = Math.floor(index / 7) !== pickedWeek;
               return (
                 <span
                   key={cell.day}
@@ -240,6 +253,7 @@ function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
                   className={cn(
                     "flex aspect-square items-center justify-center rounded-md text-xs tabular-nums transition-colors duration-200",
                     open ? "bg-muted font-semibold" : "text-muted-foreground/50",
+                    otherWeek && "max-sm:hidden",
                     picked && "bg-dusk text-dusk-foreground",
                   )}
                 >
@@ -404,7 +418,8 @@ export function BookingDemo() {
       aria-hidden="true"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className="relative grid gap-4 select-none lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-6"
+      // Stacked, the panes keep a readable width instead of stretching to the edge.
+      className="relative grid max-w-2xl gap-4 select-none lg:max-w-none lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-6"
     >
       <GuestPane step={step} targets={targets} />
       <HostPane step={step} targets={targets} />

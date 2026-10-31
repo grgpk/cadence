@@ -3,7 +3,16 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { cn } from "cn";
 
+import { Menu } from "lucide-react";
+
 import { Button } from "../../components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../../components/ui/sheet";
 import { useSessionUser } from "../../lib/auth";
 import { APP_NAME } from "../../lib/config";
 import { ROUTES } from "../../lib/routes";
@@ -21,6 +30,53 @@ function useScrolled(): boolean {
     return () => window.removeEventListener("scroll", update);
   }, []);
   return scrolled;
+}
+
+const MENU_LINK = "rounded-md px-3 py-3 text-lg font-medium hover:bg-accent";
+
+/** Phones: the header keeps the logo and sign-up; everything else lives here. */
+function MobileMenu({ signedIn }: { signedIn: boolean }) {
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="sm:hidden"
+          aria-label="Open menu"
+        >
+          <Menu />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="top" className="gap-0 pb-6">
+        <SheetHeader>
+          <SheetTitle className="text-left">
+            <Logo />
+          </SheetTitle>
+        </SheetHeader>
+        <nav aria-label="Menu" className="grid px-1">
+          <Link
+            to={ROUTES.home}
+            hash={HOW_IT_WORKS_ID}
+            className={MENU_LINK}
+            onClick={close}
+          >
+            How it works
+          </Link>
+          <Link to={ROUTES.pricing} className={MENU_LINK} onClick={close}>
+            Pricing
+          </Link>
+          {signedIn ? null : (
+            <Link to={ROUTES.login} className={MENU_LINK} onClick={close}>
+              Log in
+            </Link>
+          )}
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 const FOOTER_LINK = "text-muted-foreground hover:text-foreground";
@@ -47,7 +103,7 @@ export function PublicLayout({
           <Link to={ROUTES.home} aria-label={`${APP_NAME} home`}>
             <Logo />
           </Link>
-          <nav className="flex items-center gap-1">
+          <nav aria-label="Main" className="flex items-center gap-1">
             {accountLinks ? (
               <>
                 <Button variant="ghost" size="sm" className="max-sm:hidden" asChild>
@@ -55,7 +111,7 @@ export function PublicLayout({
                     How it works
                   </Link>
                 </Button>
-                <Button variant="ghost" size="sm" asChild>
+                <Button variant="ghost" size="sm" className="max-sm:hidden" asChild>
                   <Link to={ROUTES.pricing}>Pricing</Link>
                 </Button>
               </>
@@ -63,11 +119,14 @@ export function PublicLayout({
             <ThemeToggle />
             {!accountLinks ? null : user ? (
               <Button size="sm" asChild>
-                <Link to={ROUTES.dashboard}>Go to dashboard</Link>
+                <Link to={ROUTES.dashboard}>
+                  <span className="max-sm:hidden">Go to dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
+                </Link>
               </Button>
             ) : (
               <>
-                <Button variant="ghost" size="sm" asChild>
+                <Button variant="ghost" size="sm" className="max-sm:hidden" asChild>
                   <Link to={ROUTES.login}>Log in</Link>
                 </Button>
                 <Button size="sm" asChild>
@@ -75,6 +134,7 @@ export function PublicLayout({
                 </Button>
               </>
             )}
+            {accountLinks ? <MobileMenu signedIn={user !== null} /> : null}
           </nav>
         </div>
       </header>

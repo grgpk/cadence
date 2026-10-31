@@ -40,6 +40,16 @@ Same tokens and type as Plan 8. No new dependencies, no backend change.
 └───────────────────────────────┘ └─────────────────────────┘
 ```
 
+## Responsive
+
+- Phones (< 640px): the header keeps the logo, theme toggle and sign-up, and the
+  rest moves into a top sheet menu. The demo calendar shows only the picked
+  week as a strip, and the hero buttons stack below 400px.
+- Tablets (640 to 1023px): the two demo panes stack within `max-w-2xl` instead
+  of stretching edge to edge. The promise row waits for `lg` to go three-up.
+- Auth forms sit at the top on phones instead of floating mid-screen.
+- Swept at 320 to 2560px in light and dark with no horizontal overflow.
+
 ## Tests
 
 Visual change only: lint, typecheck, knip, vitest, build. Checked with

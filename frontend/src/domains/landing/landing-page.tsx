@@ -104,7 +104,7 @@ export function LandingPage() {
                 Share one link. People pick a time that works for them, and it lands on
                 your calendar.
               </p>
-              <div className="mt-6 flex flex-wrap gap-2">
+              <div className="mt-6 grid gap-2 min-[25rem]:flex min-[25rem]:flex-wrap">
                 {signedIn ? null : <SignUpButton />}
                 <Button size="lg" variant="ghost" asChild>
                   <Link to={ROUTES.pricing}>See pricing</Link>
@@ -148,17 +148,16 @@ export function LandingPage() {
               You do not have to do anything. This is what happens next.
             </p>
           </div>
-          <ol className="relative grid gap-8">
-            {/* The rail the steps hang from. */}
-            <span
-              aria-hidden
-              className="absolute top-2 bottom-2 left-[1.0625rem] w-px origin-top bg-border"
-            />
+          <ol className="grid gap-8">
             {AFTER_BOOKING.map(({ icon, title, body }) => (
-              <li key={title} className="relative flex gap-4">
+              <li
+                key={title}
+                // A rail from each step down to the next; the last one ends the line.
+                className="relative flex gap-4 not-last:after:absolute not-last:after:top-9 not-last:after:-bottom-8 not-last:after:left-[1.0625rem] not-last:after:w-px not-last:after:bg-border"
+              >
                 <span
                   aria-hidden
-                  className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-background text-foreground"
+                  className="relative flex size-9 shrink-0 items-center justify-center rounded-full border bg-background text-foreground"
                 >
                   {icon}
                 </span>
