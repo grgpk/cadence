@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE crypto_payments\n         SET status = 'paid', paid_at = $2, period_end = $3, updated_at = now()\n         WHERE unid = $1 AND status <> 'paid' RETURNING 1",
+  "query": "UPDATE crypto_payments\n         SET status = 'paid', paid_at = $2, period_end = $3, updated_at = now()\n         WHERE unid = $1 AND status NOT IN ('paid', 'refunded') RETURNING 1",
   "describe": {
     "columns": [
       {
@@ -21,5 +21,5 @@
       null
     ]
   },
-  "hash": "2a34e898a8ad603916758ed46480b2745b83de6955081aa52507f7a31c8a27dc"
+  "hash": "8669efcbddd1166365c83e7c2686fa2f38d3937d212ef957e8bb85aadaea24bb"
 }

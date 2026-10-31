@@ -142,7 +142,8 @@ pub async fn advance(
 }
 
 /// Marks a payment paid, once, with the end of the period it buys. A late
-/// payment is still paid, whatever the invoice said before.
+/// payment is still paid, whatever the invoice said before; a refunded one
+/// stays refunded, whatever the provider sends again.
 pub async fn mark_paid(
     connection: &mut PgConnection,
     unid: Uuid,
@@ -152,7 +153,7 @@ pub async fn mark_paid(
     sqlx::query_scalar!(
         "UPDATE crypto_payments
          SET status = 'paid', paid_at = $2, period_end = $3, updated_at = now()
-         WHERE unid = $1 AND status <> 'paid' RETURNING 1",
+         WHERE unid = $1 AND status NOT IN ('paid', 'refunded') RETURNING 1",
         unid,
         paid_at,
         period_end,

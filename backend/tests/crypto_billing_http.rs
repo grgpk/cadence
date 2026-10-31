@@ -713,6 +713,31 @@ async fn a_refund_takes_back_the_time_its_payment_bought(pool: PgPool) {
     assert_eq!(status, StatusCode::CONFLICT);
 }
 
+/// A provider may send "settled" again, such as a redelivery from its
+/// dashboard. A refunded payment stays refunded and buys no time back.
+#[sqlx::test(migrations = "../migrations")]
+async fn a_settled_event_after_a_full_refund_changes_nothing(pool: PgPool) {
+    let app = app(&pool);
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let order = checkout(&app, &cookie, "pro", "month").await;
+    event(&app, &pool, order, "paid", SECRET).await;
+    refund_payment(&app, &admin_cookie, order, None).await;
+
+    assert_eq!(
+        event(&app, &pool, order, "paid", SECRET).await,
+        StatusCode::OK
+    );
+    let status = sqlx::query_scalar!("SELECT status FROM crypto_payments WHERE unid = $1", order)
+        .fetch_one(&pool)
+        .await
+        .expect("the payment is readable");
+    assert_eq!(status, "refunded");
+    assert_eq!(period_end(&app, &cookie).await, None);
+}
+
 #[sqlx::test(migrations = "../migrations")]
 async fn refunding_an_upgrade_goes_back_to_the_lower_plan_until_the_same_end(pool: PgPool) {
     let app = app(&pool);
