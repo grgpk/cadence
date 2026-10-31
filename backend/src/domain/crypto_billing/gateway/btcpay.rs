@@ -227,17 +227,37 @@ impl BtcPay {
         {
             // A coin with no payouts, such as USDT: the buyer claims the
             // dollars in Bitcoin instead.
-            Err(error)
-                if paid.is_some()
-                    && error.status() == Some(reqwest::StatusCode::UNPROCESSABLE_ENTITY) =>
-            {
-                self.request_refund(provider_invoice_id, &refund_body(amount, None))
-                    .await
+            Err(error) if paid.is_some() && refused(&error) => {
+                self.refund_in_bitcoin(provider_invoice_id, amount).await?
+            }
+            other => other.map_err(|error| GatewayError::Request(error.into()))?,
+        };
+        Ok(refund.view_link)
+    }
+
+    /// A refund in the store's default coin. What arrived on a short invoice
+    /// in another coin is not Bitcoin's to give back at the rate it was paid,
+    /// so it goes back as those dollars.
+    async fn refund_in_bitcoin(
+        &self,
+        provider_invoice_id: &str,
+        amount: RefundAmount,
+    ) -> Result<PullPayment, GatewayError> {
+        match self
+            .request_refund(provider_invoice_id, &refund_body(amount, None))
+            .await
+        {
+            Err(error) if amount == RefundAmount::WhatArrived && refused(&error) => {
+                let arrived = self.arrived_cents(provider_invoice_id).await?;
+                self.request_refund(
+                    provider_invoice_id,
+                    &refund_body(RefundAmount::Dollars(arrived), None),
+                )
+                .await
             }
             other => other,
         }
-        .map_err(|error| GatewayError::Request(error.into()))?;
-        Ok(refund.view_link)
+        .map_err(|error| GatewayError::Request(error.into()))
     }
 
     async fn request_refund(
@@ -315,6 +335,12 @@ fn read(body: &[u8]) -> Result<Option<PaymentEvent>, WebhookError> {
         provider_invoice_id,
         status,
     }))
+}
+
+/// `BTCPay` cannot make this refund as asked, such as in a coin it has no
+/// payouts for.
+fn refused(error: &reqwest::Error) -> bool {
+    error.status() == Some(reqwest::StatusCode::UNPROCESSABLE_ENTITY)
 }
 
 /// The coin the buyer paid in. `BTCPay` refunds in Bitcoin unless told.
@@ -474,6 +500,59 @@ mod tests {
                 .await
                 .ok(),
             Some("http://btcpay.test/claim-btc".to_owned())
+        );
+    }
+
+    /// A `BTCPay` where $5 of USDT arrived on a short invoice.
+    ///
+    /// Neither a USDT refund nor a Bitcoin one at the rate paid can be made,
+    /// since nothing was paid in Bitcoin: the $5 goes back as dollars,
+    /// claimed in Bitcoin.
+    #[tokio::test]
+    async fn a_short_payment_in_a_coin_without_payouts_is_refunded_as_its_dollars() {
+        use axum::{Json, Router, http::StatusCode, routing};
+
+        let btcpay = Router::new()
+            .route(
+                "/api/v1/stores/store/invoices/inv_1",
+                routing::get(|| async {
+                    Json(json!({ "status": "Expired", "additionalStatus": "PaidPartial", "paidAmount": "5.00" }))
+                }),
+            )
+            .route(
+                "/api/v1/stores/store/invoices/inv_1/payment-methods",
+                routing::get(|| async {
+                    Json(json!([{ "paymentMethodId": "USDT-TRON", "payments": [{}] }]))
+                }),
+            )
+            .route(
+                "/api/v1/stores/store/invoices/inv_1/refund",
+                routing::post(|Json(body): Json<serde_json::Value>| async move {
+                    if body.get("payoutMethodId").is_some() || body["refundVariant"] != "Custom" {
+                        Err(StatusCode::UNPROCESSABLE_ENTITY)
+                    } else {
+                        Ok(Json(json!({
+                            "viewLink": format!("http://btcpay.test/claim/{}", body["customAmount"].as_str().unwrap_or_default())
+                        })))
+                    }
+                }),
+            );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("a free local port");
+        let address = listener.local_addr().expect("a bound port");
+        tokio::spawn(async move { axum::serve(listener, btcpay).await });
+
+        let gateway = BtcPay {
+            url: format!("http://{address}").into(),
+            ..gateway()
+        };
+        assert_eq!(
+            gateway
+                .refund("inv_1", RefundAmount::WhatArrived)
+                .await
+                .ok(),
+            Some("http://btcpay.test/claim/5.00".to_owned())
         );
     }
 
