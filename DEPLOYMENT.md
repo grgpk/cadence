@@ -154,6 +154,8 @@ provider; switching later is a change to `.env` and a redeploy.
 
 ### BTCPay Server (self-hosted, no account anywhere)
 
+Step by step, in order: [docs/BTCPAY_PRODUCTION_SETUP.md](docs/BTCPAY_PRODUCTION_SETUP.md).
+
 Run BTCPay on its own small server, not on the app's. It needs a Bitcoin node,
 and a pruned one keeps the disk small. Check BTCPay's docs for current
 hardware needs before you size it.
