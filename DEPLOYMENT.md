@@ -233,7 +233,8 @@ adds USDT on TRON, Ethereum or Polygon. It needs BTCPay 2.3.7 or newer.
    address is enough, so no private key goes on the server. Each open invoice
    holds one address until it is paid or expires, so give as many addresses as
    you expect open checkouts at once. When every address is taken, BTCPay
-   leaves USDT off the next checkout.
+   leaves USDT off the next checkout, while the pricing page still names it
+   from `BTCPAY_COINS`.
 3. **TRON node.** The plugin's default public TRON node is for testing only.
    For production, set a private TRON node's JSON-RPC endpoint in the plugin's
    TRON settings, or a provider such as TronGrid with its `TRON-PRO-API-KEY`
@@ -274,7 +275,9 @@ test coins, and your computer needs internet.
    It downloads the pinned plugin, installs it, sets the faucet's USDT
    contract, gives the store your addresses, restarts BTCPay, and sets
    `BTCPAY_COINS="Bitcoin, Litecoin or USDT"`. Then restart the backend. Run
-   it again with a new list to replace the addresses.
+   it again with a new list to replace the addresses. Give a few: with one,
+   the first open checkout holds it for the invoice's 15 minutes, and the
+   next checkout offers no USDT.
 4. **Pay.** Start a crypto checkout in Billing. The BTCPay page offers
    *USD₮ on TRON Testnet*. Then run
    `scripts/btcpay-setup.sh pay-invoice <link> usdt`, which prints the
@@ -287,6 +290,11 @@ settings → Plugins, restart BTCPay (`docker compose -f
 docker-compose.btcpay.yml restart btcpayserver`), add your Nile addresses in
 the store's *USD₮ on TRON* wallet, then restart BTCPay once more, so the
 plugin starts watching the chain.
+
+Back after a day or more away, BTCPay may offer only USDT: a regtest chain
+whose newest block is over a day old counts as still syncing, and BTCPay
+leaves BTC and LTC out of checkout. `scripts/btcpay-setup.sh wake` mines a
+block of each, and they are back within a minute.
 
 Any other coin BTCPay supports works the same way: add it to the store, then
 list it in `BTCPAY_COINS`. A refund goes back in the coin the buyer paid in
