@@ -1207,3 +1207,73 @@ async fn a_short_payment_refunds_what_arrived_once(pool: PgPool) {
     assert_eq!(listed[0]["status"], "underpaid");
     assert_eq!(listed[0]["refunded_cents"], 500);
 }
+
+async fn queued(pool: &PgPool, email: &str, template: &str) -> Vec<Value> {
+    sqlx::query_scalar!(
+        r#"SELECT e.payload AS "payload!" FROM email_queue e
+           WHERE e.email = $1 AND e.template = $2 ORDER BY e.created_at"#,
+        email,
+        template,
+    )
+    .fetch_all(pool)
+    .await
+    .expect("queue is readable")
+}
+
+#[sqlx::test(migrations = "../migrations")]
+async fn a_payment_keeps_its_coin_and_admins_hear_when_more_arrived(pool: PgPool) {
+    let crypto = CryptoPayments::fake(SECRET);
+    let app = app_with(&pool, Some(crypto.clone()));
+    let (admin, admin_cookie) = register(&app, "admin@example.com").await;
+    grant_admin(&pool, admin).await;
+    let (host, cookie) = register(&app, "ada@example.com").await;
+    end_trial(&pool, host).await;
+    let over = checkout(&app, &cookie, "pro", "month").await;
+    let invoice = quiet(&pool, over).await;
+    crypto.set_fake_coin(&invoice, "LTC");
+    crypto.set_fake_arrived(&invoice, 1100);
+    event(&app, &pool, over, "paid", SECRET).await;
+
+    assert_eq!(
+        receipts(&pool, host).await[0]["lines"][1],
+        "Paid $10.00 in LTC"
+    );
+    let (_, listed) = send(
+        &app,
+        Method::GET,
+        &payments_path(host),
+        Some(&admin_cookie),
+        None,
+    )
+    .await;
+    assert_eq!(listed[0]["coin"], "LTC");
+    let alerts = queued(&pool, "admin@example.com", "admin_crypto_overpaid").await;
+    assert_eq!(alerts.len(), 1);
+    assert_eq!(
+        alerts[0]["lines"],
+        json!([
+            "Ada Lovelace (ada@example.com)",
+            "Pro for 1 month, invoiced $10.00, arrived $11.00"
+        ])
+    );
+
+    // A rate that moved a little while paying is nobody's business.
+    let close = checkout(&app, &cookie, "pro", "month").await;
+    crypto.set_fake_arrived(&quiet(&pool, close).await, 1005);
+    event(&app, &pool, close, "paid", SECRET).await;
+    assert_eq!(
+        queued(&pool, "admin@example.com", "admin_crypto_overpaid")
+            .await
+            .len(),
+        1
+    );
+    assert_eq!(receipts(&pool, host).await[1]["lines"][1], "Paid $10.00");
+
+    // The refund says which coin it is claimed in.
+    refund_payment(&app, &admin_cookie, over, Some(100)).await;
+    let refunds = queued(&pool, "ada@example.com", "crypto_refund").await;
+    assert_eq!(
+        refunds[0]["lines"][2],
+        "You claim it in LTC, to a wallet address of yours."
+    );
+}

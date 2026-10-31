@@ -11,7 +11,10 @@ use uuid::Uuid;
 
 use super::{
     db::{self, ActivePeriod, NewPayment, PaymentKind},
-    gateway::{CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus, RefundAmount},
+    gateway::{
+        CryptoPayments, InvoiceRequest, PaymentEvent, PaymentStatus, Refund, RefundAmount,
+        Settlement,
+    },
     models::{
         AdminCryptoPayment, CryptoOptions, CryptoPlan, CryptoPrice, CryptoRefund, CryptoSummary,
         CryptoUpgrade,
@@ -26,7 +29,7 @@ use crate::{
             plans::{BillingInterval, Plan, SubscriptionStatus},
             service as billing,
         },
-        emails::service::{self as emails, AccountNotice, app_url},
+        emails::service::{self as emails, AccountNotice, AdminCryptoAlert, app_url},
     },
     error::{AppError, AppResult},
 };
@@ -271,6 +274,19 @@ pub async fn apply_event(
     event: &PaymentEvent,
     now: DateTime<Utc>,
 ) -> AppResult<()> {
+    // Asked before the transaction, so a slow provider holds no row; without
+    // its answer the payment is still credited.
+    let settlement = if event.status == PaymentStatus::Paid {
+        crypto
+            .settlement(&event.provider_invoice_id)
+            .await
+            .unwrap_or_else(|error| {
+                tracing::warn!(?error, order = %event.order_id, "crypto settlement unavailable");
+                Settlement::default()
+            })
+    } else {
+        Settlement::default()
+    };
     let mut transaction = pool.begin().await?;
     let Some(payment) = db::find(&mut transaction, event.order_id).await? else {
         tracing::warn!(order = %event.order_id, "crypto event for no known payment");
@@ -311,7 +327,7 @@ pub async fn apply_event(
             }
         }
         PaymentStatus::Paid => {
-            paid(&mut transaction, event.order_id, &payment, now).await?;
+            paid(&mut transaction, event.order_id, &payment, &settlement, now).await?;
         }
     }
     Ok(transaction.commit().await?)
@@ -346,8 +362,9 @@ async fn underpaid(
     ];
     let roles = [Role::Root.to_string(), Role::Admin.to_string()];
     for admin in db::admins(connection, &roles).await? {
-        emails::queue_admin_crypto_underpaid(
+        emails::queue_admin_crypto(
             connection,
+            AdminCryptoAlert::Underpaid,
             &admin.email,
             &admin.full_name,
             lines.clone(),
@@ -363,11 +380,12 @@ async fn underpaid(
 ///
 /// A period payment buys its interval after whatever is already paid, and
 /// after a running trial that already gives its plan; an upgrade ends with
-/// the period it upgrades.
+/// the period it upgrades. Admins hear about money paid over the invoice.
 async fn paid(
     connection: &mut PgConnection,
     order_id: Uuid,
     payment: &db::PaymentRow,
+    settlement: &Settlement,
     now: DateTime<Utc>,
 ) -> AppResult<()> {
     db::lock_user(connection, payment.user_unid).await?;
@@ -393,7 +411,15 @@ async fn paid(
             |period| period.period_end,
         ),
     };
-    if !db::mark_paid(connection, order_id, now, period_end).await? {
+    if !db::mark_paid(
+        connection,
+        order_id,
+        now,
+        period_end,
+        settlement.coin.as_deref(),
+    )
+    .await?
+    {
         return Ok(());
     }
     let Some(contact) = billing_db::contact(connection, payment.user_unid).await? else {
@@ -420,11 +446,64 @@ async fn paid(
         connection,
         &contact.email,
         &contact.full_name,
-        vec![bought, format!("Paid {}", dollars(payment.amount_cents))],
+        vec![
+            bought,
+            paid_line(payment.amount_cents, settlement.coin.as_deref()),
+        ],
         now,
     )
     .await?;
+    if let Some(arrived) = settlement
+        .arrived_cents
+        .and_then(|cents| i32::try_from(cents).ok())
+        .filter(|&arrived| overpaid(payment.amount_cents, arrived))
+    {
+        let lines = vec![
+            format!("{} ({})", contact.full_name, contact.email),
+            format!(
+                "{} for 1 {}, invoiced {}, arrived {}",
+                payment.plan.display_name(),
+                payment.billing_interval.as_str(),
+                dollars(payment.amount_cents),
+                dollars(arrived)
+            ),
+        ];
+        let roles = [Role::Root.to_string(), Role::Admin.to_string()];
+        for admin in db::admins(connection, &roles).await? {
+            emails::queue_admin_crypto(
+                connection,
+                AdminCryptoAlert::Overpaid,
+                &admin.email,
+                &admin.full_name,
+                lines.clone(),
+                now,
+            )
+            .await?;
+        }
+    }
     remind_before(connection, payment.user_unid, &contact, now).await
+}
+
+/// More than 1% over the invoice: a rate moving while the host paid is not
+/// worth anyone's time, a wrong amount sent is.
+const fn overpaid(invoiced_cents: i32, arrived_cents: i32) -> bool {
+    arrived_cents as i64 * 100 > invoiced_cents as i64 * 101
+}
+
+/// `Paid $10.00 in LTC`, or without the coin when the provider does not say.
+fn paid_line(cents: i32, coin: Option<&str>) -> String {
+    coin.map_or_else(
+        || format!("Paid {}", dollars(cents)),
+        |coin| format!("Paid {} in {coin}", dollars(cents)),
+    )
+}
+
+/// Where the host claims a refund, and in which coin when the provider says.
+fn claim_line(refund: &Refund) -> Option<String> {
+    refund
+        .coin
+        .as_deref()
+        .map(|coin| format!("You claim it in {coin}, to a wallet address of yours."))
 }
 
 /// `1050` cents as `$10.50`.
@@ -446,6 +525,7 @@ pub async fn payments(pool: &PgPool, user_unid: Uuid) -> AppResult<Vec<AdminCryp
             amount_cents: row.amount_cents,
             refunded_cents: row.refunded_cents,
             status: row.status.as_str().to_owned(),
+            coin: row.coin,
             created_at: row.created_at,
             paid_at: row.paid_at,
             period_end: row.period_end,
@@ -505,10 +585,11 @@ pub async fn refund(
     if full {
         take_back_time(&mut transaction, &payment, now).await?;
     }
-    let claim_url = crypto
+    let refund = crypto
         .refund(invoice, RefundAmount::Dollars(amount))
         .await
         .map_err(|error| AppError::Internal(error.into()))?;
+    let claim_url = refund.as_ref().map(|refund| refund.claim_url.clone());
     let cents = i32::try_from(amount).map_err(|error| AppError::Internal(error.into()))?;
     db::insert_refund(&mut transaction, payment.unid, cents, claim_url.as_deref()).await?;
     if let Some(contact) = billing_db::contact(&mut transaction, user_unid).await? {
@@ -530,9 +611,9 @@ pub async fn refund(
                 .await?;
             }
         }
-        if let Some(claim_url) = &claim_url {
+        if let Some(refund) = &refund {
             // Only a refund of all of it takes the time back; say which.
-            let lines = vec![
+            let mut lines = vec![
                 format!(
                     "We have refunded {} of your {} crypto payment.",
                     dollars(cents),
@@ -544,11 +625,12 @@ pub async fn refund(
                     "Your plan keeps the time it paid for.".to_owned()
                 },
             ];
+            lines.extend(claim_line(refund));
             emails::queue_crypto_refund(
                 &mut transaction,
                 &contact.email,
                 &contact.full_name,
-                claim_url,
+                &refund.claim_url,
                 lines,
                 now,
             )
@@ -597,28 +679,30 @@ async fn refund_short(
             "nothing arrived on this invoice".to_owned(),
         ));
     }
-    let claim_url = crypto
+    let refund = crypto
         .refund(invoice, RefundAmount::WhatArrived)
         .await
         .map_err(|error| AppError::Internal(error.into()))?;
+    let claim_url = refund.as_ref().map(|refund| refund.claim_url.clone());
     let cents = i32::try_from(arrived).map_err(|error| AppError::Internal(error.into()))?;
     db::insert_refund(&mut transaction, payment.unid, cents, claim_url.as_deref()).await?;
-    if let (Some(contact), Some(claim_url)) = (
+    if let (Some(contact), Some(refund)) = (
         billing_db::contact(&mut transaction, payment.user_unid).await?,
-        &claim_url,
+        &refund,
     ) {
-        let lines = vec![
+        let mut lines = vec![
             format!(
                 "We have refunded the {} that arrived of your short crypto payment.",
                 dollars(cents)
             ),
             "Nothing was added to your plan for it.".to_owned(),
         ];
+        lines.extend(claim_line(refund));
         emails::queue_crypto_refund(
             &mut transaction,
             &contact.email,
             &contact.full_name,
-            claim_url,
+            &refund.claim_url,
             lines,
             now,
         )

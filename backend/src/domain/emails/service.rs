@@ -48,6 +48,8 @@ pub const CRYPTO_UNDERPAID_TEMPLATE: &str = "crypto_underpaid";
 pub const CRYPTO_ENDED_TEMPLATE: &str = "crypto_ended";
 /// Plan 52: to the admins, a host's crypto payment came in short.
 pub const ADMIN_CRYPTO_UNDERPAID_TEMPLATE: &str = "admin_crypto_underpaid";
+/// Plan 55: to the admins, a host paid more than the invoice asked.
+pub const ADMIN_CRYPTO_OVERPAID_TEMPLATE: &str = "admin_crypto_overpaid";
 /// Business: the invitee has not said they are coming, 2 hours before.
 pub const HOST_UNCONFIRMED_TEMPLATE: &str = "host_unconfirmed";
 /// Business: a host's one "here are my times" to someone who left a booking.
@@ -249,10 +251,29 @@ pub async fn queue_crypto_refund(
     .await
 }
 
-/// Tells an admin a host's crypto payment came in short, with who and what,
-/// and where to refund what arrived.
-pub async fn queue_admin_crypto_underpaid(
+/// Money on a host's crypto payment that an admin has to give back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AdminCryptoAlert {
+    /// It came in short: what arrived goes back.
+    Underpaid,
+    /// More arrived than invoiced: the extra goes back.
+    Overpaid,
+}
+
+impl AdminCryptoAlert {
+    const fn template(self) -> &'static str {
+        match self {
+            Self::Underpaid => ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
+            Self::Overpaid => ADMIN_CRYPTO_OVERPAID_TEMPLATE,
+        }
+    }
+}
+
+/// Tells an admin about money on a host's crypto payment to refund, with who
+/// and what, and where to refund it.
+pub async fn queue_admin_crypto(
     connection: &mut PgConnection,
+    alert: AdminCryptoAlert,
     email: &str,
     full_name: &str,
     lines: Vec<String>,
@@ -265,15 +286,7 @@ pub async fn queue_admin_crypto_underpaid(
         claim_url: None,
         lines: Some(lines),
     })?;
-    db::queue(
-        connection,
-        None,
-        email,
-        ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
-        send_at,
-        payload,
-    )
-    .await
+    db::queue(connection, None, email, alert.template(), send_at, payload).await
 }
 
 /// Thanks the host for a credited crypto payment, listing what it bought.
@@ -832,7 +845,8 @@ pub fn render(template: &str, payload: Option<&Value>) -> Option<RenderedEmail> 
         | CRYPTO_RECEIPT_TEMPLATE
         | CRYPTO_UNDERPAID_TEMPLATE
         | CRYPTO_ENDED_TEMPLATE
-        | ADMIN_CRYPTO_UNDERPAID_TEMPLATE => account_content(template, &read(payload)),
+        | ADMIN_CRYPTO_UNDERPAID_TEMPLATE
+        | ADMIN_CRYPTO_OVERPAID_TEMPLATE => account_content(template, &read(payload)),
         HOST_NEW_BOOKING_TEMPLATE
         | HOST_BOOKING_CANCELLED_TEMPLATE
         | HOST_BOOKING_RESCHEDULED_TEMPLATE
@@ -947,6 +961,12 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
              what arrived from their crypto payments on the admin Plans page.",
             "Open admin Plans",
         ),
+        ADMIN_CRYPTO_OVERPAID_TEMPLATE => (
+            "A crypto payment came in over",
+            "The host has their plan as paid. Refund the extra from their crypto payments \
+             on the admin Plans page, as a part refund, so they keep the time.",
+            "Open admin Plans",
+        ),
         CRYPTO_ENDED_TEMPLATE => (
             "Your crypto plan has ended",
             "The period you paid for in crypto is over, and your page has moved to the \
@@ -970,6 +990,7 @@ fn account_content(template: &str, email: &AccountEmail) -> Content {
         [
             CRYPTO_RECEIPT_TEMPLATE,
             ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
+            ADMIN_CRYPTO_OVERPAID_TEMPLATE,
             CRYPTO_REFUND_TEMPLATE,
         ]
         .contains(&template)
@@ -1511,6 +1532,10 @@ mod tests {
             (
                 ADMIN_CRYPTO_UNDERPAID_TEMPLATE,
                 "A crypto payment came in short",
+            ),
+            (
+                ADMIN_CRYPTO_OVERPAID_TEMPLATE,
+                "A crypto payment came in over",
             ),
         ] {
             let email = email(template, &payload);

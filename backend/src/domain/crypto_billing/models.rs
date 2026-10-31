@@ -88,6 +88,8 @@ pub struct AdminCryptoPayment {
     /// `pending` or `processing` while open, then `paid`, `refunded` or
     /// `underpaid`.
     pub status: String,
+    /// The coin it was paid in, such as `BTC`, when the provider says.
+    pub coin: Option<String>,
     pub created_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub period_end: Option<DateTime<Utc>>,

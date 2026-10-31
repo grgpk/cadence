@@ -209,6 +209,12 @@ function PaymentItem({
         ) : null}
         <dt className="text-muted-foreground">Provider</dt>
         <dd>{payment.provider}</dd>
+        {payment.coin ? (
+          <>
+            <dt className="text-muted-foreground">Coin</dt>
+            <dd>{payment.coin}</dd>
+          </>
+        ) : null}
       </dl>
       {payment.status === "paid" && payment.refunded_cents < payment.amount_cents ? (
         <RefundForm payment={payment} onRefunded={onRefunded} />

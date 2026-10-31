@@ -149,14 +149,16 @@ pub async fn mark_paid(
     unid: Uuid,
     paid_at: DateTime<Utc>,
     period_end: DateTime<Utc>,
+    coin: Option<&str>,
 ) -> Result<bool, sqlx::Error> {
     sqlx::query_scalar!(
         "UPDATE crypto_payments
-         SET status = 'paid', paid_at = $2, period_end = $3, updated_at = now()
+         SET status = 'paid', paid_at = $2, period_end = $3, coin = $4, updated_at = now()
          WHERE unid = $1 AND status NOT IN ('paid', 'refunded') RETURNING 1",
         unid,
         paid_at,
         period_end,
+        coin,
     )
     .fetch_optional(connection)
     .await
@@ -342,6 +344,7 @@ pub struct PaymentListed {
     pub amount_cents: i32,
     pub refunded_cents: i32,
     pub status: PaymentStatus,
+    pub coin: Option<String>,
     pub created_at: DateTime<Utc>,
     pub paid_at: Option<DateTime<Utc>>,
     pub period_end: Option<DateTime<Utc>>,
@@ -358,7 +361,8 @@ pub async fn payments_of(
                   p.amount_cents,
                   COALESCE((SELECT SUM(r.amount_cents) FROM crypto_refunds r
                             WHERE r.payment_unid = p.unid), 0)::INTEGER AS "refunded_cents!",
-                  p.status AS "status: PaymentStatus", p.created_at, p.paid_at, p.period_end
+                  p.status AS "status: PaymentStatus", p.coin, p.created_at, p.paid_at,
+                  p.period_end
            FROM crypto_payments p
            WHERE p.user_unid = $1
              AND p.status IN ('pending', 'processing', 'paid', 'refunded', 'underpaid')

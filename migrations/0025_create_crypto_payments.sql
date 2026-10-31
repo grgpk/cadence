@@ -20,6 +20,9 @@ CREATE TABLE crypto_payments (
     amount_cents        INTEGER NOT NULL,
     status              TEXT NOT NULL DEFAULT 'pending',
     paid_at             TIMESTAMPTZ,
+    -- Plan 55: the coin it was paid in, such as BTC, LTC or USDT, when the
+    -- provider says. Set when paid.
+    coin                TEXT,
     -- Set when paid: the plan applies until then.
     period_end          TIMESTAMPTZ,
     refunded_at         TIMESTAMPTZ,

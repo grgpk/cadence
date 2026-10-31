@@ -22,4 +22,8 @@ refunded_cents: number,
  * `pending` or `processing` while open, then `paid`, `refunded` or
  * `underpaid`.
  */
-status: string, created_at: string, paid_at: string | null, period_end: string | null, };
+status: string, 
+/**
+ * The coin it was paid in, such as `BTC`, when the provider says.
+ */
+coin: string | null, created_at: string, paid_at: string | null, period_end: string | null, };

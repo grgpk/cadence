@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE crypto_payments\n         SET status = 'paid', paid_at = $2, period_end = $3, updated_at = now()\n         WHERE unid = $1 AND status NOT IN ('paid', 'refunded') RETURNING 1",
+  "query": "UPDATE crypto_payments\n         SET status = 'paid', paid_at = $2, period_end = $3, coin = $4, updated_at = now()\n         WHERE unid = $1 AND status NOT IN ('paid', 'refunded') RETURNING 1",
   "describe": {
     "columns": [
       {
@@ -14,12 +14,13 @@
       "Left": [
         "Uuid",
         "Timestamptz",
-        "Timestamptz"
+        "Timestamptz",
+        "Text"
       ]
     },
     "nullable": [
       null
     ]
   },
-  "hash": "8669efcbddd1166365c83e7c2686fa2f38d3937d212ef957e8bb85aadaea24bb"
+  "hash": "1da246004666cfb1a06d28de1a46cf253db26a738416416260628b61b480f84b"
 }

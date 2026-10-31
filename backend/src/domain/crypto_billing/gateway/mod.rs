@@ -119,6 +119,24 @@ pub struct PaymentEvent {
     pub status: PaymentStatus,
 }
 
+/// How a paid invoice was paid, as far as the provider says.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Settlement {
+    /// Such as `BTC`, `LTC` or `USDT`.
+    pub coin: Option<String>,
+    /// What arrived, in US cents; more than invoiced on an overpayment.
+    pub arrived_cents: Option<u32>,
+}
+
+/// A refund made at the provider.
+#[derive(Debug, PartialEq, Eq)]
+pub struct Refund {
+    /// Where the host claims it to a wallet.
+    pub claim_url: String,
+    /// The coin the claim pays out in, such as `BTC` for a USDT payment.
+    pub coin: Option<String>,
+}
+
 /// How much of an invoice a refund gives back.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RefundAmount {
@@ -157,6 +175,8 @@ struct Fake {
     statuses: Mutex<HashMap<String, PaymentStatus>>,
     /// What tests say arrived on an invoice, in cents.
     arrived: Mutex<HashMap<String, u32>>,
+    /// The coin tests say an invoice was paid in.
+    coins: Mutex<HashMap<String, String>>,
 }
 
 /// The fake's event body: Cadence's own words, no provider's.
@@ -165,6 +185,17 @@ struct FakeEvent {
     order_id: Uuid,
     invoice_id: String,
     status: PaymentStatus,
+}
+
+impl Fake {
+    fn coin(&self, provider_invoice_id: &str) -> Result<Option<String>, GatewayError> {
+        Ok(self
+            .coins
+            .lock()
+            .map_err(|_| GatewayError::Request(anyhow::anyhow!("fake coins poisoned")))?
+            .get(provider_invoice_id)
+            .cloned())
+    }
 }
 
 #[derive(Clone)]
@@ -198,6 +229,7 @@ impl CryptoPayments {
                 invoices: AtomicUsize::new(0),
                 statuses: Mutex::default(),
                 arrived: Mutex::default(),
+                coins: Mutex::default(),
             })),
         }
     }
@@ -262,19 +294,49 @@ impl CryptoPayments {
         &self,
         provider_invoice_id: &str,
         amount: RefundAmount,
-    ) -> Result<Option<String>, GatewayError> {
+    ) -> Result<Option<Refund>, GatewayError> {
         match &self.gateway {
             Gateway::BtcPay(btcpay) => btcpay.refund(provider_invoice_id, amount).await.map(Some),
             // Invoices are refunded from the NOWPayments dashboard.
             Gateway::NowPayments(_) => Ok(None),
-            Gateway::Fake(_) => Ok(Some(match amount {
-                RefundAmount::Dollars(cents) => {
-                    format!("https://crypto.test/refund/{provider_invoice_id}/{cents}")
-                }
-                RefundAmount::WhatArrived => {
-                    format!("https://crypto.test/refund/{provider_invoice_id}/arrived")
-                }
+            Gateway::Fake(fake) => Ok(Some(Refund {
+                claim_url: match amount {
+                    RefundAmount::Dollars(cents) => {
+                        format!("https://crypto.test/refund/{provider_invoice_id}/{cents}")
+                    }
+                    RefundAmount::WhatArrived => {
+                        format!("https://crypto.test/refund/{provider_invoice_id}/arrived")
+                    }
+                },
+                coin: fake.coin(provider_invoice_id)?,
             })),
+        }
+    }
+
+    /// How a paid invoice was paid: its coin, and what arrived. Empty for a
+    /// provider that cannot say.
+    pub async fn settlement(&self, provider_invoice_id: &str) -> Result<Settlement, GatewayError> {
+        match &self.gateway {
+            Gateway::BtcPay(btcpay) => btcpay.settlement(provider_invoice_id).await,
+            Gateway::NowPayments(_) => Ok(Settlement::default()),
+            Gateway::Fake(fake) => Ok(Settlement {
+                coin: fake.coin(provider_invoice_id)?,
+                arrived_cents: fake
+                    .arrived
+                    .lock()
+                    .map_err(|_| GatewayError::Request(anyhow::anyhow!("fake poisoned")))?
+                    .get(provider_invoice_id)
+                    .copied(),
+            }),
+        }
+    }
+
+    /// For tests: the fake's invoice was paid in `coin`.
+    pub fn set_fake_coin(&self, provider_invoice_id: &str, coin: &str) {
+        if let Gateway::Fake(fake) = &self.gateway
+            && let Ok(mut coins) = fake.coins.lock()
+        {
+            coins.insert(provider_invoice_id.to_owned(), coin.to_owned());
         }
     }
 

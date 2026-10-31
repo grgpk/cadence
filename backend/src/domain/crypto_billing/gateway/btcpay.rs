@@ -16,14 +16,16 @@ use sha2::Sha256;
 use uuid::Uuid;
 
 use super::{
-    CryptoProvider, GatewayError, Invoice, InvoiceRequest, PaymentEvent, PaymentStatus,
-    RefundAmount, WebhookError, dollars,
+    CryptoProvider, GatewayError, Invoice, InvoiceRequest, PaymentEvent, PaymentStatus, Refund,
+    RefundAmount, Settlement, WebhookError, dollars,
 };
 
 const SIGNATURE_HEADER: &str = "btcpay-sig";
 const SIGNATURE_PREFIX: &str = "sha256=";
 const CURRENCY: &str = "USD";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
+/// The store's default coin, which a refund falls back to.
+const BITCOIN: &str = "BTC";
 
 #[derive(Clone)]
 pub(super) struct BtcPay {
@@ -171,6 +173,40 @@ impl BtcPay {
             .unwrap_or(0))
     }
 
+    pub(super) async fn settlement(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<Settlement, GatewayError> {
+        let methods = self.payment_methods(provider_invoice_id).await?;
+        let invoice = self.invoice(provider_invoice_id).await?;
+        Ok(Settlement {
+            coin: paid_with(&methods).map(ticker).map(str::to_owned),
+            arrived_cents: invoice.paid_amount.as_deref().and_then(cents_of),
+        })
+    }
+
+    async fn payment_methods(
+        &self,
+        provider_invoice_id: &str,
+    ) -> Result<Vec<PaymentMethodState>, GatewayError> {
+        self.client
+            .get(format!(
+                "{}/api/v1/stores/{}/invoices/{provider_invoice_id}/payment-methods",
+                self.url, self.store_id
+            ))
+            .header(
+                reqwest::header::AUTHORIZATION,
+                format!("token {}", self.api_key),
+            )
+            .send()
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .map_err(|error| GatewayError::Request(error.into()))?
+            .json()
+            .await
+            .map_err(|error| GatewayError::Request(error.into()))
+    }
+
     async fn invoice(&self, provider_invoice_id: &str) -> Result<InvoiceState, GatewayError> {
         let invoice: InvoiceState = self
             .client
@@ -202,37 +238,28 @@ impl BtcPay {
         &self,
         provider_invoice_id: &str,
         amount: RefundAmount,
-    ) -> Result<String, GatewayError> {
-        let methods: Vec<PaymentMethodState> = self
-            .client
-            .get(format!(
-                "{}/api/v1/stores/{}/invoices/{provider_invoice_id}/payment-methods",
-                self.url, self.store_id
-            ))
-            .header(
-                reqwest::header::AUTHORIZATION,
-                format!("token {}", self.api_key),
-            )
-            .send()
-            .await
-            .and_then(reqwest::Response::error_for_status)
-            .map_err(|error| GatewayError::Request(error.into()))?
-            .json()
-            .await
-            .map_err(|error| GatewayError::Request(error.into()))?;
+    ) -> Result<Refund, GatewayError> {
+        let methods = self.payment_methods(provider_invoice_id).await?;
         let paid = paid_with(&methods);
-        let refund = match self
+        let (refund, coin) = match self
             .request_refund(provider_invoice_id, &refund_body(amount, paid))
             .await
         {
             // A coin with no payouts, such as USDT: the buyer claims the
             // dollars in Bitcoin instead.
-            Err(error) if paid.is_some() && refused(&error) => {
-                self.refund_in_bitcoin(provider_invoice_id, amount).await?
-            }
-            other => other.map_err(|error| GatewayError::Request(error.into()))?,
+            Err(error) if paid.is_some() && refused(&error) => (
+                self.refund_in_bitcoin(provider_invoice_id, amount).await?,
+                Some(BITCOIN),
+            ),
+            other => (
+                other.map_err(|error| GatewayError::Request(error.into()))?,
+                paid.map(ticker),
+            ),
         };
-        Ok(refund.view_link)
+        Ok(Refund {
+            claim_url: refund.view_link,
+            coin: coin.map(str::to_owned),
+        })
     }
 
     /// A refund in the store's default coin. What arrived on a short invoice
@@ -343,6 +370,13 @@ fn refused(error: &reqwest::Error) -> bool {
     error.status() == Some(reqwest::StatusCode::UNPROCESSABLE_ENTITY)
 }
 
+/// A payment method's coin: `LTC-CHAIN` is `LTC`, `USDT-TRON` is `USDT`.
+fn ticker(payment_method_id: &str) -> &str {
+    payment_method_id
+        .split_once('-')
+        .map_or(payment_method_id, |(coin, _)| coin)
+}
+
 /// The coin the buyer paid in. `BTCPay` refunds in Bitcoin unless told.
 fn paid_with(methods: &[PaymentMethodState]) -> Option<&str> {
     methods
@@ -451,6 +485,8 @@ mod tests {
         )
         .unwrap_or_default();
         assert_eq!(paid_with(&methods), Some("LTC-CHAIN"));
+        assert_eq!(paid_with(&methods).map(ticker), Some("LTC"));
+        assert_eq!(ticker("USDT-TRON"), "USDT");
         assert_eq!(
             refund_body(RefundAmount::WhatArrived, paid_with(&methods)),
             json!({
@@ -499,7 +535,10 @@ mod tests {
                 .refund("inv_1", RefundAmount::Dollars(300))
                 .await
                 .ok(),
-            Some("http://btcpay.test/claim-btc".to_owned())
+            Some(Refund {
+                claim_url: "http://btcpay.test/claim-btc".to_owned(),
+                coin: Some("BTC".to_owned()),
+            })
         );
     }
 
@@ -552,7 +591,10 @@ mod tests {
                 .refund("inv_1", RefundAmount::WhatArrived)
                 .await
                 .ok(),
-            Some("http://btcpay.test/claim/5.00".to_owned())
+            Some(Refund {
+                claim_url: "http://btcpay.test/claim/5.00".to_owned(),
+                coin: Some("BTC".to_owned()),
+            })
         );
     }
 
