@@ -22,6 +22,11 @@ Same tokens and type as Plan 8. No new dependencies, no backend change.
   (Berlin time), lands in dusk next to the "now" line, and gets a Meet link.
   A step timer drives it. It pauses off screen and under the pointer, and
   with reduced motion it shows the last frame still. It is `aria-hidden`.
+- **The day fills.** The demo runs three rounds (Leo, Sam, Ivy). Each call
+  stays in the host's day, and each taken time leaves the guest's list. After
+  the third round the day resets. Reduced motion shows the full day.
+- **Closing band** (`shared/closing-band.tsx`, landing and pricing): ink on a
+  light page, a dusk-tinted night on a dark one, so it never flashes white.
 - **Landing sections.** How it works (kept), after someone books (a timeline
   of features that exist: emails, calendar + Meet, reminder, reschedule
   link), works with, promises, and an ink closing band.

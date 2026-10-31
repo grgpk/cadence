@@ -39,21 +39,28 @@ const MONTH = 11;
 const PICKED_DAY = 10;
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"];
 
-/** The guest books from Lisbon; the host works in Berlin, one hour ahead. */
-const GUEST_TIMES = ["09:00", "09:30", "10:00", "10:30", "13:00", "13:30"];
-const PICKED_TIME = "10:00";
+/** Guests book from Lisbon; the host works in Berlin, one hour ahead. */
+const GUEST_TIMES = ["10:00", "10:30", "13:00", "13:30", "14:00", "14:30"];
 
-type HostRow = { hour: number; name?: string; picked?: boolean };
-const HOST_DAY: HostRow[] = [
+/** One booking per loop. The host's day fills up, and each taken time leaves the guest's list. */
+const ROUNDS = [
+  { guest: "Leo", time: "10:00", hour: 11 },
+  { guest: "Sam", time: "13:00", hour: 14 },
+  { guest: "Ivy", time: "14:00", hour: 15 },
+] as const;
+type Round = (typeof ROUNDS)[number];
+const LAST_ROUND = ROUNDS.length - 1;
+
+/** The day before anyone uses the link. `""` is the hour the host keeps free. */
+const HOST_DAY: { hour: number; name?: string }[] = [
   { hour: 9, name: "Mia" },
   { hour: 10 },
-  { hour: 11, picked: true },
+  { hour: 11 },
   { hour: 12, name: "" },
   { hour: 13, name: "Noor" },
   { hour: 14 },
   { hour: 15 },
 ];
-const GUEST = "Leo";
 
 function usePrefersReducedMotion(): boolean {
   const [reduced, setReduced] = useState(false);
@@ -67,19 +74,26 @@ function usePrefersReducedMotion(): boolean {
   return reduced;
 }
 
-/** Steps through the beats in a loop while `running`. */
-function useBeat(running: boolean, still: boolean): Step {
-  const [step, setStep] = useState<Step>(STEP.IDLE);
+type Beat = { step: Step; round: number };
+
+/** Steps through the beats while `running`, one round per loop. */
+function useBeat(running: boolean, still: boolean): Beat {
+  const [beat, setBeat] = useState<Beat>({ step: STEP.IDLE, round: 0 });
   useEffect(() => {
     if (still || !running) return;
     const timer = window.setTimeout(
       () =>
-        setStep((current) => (current === LAST_STEP ? STEP.IDLE : current + 1) as Step),
-      BEAT_MS[step],
+        setBeat(({ step, round }) =>
+          step === LAST_STEP
+            ? { step: STEP.IDLE, round: round === LAST_ROUND ? 0 : round + 1 }
+            : { step: (step + 1) as Step, round },
+        ),
+      BEAT_MS[beat.step],
     );
     return () => window.clearTimeout(timer);
-  }, [step, running, still]);
-  return still ? LAST_STEP : step;
+  }, [beat, running, still]);
+  // Held still, the day is shown full.
+  return still ? { step: LAST_STEP, round: LAST_ROUND } : beat;
 }
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -103,7 +117,11 @@ type Targets = Record<
 type Boxes = Partial<Record<keyof Targets, Box>>;
 
 /** Where each target sits in the stage, kept current as the layout reflows. */
-function useBoxes(stage: RefObject<HTMLElement | null>, targets: Targets): Boxes {
+function useBoxes(
+  stage: RefObject<HTMLElement | null>,
+  targets: Targets,
+  round: number,
+): Boxes {
   const [boxes, setBoxes] = useState<Boxes>({});
   const measure = useCallback(() => {
     const element = stage.current;
@@ -116,8 +134,11 @@ function useBoxes(stage: RefObject<HTMLElement | null>, targets: Targets): Boxes
     setBoxes(next);
   }, [stage, targets]);
 
+  // A new round moves the targets: another time, another row.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: round is the trigger
+  useLayoutEffect(measure, [measure, round]);
+
   useLayoutEffect(() => {
-    measure();
     const element = stage.current;
     if (!element) return;
     const observer = new ResizeObserver(measure);
@@ -171,7 +192,7 @@ function Cursor({ step, boxes }: { step: Step; boxes: Boxes }) {
 }
 
 /** The booked block on its way from the guest's pick into the host's day. */
-function Flyer({ step, boxes }: { step: Step; boxes: Boxes }) {
+function Flyer({ step, round, boxes }: { step: Step; round: Round; boxes: Boxes }) {
   const from = boxes.slot;
   const to = boxes.host;
   if (!from || !to) return null;
@@ -190,12 +211,24 @@ function Flyer({ step, boxes }: { step: Step; boxes: Boxes }) {
           : "none",
       }}
     >
-      {GUEST}
+      {round.guest}
     </span>
   );
 }
 
-function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
+function GuestPane({
+  step,
+  round,
+  targets,
+}: {
+  step: Step;
+  round: number;
+  targets: Targets;
+}) {
+  const { time: pickedTime } = ROUNDS[round] as Round;
+  // Times booked in earlier rounds are gone, as they would be on a real page.
+  const taken = new Set<string>(ROUNDS.slice(0, round).map((done) => done.time));
+  const times = GUEST_TIMES.filter((time) => !taken.has(time));
   const days = monthWeeks(YEAR, MONTH, { rows: "fit" }).flat();
   const pickedWeek = Math.floor(
     days.findIndex((cell) => cell.inMonth && cell.day === PICKED_DAY) / 7,
@@ -270,13 +303,13 @@ function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
             Lisbon time
           </p>
           <div className="mt-3 grid flex-1 grid-cols-3 content-start gap-1.5 sm:grid-cols-1">
-            {GUEST_TIMES.map((time, index) => {
-              const picked = timePicked && time === PICKED_TIME;
+            {times.map((time, index) => {
+              const picked = timePicked && time === pickedTime;
               const phase = PHASE_STYLES[dayPhase(Number(time.slice(0, 2)) + 1)];
               return (
                 <span
                   key={`${step >= STEP.DAY}-${time}`}
-                  ref={time === PICKED_TIME ? targets.slot : undefined}
+                  ref={time === pickedTime ? targets.slot : undefined}
                   style={{ animationDelay: `${index * 60}ms` } as CSSProperties}
                   className={cn(
                     "relative flex h-8 items-center justify-center overflow-hidden rounded-md border text-clock text-sm font-medium",
@@ -322,8 +355,17 @@ function GuestPane({ step, targets }: { step: Step; targets: Targets }) {
   );
 }
 
-function HostPane({ step, targets }: { step: Step; targets: Targets }) {
+function HostPane({
+  step,
+  round,
+  targets,
+}: {
+  step: Step;
+  round: number;
+  targets: Targets;
+}) {
   const landed = step >= STEP.BOOKED;
+  const current = ROUNDS[round] as Round;
   return (
     <div className="flex flex-col rounded-2xl border bg-card shadow-card">
       <div className="flex items-baseline justify-between gap-3 border-b px-4 py-2.5">
@@ -333,7 +375,12 @@ function HostPane({ step, targets }: { step: Step; targets: Targets }) {
       <ol className="relative grid gap-1.5 p-4">
         {HOST_DAY.map((row) => {
           const label = `${String(row.hour).padStart(2, "0")}:00`;
-          const name = row.picked ? (landed ? GUEST : undefined) : row.name;
+          // Booked through the link: in an earlier round, or just now.
+          const viaLink = ROUNDS.find(
+            (done, index) =>
+              done.hour === row.hour && (index < round || (index === round && landed)),
+          );
+          const name = viaLink?.guest ?? row.name;
           return (
             <li key={row.hour} className="flex items-center gap-3">
               <span className="w-11 text-clock text-sm text-muted-foreground">
@@ -343,10 +390,11 @@ function HostPane({ step, targets }: { step: Step; targets: Targets }) {
                 <span className="h-9 flex-1 border-t border-dashed self-center" />
               ) : (
                 <span
-                  ref={row.picked ? targets.host : undefined}
+                  ref={row.hour === current.hour ? targets.host : undefined}
                   className={cn(
                     "relative flex h-9 flex-1 items-center rounded-md border px-3 text-sm font-medium",
-                    OPEN_STYLES[dayPhase(row.hour)],
+                    // A booked hour is all block; the open slot's outline would ring it.
+                    name ? "border-transparent" : OPEN_STYLES[dayPhase(row.hour)],
                   )}
                 >
                   {name ? (
@@ -354,14 +402,14 @@ function HostPane({ step, targets }: { step: Step; targets: Targets }) {
                     <span
                       className={cn(
                         "absolute inset-0 flex items-center justify-between rounded-md px-3",
-                        // The new call in dusk; the ones already there stay quiet ink.
-                        row.picked
+                        // Calls booked through the link in dusk; the ones already there stay quiet.
+                        viaLink
                           ? "bg-dusk text-dusk-foreground"
                           : "bg-secondary text-secondary-foreground ring-1 ring-border",
                       )}
                     >
                       {name}
-                      {row.picked ? <GoogleMeetIcon className="size-4" /> : null}
+                      {viaLink ? <GoogleMeetIcon className="size-4" /> : null}
                     </span>
                   ) : (
                     <span className="text-foreground/60">open</span>
@@ -394,8 +442,8 @@ function HostPane({ step, targets }: { step: Step; targets: Targets }) {
 }
 
 /**
- * The landing page's hero: a guest picks a time on Ana's link, and the call
- * lands in Ana's day. Scripted and illustrative, so assistive tech skips it.
+ * The landing page's hero: guests pick times on Ana's link, and each call
+ * lands in Ana's day until it is full. Scripted and illustrative, so assistive tech skips it.
  * It pauses off screen and under the pointer; with reduced motion it is the
  * last frame, held still.
  */
@@ -409,8 +457,8 @@ export function BookingDemo() {
   const [hovered, setHovered] = useState(false);
   const onScreen = useOnScreen(stage);
   const still = usePrefersReducedMotion();
-  const step = useBeat(onScreen && !hovered, still);
-  const boxes = useBoxes(stage, targets);
+  const { step, round } = useBeat(onScreen && !hovered, still);
+  const boxes = useBoxes(stage, targets, round);
 
   return (
     <div
@@ -421,11 +469,11 @@ export function BookingDemo() {
       // Stacked, the panes keep a readable width instead of stretching to the edge.
       className="relative grid max-w-2xl gap-4 select-none lg:max-w-none lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-6"
     >
-      <GuestPane step={step} targets={targets} />
-      <HostPane step={step} targets={targets} />
+      <GuestPane step={step} round={round} targets={targets} />
+      <HostPane step={step} round={round} targets={targets} />
       {still ? null : (
         <>
-          <Flyer step={step} boxes={boxes} />
+          <Flyer step={step} round={ROUNDS[round] as Round} boxes={boxes} />
           <Cursor step={step} boxes={boxes} />
         </>
       )}

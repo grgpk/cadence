@@ -16,6 +16,7 @@ import { ROUTES } from "../../lib/routes";
 import { GoogleCalendarIcon } from "../integrations/google-calendar-icon";
 import { GoogleMeetIcon } from "../integrations/google-meet-icon";
 import { PromiseList } from "../pricing/promises";
+import { ClosingBand } from "../shared/closing-band";
 import { PublicLayout } from "../shared/public-layout";
 import { BookingDemo } from "./booking-demo";
 import { HOW_IT_WORKS_ID } from "./section-ids";
@@ -203,18 +204,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="border-t bg-foreground py-16 text-background sm:py-24">
-        <div
-          className={`${CONTAINER} flex flex-wrap items-center justify-between gap-x-8 gap-y-6`}
-        >
-          <h2 className={`${H2} max-w-2xl`}>Open your week in a few minutes.</h2>
-          {signedIn ? null : (
-            <Button size="lg" variant="secondary" asChild>
-              <Link to={ROUTES.register}>Create your account</Link>
-            </Button>
-          )}
-        </div>
-      </section>
+      <ClosingBand title="Open your week in a few minutes." />
     </PublicLayout>
   );
 }

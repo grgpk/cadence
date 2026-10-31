@@ -8,6 +8,7 @@ import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Button } from "../../components/ui/button";
 import { useSessionUser } from "../../lib/auth";
 import { ROUTES } from "../../lib/routes";
+import { ClosingBand } from "../shared/closing-band";
 import { PublicLayout } from "../shared/public-layout";
 import { SegmentedControl } from "../shared/segmented-control";
 import { CompareTable } from "./compare-table";
@@ -86,7 +87,6 @@ export function PricingPage({
   onChange: (interval: BillingInterval, needs: WeekNeeds, pay: PayMethod) => void;
 }) {
   const pay = cryptoCoins ? asked : PAY.CARD;
-  const signedIn = useSessionUser() !== null;
   // The plan the phone-width table shows: the recommended one until picked by hand.
   const [compared, setCompared] = useState<Plan | null>(null);
   const recommended = recommendPlan(offers, needs);
@@ -258,18 +258,7 @@ export function PricingPage({
         </div>
       </section>
 
-      <section className="border-t bg-foreground text-background">
-        <div className="mx-auto flex max-w-[82rem] flex-wrap items-center justify-between gap-x-8 gap-y-6 px-4 py-16 sm:px-6 sm:py-24">
-          <h2 className="max-w-2xl font-display font-wide text-3xl leading-[1.05] font-bold tracking-tight sm:text-4xl">
-            Try every Pro feature for 14 days.
-          </h2>
-          {signedIn ? null : (
-            <Button size="lg" variant="secondary" asChild>
-              <Link to={ROUTES.register}>Create your account</Link>
-            </Button>
-          )}
-        </div>
-      </section>
+      <ClosingBand title="Try every Pro feature for 14 days." />
     </PublicLayout>
   );
 }

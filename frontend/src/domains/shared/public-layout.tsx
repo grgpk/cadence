@@ -140,8 +140,8 @@ export function PublicLayout({
       </header>
       <main className="flex-1">{children}</main>
       <footer className="border-t">
-        <div className="mx-auto grid max-w-[82rem] gap-10 px-4 py-12 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-16 sm:px-6">
-          <div>
+        <div className="mx-auto grid max-w-[82rem] grid-cols-2 gap-10 px-4 py-12 text-sm sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:gap-16 sm:px-6">
+          <div className="col-span-2 sm:col-span-1">
             <Logo />
             <p className="mt-3 max-w-xs text-muted-foreground">
               One link for people to book a call with you.
