@@ -1,4 +1,4 @@
-import { type ReactNode, useId } from "react";
+import { type ReactNode, useId, useState } from "react";
 
 import type { PlanOffer } from "../../bindings/PlanOffer";
 import { Card } from "../../components/ui/card";
@@ -32,7 +32,16 @@ export function WeekSizer({
   action: ReactNode;
 }) {
   const id = useId();
-  const calls = needs.callsPerWeek;
+  // Held here while a finger drags: writing the address on every step runs a
+  // navigation with a server round trip, and the thumb waits for each one.
+  const [draft, setDraft] = useState<number | null>(null);
+  // The address won (release landed, back button): drop the draft.
+  const [shown, setShown] = useState(needs.callsPerWeek);
+  if (shown !== needs.callsPerWeek) {
+    setShown(needs.callsPerWeek);
+    setDraft(null);
+  }
+  const calls = draft ?? needs.callsPerWeek;
   return (
     <Card className="gap-5 p-5 sm:p-6">
       <h2 id={`${id}-title`} className="text-lg font-semibold">
@@ -52,7 +61,8 @@ export function WeekSizer({
           max={MAX_CALLS_PER_WEEK}
           step={1}
           value={[calls]}
-          onValueChange={([value]) =>
+          onValueChange={([value]) => setDraft(value ?? calls)}
+          onValueCommit={([value]) =>
             onChange({ ...needs, callsPerWeek: value ?? calls })
           }
           aria-labelledby={`${id}-title`}
@@ -92,7 +102,7 @@ export function WeekSizer({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 border-t pt-4">
         <p aria-live="polite" className="max-w-md font-medium">
-          {fitReason(offers, needs)}
+          {fitReason(offers, { ...needs, callsPerWeek: calls })}
         </p>
         {action}
       </div>
