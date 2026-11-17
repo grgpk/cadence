@@ -53,6 +53,8 @@ function PricingRoute() {
           search: searchFor(interval, needs, pay),
           replace: true,
           resetScroll: false,
+          // A view transition overlays the page and cancels a finger dragging the slider.
+          viewTransition: false,
         })
       }
     />
